@@ -17,6 +17,61 @@ jobs:
         with:
           fetch-depth: 0
 
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+        with:
+          version: latest
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'pnpm'
+
+      - name: 🏗️ 构建前端并准备嵌入
+        run: |
+          echo "📦 安装前端依赖..."
+          pnpm install --frozen-lockfile
+          
+          echo "🏗️ 构建前端静态文件..."
+          pnpm build
+          
+          echo "📁 验证构建结果:"
+          ls -la dist/
+          
+          echo "📦 压缩前端文件为 dist.zip..."
+          cd dist && zip -r ../dist.zip . && cd ..
+          
+          echo "📋 复制 dist.zip 到 cmd/server/ 目录..."
+          cp dist.zip cmd/server/
+          
+          echo "🔍 验证文件:"
+          ls -la dist.zip cmd/server/dist.zip
+          echo "✅ 前端构建和嵌入准备完成"
+
+      - name: 🔧 安装CGO交叉编译工具
+        run: |
+          # 更新包管理器
+          sudo apt-get update
+          
+          # 安装 Windows 交叉编译工具
+          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686
+          
+          # 安装 ARM 交叉编译工具
+          sudo apt-get install -y gcc-aarch64-linux-gnu      # ARM64
+          sudo apt-get install -y gcc-arm-linux-gnueabihf    # ARMv7 (hard-float)
+          sudo apt-get install -y gcc-arm-linux-gnueabi      # ARMv6 (soft-float)
+          
+          # 验证编译器安装
+          echo "🔍 验证编译器安装:"
+          x86_64-w64-mingw32-gcc --version | head -1
+          i686-w64-mingw32-gcc --version | head -1
+          aarch64-linux-gnu-gcc --version | head -1
+          arm-linux-gnueabihf-gcc --version | head -1
+          arm-linux-gnueabi-gcc --version | head -1
+          
+          echo "✅ 交叉编译工具安装完成"
+
       - name: Set up Go
         uses: actions/setup-go@v5
         with:

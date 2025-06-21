@@ -8,13 +8,17 @@ import (
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
+	"archive/zip"
 	"context"
 	"database/sql"
+	"embed"
 	"flag"
 	"fmt"
+	"io"
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
@@ -27,11 +31,116 @@ import (
 // Version 会在构建时通过 -ldflags "-X main.Version=xxx" 注入
 var Version = "dev"
 
+//go:embed dist.zip
+var distZip embed.FS
+
+// extractDistIfNeeded 如果当前目录没有 dist 文件夹则解压嵌入的 zip
+func extractDistIfNeeded() error {
+	// 检查 dist 目录是否已存在
+	if _, err := os.Stat("dist"); err == nil {
+		log.Infof("dist 目录已存在，跳过解压")
+		return nil
+	}
+
+	log.Infof("dist 目录不存在，开始解压嵌入的 dist.zip...")
+
+	// 读取嵌入的 zip 文件
+	zipData, err := distZip.ReadFile("dist.zip")
+	if err != nil {
+		return fmt.Errorf("无法读取嵌入的 dist.zip: %v", err)
+	}
+
+	// 创建临时文件
+	tmpFile, err := os.CreateTemp("", "dist-*.zip")
+	if err != nil {
+		return fmt.Errorf("无法创建临时文件: %v", err)
+	}
+	defer os.Remove(tmpFile.Name())
+	defer tmpFile.Close()
+
+	// 写入 zip 数据到临时文件
+	if _, err := tmpFile.Write(zipData); err != nil {
+		return fmt.Errorf("无法写入临时文件: %v", err)
+	}
+	tmpFile.Close()
+
+	// 解压 zip 文件
+	if err := unzip(tmpFile.Name(), "."); err != nil {
+		return fmt.Errorf("解压失败: %v", err)
+	}
+
+	log.Infof("成功解压 dist 目录")
+	return nil
+}
+
+// unzip 解压 zip 文件到指定目录
+func unzip(src, dest string) error {
+	r, err := zip.OpenReader(src)
+	if err != nil {
+		return err
+	}
+	defer r.Close()
+
+	// 创建目标目录
+	os.MkdirAll(dest, 0755)
+
+	// 解压函数
+	extractAndWriteFile := func(f *zip.File) error {
+		rc, err := f.Open()
+		if err != nil {
+			return err
+		}
+		defer rc.Close()
+
+		path := filepath.Join(dest, "dist", f.Name)
+
+		// 检查路径是否安全（防止 zip bomb）
+		destDir := filepath.Join(filepath.Clean(dest), "dist")
+		if !strings.HasPrefix(path, destDir+string(os.PathSeparator)) && path != destDir {
+			return fmt.Errorf("无效的文件路径: %s", f.Name)
+		}
+
+		if f.FileInfo().IsDir() {
+			os.MkdirAll(path, f.FileInfo().Mode())
+			return nil
+		}
+
+		// 创建文件的目录
+		if err := os.MkdirAll(filepath.Dir(path), 0755); err != nil {
+			return err
+		}
+
+		outFile, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_TRUNC, f.FileInfo().Mode())
+		if err != nil {
+			return err
+		}
+		defer outFile.Close()
+
+		_, err = io.Copy(outFile, rc)
+		return err
+	}
+
+	for _, f := range r.File {
+		err := extractAndWriteFile(f)
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
+}
+
 func main() {
 	// 命令行参数处理
 	resetPwdCmd := flag.Bool("resetpwd", false, "重置管理员密码")
 	portFlag := flag.String("port", "", "HTTP 服务端口 (优先级高于环境变量 PORT)，默认 3000")
 	flag.Parse()
+
+	// 解压 dist 目录（如果需要）
+	if err := extractDistIfNeeded(); err != nil {
+		log.Errorf("解压 dist 失败: %v", err)
+		return
+	}
 
 	// 确保public目录存在
 	dbDir := "public"
@@ -105,10 +214,10 @@ func main() {
 	// 注册 API 路由
 	rootRouter.PathPrefix("/api/").Handler(apiRouter)
 
-	// 静态文件服务
+	// 静态文件服务 - 使用解压后的 dist 目录
 	fs := http.FileServer(http.Dir("dist"))
 	rootRouter.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 如果请求路径以 /api/ 开头，交给 API 处理器（理论上不会进入该函数，但保险起见）
+		// 如果请求路径以 /api/ 开头，交给 API 处理器
 		if strings.HasPrefix(r.URL.Path, "/api/") {
 			apiRouter.ServeHTTP(w, r)
 			return

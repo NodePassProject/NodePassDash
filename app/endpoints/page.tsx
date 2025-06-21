@@ -682,7 +682,7 @@ export default function EndpointsPage() {
     <div className="max-w-7xl mx-auto py-6 space-y-6">
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-2 md:gap-0">
         <div className="flex items-center gap-2 md:gap-4">
-          <h1 className="text-2xl font-bold">API 主控管理</h1>
+          <h1 className="text-2xl font-bold">主控管理</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 md:gap-4 mt-2 md:mt-0">
           <Button 

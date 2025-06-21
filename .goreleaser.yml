@@ -143,7 +143,6 @@ archives:
       {{- if .Arm }}hf{{ end }}
     # 包含额外文件到压缩包
     files:
-      - dist/**/*
       - README.md
       - LICENSE
     # 确保二进制文件在根目录，其他文件保持相对路径
@@ -153,16 +152,21 @@ release:
   # 自动检测预发布版本 (包含 alpha, beta, rc 等)
   prerelease: auto
   # 发布名称模板
-  name_template: "NodePass Dashboard {{ .Tag }}"
+  name_template: "NodePassDash {{ .Tag }}"
   # 允许替换已存在的发布
   replace_existing_draft: true
   # 发布说明
   header: |
-    ## NodePass Dashboard {{ .Tag }}
+    ## NodePassDash {{ .Tag }}
     
     ### 🎉 新版本发布
     
-    感谢使用 NodePass Dashboard！本版本支持主流架构和操作系统。
+    感谢使用 NodePassDash！本版本支持主流架构和操作系统。
+    
+    ### ✨ 新特性
+    - **单文件部署**: 前端静态文件已嵌入到二进制文件中，无需外部依赖
+    - **自动解压**: 首次运行时自动解压前端文件到工作目录
+    - **便携性**: 可在任何目录运行，无需额外配置
     
     ### 🏗️ 支持的架构
     - **Linux**: x86_64, ARM64, ARMv7, ARMv6
@@ -180,11 +184,17 @@ release:
     
     ### 🐳 Docker 镜像
     ```bash
-    docker pull ghcr.io/nodepass/nodepass-webui:{{ .Tag }}
+    docker pull docker pull ghcr.io/nodepassproject/nodepassdash:{{ .Tag }}
     ```
     
     ### 🔧 使用说明
     1. 下载对应架构的二进制文件
-    2. 解压后直接运行 `./nodepassdash`
-    3. 默认监听 `http://localhost:3000`
-    4. 首次运行会自动创建管理员账户 
+    2. 解压后直接运行 `./nodepassdash`（无需外部依赖）
+    3. 首次运行会自动解压前端文件到 `dist/` 目录
+    4. 默认监听 `http://localhost:3000`
+    5. 首次运行会自动创建管理员账户
+    
+    ### 📝 部署说明
+    - **单文件部署**: 只需要一个可执行文件即可运行
+    - **自动初始化**: 程序会自动创建所需的文件和目录
+    - **数据持久化**: 数据库文件保存在 `public/sqlite.db` 

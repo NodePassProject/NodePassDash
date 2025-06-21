@@ -73,6 +73,13 @@ func (h *EndpointHandler) HandleCreateEndpoint(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// 对请求数据进行清理和trim处理
+	req.Name = strings.TrimSpace(req.Name)
+	req.URL = strings.TrimSpace(req.URL)
+	req.APIPath = strings.TrimSpace(req.APIPath)
+	req.APIKey = strings.TrimSpace(req.APIKey)
+	req.Color = strings.TrimSpace(req.Color)
+
 	// 验证请求数据
 	if req.Name == "" || req.URL == "" || req.APIPath == "" || req.APIKey == "" {
 		w.WriteHeader(http.StatusBadRequest)
@@ -143,6 +150,12 @@ func (h *EndpointHandler) HandleUpdateEndpoint(w http.ResponseWriter, r *http.Re
 		})
 		return
 	}
+
+	// 对请求数据进行清理和trim处理
+	body.Name = strings.TrimSpace(body.Name)
+	body.URL = strings.TrimSpace(body.URL)
+	body.APIPath = strings.TrimSpace(body.APIPath)
+	body.APIKey = strings.TrimSpace(body.APIKey)
 
 	req := endpoint.UpdateEndpointRequest{
 		ID:      id,
@@ -264,6 +277,7 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 	switch action {
 	case "rename":
 		name, _ := body["name"].(string)
+		name = strings.TrimSpace(name) // 清理和trim处理
 		req := endpoint.UpdateEndpointRequest{
 			ID:     id,
 			Action: "rename",
@@ -365,6 +379,11 @@ func (h *EndpointHandler) HandleTestEndpoint(w http.ResponseWriter, r *http.Requ
 		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "无效请求体"})
 		return
 	}
+
+	// 对请求数据进行清理和trim处理
+	req.URL = strings.TrimSpace(req.URL)
+	req.APIPath = strings.TrimSpace(req.APIPath)
+	req.APIKey = strings.TrimSpace(req.APIKey)
 
 	if req.Timeout <= 0 {
 		req.Timeout = 10000

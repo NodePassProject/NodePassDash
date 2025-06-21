@@ -1,6 +1,6 @@
 "use client";
 
-import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Spinner, Button } from "@heroui/react";
+import { Table, TableHeader, TableColumn, TableBody, TableRow, TableCell, Spinner, Button, Modal, ModalContent, ModalHeader, ModalBody, ModalFooter } from "@heroui/react";
 import { addToast } from "@heroui/toast";
 import { useSearchParams, useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
@@ -37,6 +37,8 @@ export default function RecyclePage(){
   const endpointId = searchParams.get("id");
   const [items,setItems]=useState<RecycleItem[]>([]);
   const [loading,setLoading]=useState(true);
+  const [deleteModalOpen, setDeleteModalOpen] = useState(false);
+  const [itemToDelete, setItemToDelete] = useState<{id: number, name: string} | null>(null);
 
   const fetchData = useCallback(async()=>{
     if(!endpointId) return;
@@ -69,16 +71,23 @@ export default function RecyclePage(){
     });
   };
 
-  const handleDelete = async (recycleId:number)=>{
-    if(!endpointId) return;
+  const openDeleteModal = (item: RecycleItem) => {
+    setItemToDelete({id: item.id, name: item.name});
+    setDeleteModalOpen(true);
+  };
+
+  const handleDelete = async ()=>{
+    if(!endpointId || !itemToDelete) return;
     try{
-      const res = await fetch(buildApiUrl(`/api/endpoints/${endpointId}/recycle/${recycleId}`),{method:"DELETE"});
+      const res = await fetch(buildApiUrl(`/api/endpoints/${endpointId}/recycle/${itemToDelete.id}`),{method:"DELETE"});
       const data = await res.json();
       if(!res.ok || data.error){
         throw new Error(data.error||"删除失败");
       }
       addToast({title:"删除成功",description:"记录已清空",color:"success"});
       fetchData();
+      setDeleteModalOpen(false);
+      setItemToDelete(null);
     }catch(e){
       console.error(e);
       addToast({title:"删除失败",description: e instanceof Error? e.message: "未知错误",color:"danger"});
@@ -149,7 +158,7 @@ export default function RecyclePage(){
                             size="sm"
                             color="danger"
                             variant="light"
-                            onPress={() => handleDelete(item.id)}
+                            onPress={() => openDeleteModal(item)}
                           >
                             <FontAwesomeIcon icon={faTrash} className="text-xs" />
                           </Button>
@@ -257,6 +266,43 @@ export default function RecyclePage(){
           </>
         </TableBody>
       </Table>
+
+      {/* 删除确认模态框 */}
+      <Modal 
+        isOpen={deleteModalOpen} 
+        onClose={() => {
+          setDeleteModalOpen(false);
+          setItemToDelete(null);
+        }}
+        size="sm"
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            确认删除
+          </ModalHeader>
+          <ModalBody>
+            <p>确定要永久删除隧道 <span className="font-semibold text-danger">"{itemToDelete?.name}"</span> 吗？</p>
+            <p className="text-sm text-default-500">此操作不可撤销，该记录将被永久清空。</p>
+          </ModalBody>
+          <ModalFooter>
+            <Button 
+              variant="light" 
+              onPress={() => {
+                setDeleteModalOpen(false);
+                setItemToDelete(null);
+              }}
+            >
+              取消
+            </Button>
+            <Button 
+              color="danger" 
+              onPress={handleDelete}
+            >
+              确认删除
+            </Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   );
 } 
