@@ -184,7 +184,7 @@ release:
     
     ### 🐳 Docker 镜像
     ```bash
-    docker pull docker pull ghcr.io/nodepassproject/nodepassdash:{{ .Tag }}
+    docker pull ghcr.io/nodepassproject/nodepassdash:{{ .Tag }}
     ```
     
     ### 🔧 使用说明
