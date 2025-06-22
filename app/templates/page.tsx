@@ -570,11 +570,11 @@ export default function TemplatesPage() {
           </div>
           
         {/* 节点表单 - 垂直居中对齐icon，宽度相等，顶部对齐 */}
-        <div className="w-full max-w-[280px] bg-white border border-gray-200 rounded-lg shadow-sm p-3">
+        <div className="w-full max-w-[280px] bg-default-50/80 dark:bg-default-100/20 border border-default-200 dark:border-default-300/30 rounded-lg shadow-sm p-3">
           <div className="space-y-3">
               {formFields.map((field, fieldIndex) => (
                 <div key={fieldIndex}>
-                <label className="block text-xs font-medium text-gray-700 mb-1">
+                <label className="block text-xs font-medium text-default-700 dark:text-default-700 mb-1">
                   {field.label}
                 </label>
                 
@@ -582,7 +582,7 @@ export default function TemplatesPage() {
                   <select
                     value={field.value}
                     onChange={(e) => updateField(field.key, e.target.value)}
-                    className="w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                    className="w-full px-2 py-1.5 text-sm border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-700 dark:text-black focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500"
                   >
                     <option value="">{field.placeholder}</option>
                       {field.options?.map((option) => (
@@ -602,9 +602,9 @@ export default function TemplatesPage() {
                       value={field.value}
                       onChange={(e) => updateField(field.key, e.target.value)}
                     readOnly={field.key === 'accessInfo' || field.type === 'readonly'}
-                    className={`w-full px-2 py-1.5 text-sm border border-gray-300 rounded focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 ${
+                    className={`w-full px-2 py-1.5 text-sm border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-700 dark:text-black placeholder-default-400 dark:placeholder-default-500 focus:outline-none focus:ring-2 focus:ring-primary-500 focus:border-primary-500 ${
                       field.key === 'accessInfo' || field.type === 'readonly' 
-                        ? 'bg-gray-50 cursor-not-allowed' 
+                        ? 'bg-default-100 dark:bg-default-800/50 cursor-not-allowed' 
                         : ''
                     }`}
                     />
@@ -678,16 +678,16 @@ export default function TemplatesPage() {
                  
                  {/* 双端转发和内网穿透的连接池配置 */}
                  {(selectedMode === 'double' || selectedMode === 'intranet') && (
-                   <div className="bg-blue-50 border-2 border-blue-200 rounded-lg p-2 shadow-sm mt-2" style={{ width: '120px' }}>
+                   <div className="bg-primary-50 dark:bg-primary-100/20 border-2 border-primary-200 dark:border-primary-300/30 rounded-lg p-2 shadow-sm mt-2" style={{ width: '120px' }}>
                      <div className="flex items-center gap-1 mb-2">
-                       <FontAwesomeIcon icon={faGear} className="text-blue-600 text-xs" />
-                       <span className="text-xs font-medium text-blue-800">
+                       <FontAwesomeIcon icon={faGear} className="text-primary-600 dark:text-primary-400 text-xs" />
+                       <span className="text-xs font-medium text-primary-800 dark:text-primary-300">
                          {selectedMode === 'double' ? '连接配置' : '连接配置'}
                        </span>
                      </div>
                      <div className="space-y-1">
                        <div>
-                         <label className="block text-xs text-gray-700 mb-1">
+                         <label className="block text-xs text-default-700 dark:text-default-200 mb-1">
                            {selectedMode === 'double' ? '连接端口' : '连接端口'}
                          </label>
                          <input
@@ -695,16 +695,16 @@ export default function TemplatesPage() {
                            value={formData.connectionPort}
                            onChange={(e) => updateField('connectionPort', e.target.value)}
                            placeholder="10101"
-                           className="w-full px-1 py-1 text-xs border border-gray-300 rounded"
+                           className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-black placeholder-default-400 dark:placeholder-default-500"
                          />
                        </div>
                        
                        <div>
-                         <label className="block text-xs text-gray-700 mb-1">TLS</label>
+                         <label className="block text-xs text-default-700 dark:text-default-200 mb-1">TLS</label>
                          <select 
                            value={formData.tlsLevel}
                            onChange={(e) => updateField('tlsLevel', e.target.value)}
-                           className="w-full px-1 py-1 text-xs border border-gray-300 rounded"
+                           className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-black"
                          >
                            {tlsLevels.map((level) => (
                              <option key={level.value} value={level.value}>
@@ -718,23 +718,23 @@ export default function TemplatesPage() {
                        {formData.tlsLevel === '2' && (
                          <>
                            <div>
-                             <label className="block text-xs text-gray-700 mb-1">证书路径</label>
+                             <label className="block text-xs text-default-700 dark:text-default-200 mb-1">证书路径</label>
                              <input
                                type="text"
                                value={formData.certPath}
                                onChange={(e) => updateField('certPath', e.target.value)}
                                placeholder="/path/to/cert.pem"
-                               className="w-full px-1 py-1 text-xs border border-gray-300 rounded"
+                               className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-white placeholder-default-400 dark:placeholder-default-500"
                              />
                            </div>
                            <div>
-                             <label className="block text-xs text-gray-700 mb-1">密钥路径</label>
+                             <label className="block text-xs text-default-700 dark:text-default-200 mb-1">密钥路径</label>
                              <input
                                type="text"
                                value={formData.keyPath}
                                onChange={(e) => updateField('keyPath', e.target.value)}
                                placeholder="/path/to/key.pem"
-                               className="w-full px-1 py-1 text-xs border border-gray-300 rounded"
+                               className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-white placeholder-default-400 dark:placeholder-default-500"
                              />
                            </div>
                          </>
@@ -1000,10 +1000,10 @@ export default function TemplatesPage() {
           </div>
           
           {showPreview && (
-            <Card className="bg-gray-900">
+            <Card className="bg-default-900 dark:bg-default-100/10">
               <CardBody className="p-4">
-                <div className="text-gray-400 text-sm mb-2"># 生成的NodePass命令:</div>
-                <div className="text-green-400 font-mono text-sm break-all">{generateCommand()}</div>
+                <div className="text-default-400 dark:text-default-500 text-sm mb-2"># 生成的NodePass命令:</div>
+                <div className="text-success-400 dark:text-success-300 font-mono text-sm break-all">{generateCommand()}</div>
               </CardBody>
             </Card>
           )}
