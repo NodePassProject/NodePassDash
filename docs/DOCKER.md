@@ -1,6 +1,10 @@
 # 🐳 NodePassDash Docker 部署指南
 
-> NodePassDash 提供了完整的 Docker 化解决方案，支持快速部署和一键启动。
+> **⚠️ v2.0.0 重大版本升级通知**  
+> **本版本采用全新的 Go 后端架构，带来显著的性能提升！**  
+> **升级前请务必备份好你的数据文件和配置。**
+
+NodePassDash v2.0.0 提供了完整的 Docker 化解决方案，基于高性能 Go 后端，支持快速部署和一键启动。
 
 
 #### 📋 初始化流程
@@ -31,7 +35,14 @@ docker logs nodepassdash | grep -A 6 "系统初始化完成"
 
 - **密码修改**: 请在首次登录后立即修改管理员密码
 - **密码保存**: 初始密码仅显示一次，请务必及时保存
-- **重置说明**: 如果错过初始密码，需要删除数据库文件并
+- **密码重置**: 如果忘记密码，可以使用 `--reset-pwd` 命令重置：
+  ```bash
+  # Docker 容器中重置密码
+  docker exec -it nodepassdash ./nodepassdash --reset-pwd
+  
+  # 或停止容器后手动运行
+  docker run --rm -v ./public:/app/public ghcr.io/nodepassproject/nodepassdash:latest ./nodepassdash --reset-pwd
+  ```
 
 ### 方式一：使用预构建镜像（推荐）
 
@@ -83,30 +94,53 @@ wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-
 docker compose up -d
 ```
 ### 方式二：使用 Docker 命令启动
-- 最简单一条指令
+
+#### 基础启动
 ```bash
+# 最简单一条指令
 docker run -itd \
   --name nodepassdash \
   -p 3000:3000 \
   ghcr.io/nodepassproject/nodepassdash:latest
 ```
 
-- 如果要挂载日志和数据目录，可以使用如下命令
-
+#### 完整配置启动
 ```bash
-# 1. 拉取镜像
+# 1. 拉取最新镜像
 docker pull ghcr.io/nodepassproject/nodepassdash:latest
 
 # 2. 创建必要目录
 mkdir -p logs public && chmod 777 logs public
 
-# 3. 启动容器
+# 3. 启动容器（支持自定义端口）
 docker run -d \
   --name nodepassdash \
   -p 3000:3000 \
   -v ./logs:/app/logs \
   -v ./public:/app/public \
-  ghcr.io/nodepassproject/nodepassdash:latest
+  ghcr.io/nodepassproject/nodepassdash:latest \
+  ./nodepassdash --port 3000
+
+# 4. 自定义端口启动示例
+docker run -d \
+  --name nodepassdash \
+  -p 8080:8080 \
+  -v ./logs:/app/logs \
+  -v ./public:/app/public \
+  ghcr.io/nodepassproject/nodepassdash:latest \
+  ./nodepassdash --port 8080
+```
+
+#### 管理命令
+```bash
+# 重置管理员密码
+docker exec -it nodepassdash ./nodepassdash --reset-pwd
+
+# 查看容器日志
+docker logs -f nodepassdash
+
+# 进入容器调试
+docker exec -it nodepassdash sh
 ```
 
 当发现ipv6不可用时，参考如下：
@@ -177,6 +211,19 @@ SQLite 数据库文件存储在 `public/sqlite.db`，通过 Docker 卷挂载实�
 ```yaml
 volumes:
   - ./public:/app/public  # SQLite 数据库文件
+  - ./logs:/app/logs      # 应用日志文件
+```
+
+### 环境变量配置
+
+支持通过环境变量自定义配置：
+```yaml
+services:
+  nodepassdash:
+    image: ghcr.io/nodepassproject/nodepassdash:latest
+    environment:
+      - PORT=3000                    # 自定义端口
+    command: ["./nodepassdash", "--port", "3000"]
 ```
 
 ## 🐛 故障排除
@@ -209,8 +256,33 @@ docker-compose logs -f nodepassdash
 # 进入容器调试
 docker exec -it nodepassdash sh
 
-# 检查 Prisma 状态
-docker exec -it nodepassdash pnpm exec prisma migrate status
+# 检查 Go 后端状态
+docker exec -it nodepassdash ps aux | grep nodepassdash
+```
+
+#### 4. 忘记管理员密码
+```bash
+# 方法一：在运行中的容器内重置
+docker exec -it nodepassdash ./nodepassdash --reset-pwd
+
+# 方法二：停止容器后重置（推荐）
+docker stop nodepassdash
+docker run --rm -v ./public:/app/public ghcr.io/nodepassproject/nodepassdash:latest ./nodepassdash --reset-pwd
+docker start nodepassdash
+```
+
+#### 5. 端口冲突解决
+```bash
+# 检查端口占用
+netstat -tulpn | grep :3000
+
+# 使用自定义端口启动
+docker run -d \
+  --name nodepassdash \
+  -p 8080:8080 \
+  -v ./public:/app/public \
+  ghcr.io/nodepassproject/nodepassdash:latest \
+  ./nodepassdash --port 8080
 ```
 
 ### 日志查看
@@ -230,8 +302,6 @@ docker-compose logs -f nodepassdash
 - 内存: 512MB
 - 磁盘空间: 2GB
 - Docker 版本: 20.10.0 或更高
-
-> 💡 **注意**：镜像大小约 1.3GB，请确保有足够的磁盘空间用于下载和运行。
 
 ## 🛡️ 安全建议
 
@@ -335,15 +405,26 @@ networks:
 * 使用 CDN 时需正确配置 X-Forwarded-* 头部
 
 ### 💾 数据备份
+
+> **⚠️ v2.0.0 升级重要提醒**  
+> 升级到 v2.0.0 前，**强烈建议**备份你的数据！新版本的数据库结构有所调整。
+
 ```bash
-# 备份 SQLite 数据库
+# 升级前的完整备份
 docker-compose stop nodepassdash  # 停止服务以确保数据一致性
-cp public/sqlite.db public/sqlite.db.backup
+
+# 备份整个 public 目录（包含数据库和配置文件）
+tar -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz public/
+
+# 仅备份 SQLite 数据库
+cp public/sqlite.db public/sqlite.db.backup-$(date +%Y%m%d-%H%M%S)
+
+# 启动新版本
 docker-compose start nodepassdash
 
-# 恢复数据库
+# 恢复数据库（如果需要回滚）
 docker-compose stop nodepassdash
-cp public/sqlite.db.backup public/sqlite.db
+cp public/sqlite.db.backup-YYYYMMDD-HHMMSS public/sqlite.db
 docker-compose start nodepassdash
 ```
 

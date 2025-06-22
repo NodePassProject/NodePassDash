@@ -14,7 +14,7 @@
 
 # production
 /build
-
+cmd/server/dist.zip
 # misc
 .DS_Store
 *.pem
