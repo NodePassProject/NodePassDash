@@ -17,6 +17,7 @@ import { useAuth } from '@/app/components/auth-provider';
 import { addToast } from "@heroui/toast";
 import { Icon } from "@iconify/react";
 import { buildApiUrl } from '@/lib/utils';
+import { Footer } from '@/components/layout/footer';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -86,93 +87,99 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-default-100 p-4">
-      <motion.div
-        initial={{ opacity: 0, y: 20 }}
-        animate={{ opacity: 1, y: 0 }}
-        transition={{ duration: 0.5 }}
-        className="w-full max-w-md"
-      >
-        <Card className="shadow-2xl">
-          <CardHeader className="flex flex-col gap-1 items-center pb-6 pt-8">
-            <motion.div
-              initial={{ scale: 0 }}
-              animate={{ scale: 1 }}
-              transition={{ delay: 0.2, type: "spring" }}
-              className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-4"
-            >
-              <FontAwesomeIcon icon={faLock} className="text-primary-foreground text-2xl" />
-            </motion.div>
-            <h1 className="text-2xl font-bold text-foreground">NodePassDash</h1>
-            <p className="text-small text-default-500">请输入您的登录凭据</p>
-          </CardHeader>
-          
-          <CardBody className="px-8 pb-8">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="p-3 bg-danger-50 border border-danger-200 rounded-lg"
-                >
-                  <p className="text-danger text-small">{error}</p>
-                </motion.div>
-              )}
-              
-              <div className="space-y-4">
-                <Input
-                  type="text"
-                  label="用户名"
-                  placeholder="请输入用户名"
-                  value={formData.username}
-                  onValueChange={handleInputChange('username')}
-                  startContent={
-                    <FontAwesomeIcon icon={faUser} className="text-default-400" />
-                  }
-                  isRequired
-                  variant="bordered"
-                />
-                
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  label="密码"
-                  placeholder="请输入密码"
-                  value={formData.password}
-                  onValueChange={handleInputChange('password')}
-                  startContent={
-                    <FontAwesomeIcon icon={faLock} className="text-default-400" />
-                  }
-                  endContent={
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="focus:outline-none"
-                    >
-                      <FontAwesomeIcon 
-                        icon={showPassword ? faEyeSlash : faEye} 
-                        className="text-default-400 hover:text-default-600 transition-colors"
-                      />
-                    </button>
-                  }
-                  isRequired
-                  variant="bordered"
-                />
-              </div>
-              
-              <Button
-                type="submit"
-                color="primary"
-                size="lg"
-                className="w-full font-semibold"
-                isLoading={isLoading}
-                disabled={!formData.username || !formData.password}
+    <div className="min-h-screen flex flex-col bg-gradient-to-br from-background to-default-100">
+      {/* 主要内容区域 */}
+      <div className="flex-1 flex items-center justify-center p-4">
+        <motion.div
+          initial={{ opacity: 0, y: 20 }}
+          animate={{ opacity: 1, y: 0 }}
+          transition={{ duration: 0.5 }}
+          className="w-full max-w-md"
+        >
+          <Card className="shadow-2xl">
+            <CardHeader className="flex flex-col gap-1 items-center pb-6 pt-8">
+              <motion.div
+                initial={{ scale: 0 }}
+                animate={{ scale: 1 }}
+                transition={{ delay: 0.2, type: "spring" }}
+                className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-4"
               >
-                {isLoading ? '登录中...' : '登录'}
-              </Button>
-            </form>
-          </CardBody>
-        </Card>
-      </motion.div>
+                <FontAwesomeIcon icon={faLock} className="text-primary-foreground text-2xl" />
+              </motion.div>
+              <h1 className="text-2xl font-bold text-foreground">NodePassDash</h1>
+              <p className="text-small text-default-500">请输入您的登录凭据</p>
+            </CardHeader>
+            
+            <CardBody className="px-8 pb-8">
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="p-3 bg-danger-50 border border-danger-200 rounded-lg"
+                  >
+                    <p className="text-danger text-small">{error}</p>
+                  </motion.div>
+                )}
+                
+                <div className="space-y-4">
+                  <Input
+                    type="text"
+                    label="用户名"
+                    placeholder="请输入用户名"
+                    value={formData.username}
+                    onValueChange={handleInputChange('username')}
+                    startContent={
+                      <FontAwesomeIcon icon={faUser} className="text-default-400" />
+                    }
+                    isRequired
+                    variant="bordered"
+                  />
+                  
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    label="密码"
+                    placeholder="请输入密码"
+                    value={formData.password}
+                    onValueChange={handleInputChange('password')}
+                    startContent={
+                      <FontAwesomeIcon icon={faLock} className="text-default-400" />
+                    }
+                    endContent={
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="focus:outline-none"
+                      >
+                        <FontAwesomeIcon 
+                          icon={showPassword ? faEyeSlash : faEye} 
+                          className="text-default-400 hover:text-default-600 transition-colors"
+                        />
+                      </button>
+                    }
+                    isRequired
+                    variant="bordered"
+                  />
+                </div>
+                
+                <Button
+                  type="submit"
+                  color="primary"
+                  size="lg"
+                  className="w-full font-semibold"
+                  isLoading={isLoading}
+                  disabled={!formData.username || !formData.password}
+                >
+                  {isLoading ? '登录中...' : '登录'}
+                </Button>
+              </form>
+            </CardBody>
+          </Card>
+        </motion.div>
+      </div>
+      
+      {/* 页脚 */}
+      <Footer />
     </div>
   );
 } 

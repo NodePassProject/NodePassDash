@@ -4,6 +4,9 @@
 # ========= 前端构建阶段 =========
 FROM node:20-alpine AS frontend-builder
 
+# 安装必要工具（包括 zip）
+RUN apk add --no-cache zip
+
 # 使用 corepack 预装 pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
@@ -18,6 +21,12 @@ COPY . .
 
 # 运行构建脚本，生成静态文件到 dist/
 RUN pnpm build
+
+# 📦 压缩前端文件为 dist.zip（Go embed 需要）
+RUN cd dist && zip -r ../dist.zip . && cd ..
+
+# 📋 复制 dist.zip 到 cmd/server/ 目录（Go embed 需要）
+RUN cp dist.zip cmd/server/
 
 # 清理 dev 依赖，减少后续镜像体积
 RUN pnpm prune --prod
@@ -44,8 +53,8 @@ ENV CGO_ENABLED=1
 RUN go build -ldflags "-s -w -X main.Version=${VERSION}" -o nodepassdash ./cmd/server
 
 # ========= 运行阶段 =========
-ARG VERSION=dev
 FROM alpine:latest
+ARG VERSION=dev
 LABEL org.opencontainers.image.version=$VERSION
 ENV APP_VERSION=$VERSION
 WORKDIR /app
