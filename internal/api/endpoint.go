@@ -209,7 +209,9 @@ func (h *EndpointHandler) HandleDeleteEndpoint(w http.ResponseWriter, r *http.Re
 		log.Infof("[Master-%v] 已断开 SSE 监听", id)
 	}
 
+	log.Infof("[Master-%v] 开始删除端点数据", id)
 	if err := h.endpointService.DeleteEndpoint(id); err != nil {
+		log.Errorf("[Master-%v] 删除端点失败: %v", id, err)
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
 			Success: false,

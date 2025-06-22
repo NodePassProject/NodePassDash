@@ -253,13 +253,7 @@ func (s *Service) DeleteEndpoint(id int64) error {
 		return err
 	}
 
-	// 3) 删除回收站
-	res, err = tx.Exec(`DELETE FROM "TunnelRecycle" WHERE endpointId = ?`, id)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-
+	// 检查端点是否存在
 	affected, err := res.RowsAffected()
 	if err != nil {
 		tx.Rollback()
@@ -268,6 +262,13 @@ func (s *Service) DeleteEndpoint(id int64) error {
 	if affected == 0 {
 		tx.Rollback()
 		return errors.New("端点不存在")
+	}
+
+	// 4) 删除回收站（不检查影响行数，因为可能没有回收站记录）
+	_, err = tx.Exec(`DELETE FROM "TunnelRecycle" WHERE endpointId = ?`, id)
+	if err != nil {
+		tx.Rollback()
+		return err
 	}
 
 	return tx.Commit()
