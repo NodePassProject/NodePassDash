@@ -9,15 +9,6 @@ NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + Nex
 > 
 > ***升级前请务必备份好你的数据！*** 新版本支持数据迁移，但建议在安全的环境中先进行测试。
 
-<div style="display: flex; align-items: center; gap: 12px;">
-  <a href="https://dash.nodepass.eu/">
-    <img src="https://img.shields.io/badge/点击体验_Demo-000?style=for-the-badge&logo=heroui&logoColor=white&labelColor=000" alt="Deploy to NodePassDash">
-  </a>
-  <span><strong>演示账号：</strong> <code>nodepass</code> / <code>np123456</code></span>
-</div>
-
-> ⚠️ **重要提醒：演示环境，请勿更改密码，请勿填写任何敏感信息** 
-
 ## ✨ 主要特性
 
 - 🚀 **高性能 Go 后端**: 完全重构的 Go 后端，性能提升 300%+，内存占用降低 60%
@@ -51,10 +42,15 @@ NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + Nex
 ```
 
 ## ⚡️ 快速开始
-  
 
+<div style="display: flex; align-items: center; gap: 12px;">
+  <a href="https://dash.nodepass.eu/">
+    <img src="https://img.shields.io/badge/点击体验_Demo-000?style=for-the-badge&logo=heroui&logoColor=white&labelColor=000" alt="Deploy to NodePassDash">
+  </a>
+  <span><strong>演示账号：</strong> <code>nodepass</code> / <code>np123456</code></span>
+</div>
 
-
+> ⚠️ **重要提醒：演示环境，请勿更改密码，请勿填写任何敏感信息**
 
 我们提供三种部署方式，请根据你的需求选择：
 
