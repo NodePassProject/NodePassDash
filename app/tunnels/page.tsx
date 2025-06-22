@@ -17,7 +17,12 @@ import {
   TableHeader,
   TableRow,
   useDisclosure,
-  Input
+  Input,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
+  ButtonGroup
 } from "@heroui/react";
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
@@ -28,7 +33,14 @@ import {
   faPlay, 
   faTrash,
   faRotateRight,
-  faPen
+  faPen,
+  faPlus,
+  faRocket,
+  faLayerGroup,
+  faCopy,
+  faSearch,
+  faChevronDown,
+  faBolt
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { Box, Flex } from "@/components";
@@ -37,6 +49,7 @@ import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
 import { buildApiUrl } from '@/lib/utils';
 import QuickCreateTunnelModal from "./components/quick-create-tunnel-modal";
+import BatchCreateModal from "./components/batch-create-modal";
 
 // 定义实例类型
 interface Tunnel {
@@ -86,6 +99,7 @@ export default function TunnelsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
+  const [endpointsLoading, setEndpointsLoading] = useState(true);
 
   // 是否移入回收站
   const [moveToRecycle, setMoveToRecycle] = useState(false);
@@ -93,6 +107,12 @@ export default function TunnelsPage() {
   // 编辑模态控制
   const [editModalOpen,setEditModalOpen]=useState(false);
   const [editTunnel,setEditTunnel]=useState<Tunnel|null>(null);
+
+  // 批量创建模态控制
+  const [batchCreateOpen, setBatchCreateOpen] = useState(false);
+
+  // 快建实例模态控制
+  const [quickCreateOpen, setQuickCreateOpen] = useState(false);
 
   // 获取实例列表
   const fetchTunnels = async () => {
@@ -117,7 +137,8 @@ export default function TunnelsPage() {
   // 获取主控列表
   const fetchEndpoints = async () => {
     try {
-      const response = await fetch(buildApiUrl('/api/endpoints'));
+      setEndpointsLoading(true);
+      const response = await fetch(buildApiUrl('/api/endpoints/simple'));
       if (!response.ok) throw new Error('获取主控列表失败');
       const data = await response.json();
       setEndpoints(data);
@@ -128,7 +149,24 @@ export default function TunnelsPage() {
         description: '获取主控列表失败',
         color: 'danger'
       });
+    } finally {
+      setEndpointsLoading(false);
     }
+  };
+
+  // 状态选项
+  const statusOptions = [
+    { label: "所有状态", value: "all" },
+    { label: "运行中", value: "running" },
+    { label: "已停止", value: "stopped" },
+    { label: "错误", value: "error" },
+  ];
+
+  // 获取选中主控名称
+  const getSelectedEndpointName = () => {
+    if (endpointFilter === "all") return "所有主控";
+    const endpoint = endpoints.find(ep => String(ep.id) === String(endpointFilter));
+    return endpoint ? endpoint.name : "所有主控";
   };
 
   // 处理实例操作
@@ -198,6 +236,7 @@ export default function TunnelsPage() {
   // 初始加载
   React.useEffect(() => {
     fetchTunnels();
+    fetchEndpoints();
   }, []);
 
   const columns = [
@@ -532,6 +571,55 @@ export default function TunnelsPage() {
   return (
     <>
       <div className="p-4 md:p-0">
+        {/* 顶部快捷操作按钮区域 */}
+        <div className="mb-4">
+          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+            {/* 创建实例按钮 */}
+            <Button
+              size="lg"
+              color="primary"
+              className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+              onClick={() => router.push('/tunnels/create')}
+            >
+              <FontAwesomeIcon icon={faPlus} className="text-sm" />
+              <span className="text-sm">创建实例</span>
+            </Button>
+
+            {/* 快建实例按钮 */}
+            <Button
+              size="lg"
+              color="success"
+              className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+              onClick={() => setQuickCreateOpen(true)}
+            >
+              <FontAwesomeIcon icon={faRocket} className="text-sm" />
+              <span className="text-sm">快建实例</span>
+            </Button>
+
+            {/* 场景创建按钮 */}
+            <Button
+              size="lg"
+              color="secondary"
+              className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+              onClick={() => router.push('/templates')}
+            >
+              <FontAwesomeIcon icon={faLayerGroup} className="text-sm" />
+              <span className="text-sm">场景创建</span>
+            </Button>
+
+            {/* 批量创建按钮 */}
+            <Button
+              size="lg"
+              color="warning"
+              className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+              onClick={() => setBatchCreateOpen(true)}
+            >
+              <FontAwesomeIcon icon={faCopy} className="text-sm" />
+              <span className="text-sm">批量创建</span>
+            </Button>
+          </div>
+        </div>
+
         <Flex direction="col" className="border border-default-200 rounded-lg transition-all duration-300 hover:shadow-sm">
           <TunnelToolBox 
             filterValue={filterValue}
@@ -918,6 +1006,20 @@ export default function TunnelsPage() {
           onSaved={()=>{ setEditModalOpen(false); fetchTunnels(); }}
         />
       )}
+
+      {/* 快建实例模态框 */}
+      <QuickCreateTunnelModal
+        isOpen={quickCreateOpen}
+        onOpenChange={setQuickCreateOpen}
+        onSaved={() => { setQuickCreateOpen(false); fetchTunnels(); }}
+      />
+
+      {/* 批量创建模态框 */}
+      <BatchCreateModal
+        isOpen={batchCreateOpen}
+        onOpenChange={setBatchCreateOpen}
+        onSaved={() => { setBatchCreateOpen(false); fetchTunnels(); }}
+      />
     </>
   );
 } 
