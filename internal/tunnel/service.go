@@ -423,12 +423,14 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		return nil, err
 	}
 
-	return &Tunnel{
+	// 返回创建的隧道
+	tunnel := &Tunnel{
 		ID:            existingID,
 		InstanceID:    instanceID,
 		Name:          req.Name,
 		EndpointID:    req.EndpointID,
 		Mode:          TunnelMode(req.Mode),
+		Status:        TunnelStatus(remoteStatus),
 		TunnelAddress: req.TunnelAddress,
 		TunnelPort:    req.TunnelPort,
 		TargetAddress: req.TargetAddress,
@@ -438,12 +440,14 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		KeyPath:       req.KeyPath,
 		LogLevel:      req.LogLevel,
 		CommandLine:   commandLine,
-		Status:        TunnelStatus(remoteStatus),
-		CreatedAt:     now,
-		UpdatedAt:     now,
 		Min:           req.Min,
 		Max:           req.Max,
-	}, nil
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+
+	log.Infof("[API] 隧道创建成功: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, tunnel.InstanceID)
+	return tunnel, nil
 }
 
 // DeleteTunnel 删除隧道
@@ -1004,4 +1008,171 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string
 	}
 	_, err := s.CreateTunnel(req)
 	return err
+}
+
+// BatchCreateTunnels 批量创建隧道
+func (s *Service) BatchCreateTunnels(req BatchCreateTunnelRequest) (*BatchCreateTunnelResponse, error) {
+	log.Infof("[API] 开始批量创建隧道，共 %d 个项目", len(req.Items))
+
+	if len(req.Items) == 0 {
+		return &BatchCreateTunnelResponse{
+			Success: false,
+			Error:   "批量创建项目不能为空",
+		}, nil
+	}
+
+	// 预先查询所有涉及的endpoint信息，减少重复查询
+	endpointMap := make(map[int64]struct {
+		URL     string
+		APIPath string
+		APIKey  string
+		Name    string
+	})
+
+	for _, item := range req.Items {
+		if _, exists := endpointMap[item.EndpointID]; !exists {
+			var url, apiPath, apiKey, name string
+			err := s.db.QueryRow(
+				"SELECT url, apiPath, apiKey, name FROM \"Endpoint\" WHERE id = ?",
+				item.EndpointID,
+			).Scan(&url, &apiPath, &apiKey, &name)
+			if err != nil {
+				if err == sql.ErrNoRows {
+					log.Errorf("[API] 批量创建: 端点 %d 不存在", item.EndpointID)
+					continue // 跳过不存在的端点，在结果中标记为失败
+				}
+				log.Errorf("[API] 批量创建: 查询端点 %d 失败: %v", item.EndpointID, err)
+				continue
+			}
+			endpointMap[item.EndpointID] = struct {
+				URL     string
+				APIPath string
+				APIKey  string
+				Name    string
+			}{url, apiPath, apiKey, name}
+		}
+	}
+
+	results := make([]BatchCreateResult, len(req.Items))
+	successCount := 0
+	failCount := 0
+
+	// 逐个创建隧道实例
+	for i, item := range req.Items {
+		log.Infof("[API] 批量创建进度: %d/%d - 端点 %d, 端口 %d → %s:%d",
+			i+1, len(req.Items), item.EndpointID, item.InboundsPort, item.OutboundHost, item.OutboundPort)
+
+		result := BatchCreateResult{Index: i}
+
+		// 检查端点是否存在
+		_, exists := endpointMap[item.EndpointID]
+		if !exists {
+			result.Success = false
+			result.Error = fmt.Sprintf("端点 %d 不存在", item.EndpointID)
+			results[i] = result
+			failCount++
+			continue
+		}
+
+		// 生成隧道名称（使用时间戳避免重复）
+		tunnelName := fmt.Sprintf("批量实例-%d", item.InboundsPort)
+
+		// 如果用户提供了自定义名称，则使用自定义名称
+		if item.Name != "" {
+			tunnelName = item.Name
+		}
+
+		// 检查隧道名称是否重复，如果重复则添加后缀
+		var nameExists bool
+		originalName := tunnelName
+		suffix := 1
+		for {
+			err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Tunnel\" WHERE name = ?)", tunnelName).Scan(&nameExists)
+			if err != nil {
+				result.Success = false
+				result.Error = "检查隧道名称失败: " + err.Error()
+				break
+			}
+			if !nameExists {
+				break
+			}
+			tunnelName = fmt.Sprintf("%s-%d", originalName, suffix)
+			suffix++
+		}
+
+		if !result.Success {
+			results[i] = result
+			failCount++
+			continue
+		}
+
+		// 构建创建请求
+		createReq := CreateTunnelRequest{
+			Name:          tunnelName,
+			EndpointID:    item.EndpointID,
+			Mode:          "server", // 批量创建默认为服务端模式
+			TunnelAddress: "",       // 服务端模式下为空
+			TunnelPort:    item.InboundsPort,
+			TargetAddress: item.OutboundHost,
+			TargetPort:    item.OutboundPort,
+			TLSMode:       TLSModeInherit, // 使用默认TLS设置
+			LogLevel:      LogLevelInfo,   // 使用Info日志级别
+		}
+
+		// 调用单个创建方法
+		tunnel, err := s.CreateTunnel(createReq)
+		if err != nil {
+			log.Errorf("[API] 批量创建第 %d 项失败: %v", i+1, err)
+			result.Success = false
+			result.Error = err.Error()
+			failCount++
+		} else {
+			log.Infof("[API] 批量创建第 %d 项成功: %s (ID: %d)", i+1, tunnel.Name, tunnel.ID)
+			result.Success = true
+			result.Message = "创建成功"
+			result.TunnelID = tunnel.ID
+			successCount++
+		}
+
+		results[i] = result
+	}
+
+	// 记录批量操作日志
+	_, err := s.db.Exec(`
+		INSERT INTO "TunnelOperationLog" (
+			tunnelId, tunnelName, action, status, message
+		) VALUES (?, ?, ?, ?, ?)
+	`,
+		0, // 批量操作没有特定的tunnelId
+		"批量创建",
+		"batch_create",
+		func() string {
+			if successCount > 0 {
+				return "success"
+			}
+			return "failed"
+		}(),
+		fmt.Sprintf("批量创建完成，成功 %d 个，失败 %d 个", successCount, failCount),
+	)
+	if err != nil {
+		log.Errorf("[API] 记录批量创建日志失败: %v", err)
+	}
+
+	response := &BatchCreateTunnelResponse{
+		Success:      successCount > 0,
+		Results:      results,
+		SuccessCount: successCount,
+		FailCount:    failCount,
+	}
+
+	if successCount > 0 && failCount == 0 {
+		response.Message = fmt.Sprintf("批量创建完成，成功创建 %d 个隧道", successCount)
+	} else if successCount > 0 && failCount > 0 {
+		response.Message = fmt.Sprintf("批量创建完成，成功 %d 个，失败 %d 个", successCount, failCount)
+	} else {
+		response.Error = fmt.Sprintf("批量创建失败，%d 个项目全部失败", failCount)
+	}
+
+	log.Infof("[API] 批量创建隧道完成: 成功 %d 个，失败 %d 个", successCount, failCount)
+	return response, nil
 }

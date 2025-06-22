@@ -237,7 +237,7 @@ export default function CreateTunnelPage() {
   };
 
   return (
-    <div className="max-w-5xl mx-auto py-6 space-y-6">
+    <div className="max-w-5xl mx-auto space-y-6">
       {/* Toast 组件 */}
       {toast && (
         <Toast

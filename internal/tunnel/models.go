@@ -108,6 +108,39 @@ type CreateTunnelRequest struct {
 	Max           int      `json:"max,omitempty"`
 }
 
+// BatchCreateTunnelItem 批量创建隧道的单个项目
+type BatchCreateTunnelItem struct {
+	EndpointID   int64  `json:"endpointId" validate:"required"`
+	InboundsPort int    `json:"inbounds_port" validate:"required"` // 对应tunnelPort
+	OutboundHost string `json:"outbound_host" validate:"required"` // 对应targetAddress
+	OutboundPort int    `json:"outbound_port" validate:"required"` // 对应targetPort
+	Name         string `json:"name,omitempty"`                    // 隧道名称（可选，不提供则自动生成）
+}
+
+// BatchCreateTunnelRequest 批量创建隧道请求
+type BatchCreateTunnelRequest struct {
+	Items []BatchCreateTunnelItem `json:"items" validate:"required,dive"`
+}
+
+// BatchCreateTunnelResponse 批量创建隧道响应
+type BatchCreateTunnelResponse struct {
+	Success      bool                `json:"success"`
+	Message      string              `json:"message,omitempty"`
+	Error        string              `json:"error,omitempty"`
+	Results      []BatchCreateResult `json:"results,omitempty"`
+	SuccessCount int                 `json:"successCount"`
+	FailCount    int                 `json:"failCount"`
+}
+
+// BatchCreateResult 批量创建的单个结果
+type BatchCreateResult struct {
+	Index    int    `json:"index"`
+	Success  bool   `json:"success"`
+	Message  string `json:"message,omitempty"`
+	Error    string `json:"error,omitempty"`
+	TunnelID int64  `json:"tunnelId,omitempty"`
+}
+
 // UpdateTunnelRequest 更新隧道请求
 type UpdateTunnelRequest struct {
 	ID            int64    `json:"id" validate:"required"`

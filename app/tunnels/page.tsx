@@ -575,7 +575,7 @@ export default function TunnelsPage() {
         <div className="mb-4">
           <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
             {/* 创建实例按钮 */}
-            <Button
+            {/* <Button
               size="lg"
               color="primary"
               className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
@@ -583,10 +583,10 @@ export default function TunnelsPage() {
             >
               <FontAwesomeIcon icon={faPlus} className="text-sm" />
               <span className="text-sm">创建实例</span>
-            </Button>
+            </Button> */}
 
             {/* 快建实例按钮 */}
-            <Button
+            {/* <Button
               size="lg"
               color="success"
               className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
@@ -594,10 +594,10 @@ export default function TunnelsPage() {
             >
               <FontAwesomeIcon icon={faRocket} className="text-sm" />
               <span className="text-sm">快建实例</span>
-            </Button>
+            </Button> */}
 
             {/* 场景创建按钮 */}
-            <Button
+            {/* <Button
               size="lg"
               color="secondary"
               className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
@@ -605,10 +605,10 @@ export default function TunnelsPage() {
             >
               <FontAwesomeIcon icon={faLayerGroup} className="text-sm" />
               <span className="text-sm">场景创建</span>
-            </Button>
+            </Button> */}
 
             {/* 批量创建按钮 */}
-            <Button
+            {/* <Button
               size="lg"
               color="warning"
               className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
@@ -616,7 +616,7 @@ export default function TunnelsPage() {
             >
               <FontAwesomeIcon icon={faCopy} className="text-sm" />
               <span className="text-sm">批量创建</span>
-            </Button>
+            </Button> */}
           </div>
         </div>
 

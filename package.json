@@ -34,6 +34,7 @@
     "@heroui/toast": "^2.0.10",
     "@hookform/resolvers": "^5.0.1",
     "@iconify/react": "^6.0.0",
+    "@monaco-editor/react": "^4.7.0",
     "@react-aria/ssr": "3.9.8",
     "@react-aria/visually-hidden": "3.8.22",
     "@types/eventsource": "^3.0.0",

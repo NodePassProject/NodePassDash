@@ -23,12 +23,14 @@ import {
   faRotateRight,
   faTrash,
   faLayerGroup,
-  faBolt
+  faBolt,
+  faCopy
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { Box, Flex } from "@/components";
 import { addToast } from "@heroui/toast";
 import QuickCreateTunnelModal from "./quick-create-tunnel-modal";
+import BatchCreateModal from "./batch-create-modal";
 import { ButtonGroup } from "@heroui/react";
 
 type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL';
@@ -70,6 +72,9 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
 
   // 快速创建模态
   const [isQuickOpen, setIsQuickOpen] = useState(false);
+
+  // 批量创建模态
+  const [isBatchOpen, setIsBatchOpen] = useState(false);
 
   useEffect(() => {
     const fetchEndpoints = async () => {
@@ -113,7 +118,6 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
           <Box className="flex-1 sm:max-w-xs lg:max-w-sm">
             <Input
               isClearable
-              size="sm"
               classNames={{
                 inputWrapper: "bg-default-100",
               }}
@@ -134,7 +138,6 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
             <DropdownTrigger>
               <Button 
                 variant="flat" 
-                size="sm"
                 className="min-w-0 flex-shrink-0"
                 endContent={
                   endpointsLoading || loading ? 
@@ -199,7 +202,6 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
             <DropdownTrigger>
               <Button 
                 variant="flat" 
-                size="sm"
                 className="min-w-0 flex-shrink-0"
                 endContent={loading ? <Spinner size="sm" /> : <FontAwesomeIcon icon={faChevronDown} className="text-xs" />}
                 isDisabled={loading}
@@ -232,7 +234,6 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
           {/* 刷新按钮 */}
           <Button 
             variant="flat"
-            size="sm"
             className="md:text-sm"
             startContent={loading ? <Spinner size="sm" /> : <FontAwesomeIcon icon={faRotateRight} />}
             onClick={onRefresh}
@@ -241,19 +242,10 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
             <span className="hidden sm:inline">刷新</span>
             <span className="sm:hidden">刷新</span>
           </Button>
-          <Button 
-            size="sm"
-            color="secondary"
-            startContent={<FontAwesomeIcon icon={faLayerGroup} />}
-            onPress={() => router.push('/templates')}
-          >
-            创建场景
-          </Button>
-          {/* 创建按钮组 */}
-          <ButtonGroup radius="sm">
+          {/* 创建按钮组 - 按照 HeroUI Group Use case 样式 */}
+          <ButtonGroup >
             <Button 
               color="primary" 
-              size="sm"
               className="md:text-sm"
               startContent={loading ? <Spinner size="sm" /> : <FontAwesomeIcon icon={faPlus} />}
               onClick={() => router.push("/tunnels/create")}
@@ -262,16 +254,43 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
               <span className="hidden sm:inline">创建实例</span>
               <span className="sm:hidden">创建</span>
             </Button>
+            <Dropdown placement="bottom-end">
+              <DropdownTrigger>
             <Button
               isIconOnly
-              size="sm"
-              variant="flat"
               color="primary"
-              onClick={() => setIsQuickOpen(true)}
               isDisabled={loading}
             >
-              <FontAwesomeIcon icon={faBolt} />
+                  <FontAwesomeIcon icon={faChevronDown} />
             </Button>
+              </DropdownTrigger>
+              <DropdownMenu 
+                aria-label="创建选项"
+                onAction={(key) => {
+                  switch(key) {
+                    case 'quick':
+                      setIsQuickOpen(true);
+                      break;
+                    case 'batch':
+                      setIsBatchOpen(true);
+                      break;
+                    case 'template':
+                      router.push('/templates');
+                      break;
+                  }
+                }}
+              >
+                <DropdownItem key="quick" startContent={<FontAwesomeIcon icon={faBolt} />}>
+                  快速创建
+                </DropdownItem>
+                <DropdownItem key="batch" startContent={<FontAwesomeIcon icon={faCopy} />}>
+                  批量创建
+                </DropdownItem>
+                <DropdownItem key="template" startContent={<FontAwesomeIcon icon={faLayerGroup} />}>
+                  场景创建
+                </DropdownItem>
+              </DropdownMenu>
+            </Dropdown>
           </ButtonGroup>
         </Flex>
       </div>
@@ -280,6 +299,13 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
       <QuickCreateTunnelModal
         isOpen={isQuickOpen}
         onOpenChange={setIsQuickOpen}
+        onSaved={onRefresh}
+      />
+
+      {/* 批量创建实例弹窗 */}
+      <BatchCreateModal
+        isOpen={isBatchOpen}
+        onOpenChange={setIsBatchOpen}
         onSaved={onRefresh}
       />
     </div>

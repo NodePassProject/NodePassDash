@@ -642,20 +642,76 @@ export default function EndpointsPage() {
   // 复制配置到剪贴板
   function handleCopyConfig(endpoint: FormattedEndpoint) {
     const cfg = `API URL: ${endpoint.url}${endpoint.apiPath}\nAPI KEY: ${endpoint.apiKey}`;
+    
+    // 检查是否支持 clipboard API
+    if (!navigator.clipboard) {
+      addToast({
+        title:'复制失败', 
+        description:'浏览器不支持剪贴板操作，请手动复制', 
+        color:'danger'
+      });
+      return;
+    }
+
     navigator.clipboard.writeText(cfg).then(()=>{
       addToast({title:'已复制', description:'配置已复制到剪贴板', color:'success'});
-    }).catch(()=>{
-      addToast({title:'复制失败', description:'无法复制到剪贴板', color:'danger'});
+    }).catch((error)=>{
+      let errorMessage = '无法复制到剪贴板';
+      
+      // 根据不同的错误类型提供更详细的提示
+      if (error.name === 'NotAllowedError') {
+        errorMessage = '浏览器阻止了剪贴板访问，请在浏览器设置中允许剪贴板权限';
+      } else if (error.name === 'SecurityError') {
+        errorMessage = '安全限制：请确保网站使用 HTTPS 协议';
+      } else if (error.name === 'TypeError') {
+        errorMessage = '数据格式错误，无法写入剪贴板';
+      } else if (error.message) {
+        errorMessage = `复制失败：${error.message}`;
+      }
+      
+      addToast({
+        title:'复制失败', 
+        description: errorMessage, 
+        color:'danger'
+      });
     });
   }
 
   // 复制安装脚本到剪贴板
   function handleCopyInstallScript() {
     const cmd = 'bash <(wget -qO- https://run.nodepass.eu/np.sh)';
+    
+    // 检查是否支持 clipboard API
+    if (!navigator.clipboard) {
+      addToast({
+        title:'复制失败', 
+        description:'浏览器不支持剪贴板操作，请手动复制', 
+        color:'danger'
+      });
+      return;
+    }
+
     navigator.clipboard.writeText(cmd).then(()=>{
       addToast({title:'已复制', description:'安装脚本已复制到剪贴板', color:'success'});
-    }).catch(()=>{
-      addToast({title:'复制失败', description:'无法复制到剪贴板', color:'danger'});
+    }).catch((error)=>{
+      let errorMessage = '无法复制到剪贴板';
+      
+      // 根据不同的错误类型提供更详细的提示
+      if (error.name === 'NotAllowedError') {
+        errorMessage = '浏览器阻止了剪贴板访问，请在浏览器设置中允许剪贴板权限';
+      } else if (error.name === 'SecurityError') {
+        errorMessage = '安全限制：请确保网站使用 HTTPS 协议';
+      } else if (error.name === 'TypeError') {
+        errorMessage = '数据格式错误，无法写入剪贴板';
+      } else if (error.message) {
+        errorMessage = `复制失败：${error.message}`;
+      }
+      
+      addToast({
+        title:'复制失败', 
+        description: errorMessage, 
+        color:'danger'
+      });
     });
   }
 
@@ -679,7 +735,7 @@ export default function EndpointsPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto py-6 space-y-6">
+    <div className="max-w-7xl py-6 mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-2 md:gap-0">
         <div className="flex items-center gap-2 md:gap-4">
           <h1 className="text-2xl font-bold">主控管理</h1>

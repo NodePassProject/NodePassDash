@@ -157,6 +157,110 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 	})
 }
 
+// HandleBatchCreateTunnels 批量创建隧道
+func (h *TunnelHandler) HandleBatchCreateTunnels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req tunnel.BatchCreateTunnelRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+			Success: false,
+			Error:   "无效的请求数据",
+		})
+		return
+	}
+
+	// 验证请求
+	if len(req.Items) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+			Success: false,
+			Error:   "批量创建项目不能为空",
+		})
+		return
+	}
+
+	// 限制批量创建的数量，避免过多请求影响性能
+	const maxBatchSize = 50
+	if len(req.Items) > maxBatchSize {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+			Success: false,
+			Error:   fmt.Sprintf("批量创建数量不能超过 %d 个", maxBatchSize),
+		})
+		return
+	}
+
+	// 基础验证每个项目的必填字段
+	for i, item := range req.Items {
+		if item.EndpointID <= 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+				Success: false,
+				Error:   fmt.Sprintf("第 %d 项的端点ID无效", i+1),
+			})
+			return
+		}
+		if item.InboundsPort <= 0 || item.InboundsPort > 65535 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+				Success: false,
+				Error:   fmt.Sprintf("第 %d 项的入口端口无效", i+1),
+			})
+			return
+		}
+		if item.OutboundHost == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+				Success: false,
+				Error:   fmt.Sprintf("第 %d 项的出口地址不能为空", i+1),
+			})
+			return
+		}
+		if item.OutboundPort <= 0 || item.OutboundPort > 65535 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+				Success: false,
+				Error:   fmt.Sprintf("第 %d 项的出口端口无效", i+1),
+			})
+			return
+		}
+	}
+
+	log.Infof("[API] 接收到批量创建隧道请求，包含 %d 个项目", len(req.Items))
+
+	// 调用服务层批量创建
+	response, err := h.tunnelService.BatchCreateTunnels(req)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+			Success: false,
+			Error:   "批量创建失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 根据结果设置HTTP状态码
+	if response.Success {
+		if response.FailCount > 0 {
+			// 部分成功
+			w.WriteHeader(http.StatusPartialContent)
+		} else {
+			// 全部成功
+			w.WriteHeader(http.StatusOK)
+		}
+	} else {
+		// 全部失败
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
+
 // HandleDeleteTunnel 删除隧道
 func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodDelete {
@@ -963,6 +1067,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 	// 定义请求结构体
 	var req struct {
 		Log        string `json:"log"`
+		ListenHost string `json:"listen_host,omitempty"`
 		ListenPort int    `json:"listen_port"`
 		Mode       string `json:"mode"`
 		TLS        int    `json:"tls,omitempty"`
@@ -991,7 +1096,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	log.Infof("[API] 模板创建请求: mode=%s, listen_port=%d", req.Mode, req.ListenPort)
+	log.Infof("[API] 模板创建请求: mode=%s, listen_host=%s, listen_port=%d", req.Mode, req.ListenHost, req.ListenPort)
 
 	switch req.Mode {
 	case "single":
@@ -1028,9 +1133,16 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		// 构建单端转发的URL
-		tunnelURL := fmt.Sprintf("client://:%d/%s:%d?log=%s",
-			req.ListenPort,
+		// 构建单端转发的URL，支持listen_host
+		var listenAddr string
+		if req.ListenHost != "" {
+			listenAddr = fmt.Sprintf("%s:%d", req.ListenHost, req.ListenPort)
+		} else {
+			listenAddr = fmt.Sprintf(":%d", req.ListenPort)
+		}
+
+		tunnelURL := fmt.Sprintf("client://%s/%s:%d?log=%s",
+			listenAddr,
 			req.Inbounds.TargetHost,
 			req.Inbounds.TargetPort,
 			req.Log,
@@ -1064,7 +1176,23 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		// 获取两个主控信息
+		// 根据type字段确定哪个是server，哪个是client
+		var serverConfig, clientConfig *struct {
+			TargetHost string `json:"target_host"`
+			TargetPort int    `json:"target_port"`
+			MasterID   int64  `json:"master_id"`
+			Type       string `json:"type"`
+		}
+
+		if req.Inbounds.Type == "server" {
+			serverConfig = req.Inbounds
+			clientConfig = req.Outbounds
+		} else {
+			serverConfig = req.Outbounds
+			clientConfig = req.Inbounds
+		}
+
+		// 获取endpoint信息
 		var serverEndpoint, clientEndpoint struct {
 			ID      int64
 			URL     string
@@ -1072,47 +1200,47 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			APIKey  string
 		}
 
-		// 获取server端主控信息（inbounds）
 		db := h.tunnelService.DB()
+		// 获取server endpoint信息
 		err := db.QueryRow(
 			"SELECT id, url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
-			req.Inbounds.MasterID,
+			serverConfig.MasterID,
 		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.APIPath, &serverEndpoint.APIKey)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				w.WriteHeader(http.StatusBadRequest)
 				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 					Success: false,
-					Error:   "指定的server端主控不存在",
+					Error:   "指定的服务端主控不存在",
 				})
 				return
 			}
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 				Success: false,
-				Error:   "查询server端主控失败",
+				Error:   "查询服务端主控失败",
 			})
 			return
 		}
 
-		// 获取client端主控信息（outbounds）
+		// 获取client endpoint信息
 		err = db.QueryRow(
 			"SELECT id, url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
-			req.Outbounds.MasterID,
+			clientConfig.MasterID,
 		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.APIPath, &clientEndpoint.APIKey)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				w.WriteHeader(http.StatusBadRequest)
 				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 					Success: false,
-					Error:   "指定的client端主控不存在",
+					Error:   "指定的客户端主控不存在",
 				})
 				return
 			}
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 				Success: false,
-				Error:   "查询client端主控失败",
+				Error:   "查询客户端主控失败",
 			})
 			return
 		}
@@ -1127,10 +1255,11 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			serverIP = serverIP[:idx]
 		}
 
-		// 构建server端URL
-		serverURL := fmt.Sprintf("server://:%d/:%d",
+		// 双端转发：server端监听listen_port，转发到outbounds的target
+		serverURL := fmt.Sprintf("server://:%d/%s:%d",
 			req.ListenPort,
-			req.Inbounds.TargetPort,
+			serverConfig.TargetHost,
+			serverConfig.TargetPort,
 		)
 		if req.TLS > 0 {
 			serverURL += fmt.Sprintf("?tls=%d&log=%s", req.TLS, req.Log)
@@ -1142,24 +1271,25 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			serverURL += fmt.Sprintf("?log=%s", req.Log)
 		}
 
-		// 构建client端URL
-		clientURL := fmt.Sprintf("client://%s:%d/:%d?log=%s",
+		// 双端转发：client端连接到server的IP:listen_port，转发到inbounds的target
+		clientURL := fmt.Sprintf("client://%s:%d/%s:%d?log=%s",
 			serverIP,
 			req.ListenPort,
-			req.Outbounds.TargetPort,
+			clientConfig.TargetHost,
+			clientConfig.TargetPort,
 			req.Log,
 		)
 
 		// 生成隧道名称
 		timestamp := time.Now().Unix()
-		serverTunnelName := fmt.Sprintf("template-server-%d-%d", req.Inbounds.MasterID, timestamp)
-		clientTunnelName := fmt.Sprintf("template-client-%d-%d", req.Outbounds.MasterID, timestamp)
+		serverTunnelName := fmt.Sprintf("template-server-%d-%d", serverConfig.MasterID, timestamp)
+		clientTunnelName := fmt.Sprintf("template-client-%d-%d", clientConfig.MasterID, timestamp)
 
 		log.Infof("[API] 开始创建双端隧道 - 先创建server端，再创建client端")
 
 		// 第一步：创建server端隧道
-		log.Infof("[API] 步骤1: 创建server端隧道 %s", serverTunnelName)
-		if err := h.tunnelService.QuickCreateTunnel(req.Inbounds.MasterID, serverURL, serverTunnelName); err != nil {
+		log.Infof("[API] 步骤1: 在endpoint %d 创建server隧道 %s", serverConfig.MasterID, serverTunnelName)
+		if err := h.tunnelService.QuickCreateTunnel(serverConfig.MasterID, serverURL, serverTunnelName); err != nil {
 			log.Errorf("[API] 创建server端隧道失败: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
@@ -1171,8 +1301,8 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		log.Infof("[API] 步骤1完成: server端隧道创建成功")
 
 		// 第二步：创建client端隧道
-		log.Infof("[API] 步骤2: 创建client端隧道 %s", clientTunnelName)
-		if err := h.tunnelService.QuickCreateTunnel(req.Outbounds.MasterID, clientURL, clientTunnelName); err != nil {
+		log.Infof("[API] 步骤2: 在endpoint %d 创建client隧道 %s", clientConfig.MasterID, clientTunnelName)
+		if err := h.tunnelService.QuickCreateTunnel(clientConfig.MasterID, clientURL, clientTunnelName); err != nil {
 			log.Errorf("[API] 创建client端隧道失败: %v", err)
 			// 如果client端创建失败，可以考虑回滚server端，但这里先简单处理
 			w.WriteHeader(http.StatusBadRequest)
@@ -1200,7 +1330,23 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
-		// 获取两个主控信息
+		// 根据type字段确定哪个是server，哪个是client
+		var serverConfig, clientConfig *struct {
+			TargetHost string `json:"target_host"`
+			TargetPort int    `json:"target_port"`
+			MasterID   int64  `json:"master_id"`
+			Type       string `json:"type"`
+		}
+
+		if req.Inbounds.Type == "server" {
+			serverConfig = req.Inbounds
+			clientConfig = req.Outbounds
+		} else {
+			serverConfig = req.Outbounds
+			clientConfig = req.Inbounds
+		}
+
+		// 获取endpoint信息
 		var serverEndpoint, clientEndpoint struct {
 			ID      int64
 			URL     string
@@ -1208,47 +1354,47 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			APIKey  string
 		}
 
-		// 获取server端主控信息（inbounds - 中转机器）
 		db := h.tunnelService.DB()
+		// 获取server endpoint信息
 		err := db.QueryRow(
 			"SELECT id, url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
-			req.Inbounds.MasterID,
+			serverConfig.MasterID,
 		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.APIPath, &serverEndpoint.APIKey)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				w.WriteHeader(http.StatusBadRequest)
 				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 					Success: false,
-					Error:   "指定的中转主控不存在",
+					Error:   "指定的服务端主控不存在",
 				})
 				return
 			}
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 				Success: false,
-				Error:   "查询中转主控失败",
+				Error:   "查询服务端主控失败",
 			})
 			return
 		}
 
-		// 获取client端主控信息（outbounds - 内网服务）
+		// 获取client endpoint信息
 		err = db.QueryRow(
 			"SELECT id, url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
-			req.Outbounds.MasterID,
+			clientConfig.MasterID,
 		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.APIPath, &clientEndpoint.APIKey)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				w.WriteHeader(http.StatusBadRequest)
 				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 					Success: false,
-					Error:   "指定的内网服务端主控不存在",
+					Error:   "指定的客户端主控不存在",
 				})
 				return
 			}
 			w.WriteHeader(http.StatusInternalServerError)
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 				Success: false,
-				Error:   "查询内网服务端主控失败",
+				Error:   "查询客户端主控失败",
 			})
 			return
 		}
@@ -1263,10 +1409,11 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			serverIP = serverIP[:idx]
 		}
 
-		// 构建server端URL - 中转机器提供外部访问入口
-		serverURL := fmt.Sprintf("server://:%d/:%d",
+		// 内网穿透：server端监听listen_port，目标是用户要访问的地址
+		serverURL := fmt.Sprintf("server://:%d/%s:%d",
 			req.ListenPort,
-			req.Inbounds.TargetPort,
+			serverConfig.TargetHost,
+			serverConfig.TargetPort,
 		)
 		if req.TLS > 0 {
 			serverURL += fmt.Sprintf("?tls=%d&log=%s", req.TLS, req.Log)
@@ -1278,25 +1425,25 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			serverURL += fmt.Sprintf("?log=%s", req.Log)
 		}
 
-		// 构建client端URL - 内网服务连接到中转机器，并指定目标服务IP和端口
+		// 内网穿透：client端连接到server的IP:listen_port，转发到最终目标
 		clientURL := fmt.Sprintf("client://%s:%d/%s:%d?log=%s",
 			serverIP,
 			req.ListenPort,
-			req.Outbounds.TargetHost, // 这里是用户填写的服务IP
-			req.Outbounds.TargetPort, // 这里是用户填写的服务端口
+			clientConfig.TargetHost,
+			clientConfig.TargetPort,
 			req.Log,
 		)
 
 		// 生成隧道名称
 		timestamp := time.Now().Unix()
-		serverTunnelName := fmt.Sprintf("template-intranet-server-%d-%d", req.Inbounds.MasterID, timestamp)
-		clientTunnelName := fmt.Sprintf("template-intranet-client-%d-%d", req.Outbounds.MasterID, timestamp)
+		serverTunnelName := fmt.Sprintf("template-intranet-server-%d-%d", serverConfig.MasterID, timestamp)
+		clientTunnelName := fmt.Sprintf("template-intranet-client-%d-%d", clientConfig.MasterID, timestamp)
 
 		log.Infof("[API] 开始创建内网穿透隧道 - 先创建server端，再创建client端")
 
-		// 第一步：创建server端隧道（中转机器）
-		log.Infof("[API] 步骤1: 创建server端隧道 %s", serverTunnelName)
-		if err := h.tunnelService.QuickCreateTunnel(req.Inbounds.MasterID, serverURL, serverTunnelName); err != nil {
+		// 第一步：创建server端隧道
+		log.Infof("[API] 步骤1: 在endpoint %d 创建server隧道 %s", serverConfig.MasterID, serverTunnelName)
+		if err := h.tunnelService.QuickCreateTunnel(serverConfig.MasterID, serverURL, serverTunnelName); err != nil {
 			log.Errorf("[API] 创建server端隧道失败: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
@@ -1307,9 +1454,9 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		}
 		log.Infof("[API] 步骤1完成: server端隧道创建成功")
 
-		// 第二步：创建client端隧道（内网服务）
-		log.Infof("[API] 步骤2: 创建client端隧道 %s", clientTunnelName)
-		if err := h.tunnelService.QuickCreateTunnel(req.Outbounds.MasterID, clientURL, clientTunnelName); err != nil {
+		// 第二步：创建client端隧道
+		log.Infof("[API] 步骤2: 在endpoint %d 创建client隧道 %s", clientConfig.MasterID, clientTunnelName)
+		if err := h.tunnelService.QuickCreateTunnel(clientConfig.MasterID, clientURL, clientTunnelName); err != nil {
 			log.Errorf("[API] 创建client端隧道失败: %v", err)
 			// 如果client端创建失败，可以考虑回滚server端，但这里先简单处理
 			w.WriteHeader(http.StatusBadRequest)
