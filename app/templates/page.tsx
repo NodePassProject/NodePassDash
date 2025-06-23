@@ -938,7 +938,7 @@ export default function TemplatesPage() {
                         value={option.value}
                         isDisabled={option.disabled}
                         classNames={{
-                          label: "text-xs text-default-700 dark:text-default-200"
+                          label: "text-xs text-default-700 dark:text-white"
                         }}
                       >
                         {option.label}
@@ -1108,7 +1108,7 @@ export default function TemplatesPage() {
                     </div>
                     <div className="space-y-1">
                       <div>
-                        <label className="block text-xs text-default-700 dark:text-default-200 mb-1">
+                        <label className="block text-xs text-default-700 dark:text-white mb-1">
                           {selectedMode === 'double' ? '服务端口' : '服务端口'}
                         </label>
                         <input
@@ -1121,7 +1121,7 @@ export default function TemplatesPage() {
                       </div>
                       
                       <div>
-                        <label className="block text-xs text-default-700 dark:text-default-200 mb-1">TLS</label>
+                        <label className="block text-xs text-default-700 dark:text-white mb-1">TLS</label>
                         <RadioGroup 
                           value={formData.tlsLevel}
                           onValueChange={(value) => updateField('tlsLevel', value)}
@@ -1151,23 +1151,23 @@ export default function TemplatesPage() {
                       {formData.tlsLevel === '2' && (
                         <>
                           <div>
-                            <label className="block text-xs text-default-700 dark:text-default-200 mb-1">证书路径</label>
+                            <label className="block text-xs text-default-700 dark:text-white mb-1">证书路径</label>
                             <input
                               type="text"
                               value={formData.certPath}
                               onChange={(e) => updateField('certPath', e.target.value)}
                               placeholder="/path/to/cert.pem"
-                              className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-white placeholder-default-400 dark:placeholder-default-500"
+                              className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-black placeholder-default-400 dark:placeholder-default-500"
                             />
                           </div>
                           <div>
-                            <label className="block text-xs text-default-700 dark:text-default-200 mb-1">密钥路径</label>
+                            <label className="block text-xs text-default-700 dark:text-white mb-1">密钥路径</label>
                             <input
                               type="text"
                               value={formData.keyPath}
                               onChange={(e) => updateField('keyPath', e.target.value)}
                               placeholder="/path/to/key.pem"
-                              className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-white placeholder-default-400 dark:placeholder-default-500"
+                              className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-black placeholder-default-400 dark:placeholder-default-500"
                             />
                           </div>
                         </>
