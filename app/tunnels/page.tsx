@@ -115,6 +115,10 @@ export default function TunnelsPage() {
   // 快建实例模态控制
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
 
+  // 批量删除确认模态控制
+  const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
+  const [batchMoveToRecycle, setBatchMoveToRecycle] = useState(false);
+
   // 表格多选
   const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set<string>());
 
@@ -244,8 +248,13 @@ export default function TunnelsPage() {
     return 0;
   };
 
-  // 批量删除
-  const handleBatchDelete = async () => {
+  // 显示批量删除确认弹窗
+  const showBatchDeleteModal = () => {
+    setBatchDeleteModalOpen(true);
+  };
+
+  // 执行批量删除
+  const executeBatchDelete = async () => {
     if (!selectedKeys || (selectedKeys instanceof Set && selectedKeys.size === 0)) return;
 
     // 计算待删除的 ID 列表
@@ -255,6 +264,8 @@ export default function TunnelsPage() {
     } else {
       ids = Array.from(selectedKeys as Set<string>).map((id) => Number(id));
     }
+
+    setBatchDeleteModalOpen(false);
 
     // 使用 promise 形式的 Toast
     addToast({
@@ -267,7 +278,10 @@ export default function TunnelsPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify({ ids }),
+        body: JSON.stringify({ 
+          ids,
+          recycle: batchMoveToRecycle
+        }),
       })
         .then(async (response) => {
           const data = await response.json();
@@ -284,6 +298,7 @@ export default function TunnelsPage() {
 
           // 清空选择并刷新
           setSelectedKeys(new Set<string>());
+          setBatchMoveToRecycle(false);
           fetchTunnels();
 
           return data;
@@ -702,7 +717,7 @@ export default function TunnelsPage() {
             onBulkAction={(action)=>{
               switch(action){
                 case 'delete':
-                  handleBatchDelete();
+                  showBatchDeleteModal();
                   break;
                 default:
                   break;
@@ -1100,6 +1115,54 @@ export default function TunnelsPage() {
         onOpenChange={setBatchCreateOpen}
         onSaved={() => { setBatchCreateOpen(false); fetchTunnels(); }}
       />
+
+      {/* 批量删除确认模态框 */}
+      <Modal isOpen={batchDeleteModalOpen} onOpenChange={setBatchDeleteModalOpen} placement="center">
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <FontAwesomeIcon icon={faTrash} className="text-danger" />
+                  确认批量删除
+                </div>
+              </ModalHeader>
+              <ModalBody>
+                <p className="text-default-600">
+                  您确定要删除选中的 <span className="font-semibold text-foreground">{getSelectedCount()}</span> 个实例吗？
+                </p>
+                <p className="text-small text-warning">
+                  ⚠️ 此操作不可撤销，选中实例的所有配置和数据都将被永久删除。
+                </p>
+                {/* 选择是否移入回收站 */}
+                <div className="pt-2">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+                    <input
+                      type="checkbox"
+                      className="form-checkbox h-4 w-4 text-primary"
+                      checked={batchMoveToRecycle}
+                      onChange={(e) => setBatchMoveToRecycle(e.target.checked)}
+                    />
+                    <span>删除后移入回收站</span>
+                  </label>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button color="default" variant="light" onPress={onClose}>
+                  取消
+                </Button>
+                <Button 
+                  color="danger" 
+                  onPress={executeBatchDelete}
+                  startContent={<FontAwesomeIcon icon={faTrash} />}
+                >
+                  确认删除
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </>
   );
 } 
