@@ -141,6 +141,47 @@ type BatchCreateResult struct {
 	TunnelID int64  `json:"tunnelId,omitempty"`
 }
 
+// StandardBatchCreateItem 标准模式批量创建项
+type StandardBatchCreateItem struct {
+	Log        string `json:"log" validate:"required"`
+	Name       string `json:"name" validate:"required"`
+	EndpointID int64  `json:"endpointId" validate:"required"`
+	TunnelPort int    `json:"tunnel_port" validate:"required"`
+	TargetHost string `json:"target_host" validate:"required"`
+	TargetPort int    `json:"target_port" validate:"required"`
+}
+
+// ConfigBatchCreateConfig 配置模式的单个配置项
+type ConfigBatchCreateConfig struct {
+	Dest       string `json:"dest" validate:"required"`
+	ListenPort int    `json:"listen_port" validate:"required"`
+	Name       string `json:"name" validate:"required"`
+}
+
+// ConfigBatchCreateItem 配置模式批量创建项
+type ConfigBatchCreateItem struct {
+	Log        string                    `json:"log" validate:"required"`
+	EndpointID int64                     `json:"endpointId" validate:"required"`
+	Config     []ConfigBatchCreateConfig `json:"config" validate:"required,dive"`
+}
+
+// NewBatchCreateRequest 新的批量创建请求
+type NewBatchCreateRequest struct {
+	Mode     string                    `json:"mode" validate:"required,oneof=standard config"`
+	Standard []StandardBatchCreateItem `json:"standard,omitempty"`
+	Config   []ConfigBatchCreateItem   `json:"config,omitempty"`
+}
+
+// NewBatchCreateResponse 新的批量创建响应
+type NewBatchCreateResponse struct {
+	Success      bool                `json:"success"`
+	Message      string              `json:"message,omitempty"`
+	Error        string              `json:"error,omitempty"`
+	Results      []BatchCreateResult `json:"results,omitempty"`
+	SuccessCount int                 `json:"successCount"`
+	FailCount    int                 `json:"failCount"`
+}
+
 // UpdateTunnelRequest 更新隧道请求
 type UpdateTunnelRequest struct {
 	ID            int64    `json:"id" validate:"required"`

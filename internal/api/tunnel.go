@@ -1581,3 +1581,214 @@ func (h *TunnelHandler) HandleBatchDeleteTunnels(w http.ResponseWriter, r *http.
 
 	_ = json.NewEncoder(w).Encode(resp)
 }
+
+// HandleNewBatchCreateTunnels 新的批量创建隧道处理
+func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req tunnel.NewBatchCreateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+			Success: false,
+			Error:   "无效的请求数据",
+		})
+		return
+	}
+
+	// 添加调试日志，显示接收到的原始请求数据
+	reqBytes, _ := json.MarshalIndent(req, "", "  ")
+	log.Infof("[API] 接收到新的批量创建请求，原始数据: %s", string(reqBytes))
+
+	// 验证请求模式
+	if req.Mode == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+			Success: false,
+			Error:   "请求模式不能为空",
+		})
+		return
+	}
+
+	// 根据模式验证具体数据
+	switch req.Mode {
+	case "standard":
+		if len(req.Standard) == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+				Success: false,
+				Error:   "标准模式批量创建项目不能为空",
+			})
+			return
+		}
+
+		// 限制批量创建的数量
+		const maxBatchSize = 50
+		if len(req.Standard) > maxBatchSize {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+				Success: false,
+				Error:   fmt.Sprintf("标准模式批量创建数量不能超过 %d 个", maxBatchSize),
+			})
+			return
+		}
+
+		// 验证每个项目的必填字段
+		for i, item := range req.Standard {
+			if item.EndpointID <= 0 {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+					Success: false,
+					Error:   fmt.Sprintf("第 %d 项的端点ID无效", i+1),
+				})
+				return
+			}
+			if item.TunnelPort <= 0 || item.TunnelPort > 65535 {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+					Success: false,
+					Error:   fmt.Sprintf("第 %d 项的隧道端口无效", i+1),
+				})
+				return
+			}
+			if item.TargetHost == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+					Success: false,
+					Error:   fmt.Sprintf("第 %d 项的目标地址不能为空", i+1),
+				})
+				return
+			}
+			if item.TargetPort <= 0 || item.TargetPort > 65535 {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+					Success: false,
+					Error:   fmt.Sprintf("第 %d 项的目标端口无效", i+1),
+				})
+				return
+			}
+			if item.Name == "" {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+					Success: false,
+					Error:   fmt.Sprintf("第 %d 项的隧道名称不能为空", i+1),
+				})
+				return
+			}
+		}
+
+	case "config":
+		if len(req.Config) == 0 {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+				Success: false,
+				Error:   "配置模式批量创建项目不能为空",
+			})
+			return
+		}
+
+		// 计算总的配置项数量并验证
+		totalConfigs := 0
+		for _, configItem := range req.Config {
+			totalConfigs += len(configItem.Config)
+		}
+
+		const maxBatchSize = 50
+		if totalConfigs > maxBatchSize {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+				Success: false,
+				Error:   fmt.Sprintf("配置模式批量创建数量不能超过 %d 个", maxBatchSize),
+			})
+			return
+		}
+
+		// 验证每个配置项
+		for i, configItem := range req.Config {
+			if configItem.EndpointID <= 0 {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+					Success: false,
+					Error:   fmt.Sprintf("第 %d 个配置组的端点ID无效", i+1),
+				})
+				return
+			}
+
+			if len(configItem.Config) == 0 {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+					Success: false,
+					Error:   fmt.Sprintf("第 %d 个配置组的配置列表不能为空", i+1),
+				})
+				return
+			}
+
+			for j, config := range configItem.Config {
+				if config.ListenPort <= 0 || config.ListenPort > 65535 {
+					w.WriteHeader(http.StatusBadRequest)
+					json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+						Success: false,
+						Error:   fmt.Sprintf("第 %d 个配置组第 %d 项的监听端口无效", i+1, j+1),
+					})
+					return
+				}
+				if config.Dest == "" {
+					w.WriteHeader(http.StatusBadRequest)
+					json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+						Success: false,
+						Error:   fmt.Sprintf("第 %d 个配置组第 %d 项的目标地址不能为空", i+1, j+1),
+					})
+					return
+				}
+				if config.Name == "" {
+					w.WriteHeader(http.StatusBadRequest)
+					json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+						Success: false,
+						Error:   fmt.Sprintf("第 %d 个配置组第 %d 项的隧道名称不能为空", i+1, j+1),
+					})
+					return
+				}
+			}
+		}
+
+	default:
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+			Success: false,
+			Error:   "不支持的批量创建模式: " + req.Mode,
+		})
+		return
+	}
+
+	log.Infof("[API] 接收到新的批量创建隧道请求，模式: %s", req.Mode)
+
+	// 调用服务层新的批量创建
+	response, err := h.tunnelService.NewBatchCreateTunnels(req)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+			Success: false,
+			Error:   "新批量创建失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 根据结果设置HTTP状态码
+	if response.Success {
+		if response.FailCount > 0 {
+			// 部分成功
+			w.WriteHeader(http.StatusPartialContent)
+		} else {
+			// 全部成功
+			w.WriteHeader(http.StatusOK)
+		}
+	} else {
+		// 全部失败
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	json.NewEncoder(w).Encode(response)
+}
