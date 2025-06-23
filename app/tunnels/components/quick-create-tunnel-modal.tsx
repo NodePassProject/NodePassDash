@@ -206,6 +206,7 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <Input
                       label="实例名称"
+                      placeholder="xxx-tunnel"
                       value={formData.tunnelName}
                       onValueChange={(v)=>handleField('tunnelName',v)}
                     />
@@ -225,14 +226,14 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
 
                   {/* 隧道地址端口 */}
                   <div className="grid grid-cols-2 gap-2">
-                    <Input label="隧道地址" value={formData.tunnelAddress} onValueChange={(v)=>handleField('tunnelAddress',v)} />
-                    <Input label="隧道端口" type="number" value={formData.tunnelPort} onValueChange={(v)=>handleField('tunnelPort',v)} />
+                    <Input label="隧道地址" value={formData.tunnelAddress} placeholder="0.0.0.0/[2001:db8::1]" onValueChange={(v)=>handleField('tunnelAddress',v)} />
+                    <Input label="隧道端口" type="number" value={formData.tunnelPort}  placeholder="10101" onValueChange={(v)=>handleField('tunnelPort',v)} />
                   </div>
 
                   {/* 目标地址端口 */}
                   <div className="grid grid-cols-2 gap-2">
-                    <Input label="目标地址" value={formData.targetAddress} onValueChange={(v)=>handleField('targetAddress',v)} />
-                    <Input label="目标端口" type="number" value={formData.targetPort} onValueChange={(v)=>handleField('targetPort',v)} />
+                    <Input label="目标地址" value={formData.targetAddress}  placeholder="0.0.0.0/[2001:db8::1]" onValueChange={(v)=>handleField('targetAddress',v)} />
+                    <Input label="目标端口" type="number" value={formData.targetPort}  placeholder="8080" onValueChange={(v)=>handleField('targetPort',v)} />
                   </div>
 
                   {/* TLS 下拉 - server */}

@@ -488,7 +488,7 @@ export default function CreateTunnelPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
                     label="隧道地址"
-                    placeholder="0.0.0.0"
+                    placeholder="0.0.0.0/[2001:db8::1]"
                     value={formData.tunnelAddress}
                     onChange={(e) => handleInputChange("tunnelAddress", e.target.value)}
                   />
@@ -521,7 +521,7 @@ export default function CreateTunnelPage() {
                 <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                   <Input
                     label="目标地址"
-                    placeholder="0.0.0.0"
+                    placeholder="0.0.0.0/[2001:db8::1]"
                     value={formData.targetAddress}
                     onChange={(e) => handleInputChange("targetAddress", e.target.value)}
                   />

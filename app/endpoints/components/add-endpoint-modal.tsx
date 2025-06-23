@@ -221,7 +221,6 @@ export default function AddEndpointModal({
                     labelPlacement="outside"
                     placeholder="主服务器"
                     maxLength={30}
-                    description="主控的显示名称"
                     value={formData.name}
                     onValueChange={(value) => handleInputChange('name', value)}
                   />
@@ -233,7 +232,6 @@ export default function AddEndpointModal({
                     labelPlacement="outside"
                     placeholder="http(s)://example.com:9090/api/v1"
                     type="url"
-                    description="API 服务器的完整 URL（包含 API 前缀路径）"
                     value={formData.url}
                     onValueChange={(value) => handleInputChange('url', value)}
                     className="md:col-span-1"
@@ -247,7 +245,6 @@ export default function AddEndpointModal({
                     placeholder="输入您的 API Key"
                     type={showApiKey ? "text" : "password"}
                     maxLength={100}
-                    description="用于身份验证的密钥"
                     value={formData.apiKey}
                     onValueChange={(value) => handleInputChange('apiKey', value)}
                     className="md:col-span-1"

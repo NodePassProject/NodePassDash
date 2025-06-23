@@ -24,6 +24,7 @@ import {
   DropdownItem,
   ButtonGroup
 } from "@heroui/react";
+import { Selection } from "@react-types/shared";
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -113,6 +114,9 @@ export default function TunnelsPage() {
 
   // 快建实例模态控制
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+
+  // 表格多选
+  const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set<string>());
 
   // 获取实例列表
   const fetchTunnels = async () => {
@@ -229,6 +233,69 @@ export default function TunnelsPage() {
         title: '错误',
         description: error instanceof Error ? error.message : '删除失败',
         color: 'danger'
+      });
+    }
+  };
+
+  // 计算已选中数量（支持全选）
+  const getSelectedCount = () => {
+    if (selectedKeys === "all") return filteredItems.length;
+    if (selectedKeys instanceof Set) return selectedKeys.size;
+    return 0;
+  };
+
+  // 批量删除
+  const handleBatchDelete = async () => {
+    if (!selectedKeys || (selectedKeys instanceof Set && selectedKeys.size === 0)) return;
+
+    try {
+      // 计算待删除的 ID 列表
+      let ids: number[] = [];
+      if (selectedKeys === "all") {
+        ids = filteredItems.map((t) => Number(t.id));
+      } else {
+        ids = Array.from(selectedKeys as Set<string>).map((id) => Number(id));
+      }
+
+      // 提示开始删除
+      addToast({
+        title: "批量删除中...",
+        description: "正在删除所选实例，请稍候",
+        color: "primary",
+      });
+      const response = await fetch(buildApiUrl('/api/tunnels/batch'), {
+        method: 'DELETE',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({ ids }),
+      });
+
+      const data = await response.json();
+
+      if (!response.ok) {
+        addToast({
+          title: '批量删除失败',
+          description: data?.error || '批量删除失败',
+          color: 'danger',
+        });
+        throw new Error(data?.error || '批量删除失败');
+      }
+
+      addToast({
+        title: '批量删除成功',
+        description: `已删除 ${data.deleted || ids.length} 个实例`,
+        color: 'success',
+      });
+
+      // 清空选择并刷新
+      setSelectedKeys(new Set<string>());
+      fetchTunnels();
+    } catch (error) {
+      addToast({
+        title: '批量删除失败',
+        description: error instanceof Error ? error.message : '未知错误',
+        color: 'danger',
       });
     }
   };
@@ -631,6 +698,16 @@ export default function TunnelsPage() {
             onStatusFilterChange={onStatusFilterChange}
             onEndpointFilterChange={onEndpointFilterChange}
             onRefresh={fetchTunnels}
+            selectedCount={getSelectedCount()}
+            onBulkAction={(action)=>{
+              switch(action){
+                case 'delete':
+                  handleBatchDelete();
+                  break;
+                default:
+                  break;
+              }
+            }}
           />
           <Box className="w-full overflow-hidden">
             {/* 移动端：使用卡片布局 */}
@@ -784,6 +861,9 @@ export default function TunnelsPage() {
             <div className="hidden md:block">
               <Table
                 shadow="none"
+                selectionMode="multiple"
+                selectedKeys={selectedKeys}
+                onSelectionChange={setSelectedKeys}
                 aria-label="实例实例表格"
                 className="min-w-full"
                 classNames={{

@@ -176,6 +176,8 @@ func (s *Service) processEventImmediate(endpointID int64, event models.EndpointS
 
 	// Critical 事件（创建、删除、初始化）立即处理
 	switch event.EventType {
+	case models.SSEEventTypeShutdown:
+		s.handleShutdownEvent(event)
 	case models.SSEEventTypeInitial:
 		s.handleInitialEvent(event)
 	case models.SSEEventTypeCreate:
@@ -202,6 +204,27 @@ func (s *Service) processEventImmediate(endpointID int64, event models.EndpointS
 	}
 
 	return nil
+}
+
+func (s *Service) handleShutdownEvent(event models.EndpointSSE) {
+	s.updateEndpointStatus(event.EndpointID, models.EndpointStatusOffline)
+}
+
+func (s *Service) updateEndpointStatus(endpointID int64, status models.EndpointStatus) {
+	// 更新端点状态到数据库
+	_, err := s.db.Exec(`
+		UPDATE "Endpoint" 
+		SET status = ?, updatedAt = CURRENT_TIMESTAMP 
+		WHERE id = ? AND status != ?
+	`, status, endpointID, status)
+
+	if err != nil {
+		log.Errorf("[Master-%d#SSE]更新端点状态失败: %v", endpointID, err)
+		return
+	}
+
+	log.Infof("[Master-%d#SSE]端点状态已更新为: %s", endpointID, status)
+
 }
 
 // StartStoreWorkers 启动固定数量的事件持久化 worker

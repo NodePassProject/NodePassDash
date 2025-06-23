@@ -53,6 +53,8 @@ interface TunnelToolBoxProps {
   onStatusFilterChange: (status: string) => void;
   onEndpointFilterChange?: (endpointId: string) => void;
   onRefresh?: () => void;
+  selectedCount?: number;
+  onBulkAction?: (action: string) => void;
 }
 
 export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
@@ -65,6 +67,8 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
   onStatusFilterChange,
   onEndpointFilterChange,
   onRefresh,
+  selectedCount = 0,
+  onBulkAction,
 }) => {
   const router = useRouter();
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
@@ -292,6 +296,34 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
               </DropdownMenu>
             </Dropdown>
           </ButtonGroup>
+
+          {/* 批量操作按钮 */}
+          <Dropdown placement="bottom-end">
+            <DropdownTrigger>
+              <Button
+                isIconOnly
+                variant="flat"
+                isDisabled={selectedCount === 0 || loading}
+                title={selectedCount === 0 ? "请选择实例" : `已选择 ${selectedCount} 个实例`}
+              >
+                <FontAwesomeIcon icon={faEllipsisV} />
+              </Button>
+            </DropdownTrigger>
+            <DropdownMenu
+              aria-label="批量操作"
+              onAction={(key) => onBulkAction?.(key as string)}
+            >
+              <DropdownItem key="delete" startContent={<FontAwesomeIcon icon={faTrash} />} className="text-danger">
+                批量删除
+              </DropdownItem>
+              {/* 预留后续批量操作 */}
+              {/*
+              <DropdownItem key="start" startContent={<FontAwesomeIcon icon={faPlay} />}>批量启动</DropdownItem>
+              <DropdownItem key="stop" startContent={<FontAwesomeIcon icon={faStop} />}>批量停止</DropdownItem>
+              <DropdownItem key="restart" startContent={<FontAwesomeIcon icon={faRotateRight} />}>批量重启</DropdownItem>
+              */}
+            </DropdownMenu>
+          </Dropdown>
         </Flex>
       </div>
 

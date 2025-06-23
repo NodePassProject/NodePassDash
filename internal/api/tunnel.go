@@ -1483,3 +1483,101 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		return
 	}
 }
+
+// HandleBatchDeleteTunnels 批量删除隧道 (DELETE /api/tunnels/batch)
+func (h *TunnelHandler) HandleBatchDeleteTunnels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	type batchDeleteRequest struct {
+		// 根据数据库 ID 删除，可选
+		IDs []int64 `json:"ids"`
+		// 根据实例 ID 删除，可选
+		InstanceIDs []string `json:"instanceIds"`
+		// 是否移入回收站
+		Recycle bool `json:"recycle"`
+	}
+
+	type itemResult struct {
+		ID         int64  `json:"id,omitempty"`
+		InstanceID string `json:"instanceId"`
+		Success    bool   `json:"success"`
+		Error      string `json:"error,omitempty"`
+	}
+
+	type batchDeleteResponse struct {
+		Success   bool         `json:"success"`
+		Deleted   int          `json:"deleted"`
+		FailCount int          `json:"failCount"`
+		Error     string       `json:"error,omitempty"`
+		Results   []itemResult `json:"results,omitempty"`
+	}
+
+	var req batchDeleteRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(batchDeleteResponse{
+			Success: false,
+			Error:   "无效的请求数据",
+		})
+		return
+	}
+
+	// 至少提供一种 ID
+	if len(req.IDs) == 0 && len(req.InstanceIDs) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(batchDeleteResponse{
+			Success: false,
+			Error:   "缺少隧道ID",
+		})
+		return
+	}
+
+	// 将 IDs 转换为 instanceIDs
+	for _, id := range req.IDs {
+		if iid, err := h.tunnelService.GetInstanceIDByTunnelID(id); err == nil {
+			req.InstanceIDs = append(req.InstanceIDs, iid)
+		}
+	}
+
+	if len(req.InstanceIDs) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(batchDeleteResponse{
+			Success: false,
+			Error:   "没有有效的隧道实例ID",
+		})
+		return
+	}
+
+	// 开始删除
+	var resp batchDeleteResponse
+	for _, iid := range req.InstanceIDs {
+		r := itemResult{InstanceID: iid}
+		if err := h.tunnelService.DeleteTunnelAndWait(iid, 3*time.Second, req.Recycle); err != nil {
+			r.Success = false
+			r.Error = err.Error()
+			resp.FailCount++
+		} else {
+			r.Success = true
+			resp.Deleted++
+		}
+		resp.Results = append(resp.Results, r)
+	}
+
+	resp.Success = resp.FailCount == 0
+
+	// 设置状态码
+	if resp.Success {
+		if resp.FailCount > 0 {
+			w.WriteHeader(http.StatusPartialContent)
+		} else {
+			w.WriteHeader(http.StatusOK)
+		}
+	} else {
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	_ = json.NewEncoder(w).Encode(resp)
+}

@@ -510,7 +510,7 @@ export default function TemplatesPage() {
               ...(formData.userListenType === 'assign' ? [{
                 label: '监听地址',
                 key: 'userListenAddress' as keyof FormData,
-                placeholder: '0.0.0.0',
+                placeholder: '0.0.0.0/[2001:db8::1]',
                 value: formData.userListenAddress
               }] : []),
               {
@@ -522,7 +522,7 @@ export default function TemplatesPage() {
             ]
           },
           {
-            label: '客户端',
+            label: '中转(客户端)',
             type: 'relay',
             formFields: [
               {
@@ -574,7 +574,7 @@ export default function TemplatesPage() {
               ...(formData.targetListenType === 'external' ? [{
                 label: '目标地址',
                 key: 'exitIp' as keyof FormData,
-                placeholder: '192.168.1.100',
+                placeholder: '0.0.0.0/[2001:db8::1]',
                 value: formData.exitIp
               }] : []),
               {
@@ -608,7 +608,7 @@ export default function TemplatesPage() {
               ...(formData.userListenType === 'assign' ? [{
                 label: '监听地址',
                 key: 'userListenAddress' as keyof FormData,
-                placeholder: '0.0.0.0',
+                placeholder: '0.0.0.0/[2001:db8::1]',
                 value: formData.userListenAddress
               }] : []),
               {
@@ -620,7 +620,7 @@ export default function TemplatesPage() {
             ]
           },
           {
-            label: '客户端',
+            label: '入口(客户端)',
             type: 'target',
             formFields: [
               {
@@ -654,7 +654,7 @@ export default function TemplatesPage() {
             ]
           },
           {
-            label: '服务端',
+            label: '出口(服务端)',
             type: 'relay',
             formFields: [
               {
@@ -690,7 +690,7 @@ export default function TemplatesPage() {
               ...(formData.targetListenType === 'external' ? [{
                 label: '目标地址',
                 key: 'exitIp' as keyof FormData,
-                placeholder: '192.168.1.100',
+                placeholder: '0.0.0.0/[2001:db8::1]',
                 value: formData.exitIp
               }] : []),
               {
@@ -724,7 +724,7 @@ export default function TemplatesPage() {
               ...(formData.userListenType === 'assign' ? [{
                 label: '监听地址',
                 key: 'userListenAddress' as keyof FormData,
-                placeholder: '0.0.0.0',
+                placeholder: '0.0.0.0/[2001:db8::1]',
                 value: formData.userListenAddress
               }] : []),
               {
@@ -736,7 +736,7 @@ export default function TemplatesPage() {
             ]
           },
           {
-            label: '服务端',
+            label: '入口(服务端)',
             type: 'relay',
             formFields: [
               {
@@ -754,7 +754,7 @@ export default function TemplatesPage() {
             ]
           },
           {
-            label: '客户端',
+            label: '出口(客户端)',
             type: 'target',
             formFields: [
               {
@@ -806,7 +806,7 @@ export default function TemplatesPage() {
               ...(formData.targetListenType === 'external' ? [{
                 label: '目标地址',
                 key: 'exitIp' as keyof FormData,
-                placeholder: '192.168.1.100',
+                placeholder: '0.0.0.0/[2001:db8::1]',
                 value: formData.exitIp
               }] : []),
               {
