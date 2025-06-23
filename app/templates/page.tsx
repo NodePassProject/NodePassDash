@@ -11,6 +11,7 @@ import {
   Chip,
   Radio,
   RadioGroup,
+  Tooltip,
 } from "@heroui/react";
 import { addToast } from "@heroui/toast";
 import { useState, useEffect } from "react";
@@ -156,9 +157,9 @@ export default function TemplatesPage() {
   }, []);
 
   const tlsLevels = [
-    { value: '0', label: 'TLS 0 - 无加密 (最快速)' },
-    { value: '1', label: 'TLS 1 - 自签名证书' },
-    { value: '2', label: 'TLS 2 - 自定义证书' }
+    { value: '0', label: '0不加密',description: '暂不应用加密（即明文TCP/UDP）' },
+    { value: '1', label: '1自签名证书',description:'内存自签加密（自动生成）' },
+    { value: '2', label: '2自定义证书',description:'域名证书加密（需要crt和key参数）'}
   ];
 
   const logLevels = [
@@ -1020,8 +1021,8 @@ export default function TemplatesPage() {
               <div className="col-span-1 flex flex-col items-center pt-8">
                 <div className="text-xs text-default-500 mb-2">
                   {selectedMode === 'single' ? '转发' : 
-                   selectedMode === 'double' ? '连接' :
-                   selectedMode === 'intranet' ? '连接' : '连接'}
+                   selectedMode === 'double' ? '连接池' :
+                   selectedMode === 'intranet' ? '连接池' : '连接'}
                 </div>
                 {/* 根据模式显示不同的连接方式 */}
                 {selectedMode === 'single' ? (
@@ -1102,13 +1103,13 @@ export default function TemplatesPage() {
                     <div className="flex items-center gap-1 mb-2">
                       <FontAwesomeIcon icon={faGear} className="text-primary-600 dark:text-primary-400 text-xs" />
                       <span className="text-xs font-medium text-primary-800 dark:text-primary-300">
-                        {selectedMode === 'double' ? '连接配置' : '连接配置'}
+                        {selectedMode === 'double' ? '连接池配置' : '连接池配置'}
                       </span>
                     </div>
                     <div className="space-y-1">
                       <div>
                         <label className="block text-xs text-default-700 dark:text-default-200 mb-1">
-                          {selectedMode === 'double' ? '连接端口' : '连接端口'}
+                          {selectedMode === 'double' ? '服务端口' : '服务端口'}
                         </label>
                         <input
                           type="text"
@@ -1129,13 +1130,19 @@ export default function TemplatesPage() {
                           className="gap-2"
                         >
                           {tlsLevels.map((level) => (
-                            <Radio 
-                              key={level.value} 
-                              value={level.value}
-                              className="text-xs"
+                            <Tooltip 
+                              key={level.value}
+                              content={level.description}
+                              size="sm"
+                              placement="right"
                             >
-                              {level.value}
-                            </Radio>
+                              <Radio 
+                                value={level.value}
+                                className="text-xs"
+                              >
+                                {level.label}
+                              </Radio>
+                            </Tooltip>
                           ))}
                         </RadioGroup>
                       </div>
