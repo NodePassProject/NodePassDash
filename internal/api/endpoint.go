@@ -1015,32 +1015,51 @@ func parseInstanceURL(raw, mode string) struct {
 		hostPart = raw
 	}
 
-	if hostPart != "" {
-		if strings.Contains(hostPart, ":") {
-			parts := strings.SplitN(hostPart, ":", 2)
-			res.TunnelAddress = parts[0]
-			res.TunnelPort = parts[1]
-		} else {
-			if _, err := strconv.Atoi(hostPart); err == nil {
-				res.TunnelPort = hostPart
-			} else {
-				res.TunnelAddress = hostPart
+	// 内部帮助函数: 解析地址与端口, 支持 IPv6 字面量如 [2001:db8::1]:8080
+	parsePart := func(part string) (addr string, port string) {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return "", ""
+		}
+		// IPv6 使用方括号包裹，如 [2401:b60:16:24c::]:10101
+		if strings.HasPrefix(part, "[") {
+			if end := strings.Index(part, "]"); end != -1 {
+				addr = part[:end+1] // 连同 ']' 一并保留，方便后续直接展示
+				// 判断是否包含端口
+				if len(part) > end+1 && part[end+1] == ':' {
+					port = part[end+2:]
+				}
+				return
 			}
 		}
+		// 其它情况按冒号分割 (IPv4/域名 或 "ip:port")
+		if strings.Contains(part, ":") {
+			pieces := strings.SplitN(part, ":", 2)
+			addr = pieces[0]
+			port = pieces[1]
+		} else {
+			// 仅端口或仅地址
+			if _, err := strconv.Atoi(part); err == nil {
+				port = part
+			} else {
+				addr = part
+			}
+		}
+		return
 	}
 
+	// 解析 hostPart -> tunnelAddress:tunnelPort (兼容 IPv6)
+	if hostPart != "" {
+		addr, port := parsePart(hostPart)
+		res.TunnelAddress = addr
+		res.TunnelPort = port
+	}
+
+	// 解析 pathPart -> targetAddress:targetPort (兼容 IPv6)
 	if pathPart != "" {
-		if strings.Contains(pathPart, ":") {
-			parts := strings.SplitN(pathPart, ":", 2)
-			res.TargetAddress = parts[0]
-			res.TargetPort = parts[1]
-		} else {
-			if _, err := strconv.Atoi(pathPart); err == nil {
-				res.TargetPort = pathPart
-			} else {
-				res.TargetAddress = pathPart
-			}
-		}
+		addr, port := parsePart(pathPart)
+		res.TargetAddress = addr
+		res.TargetPort = port
 	}
 
 	if query != "" {

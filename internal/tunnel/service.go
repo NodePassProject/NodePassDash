@@ -77,34 +77,47 @@ func parseInstanceURL(raw, mode string) parsedURL {
 		hostPart = raw
 	}
 
-	// 解析 hostPart -> tunnelAddress:tunnelPort
-	if hostPart != "" {
-		if strings.Contains(hostPart, ":") {
-			parts := strings.SplitN(hostPart, ":", 2)
-			res.TunnelAddress = parts[0]
-			res.TunnelPort = parts[1]
-		} else {
-			if _, err := strconv.Atoi(hostPart); err == nil {
-				res.TunnelPort = hostPart
-			} else {
-				res.TunnelAddress = hostPart
+	// 内部工具函数: 解析 "addr:port" 片段 (兼容 IPv6 字面量，如 [::1]:8080)
+	parsePart := func(part string) (addr, port string) {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return "", ""
+		}
+		// IPv6 Literals
+		if strings.HasPrefix(part, "[") {
+			if end := strings.Index(part, "]"); end != -1 {
+				addr = part[:end+1]
+				if len(part) > end+1 && part[end+1] == ':' {
+					port = part[end+2:]
+				}
+				return
 			}
 		}
+		if strings.Contains(part, ":") {
+			pieces := strings.SplitN(part, ":", 2)
+			addr, port = pieces[0], pieces[1]
+		} else {
+			if _, err := strconv.Atoi(part); err == nil {
+				port = part
+			} else {
+				addr = part
+			}
+		}
+		return
 	}
 
-	// 解析 pathPart -> targetAddress:targetPort
+	// 解析 hostPart -> tunnelAddress:tunnelPort (兼容 IPv6)
+	if hostPart != "" {
+		addr, port := parsePart(hostPart)
+		res.TunnelAddress = addr
+		res.TunnelPort = port
+	}
+
+	// 解析 pathPart -> targetAddress:targetPort (兼容 IPv6)
 	if pathPart != "" {
-		if strings.Contains(pathPart, ":") {
-			parts := strings.SplitN(pathPart, ":", 2)
-			res.TargetAddress = parts[0]
-			res.TargetPort = parts[1]
-		} else {
-			if _, err := strconv.Atoi(pathPart); err == nil {
-				res.TargetPort = pathPart
-			} else {
-				res.TargetAddress = pathPart
-			}
-		}
+		addr, port := parsePart(pathPart)
+		res.TargetAddress = addr
+		res.TargetPort = port
 	}
 
 	// 解析查询参数
@@ -336,6 +349,8 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 	npClient := nodepass.NewClient(endpointURL, endpointAPIPath, endpointAPIKey, nil)
 	instanceID, remoteStatus, err := npClient.CreateInstance(commandLine)
 	if err != nil {
+		// 记录 NodePass API 错误，包含关键上下文信息
+		log.Errorf("[NodePass] 创建实例失败 endpoint=%d cmd=%s err=%v", req.EndpointID, commandLine, err)
 		return nil, err
 	}
 

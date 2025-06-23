@@ -248,56 +248,56 @@ export default function TunnelsPage() {
   const handleBatchDelete = async () => {
     if (!selectedKeys || (selectedKeys instanceof Set && selectedKeys.size === 0)) return;
 
-    try {
-      // 计算待删除的 ID 列表
-      let ids: number[] = [];
-      if (selectedKeys === "all") {
-        ids = filteredItems.map((t) => Number(t.id));
-      } else {
-        ids = Array.from(selectedKeys as Set<string>).map((id) => Number(id));
-      }
+    // 计算待删除的 ID 列表
+    let ids: number[] = [];
+    if (selectedKeys === "all") {
+      ids = filteredItems.map((t) => Number(t.id));
+    } else {
+      ids = Array.from(selectedKeys as Set<string>).map((id) => Number(id));
+    }
 
-      // 提示开始删除
-      addToast({
-        title: "批量删除中...",
-        description: "正在删除所选实例，请稍候",
-        color: "primary",
-      });
-      const response = await fetch(buildApiUrl('/api/tunnels/batch'), {
+    // 使用 promise 形式的 Toast
+    addToast({
+      timeout: 1,
+      title: "批量删除中...",
+      description: "正在删除所选实例，请稍候",
+      color: "primary",
+      promise: fetch(buildApiUrl('/api/tunnels/batch'), {
         method: 'DELETE',
         headers: {
           'Content-Type': 'application/json',
         },
         body: JSON.stringify({ ids }),
-      });
+      })
+        .then(async (response) => {
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data?.error || '批量删除失败');
+          }
 
-      const data = await response.json();
+          // 成功提示
+          addToast({
+            title: '批量删除成功',
+            description: `已删除 ${data.deleted || ids.length} 个实例`,
+            color: 'success',
+          });
 
-      if (!response.ok) {
-        addToast({
-          title: '批量删除失败',
-          description: data?.error || '批量删除失败',
-          color: 'danger',
-        });
-        throw new Error(data?.error || '批量删除失败');
-      }
+          // 清空选择并刷新
+          setSelectedKeys(new Set<string>());
+          fetchTunnels();
 
-      addToast({
-        title: '批量删除成功',
-        description: `已删除 ${data.deleted || ids.length} 个实例`,
-        color: 'success',
-      });
-
-      // 清空选择并刷新
-      setSelectedKeys(new Set<string>());
-      fetchTunnels();
-    } catch (error) {
-      addToast({
-        title: '批量删除失败',
-        description: error instanceof Error ? error.message : '未知错误',
-        color: 'danger',
-      });
-    }
+          return data;
+        })
+        .catch((error) => {
+          // 失败提示
+          addToast({
+            title: '批量删除失败',
+            description: error instanceof Error ? error.message : '未知错误',
+            color: 'danger',
+          });
+          throw error;
+        }),
+    });
   };
 
   // 初始加载

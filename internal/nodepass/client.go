@@ -7,6 +7,9 @@ import (
 	"fmt"
 	"net/http"
 	"time"
+
+	// 引入系统代理检测 (Windows/macOS)
+	"github.com/mattn/go-ieproxy"
 )
 
 // Client 封装与 NodePass HTTP API 的交互
@@ -31,6 +34,8 @@ func NewClient(baseURL, apiPath, apiKey string, httpClient *http.Client) *Client
 	if httpClient == nil {
 		// 复制默认 Transport 并禁用证书校验，以支持自建/自签名 SSL
 		tr := http.DefaultTransport.(*http.Transport).Clone()
+		// 启用系统/环境代理检测：先读 env，再回退到系统代理
+		tr.Proxy = ieproxy.GetProxyFunc()
 		if tr.TLSClientConfig == nil {
 			tr.TLSClientConfig = &tls.Config{InsecureSkipVerify: true}
 		} else {

@@ -671,6 +671,34 @@ type parsedURL struct {
 	Max           string
 }
 
+// 内部工具函数: 解析地址:端口 (兼容 IPv6 字面量)
+func parsePart(part string) (addr, port string) {
+	part = strings.TrimSpace(part)
+	if part == "" {
+		return "", ""
+	}
+	if strings.HasPrefix(part, "[") {
+		if end := strings.Index(part, "]"); end != -1 {
+			addr = part[:end+1]
+			if len(part) > end+1 && part[end+1] == ':' {
+				port = part[end+2:]
+			}
+			return
+		}
+	}
+	if strings.Contains(part, ":") {
+		pieces := strings.SplitN(part, ":", 2)
+		addr, port = pieces[0], pieces[1]
+	} else {
+		if _, err := strconv.Atoi(part); err == nil {
+			port = part
+		} else {
+			addr = part
+		}
+	}
+	return
+}
+
 func parseInstanceURL(raw, mode string) parsedURL {
 	// 默认值
 	res := parsedURL{
@@ -705,35 +733,18 @@ func parseInstanceURL(raw, mode string) parsedURL {
 		hostPart = raw
 	}
 
-	// hostPart => tunnel address:port
+	// hostPart
 	if hostPart != "" {
-		if strings.Contains(hostPart, ":") {
-			parts := strings.SplitN(hostPart, ":", 2)
-			res.TunnelAddress = parts[0]
-			res.TunnelPort = parts[1]
-		} else {
-			// 只有端口或地址
-			if _, err := strconv.Atoi(hostPart); err == nil {
-				res.TunnelPort = hostPart
-			} else {
-				res.TunnelAddress = hostPart
-			}
-		}
+		addr, port := parsePart(hostPart)
+		res.TunnelAddress = addr
+		res.TunnelPort = port
 	}
 
-	// pathPart => target address:port
+	// pathPart
 	if pathPart != "" {
-		if strings.Contains(pathPart, ":") {
-			parts := strings.SplitN(pathPart, ":", 2)
-			res.TargetAddress = parts[0]
-			res.TargetPort = parts[1]
-		} else {
-			if _, err := strconv.Atoi(pathPart); err == nil {
-				res.TargetPort = pathPart
-			} else {
-				res.TargetAddress = pathPart
-			}
-		}
+		addr, port := parsePart(pathPart)
+		res.TargetAddress = addr
+		res.TargetPort = port
 	}
 
 	// query params
