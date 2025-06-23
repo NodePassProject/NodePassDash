@@ -558,7 +558,7 @@ export default function TemplatesPage() {
                 value: formData.masterServer,
                 options: endpoints.map(endpoint => ({
                   value: endpoint.name,
-                  label: `${endpoint.name} [${extractHostFromUrl(endpoint.url)}]${endpoint.status === 'FAIL' ? ' - 异常' : ''}`,
+                  label: `${endpoint.name} ${extractHostFromUrl(endpoint.url)}`,
                   disabled: endpoint.status === 'FAIL'
                 }))
               }
@@ -656,7 +656,7 @@ export default function TemplatesPage() {
                 value: formData.targetMaster,
                 options: endpoints.map(endpoint => ({
                   value: endpoint.name,
-                  label: `${endpoint.name} [${extractHostFromUrl(endpoint.url)}]${endpoint.status === 'FAIL' ? ' - 异常' : ''}`,
+                  label: `${endpoint.name} ${extractHostFromUrl(endpoint.url)}`,
                   disabled: endpoint.status === 'FAIL'
                 }))
               }
@@ -690,7 +690,7 @@ export default function TemplatesPage() {
                 value: formData.masterServer,
                 options: endpoints.map(endpoint => ({
                   value: endpoint.name,
-                  label: `${endpoint.name} [${extractHostFromUrl(endpoint.url)}]${endpoint.status === 'FAIL' ? ' - 异常' : ''}`,
+                  label: `${endpoint.name} ${extractHostFromUrl(endpoint.url)}`,
                   disabled: endpoint.status === 'FAIL'
                 }))
               }
@@ -772,7 +772,7 @@ export default function TemplatesPage() {
                 value: formData.masterServer,
                 options: endpoints.map(endpoint => ({
                   value: endpoint.name,
-                  label: `${endpoint.name} [${extractHostFromUrl(endpoint.url)}]${endpoint.status === 'FAIL' ? ' - 异常' : ''}`,
+                  label: `${endpoint.name} ${extractHostFromUrl(endpoint.url)}`,
                   disabled: endpoint.status === 'FAIL'
                 }))
               }
@@ -790,7 +790,7 @@ export default function TemplatesPage() {
                 value: formData.intranetTargetMaster,
                 options: endpoints.map(endpoint => ({
                   value: endpoint.name,
-                  label: `${endpoint.name} [${extractHostFromUrl(endpoint.url)}]${endpoint.status === 'FAIL' ? ' - 异常' : ''}`,
+                  label: `${endpoint.name} ${extractHostFromUrl(endpoint.url)}`,
                   disabled: endpoint.status === 'FAIL'
                 }))
               }
