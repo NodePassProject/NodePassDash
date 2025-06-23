@@ -135,6 +135,28 @@ export default function TemplatesPage() {
   const [endpoints, setEndpoints] = useState<SimpleEndpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  
+  // 服务端口模式控制
+  const [servicePortMode, setServicePortMode] = useState<"random" | "custom">("custom");
+
+  // 生成随机端口（40000-65535）
+  const generateRandomPort = (): string => {
+    const min = 40000;
+    const max = 65535;
+    return Math.floor(Math.random() * (max - min + 1) + min).toString();
+  };
+
+  // 处理端口模式切换
+  const handleServicePortModeChange = (mode: "random" | "custom") => {
+    setServicePortMode(mode);
+    if (mode === "random") {
+      // 如果选择随机模式，立即生成一个随机端口
+      updateField('connectionPort', generateRandomPort());
+    } else {
+      // 如果选择自定义模式，清空端口字段
+      updateField('connectionPort', '');
+    }
+  };
 
   // 获取端点列表
   const fetchEndpoints = async () => {
@@ -301,6 +323,8 @@ export default function TemplatesPage() {
       userListenType: 'all', // 保持默认值
       userListenAddress: '' // 用户监听地址
     });
+    // 重置端口模式
+    setServicePortMode('custom');
   };
 
   // 切换隧道模式时清空表单数据
@@ -1111,13 +1135,53 @@ export default function TemplatesPage() {
                         <label className="block text-xs text-default-700 dark:text-white mb-1">
                           {selectedMode === 'double' ? '服务端口' : '服务端口'}
                         </label>
-                        <input
-                          type="text"
-                          value={formData.connectionPort}
-                          onChange={(e) => updateField('connectionPort', e.target.value)}
-                          placeholder="10101"
-                          className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-black placeholder-default-400 dark:placeholder-default-500"
-                        />
+                                                  <div className="space-y-1">
+                            {/* 端口模式选择和输入框 */}
+                            <RadioGroup 
+                              value={servicePortMode}
+                              onValueChange={(value: string) => handleServicePortModeChange(value as "random" | "custom")}
+                              orientation="vertical"
+                              size="sm"
+                              className="gap-1"
+                            >
+                              {/* 随机选项 */}
+                              <Radio 
+                                value="random"
+                                size="sm"
+                                className="text-xs"
+                              >
+                                随机
+                              </Radio>
+                              
+                              {/* 自定义选项 - 用input框替代文字 */}
+                              <div className="flex items-center gap">
+                                <Radio 
+                                  value="custom"
+                                  size="sm"
+                                  className="text-xs flex-shrink-0"
+                                />
+                                <input
+                                  type="text"
+                                  value={formData.connectionPort}
+                                  onChange={(e) => {
+                                    // 只允许数字
+                                    const value = e.target.value;
+                                    if (/^\d*$/.test(value) && value.length <= 5) {
+                                      updateField('connectionPort', value);
+                                    }
+                                  }}
+                                  disabled={servicePortMode === "random"}
+                                  placeholder={servicePortMode === "random" ? "随机生成" : "10101"}
+                                  className={`flex-1 px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded text-default-900 dark:text-black placeholder-default-400 dark:placeholder-default-500 ${
+                                    servicePortMode === "random" 
+                                      ? 'bg-default-100 dark:bg-default-800/50 cursor-not-allowed' 
+                                      : 'bg-white dark:bg-default-900'
+                                  }`}
+                                  style={{ minWidth: '60px', maxWidth: '80px' }}
+                                />
+                              </div>
+                            </RadioGroup>
+                          </div>
                       </div>
                       
                       <div>
