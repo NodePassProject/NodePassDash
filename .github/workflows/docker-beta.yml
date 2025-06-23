@@ -50,9 +50,8 @@ jobs:
             fi
           else
             # 分支触发处理
-            BASE_VERSION=$(node -p "require('./package.json').version")
+            VERSION=$(node -p "require('./package.json').version")
             BRANCH_NAME=${GITHUB_REF#refs/heads/}
-            VERSION="${BASE_VERSION}-${BRANCH_NAME}-${GITHUB_SHA::7}"
             RAW_VERSION="branch-${BRANCH_NAME}"
             IS_BETA_TAG=false
             echo "🌿 分支构建: $BRANCH_NAME -> $VERSION"
