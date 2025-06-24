@@ -54,6 +54,8 @@ import { TunnelToolBox } from "./components/toolbox";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
 import { buildApiUrl } from '@/lib/utils';
+import { copyToClipboard } from '@/lib/utils/clipboard';
+import ManualCopyModal from '@/components/ui/manual-copy-modal';
 import QuickCreateTunnelModal from "./components/quick-create-tunnel-modal";
 import BatchCreateModal from "./components/batch-create-modal";
 
@@ -357,23 +359,18 @@ export default function TunnelsPage() {
     setExportModalOpen(true);
   };
 
+  // 手动复制模态框状态
+  const [manualCopyText, setManualCopyText] = useState<string>('');
+  const [isManualCopyOpen, setIsManualCopyOpen] = useState(false);
+  
+  const showManualCopyModal = (text: string) => {
+    setManualCopyText(text);
+    setIsManualCopyOpen(true);
+  };
+
   // 复制配置到剪贴板
-  const copyToClipboard = async () => {
-    try {
-      await navigator.clipboard.writeText(exportConfig);
-      addToast({
-        title: '复制成功',
-        description: '配置已复制到剪贴板',
-        color: 'success'
-      });
-    } catch (error) {
-      console.error('复制失败:', error);
-      addToast({
-        title: '复制失败',
-        description: '请手动复制配置内容',
-        color: 'danger'
-      });
-    }
+  const copyExportConfig = async () => {
+    copyToClipboard(exportConfig, '配置已复制到剪贴板', showManualCopyModal);
   };
 
   // 初始加载
@@ -1023,7 +1020,7 @@ export default function TunnelsPage() {
                               isIconOnly
                               variant="light"
                               size="sm"
-                              color="default"
+                              color="warning"
                               onClick={()=>{ setEditTunnel(tunnel); setEditModalOpen(true);} }
                               startContent={<FontAwesomeIcon icon={faPen} className="text-xs" />}
                             />
@@ -1134,7 +1131,7 @@ export default function TunnelsPage() {
                           checked={moveToRecycle}
                           onChange={(e) => setMoveToRecycle(e.target.checked)}
                         />
-                        <span>删除后移入回收站</span>
+                        <span>删除后历史记录移至回收站</span>
                       </label>
                     </div>
                   </>
@@ -1255,7 +1252,7 @@ export default function TunnelsPage() {
                       checked={batchMoveToRecycle}
                       onChange={(e) => setBatchMoveToRecycle(e.target.checked)}
                     />
-                    <span>删除后移入回收站</span>
+                    <span>删除后历史记录移至回收站</span>
                   </label>
                 </div>
               </ModalBody>
@@ -1309,7 +1306,7 @@ export default function TunnelsPage() {
                 </Button>
                 <Button 
                   color="primary" 
-                  onPress={copyToClipboard}
+                  onPress={copyExportConfig}
                   startContent={<FontAwesomeIcon icon={faCopy} />}
                 >
                   复制配置
@@ -1319,6 +1316,13 @@ export default function TunnelsPage() {
           )}
         </ModalContent>
       </Modal>
+
+      {/* 手动复制模态框 */}
+      <ManualCopyModal
+        isOpen={isManualCopyOpen}
+        onOpenChange={(open) => setIsManualCopyOpen(open)}
+        text={manualCopyText}
+      />
     </>
   );
 } 
