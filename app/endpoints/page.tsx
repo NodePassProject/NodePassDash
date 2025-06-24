@@ -62,6 +62,8 @@ import {
 import AddEndpointModal from "./components/add-endpoint-modal";
 import RenameEndpointModal from "./components/rename-endpoint-modal";
 import { buildApiUrl } from '@/lib/utils';
+import { copyToClipboard } from '@/lib/utils/clipboard';
+import ManualCopyModal from '@/components/ui/manual-copy-modal';
 // 本地定义 EndpointStatus 枚举，后端通过 API 返回字符串
 type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL';
 // 后端返回的 Endpoint 基础结构
@@ -508,9 +510,9 @@ export default function EndpointsPage() {
                     break;
                 }}}>
               <DropdownItem key="addTunnel" startContent={<FontAwesomeIcon icon={faPlus}/>} className="text-primary" color="primary">添加实例</DropdownItem>
-              <DropdownItem key="refresTunnel" startContent={<FontAwesomeIcon icon={faRotateRight}/>} >刷新实例</DropdownItem>
-              <DropdownItem key="rename" startContent={<FontAwesomeIcon icon={faPen} />}>重命名</DropdownItem>
-              <DropdownItem key="copy" startContent={<FontAwesomeIcon icon={faCopy}/>}>复制配置</DropdownItem>
+              <DropdownItem key="refresTunnel" startContent={<FontAwesomeIcon icon={faRotateRight}/>} className="text-secondary" color="secondary">刷新实例</DropdownItem>
+              <DropdownItem key="rename" startContent={<FontAwesomeIcon icon={faPen} />} className="text-warning" color="warning">重命名</DropdownItem>
+              <DropdownItem key="copy" startContent={<FontAwesomeIcon icon={faCopy}/>} className="text-success" color="success">复制配置</DropdownItem>
               <DropdownItem 
                 key="toggle" 
                 startContent={<FontAwesomeIcon icon={realTimeData.status==='ONLINE'?faPlugCircleXmark:faPlug}/> }
@@ -642,77 +644,22 @@ export default function EndpointsPage() {
   // 复制配置到剪贴板
   function handleCopyConfig(endpoint: FormattedEndpoint) {
     const cfg = `API URL: ${endpoint.url}${endpoint.apiPath}\nAPI KEY: ${endpoint.apiKey}`;
-    
-    // 检查是否支持 clipboard API
-    if (!navigator.clipboard) {
-      addToast({
-        title:'复制失败', 
-        description:'浏览器不支持剪贴板操作，请手动复制', 
-        color:'danger'
-      });
-      return;
-    }
-
-    navigator.clipboard.writeText(cfg).then(()=>{
-      addToast({title:'已复制', description:'配置已复制到剪贴板', color:'success'});
-    }).catch((error)=>{
-      let errorMessage = '无法复制到剪贴板';
-      
-      // 根据不同的错误类型提供更详细的提示
-      if (error.name === 'NotAllowedError') {
-        errorMessage = '浏览器阻止了剪贴板访问，请在浏览器设置中允许剪贴板权限';
-      } else if (error.name === 'SecurityError') {
-        errorMessage = '安全限制：请确保网站使用 HTTPS 协议';
-      } else if (error.name === 'TypeError') {
-        errorMessage = '数据格式错误，无法写入剪贴板';
-      } else if (error.message) {
-        errorMessage = `复制失败：${error.message}`;
-      }
-      
-      addToast({
-        title:'复制失败', 
-        description: errorMessage, 
-        color:'danger'
-      });
-    });
+    copyToClipboard(cfg, '配置已复制到剪贴板', showManualCopyModal);
   }
+
+  // 手动复制模态框状态
+  const [manualCopyText, setManualCopyText] = useState<string>('');
+  const {isOpen: isManualCopyOpen, onOpen: onManualCopyOpen, onOpenChange: onManualCopyOpenChange} = useDisclosure();
+  
+  const showManualCopyModal = (text: string) => {
+    setManualCopyText(text);
+    onManualCopyOpen();
+  };
 
   // 复制安装脚本到剪贴板
   function handleCopyInstallScript() {
     const cmd = 'bash <(wget -qO- https://run.nodepass.eu/np.sh)';
-    
-    // 检查是否支持 clipboard API
-    if (!navigator.clipboard) {
-      addToast({
-        title:'复制失败', 
-        description:'浏览器不支持剪贴板操作，请手动复制', 
-        color:'danger'
-      });
-      return;
-    }
-
-    navigator.clipboard.writeText(cmd).then(()=>{
-      addToast({title:'已复制', description:'安装脚本已复制到剪贴板', color:'success'});
-    }).catch((error)=>{
-      let errorMessage = '无法复制到剪贴板';
-      
-      // 根据不同的错误类型提供更详细的提示
-      if (error.name === 'NotAllowedError') {
-        errorMessage = '浏览器阻止了剪贴板访问，请在浏览器设置中允许剪贴板权限';
-      } else if (error.name === 'SecurityError') {
-        errorMessage = '安全限制：请确保网站使用 HTTPS 协议';
-      } else if (error.name === 'TypeError') {
-        errorMessage = '数据格式错误，无法写入剪贴板';
-      } else if (error.message) {
-        errorMessage = `复制失败：${error.message}`;
-      }
-      
-      addToast({
-        title:'复制失败', 
-        description: errorMessage, 
-        color:'danger'
-      });
-    });
+    copyToClipboard(cmd, '安装脚本已复制到剪贴板', showManualCopyModal);
   }
 
   // 刷新指定端点的隧道信息
@@ -771,8 +718,26 @@ export default function EndpointsPage() {
             aria-label="布局切换"
             className="w-auto"
           >
-            <Tab key="card" title={<FontAwesomeIcon icon={faGrip} />} />
-            <Tab key="table" title={<FontAwesomeIcon icon={faTable} />} />
+            <Tab 
+              key="card" 
+              title={
+                <Tooltip content="卡片视图" >
+                  <div>
+                    <FontAwesomeIcon icon={faGrip} />
+                  </div>
+                </Tooltip>
+              } 
+            />
+            <Tab 
+              key="table" 
+              title={
+                <Tooltip content="表格视图" >
+                  <div>
+                    <FontAwesomeIcon icon={faTable} />
+                  </div>
+                </Tooltip>
+              } 
+            />
           </Tabs>
         </div>
       </div>
@@ -991,9 +956,9 @@ export default function EndpointsPage() {
                     </TableCell>
                     <TableCell className="w-52">
                       <div className="flex items-center gap-1 justify-start">
-                        {/* 查看详情 */}
-                        <Tooltip content="查看详情">
-                          <Button isIconOnly size="sm" variant="light" color="default" onPress={()=>router.push(`/endpoints/details?id=${ep.id}`)}>
+                        {/* 查看日志 */}
+                        <Tooltip content="查看日志">
+                          <Button isIconOnly size="sm" variant="light" color="primary" onPress={()=>router.push(`/endpoints/details?id=${ep.id}`)}>
                             <FontAwesomeIcon icon={faFileLines} />
                           </Button>
                         </Tooltip>
@@ -1146,6 +1111,13 @@ export default function EndpointsPage() {
           )}
         </ModalContent>
       </Modal>
+
+      {/* 手动复制模态框 */}
+      <ManualCopyModal
+        isOpen={isManualCopyOpen}
+        onOpenChange={onManualCopyOpenChange}
+        text={manualCopyText}
+      />
     </div>
   );
 } 

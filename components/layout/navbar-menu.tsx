@@ -15,7 +15,8 @@ const navigationItems = [
   {
     href: "/dashboard",
     label: "仪表盘",
-    icon: "solar:chart-2-bold-duotone",
+    // icon: "dashicons:dashboard",
+    icon: "solar:chart-2-bold",
   },
   {
     href: "/tunnels",

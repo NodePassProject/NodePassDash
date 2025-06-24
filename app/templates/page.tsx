@@ -11,6 +11,7 @@ import {
   Chip,
   Radio,
   RadioGroup,
+  Tooltip,
 } from "@heroui/react";
 import { addToast } from "@heroui/toast";
 import { useState, useEffect } from "react";
@@ -134,6 +135,28 @@ export default function TemplatesPage() {
   const [endpoints, setEndpoints] = useState<SimpleEndpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [creating, setCreating] = useState(false);
+  
+  // 服务端口模式控制
+  const [servicePortMode, setServicePortMode] = useState<"random" | "custom">("custom");
+
+  // 生成随机端口（40000-65535）
+  const generateRandomPort = (): string => {
+    const min = 40000;
+    const max = 65535;
+    return Math.floor(Math.random() * (max - min + 1) + min).toString();
+  };
+
+  // 处理端口模式切换
+  const handleServicePortModeChange = (mode: "random" | "custom") => {
+    setServicePortMode(mode);
+    if (mode === "random") {
+      // 如果选择随机模式，立即生成一个随机端口
+      updateField('connectionPort', generateRandomPort());
+    } else {
+      // 如果选择自定义模式，清空端口字段
+      updateField('connectionPort', '');
+    }
+  };
 
   // 获取端点列表
   const fetchEndpoints = async () => {
@@ -156,9 +179,9 @@ export default function TemplatesPage() {
   }, []);
 
   const tlsLevels = [
-    { value: '0', label: 'TLS 0 - 无加密 (最快速)' },
-    { value: '1', label: 'TLS 1 - 自签名证书' },
-    { value: '2', label: 'TLS 2 - 自定义证书' }
+    { value: '0', label: '0不加密',description: '暂不应用加密（即明文TCP/UDP）' },
+    { value: '1', label: '1自签名证书',description:'内存自签加密（自动生成）' },
+    { value: '2', label: '2自定义证书',description:'域名证书加密（需要crt和key参数）'}
   ];
 
   const logLevels = [
@@ -168,15 +191,35 @@ export default function TemplatesPage() {
     { value: 'debug', label: 'Debug' }
   ];
 
-  const listenTypes = [
-    { value: 'external', label: '外部' },
-    { value: 'local', label: '本地' }
-  ];
+  // 根据模式动态生成用户监听策略选项
+  const getUserListenTypes = () => {
+    if (selectedMode === 'single') {
+      return [
+        { value: 'all', label: '全部IP' },
+        { value: 'assign', label: '指定IP' }
+      ];
+    } else {
+      return [
+        { value: 'all', label: '全部入口' },
+        { value: 'assign', label: '指定入口' }
+      ];
+    }
+  };
 
-  const userListenTypes = [
-    { value: 'all', label: '全部IP' },
-    { value: 'assign', label: '指定IP' }
-  ];
+  // 根据模式动态生成目标访问策略选项
+  const getTargetAccessTypes = () => {
+    if (selectedMode === 'single') {
+      return [
+        { value: 'external', label: '外部服务' },
+        { value: 'local', label: '本地中转' }
+      ];
+    } else {
+      return [
+        { value: 'external', label: '外部服务' },
+        { value: 'local', label: '本地出口' }
+      ];
+    }
+  };
 
   const [formData, setFormData] = useState<FormData>({
     userPort: '',
@@ -300,6 +343,8 @@ export default function TemplatesPage() {
       userListenType: 'all', // 保持默认值
       userListenAddress: '' // 用户监听地址
     });
+    // 重置端口模式
+    setServicePortMode('custom');
   };
 
   // 切换隧道模式时清空表单数据
@@ -501,7 +546,7 @@ export default function TemplatesPage() {
                 type: 'radio',
                 placeholder: '选择监听策略',
                 value: formData.userListenType,
-                options: userListenTypes.map(type => ({
+                options: getUserListenTypes().map(type => ({
                   value: type.value,
                   label: type.label
                 }))
@@ -533,7 +578,7 @@ export default function TemplatesPage() {
                 value: formData.masterServer,
                 options: endpoints.map(endpoint => ({
                   value: endpoint.name,
-                  label: `${endpoint.name} [${extractHostFromUrl(endpoint.url)}]${endpoint.status === 'FAIL' ? ' - 异常' : ''}`,
+                  label: `${endpoint.name} ${extractHostFromUrl(endpoint.url)}`,
                   disabled: endpoint.status === 'FAIL'
                 }))
               }
@@ -565,7 +610,7 @@ export default function TemplatesPage() {
                 type: 'radio',
                 placeholder: '选择访问类型',
                 value: formData.targetListenType,
-                options: listenTypes.map(type => ({
+                options: getTargetAccessTypes().map(type => ({
                   value: type.value,
                   label: type.label
                 }))
@@ -599,7 +644,7 @@ export default function TemplatesPage() {
                 type: 'radio',
                 placeholder: '选择监听策略',
                 value: formData.userListenType,
-                options: userListenTypes.map(type => ({
+                options: getUserListenTypes().map(type => ({
                   value: type.value,
                   label: type.label
                 }))
@@ -631,7 +676,7 @@ export default function TemplatesPage() {
                 value: formData.targetMaster,
                 options: endpoints.map(endpoint => ({
                   value: endpoint.name,
-                  label: `${endpoint.name} [${extractHostFromUrl(endpoint.url)}]${endpoint.status === 'FAIL' ? ' - 异常' : ''}`,
+                  label: `${endpoint.name} ${extractHostFromUrl(endpoint.url)}`,
                   disabled: endpoint.status === 'FAIL'
                 }))
               }
@@ -665,7 +710,7 @@ export default function TemplatesPage() {
                 value: formData.masterServer,
                 options: endpoints.map(endpoint => ({
                   value: endpoint.name,
-                  label: `${endpoint.name} [${extractHostFromUrl(endpoint.url)}]${endpoint.status === 'FAIL' ? ' - 异常' : ''}`,
+                  label: `${endpoint.name} ${extractHostFromUrl(endpoint.url)}`,
                   disabled: endpoint.status === 'FAIL'
                 }))
               }
@@ -681,7 +726,7 @@ export default function TemplatesPage() {
                 type: 'radio',
                 placeholder: '选择访问策略类型',
                 value: formData.targetListenType,
-                options: listenTypes.map(type => ({
+                options: getTargetAccessTypes().map(type => ({
                   value: type.value,
                   label: type.label
                 }))
@@ -715,7 +760,7 @@ export default function TemplatesPage() {
                 type: 'radio',
                 placeholder: '选择监听策略',
                 value: formData.userListenType,
-                options: userListenTypes.map(type => ({
+                options: getUserListenTypes().map(type => ({
                   value: type.value,
                   label: type.label
                 }))
@@ -747,7 +792,7 @@ export default function TemplatesPage() {
                 value: formData.masterServer,
                 options: endpoints.map(endpoint => ({
                   value: endpoint.name,
-                  label: `${endpoint.name} [${extractHostFromUrl(endpoint.url)}]${endpoint.status === 'FAIL' ? ' - 异常' : ''}`,
+                  label: `${endpoint.name} ${extractHostFromUrl(endpoint.url)}`,
                   disabled: endpoint.status === 'FAIL'
                 }))
               }
@@ -765,7 +810,7 @@ export default function TemplatesPage() {
                 value: formData.intranetTargetMaster,
                 options: endpoints.map(endpoint => ({
                   value: endpoint.name,
-                  label: `${endpoint.name} [${extractHostFromUrl(endpoint.url)}]${endpoint.status === 'FAIL' ? ' - 异常' : ''}`,
+                  label: `${endpoint.name} ${extractHostFromUrl(endpoint.url)}`,
                   disabled: endpoint.status === 'FAIL'
                 }))
               }
@@ -797,7 +842,7 @@ export default function TemplatesPage() {
                 type: 'radio',
                 placeholder: '选择访问策略类型',
                 value: formData.targetListenType,
-                options: listenTypes.map(type => ({
+                options: getTargetAccessTypes().map(type => ({
                   value: type.value,
                   label: type.label
                 }))
@@ -937,7 +982,7 @@ export default function TemplatesPage() {
                         value={option.value}
                         isDisabled={option.disabled}
                         classNames={{
-                          label: "text-xs text-default-700 dark:text-default-200"
+                          label: "text-xs text-default-700 dark:text-white"
                         }}
                       >
                         {option.label}
@@ -1020,8 +1065,8 @@ export default function TemplatesPage() {
               <div className="col-span-1 flex flex-col items-center pt-8">
                 <div className="text-xs text-default-500 mb-2">
                   {selectedMode === 'single' ? '转发' : 
-                   selectedMode === 'double' ? '连接' :
-                   selectedMode === 'intranet' ? '连接' : '连接'}
+                   selectedMode === 'double' ? '连接池' :
+                   selectedMode === 'intranet' ? '连接池' : '连接'}
                 </div>
                 {/* 根据模式显示不同的连接方式 */}
                 {selectedMode === 'single' ? (
@@ -1102,25 +1147,65 @@ export default function TemplatesPage() {
                     <div className="flex items-center gap-1 mb-2">
                       <FontAwesomeIcon icon={faGear} className="text-primary-600 dark:text-primary-400 text-xs" />
                       <span className="text-xs font-medium text-primary-800 dark:text-primary-300">
-                        {selectedMode === 'double' ? '连接配置' : '连接配置'}
+                        {selectedMode === 'double' ? '连接池配置' : '连接池配置'}
                       </span>
                     </div>
                     <div className="space-y-1">
                       <div>
-                        <label className="block text-xs text-default-700 dark:text-default-200 mb-1">
-                          {selectedMode === 'double' ? '连接端口' : '连接端口'}
+                        <label className="block text-xs text-default-700 dark:text-white mb-1">
+                          {selectedMode === 'double' ? '服务端口' : '服务端口'}
                         </label>
-                        <input
-                          type="text"
-                          value={formData.connectionPort}
-                          onChange={(e) => updateField('connectionPort', e.target.value)}
-                          placeholder="10101"
-                          className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-black placeholder-default-400 dark:placeholder-default-500"
-                        />
+                                                  <div className="space-y-1">
+                            {/* 端口模式选择和输入框 */}
+                            <RadioGroup 
+                              value={servicePortMode}
+                              onValueChange={(value: string) => handleServicePortModeChange(value as "random" | "custom")}
+                              orientation="vertical"
+                              size="sm"
+                              className="gap-1"
+                            >
+                              {/* 随机选项 */}
+                              <Radio 
+                                value="random"
+                                size="sm"
+                                className="text-xs"
+                              >
+                                随机
+                              </Radio>
+                              
+                              {/* 自定义选项 - 用input框替代文字 */}
+                              <div className="flex items-center gap">
+                                <Radio 
+                                  value="custom"
+                                  size="sm"
+                                  className="text-xs flex-shrink-0"
+                                />
+                                <input
+                                  type="text"
+                                  value={formData.connectionPort}
+                                  onChange={(e) => {
+                                    // 只允许数字
+                                    const value = e.target.value;
+                                    if (/^\d*$/.test(value) && value.length <= 5) {
+                                      updateField('connectionPort', value);
+                                    }
+                                  }}
+                                  disabled={servicePortMode === "random"}
+                                  placeholder={servicePortMode === "random" ? "随机生成" : "10101"}
+                                  className={`flex-1 px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded text-default-900 dark:text-black placeholder-default-400 dark:placeholder-default-500 ${
+                                    servicePortMode === "random" 
+                                      ? 'bg-default-100 dark:bg-default-800/50 cursor-not-allowed' 
+                                      : 'bg-white dark:bg-default-900'
+                                  }`}
+                                  style={{ minWidth: '60px', maxWidth: '80px' }}
+                                />
+                              </div>
+                            </RadioGroup>
+                          </div>
                       </div>
                       
                       <div>
-                        <label className="block text-xs text-default-700 dark:text-default-200 mb-1">TLS</label>
+                        <label className="block text-xs text-default-700 dark:text-white mb-1">TLS</label>
                         <RadioGroup 
                           value={formData.tlsLevel}
                           onValueChange={(value) => updateField('tlsLevel', value)}
@@ -1129,13 +1214,19 @@ export default function TemplatesPage() {
                           className="gap-2"
                         >
                           {tlsLevels.map((level) => (
-                            <Radio 
-                              key={level.value} 
-                              value={level.value}
-                              className="text-xs"
+                            <Tooltip 
+                              key={level.value}
+                              content={level.description}
+                              size="sm"
+                              placement="right"
                             >
-                              {level.value}
-                            </Radio>
+                              <Radio 
+                                value={level.value}
+                                className="text-xs"
+                              >
+                                {level.label}
+                              </Radio>
+                            </Tooltip>
                           ))}
                         </RadioGroup>
                       </div>
@@ -1144,23 +1235,23 @@ export default function TemplatesPage() {
                       {formData.tlsLevel === '2' && (
                         <>
                           <div>
-                            <label className="block text-xs text-default-700 dark:text-default-200 mb-1">证书路径</label>
+                            <label className="block text-xs text-default-700 dark:text-white mb-1">证书路径</label>
                             <input
                               type="text"
                               value={formData.certPath}
                               onChange={(e) => updateField('certPath', e.target.value)}
                               placeholder="/path/to/cert.pem"
-                              className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-white placeholder-default-400 dark:placeholder-default-500"
+                              className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-black placeholder-default-400 dark:placeholder-default-500"
                             />
                           </div>
                           <div>
-                            <label className="block text-xs text-default-700 dark:text-default-200 mb-1">密钥路径</label>
+                            <label className="block text-xs text-default-700 dark:text-white mb-1">密钥路径</label>
                             <input
                               type="text"
                               value={formData.keyPath}
                               onChange={(e) => updateField('keyPath', e.target.value)}
                               placeholder="/path/to/key.pem"
-                              className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-white placeholder-default-400 dark:placeholder-default-500"
+                              className="w-full px-1 py-1 text-xs border border-default-300 dark:border-default-600 rounded bg-white dark:bg-default-900 text-default-900 dark:text-black placeholder-default-400 dark:placeholder-default-500"
                             />
                           </div>
                         </>

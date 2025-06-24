@@ -24,7 +24,9 @@ import {
   faTrash,
   faLayerGroup,
   faBolt,
-  faCopy
+  faCopy,
+  faRecycle,
+  faDownload
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { Box, Flex } from "@/components";
@@ -235,6 +237,19 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
 
         {/* 右侧：操作按钮组 */}
         <Flex className="gap-2 flex-shrink-0">
+          {/* 回收站按钮 */}
+          <Button 
+            variant="flat"
+            className="md:text-sm"
+            color="warning"
+            startContent={<FontAwesomeIcon icon={faRecycle} />}
+            onClick={() => router.push('/tunnels/recycle')}
+            isDisabled={loading}
+          >
+            <span className="hidden sm:inline">回收站</span>
+            <span className="sm:hidden">回收站</span>
+          </Button>
+          
           {/* 刷新按钮 */}
           <Button 
             variant="flat"
@@ -313,6 +328,9 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
               aria-label="批量操作"
               onAction={(key) => onBulkAction?.(key as string)}
             >
+              <DropdownItem key="export" startContent={<FontAwesomeIcon icon={faDownload} />}>
+                导出配置规则
+              </DropdownItem>
               <DropdownItem key="delete" startContent={<FontAwesomeIcon icon={faTrash} />} className="text-danger">
                 批量删除
               </DropdownItem>

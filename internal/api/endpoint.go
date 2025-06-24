@@ -847,6 +847,108 @@ func (h *EndpointHandler) HandleRecycleDelete(w http.ResponseWriter, r *http.Req
 	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
 }
 
+// HandleRecycleListAll 获取全部端点的回收站隧道 (GET /api/recycle)
+func (h *EndpointHandler) HandleRecycleListAll(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	db := h.endpointService.DB()
+
+	rows, err := db.Query(`SELECT tr.id, tr.name, tr.mode, tr.tunnelAddress, tr.tunnelPort, tr.targetAddress, tr.targetPort, tr.tlsMode,
+		tr.certPath, tr.keyPath, tr.logLevel, tr.commandLine, tr.instanceId, tr.tcpRx, tr.tcpTx, tr.udpRx, tr.udpTx, tr.min, tr.max,
+		tr.endpointId, ep.name as endpointName
+		FROM "TunnelRecycle" tr
+		JOIN "Endpoint" ep ON tr.endpointId = ep.id
+		ORDER BY tr.id DESC`)
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+	defer rows.Close()
+
+	type recycleItemAll struct {
+		ID            int64          `json:"id"`
+		EndpointID    int64          `json:"endpointId"`
+		EndpointName  string         `json:"endpointName"`
+		Name          string         `json:"name"`
+		Mode          string         `json:"mode"`
+		TunnelAddress string         `json:"tunnelAddress"`
+		TunnelPort    string         `json:"tunnelPort"`
+		TargetAddress string         `json:"targetAddress"`
+		TargetPort    string         `json:"targetPort"`
+		TLSMode       string         `json:"tlsMode"`
+		CertPath      sql.NullString `json:"certPath"`
+		KeyPath       sql.NullString `json:"keyPath"`
+		LogLevel      string         `json:"logLevel"`
+		CommandLine   string         `json:"commandLine"`
+		InstanceID    sql.NullString `json:"instanceId"`
+		TCPRx         int64          `json:"tcpRx"`
+		TCPTx         int64          `json:"tcpTx"`
+		UDPRx         int64          `json:"udpRx"`
+		UDPTx         int64          `json:"udpTx"`
+		Min           sql.NullInt64  `json:"min"`
+		Max           sql.NullInt64  `json:"max"`
+	}
+
+	list := make([]recycleItemAll, 0)
+	for rows.Next() {
+		var item recycleItemAll
+		if err := rows.Scan(
+			&item.ID, &item.Name, &item.Mode, &item.TunnelAddress, &item.TunnelPort, &item.TargetAddress, &item.TargetPort, &item.TLSMode,
+			&item.CertPath, &item.KeyPath, &item.LogLevel, &item.CommandLine, &item.InstanceID, &item.TCPRx, &item.TCPTx, &item.UDPRx, &item.UDPTx, &item.Min, &item.Max,
+			&item.EndpointID, &item.EndpointName,
+		); err == nil {
+			list = append(list, item)
+		}
+	}
+
+	json.NewEncoder(w).Encode(list)
+}
+
+// HandleRecycleClearAll 清空全部回收站记录 (DELETE /api/recycle)
+func (h *EndpointHandler) HandleRecycleClearAll(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	db := h.endpointService.DB()
+
+	tx, err := db.Begin()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	// 删除 EndpointSSE 记录中对应实例
+	if _, err := tx.Exec(`DELETE FROM "EndpointSSE" WHERE instanceId IN (SELECT instanceId FROM "TunnelRecycle" WHERE instanceId IS NOT NULL)`); err != nil {
+		tx.Rollback()
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	// 删除所有回收站记录
+	if _, err := tx.Exec(`DELETE FROM "TunnelRecycle"`); err != nil {
+		tx.Rollback()
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	if err := tx.Commit(); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+}
+
 // refreshTunnels 同步指定端点的隧道信息
 func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 	log.Infof("[API] 刷新端点 %v 的隧道信息", endpointID)

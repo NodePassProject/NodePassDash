@@ -99,13 +99,12 @@ jobs:
             fi
           else
             # 分支触发处理
-            BASE_VERSION=$(node -p "require('./package.json').version")
+            VERSION=$(node -p "require('./package.json').version")
             BRANCH_NAME=${GITHUB_REF#refs/heads/}
-            VERSION="${BASE_VERSION}-${BRANCH_NAME}-${GITHUB_SHA::7}"
-            TEMP_TAG="v${BASE_VERSION}-${BRANCH_NAME}-${GITHUB_SHA::7}"
+            TEMP_TAG="v${VERSION}"
             IS_TAG_TRIGGER=false
             echo "🌿 Beta branch triggered: $BRANCH_NAME → $VERSION"
-            echo "ℹ️ 分支构建包含分支名和commit hash以区分开发版本"
+            echo "✅ 使用简洁的版本号，不添加分支名和commit hash"
             
             # 创建临时标签
             if ! git tag -l | grep -q "^$TEMP_TAG$"; then

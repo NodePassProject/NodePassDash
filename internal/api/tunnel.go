@@ -37,11 +37,21 @@ func (h *TunnelHandler) HandleGetTunnels(w http.ResponseWriter, r *http.Request)
 
 	tunnels, err := h.tunnelService.GetTunnels()
 	if err != nil {
+		log.Errorf("[API] 获取隧道列表失败: %v", err)
+
+		// 构建详细的错误信息
+		errorDetail := map[string]interface{}{
+			"success": false,
+			"error":   "获取隧道列表失败: " + err.Error(),
+			"details": map[string]interface{}{
+				"timestamp": time.Now().Format(time.RFC3339),
+				"operation": "GetTunnels",
+				"hint":      "可能存在数据格式问题，建议检查数据库中的端口字段是否包含非数字内容",
+			},
+		}
+
 		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
-			Success: false,
-			Error:   "获取隧道列表失败: " + err.Error(),
-		})
+		json.NewEncoder(w).Encode(errorDetail)
 		return
 	}
 
