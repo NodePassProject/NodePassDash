@@ -22,7 +22,8 @@
     "docker:release": "docker-compose -f docker-compose.release.yml up -d",
     "dev:all": "node scripts/dev.js",
     "dev:front": "next dev -p 8080",
-    "dev:back": "go run ./cmd/server/main.go"
+    "dev:back": "go run ./cmd/server/main.go",
+    "dev:resetpwd": "go run ./cmd/server/main.go --resetpwd"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
