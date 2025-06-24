@@ -22,7 +22,10 @@ import {
   DropdownTrigger,
   DropdownMenu,
   DropdownItem,
-  ButtonGroup
+  ButtonGroup,
+  Select,
+  SelectItem,
+  Code
 } from "@heroui/react";
 import { Selection } from "@react-types/shared";
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -30,6 +33,7 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { 
   faEye, 
+  faEyeSlash,
   faPause, 
   faPlay, 
   faTrash,
@@ -41,7 +45,8 @@ import {
   faCopy,
   faSearch,
   faChevronDown,
-  faBolt
+  faBolt,
+  faDownload
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { Box, Flex } from "@/components";
@@ -91,6 +96,13 @@ export default function TunnelsPage() {
   const [newTunnelName, setNewTunnelName] = useState("");
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [isEditLoading, setIsEditLoading] = useState(false);
+
+  // 导出配置模态框状态
+  const [exportModalOpen, setExportModalOpen] = useState(false);
+  const [exportConfig, setExportConfig] = useState("");
+
+  // 地址脱敏状态
+  const [showFullAddress, setShowFullAddress] = useState(true);
 
   // 使用共用的实例操作 hook
   const { toggleStatus, restart, deleteTunnel } = useTunnelActions();
@@ -315,6 +327,55 @@ export default function TunnelsPage() {
     });
   };
 
+  // 导出配置功能
+  const handleExportConfig = () => {
+    if (!selectedKeys || (selectedKeys instanceof Set && selectedKeys.size === 0)) return;
+
+    // 计算要导出的隧道
+    let selectedTunnels: Tunnel[] = [];
+    if (selectedKeys === "all") {
+      selectedTunnels = filteredItems;
+    } else {
+      selectedTunnels = filteredItems.filter(tunnel => 
+        (selectedKeys as Set<string>).has(tunnel.id)
+      );
+    }
+
+    // 转换为导出格式
+    const exportData = selectedTunnels.map(tunnel => ({
+      dest: `${tunnel.targetAddress}:${tunnel.targetPort}`,
+      listen_port: parseInt(tunnel.tunnelPort),
+      name: tunnel.name
+    }));
+
+    // 拍平对象，每行一个对象
+    const flattenedConfig = "[\n" + exportData.map(item => 
+      `  ${JSON.stringify(item)}`
+    ).join(",\n") + "\n]";
+
+    setExportConfig(flattenedConfig);
+    setExportModalOpen(true);
+  };
+
+  // 复制配置到剪贴板
+  const copyToClipboard = async () => {
+    try {
+      await navigator.clipboard.writeText(exportConfig);
+      addToast({
+        title: '复制成功',
+        description: '配置已复制到剪贴板',
+        color: 'success'
+      });
+    } catch (error) {
+      console.error('复制失败:', error);
+      addToast({
+        title: '复制失败',
+        description: '请手动复制配置内容',
+        color: 'danger'
+      });
+    }
+  };
+
   // 初始加载
   React.useEffect(() => {
     fetchTunnels();
@@ -325,8 +386,40 @@ export default function TunnelsPage() {
     { key: "type", label: "类型" },
     { key: "name", label: "名称" },
     { key: "endpoint", label: "主控" },
-    { key: "tunnelAddress", label: "隧道地址" },
-    { key: "targetAddress", label: "目标地址" },
+    { 
+      key: "tunnelAddress", 
+      label: (
+        <div className="flex items-center gap-2">
+          <span>隧道地址</span>
+          <Button
+            isIconOnly
+            size="sm"
+            variant="light"
+            onClick={() => setShowFullAddress(!showFullAddress)}
+            className="text-xs"
+          >
+            <FontAwesomeIcon icon={showFullAddress ? faEyeSlash : faEye} />
+          </Button>
+        </div>
+      )
+    },
+    { 
+      key: "targetAddress", 
+      label: (
+        <div className="flex items-center gap-2">
+          <span>目标地址</span>
+          <Button
+            isIconOnly
+            size="sm"
+            variant="light"
+            onClick={() => setShowFullAddress(!showFullAddress)}
+            className="text-xs"
+          >
+            <FontAwesomeIcon icon={showFullAddress ? faEyeSlash : faEye} />
+          </Button>
+        </div>
+      )
+    },
     { key: "status", label: "状态" },
     { key: "actions", label: "操作" },
   ];
@@ -547,15 +640,23 @@ export default function TunnelsPage() {
           </Chip>
         );
       case "tunnelAddress":
+        const tunnelMasked = "••••••••••";
+        const tunnelAddressText = showFullAddress 
+          ? `${tunnel.tunnelAddress}:${tunnel.tunnelPort}`
+          : tunnelMasked;
         return (
-          <Box className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none" title={tunnel.tunnelAddress}>
-            {tunnel.tunnelAddress}:{tunnel.tunnelPort}
+          <Box className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none" title={showFullAddress ? tunnel.tunnelAddress : '地址已隐藏'}>
+            {tunnelAddressText}
           </Box>
         );
       case "targetAddress":
+        const targetMasked = "••••••••••";
+        const targetAddressText = showFullAddress 
+          ? `${tunnel.targetAddress}:${tunnel.targetPort}`
+          : targetMasked;
         return (
-          <Box className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none" title={tunnel.targetAddress}>
-            {tunnel.targetAddress}:{tunnel.targetPort}
+          <Box className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none" title={showFullAddress ? tunnel.targetAddress : '地址已隐藏'}>
+            {targetAddressText}
           </Box>
         );
       case "status":
@@ -650,6 +751,20 @@ export default function TunnelsPage() {
     setPage(1);
   }, []);
 
+  // 处理批量操作
+  const handleBulkAction = (action: string) => {
+    switch(action) {
+      case 'delete':
+        showBatchDeleteModal();
+        break;
+      case 'export':
+        handleExportConfig();
+        break;
+      default:
+        break;
+    }
+  };
+
   return (
     <>
       <div className="p-4 md:p-0">
@@ -714,15 +829,7 @@ export default function TunnelsPage() {
             onEndpointFilterChange={onEndpointFilterChange}
             onRefresh={fetchTunnels}
             selectedCount={getSelectedCount()}
-            onBulkAction={(action)=>{
-              switch(action){
-                case 'delete':
-                  showBatchDeleteModal();
-                  break;
-                default:
-                  break;
-              }
-            }}
+            onBulkAction={handleBulkAction}
           />
           <Box className="w-full overflow-hidden">
             {/* 移动端：使用卡片布局 */}
@@ -815,11 +922,19 @@ export default function TunnelsPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-default-500 w-12 flex-shrink-0">实例:</span>
-                        <span className="text-xs font-mono text-default-600 truncate">{tunnel.tunnelAddress}</span>
+                        <span className="text-xs font-mono text-default-600 truncate">
+                          {showFullAddress 
+                            ? `${tunnel.tunnelAddress}:${tunnel.tunnelPort}`
+                            : "••••••••••"}
+                        </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-default-500 w-12 flex-shrink-0">目标:</span>
-                        <span className="text-xs font-mono text-default-600 truncate">{tunnel.targetAddress}</span>
+                        <span className="text-xs font-mono text-default-600 truncate">
+                          {showFullAddress 
+                            ? `${tunnel.targetAddress}:${tunnel.targetPort}`
+                            : "••••••••••"}
+                        </span>
                       </div>
                     </div>
 
@@ -957,27 +1072,30 @@ export default function TunnelsPage() {
           </Box>
           
           {/* 分页器 - 响应式优化 */}
-          <Flex justify="between" align="center" className="w-full px-3 md:px-4 py-3 gap-2 md:gap-4 flex-col sm:flex-row">
-            <Box className="text-xs md:text-sm text-default-500 order-2 sm:order-1">
+          <Flex justify="between" align="center" className="w-full px-3 md:px-4 py-3 gap-2 md:gap-4 flex-col lg:flex-row">
+            {/* 左侧：统计信息 */}
+            <Box className="text-xs md:text-sm text-default-500 order-3 lg:order-1">
               {loading ? (
                 <div className="flex items-center gap-2">
                   <Spinner size="sm" />
                   <span>统计中...</span>
                 </div>
               ) : (
-                `共 ${filteredItems.length} 个实例`
+                <span>共 {filteredItems.length} 个实例</span>
               )}
             </Box>
-            <div className="order-1 sm:order-2">
+            
+            {/* 中间：分页器 */}
+            <div className="order-1 lg:order-2">
               {loading ? (
                 <div className="flex items-center gap-2">
                   <Spinner size="sm" />
                   <span className="text-sm text-default-500">分页加载中...</span>
                 </div>
-              ) : pages > 1 ? (
+              ) : (
                 <Pagination 
                   loop 
-                  total={pages} 
+                  total={pages || 1} 
                   page={page} 
                   onChange={setPage}
                   size="sm"
@@ -987,7 +1105,27 @@ export default function TunnelsPage() {
                     item: "text-xs md:text-sm"
                   }}
                 />
-              ) : null}
+              )}
+            </div>
+
+            {/* 右侧：每页数量选择器 */}
+            <div className="flex items-center gap-2 order-2 lg:order-3">
+              <span className="text-xs text-default-400">每页显示:</span>
+              <Select
+                size="sm"
+                className="w-20"
+                selectedKeys={[String(rowsPerPage)]}
+                onSelectionChange={(keys) => {
+                  const value = Array.from(keys)[0] as string;
+                  setRowsPerPage(Number(value));
+                  setPage(1);
+                }}
+              >
+                <SelectItem key="10">10</SelectItem>
+                <SelectItem key="20">20</SelectItem>
+                <SelectItem key="50">50</SelectItem>
+                <SelectItem key="100">100</SelectItem>
+              </Select>
             </div>
           </Flex>
         </Flex>
@@ -1157,6 +1295,50 @@ export default function TunnelsPage() {
                   startContent={<FontAwesomeIcon icon={faTrash} />}
                 >
                   确认删除
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* 导出配置模态框 */}
+      <Modal 
+        isOpen={exportModalOpen} 
+        onOpenChange={setExportModalOpen} 
+        placement="center"
+        size="2xl"
+        scrollBehavior="inside"
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <FontAwesomeIcon icon={faDownload} className="text-primary" />
+                  导出配置规则
+                </div>
+              </ModalHeader>
+              <ModalBody>
+                <div className="space-y-4">
+                  <p className="text-default-600 text-sm">
+                    已选择 {getSelectedCount()} 个实例的配置规则，格式符合批量创建规范：
+                  </p>
+                  <Code className="w-full p-4 max-h-96 overflow-auto">
+                    <pre className="text-sm whitespace-pre-wrap">{exportConfig}</pre>
+                  </Code>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button color="default" variant="light" onPress={onClose}>
+                  关闭
+                </Button>
+                <Button 
+                  color="primary" 
+                  onPress={copyToClipboard}
+                  startContent={<FontAwesomeIcon icon={faCopy} />}
+                >
+                  复制配置
                 </Button>
               </ModalFooter>
             </>

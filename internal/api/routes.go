@@ -109,6 +109,10 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/endpoints/{id}/recycle/count", r.endpointHandler.HandleRecycleCount).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{endpointId}/recycle/{recycleId}", r.endpointHandler.HandleRecycleDelete).Methods("DELETE")
 
+	// 全局回收站
+	r.router.HandleFunc("/api/recycle", r.endpointHandler.HandleRecycleListAll).Methods("GET")
+	r.router.HandleFunc("/api/recycle", r.endpointHandler.HandleRecycleClearAll).Methods("DELETE")
+
 	// 实例相关路由
 	r.router.HandleFunc("/api/endpoints/{endpointId}/instances", r.instanceHandler.HandleGetInstances).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{endpointId}/instances/{instanceId}", r.instanceHandler.HandleGetInstance).Methods("GET")
