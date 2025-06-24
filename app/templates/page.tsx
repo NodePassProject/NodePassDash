@@ -197,8 +197,8 @@ export default function TemplatesPage() {
   ];
 
   const userListenTypes = [
-    { value: 'all', label: '全部IP' },
-    { value: 'assign', label: '指定IP' }
+    { value: 'all', label: '全部入口' },
+    { value: 'assign', label: '指定入口' }
   ];
 
   const [formData, setFormData] = useState<FormData>({

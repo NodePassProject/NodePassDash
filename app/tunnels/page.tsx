@@ -382,6 +382,8 @@ export default function TunnelsPage() {
     fetchEndpoints();
   }, []);
 
+
+
   const columns = [
     { key: "type", label: "类型" },
     { key: "name", label: "名称" },
@@ -389,34 +391,26 @@ export default function TunnelsPage() {
     { 
       key: "tunnelAddress", 
       label: (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <span>隧道地址</span>
-          <Button
-            isIconOnly
-            size="sm"
-            variant="light"
+          <FontAwesomeIcon 
+            icon={showFullAddress ? faEyeSlash : faEye}
+            className="text-xs cursor-pointer hover:text-primary" 
             onClick={() => setShowFullAddress(!showFullAddress)}
-            className="text-xs"
-          >
-            <FontAwesomeIcon icon={showFullAddress ? faEyeSlash : faEye} />
-          </Button>
+          />
         </div>
       )
     },
     { 
       key: "targetAddress", 
       label: (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1">
           <span>目标地址</span>
-          <Button
-            isIconOnly
-            size="sm"
-            variant="light"
+          <FontAwesomeIcon 
+            icon={showFullAddress ? faEyeSlash : faEye}
+            className="text-xs cursor-pointer hover:text-primary" 
             onClick={() => setShowFullAddress(!showFullAddress)}
-            className="text-xs"
-          >
-            <FontAwesomeIcon icon={showFullAddress ? faEyeSlash : faEye} />
-          </Button>
+          />
         </div>
       )
     },
@@ -594,135 +588,7 @@ export default function TunnelsPage() {
     return filteredItems.slice(start, end);
   }, [page, filteredItems, rowsPerPage]);
 
-  const renderCell = React.useCallback((tunnel: Tunnel, columnKey: React.Key) => {
-    switch (columnKey) {
-      case "type":
-        return (
-          <Chip 
-            variant="flat" 
-            color={tunnel.type === "服务端" ? "primary" : "secondary"}
-            size="sm"
-            classNames={{
-              base: "text-xs md:text-sm"
-            }}
-          >
-            {tunnel.type}
-          </Chip>
-        );
-      case "name":
-        return (
-          <Flex align="center" className="gap-2">
-            <Box className="text-xs md:text-sm font-semibold truncate max-w-[120px] md:max-w-none">
-              {tunnel.name}
-            </Box>
-            <FontAwesomeIcon 
-              icon={faPen} 
-              className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer" 
-              onClick={() => handleEditClick(tunnel)}
-            />
-          </Flex>
-        );
-      case "endpoint":
-        return (
-          <Chip 
-            variant="bordered" 
-            color="default"
-            size="sm"
-            classNames={{
-              base: "text-xs md:text-sm max-w-[100px] md:max-w-none",
-              content: "truncate"
-            }}
-          >
-            {tunnel.endpoint}
-          </Chip>
-        );
-      case "tunnelAddress":
-        const tunnelMasked = "••••••••••";
-        const tunnelAddressText = showFullAddress 
-          ? `${tunnel.tunnelAddress}:${tunnel.tunnelPort}`
-          : tunnelMasked;
-        return (
-          <Box className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none" title={showFullAddress ? tunnel.tunnelAddress : '地址已隐藏'}>
-            {tunnelAddressText}
-          </Box>
-        );
-      case "targetAddress":
-        const targetMasked = "••••••••••";
-        const targetAddressText = showFullAddress 
-          ? `${tunnel.targetAddress}:${tunnel.targetPort}`
-          : targetMasked;
-        return (
-          <Box className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none" title={showFullAddress ? tunnel.targetAddress : '地址已隐藏'}>
-            {targetAddressText}
-          </Box>
-        );
-      case "status":
-        return (
-          <Chip 
-            variant="flat"
-            color={tunnel.status.type}
-            size="sm"
-            classNames={{
-              base: "text-xs md:text-sm"
-            }}
-          >
-            {tunnel.status.text}
-          </Chip>
-        );
-      case "actions":
-        return (
-          <div className="flex justify-center gap-1 ">
-            <Button
-              isIconOnly
-              variant="light"
-              size="sm"
-              color="primary"
-              onClick={() => router.push(`/tunnels/details?id=${tunnel.id}`)}
-              startContent={<FontAwesomeIcon icon={faEye} className="text-xs" />}
-            />
-            <Button
-              isIconOnly
-              variant="light"
-              size="sm"
-              color={tunnel.status.type === "success" ? "warning" : "success"}
-              onClick={() => handleToggleStatus(tunnel)}
-              startContent={<FontAwesomeIcon icon={tunnel.status.type === "success" ? faPause : faPlay} className="text-xs" />}
-            />
-            <Button
-              isIconOnly
-              variant="light"
-              size="sm"
-              color="primary"
-              onClick={() => handleRestart(tunnel)}
-              isDisabled={tunnel.status.type !== "success"}
-              startContent={<FontAwesomeIcon icon={faRotateRight} className="text-xs" />}
-            />
-            <Button
-              isIconOnly
-              variant="light"
-              size="sm"
-              color="default"
-              onClick={()=>{ setEditTunnel(tunnel); setEditModalOpen(true);} }
-              startContent={<FontAwesomeIcon icon={faPen} className="text-xs" />}
-            />
-            <Button
-              isIconOnly
-              variant="light"
-              size="sm"
-              color="danger"
-              onClick={() => handleDeleteClick(tunnel)}
-              startContent={<FontAwesomeIcon icon={faTrash} className="text-xs" />}
-            />
-          </div>
-        );
-      default:
-        const value = tunnel[columnKey as keyof Tunnel];
-        if (typeof value === 'object' && value !== null && 'text' in value) {
-          return value.text;
-        }
-        return value;
-    }
-  }, [router, handleToggleStatus, handleRestart, handleDeleteClick, handleEditClick]);
+
 
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
@@ -922,7 +788,7 @@ export default function TunnelsPage() {
                         <span className="text-xs font-mono text-default-600 truncate">
                           {showFullAddress 
                             ? `${tunnel.tunnelAddress}:${tunnel.tunnelPort}`
-                            : "••••••••••"}
+                            : `**.**.**.**:${tunnel.tunnelPort}`}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
@@ -930,7 +796,7 @@ export default function TunnelsPage() {
                         <span className="text-xs font-mono text-default-600 truncate">
                           {showFullAddress 
                             ? `${tunnel.targetAddress}:${tunnel.targetPort}`
-                            : "••••••••••"}
+                            : `**.**.**.**:${tunnel.targetPort}`}
                         </span>
                       </div>
                     </div>
@@ -1009,59 +875,170 @@ export default function TunnelsPage() {
                     </TableColumn>
                   )}
                 </TableHeader>
-                <TableBody 
-                  items={items}
-                  isLoading={loading}
-                  loadingContent={
-                    <div className="flex justify-center items-center py-16">
-                      <div className="flex flex-col items-center gap-4">
-                        <Spinner size="lg" />
-                        <p className="text-default-500">加载中...</p>
-                      </div>
-                    </div>
-                  }
-                  emptyContent={
-                    error ? (
-                      <div className="text-center py-16">
-                        <div className="flex flex-col items-center gap-4">
-                          <div className="w-20 h-20 rounded-full bg-danger-50 flex items-center justify-center">
-                            <FontAwesomeIcon icon={faRotateRight} className="text-3xl text-danger" />
-                          </div>
-                          <div className="space-y-2">
-                            <p className="text-danger text-base font-medium">加载失败</p>
-                            <p className="text-default-400 text-sm">{error}</p>
-                          </div>
-                          <Button 
-                            color="danger" 
-                            variant="flat"
-                            startContent={<FontAwesomeIcon icon={faRotateRight} />}
-                            onClick={fetchTunnels}
-                          >
-                            重试
-                          </Button>
-                        </div>
-                      </div>
-                    ) : (
-                      <div className="text-center py-16">
-                        <div className="flex flex-col items-center gap-4">
-                          <div className="w-20 h-20 rounded-full bg-default-100 flex items-center justify-center">
-                            <FontAwesomeIcon icon={faEye} className="text-3xl text-default-400" />
-                          </div>
-                          <div className="space-y-2">
-                            <p className="text-default-500 text-base font-medium">暂无实例</p>
-                            <p className="text-default-400 text-sm">您还没有创建任何实例</p>
+                <TableBody>
+                  {loading ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-16">
+                        <div className="flex justify-center items-center">
+                          <div className="flex flex-col items-center gap-4">
+                            <Spinner size="lg" />
+                            <p className="text-default-500">加载中...</p>
                           </div>
                         </div>
-                      </div>
-                    )
-                  }
-                >
-                  {(item) => (
-                    <TableRow key={item.id}>
-                      {(columnKey) => (
-                        <TableCell>{renderCell(item, columnKey)}</TableCell>
-                      )}
+                      </TableCell>
                     </TableRow>
+                  ) : items.length === 0 ? (
+                    <TableRow>
+                      <TableCell colSpan={7} className="text-center py-16">
+                        {error ? (
+                          <div className="flex flex-col items-center gap-4">
+                            <div className="w-20 h-20 rounded-full bg-danger-50 flex items-center justify-center">
+                              <FontAwesomeIcon icon={faRotateRight} className="text-3xl text-danger" />
+                            </div>
+                            <div className="space-y-2">
+                              <p className="text-danger text-base font-medium">加载失败</p>
+                              <p className="text-default-400 text-sm">{error}</p>
+                            </div>
+                            <Button 
+                              color="danger" 
+                              variant="flat"
+                              startContent={<FontAwesomeIcon icon={faRotateRight} />}
+                              onClick={fetchTunnels}
+                            >
+                              重试
+                            </Button>
+                          </div>
+                        ) : (
+                          <div className="flex flex-col items-center gap-4">
+                            <div className="w-20 h-20 rounded-full bg-default-100 flex items-center justify-center">
+                              <FontAwesomeIcon icon={faEye} className="text-3xl text-default-400" />
+                            </div>
+                            <div className="space-y-2">
+                              <p className="text-default-500 text-base font-medium">暂无实例</p>
+                              <p className="text-default-400 text-sm">您还没有创建任何实例</p>
+                            </div>
+                          </div>
+                        )}
+                      </TableCell>
+                    </TableRow>
+                  ) : (
+                    items.map((tunnel) => (
+                      <TableRow key={tunnel.id}>
+                        {/* 类型列 */}
+                        <TableCell>
+                          <Chip 
+                            variant="flat" 
+                            color={tunnel.type === "服务端" ? "primary" : "secondary"}
+                            size="sm"
+                            classNames={{
+                              base: "text-xs md:text-sm"
+                            }}
+                          >
+                            {tunnel.type}
+                          </Chip>
+                        </TableCell>
+                        
+                        {/* 名称列 */}
+                        <TableCell>
+                          <Flex align="center" className="gap-2">
+                            <Box className="text-xs md:text-sm font-semibold truncate max-w-[120px] md:max-w-none">
+                              {tunnel.name}
+                            </Box>
+                            <FontAwesomeIcon 
+                              icon={faPen} 
+                              className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer" 
+                              onClick={() => handleEditClick(tunnel)}
+                            />
+                          </Flex>
+                        </TableCell>
+                        
+                        {/* 主控列 */}
+                        <TableCell>
+                          <Chip 
+                            variant="bordered" 
+                            color="default"
+                            size="sm"
+                            classNames={{
+                              base: "text-xs md:text-sm max-w-[100px] md:max-w-none",
+                              content: "truncate"
+                            }}
+                          >
+                            {tunnel.endpoint}
+                          </Chip>
+                        </TableCell>
+                        
+                        {/* 隧道地址列 */}
+                        <TableCell className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none">
+                          {showFullAddress ? `${tunnel.tunnelAddress}:${tunnel.tunnelPort}` : `**.**.**.**:${tunnel.tunnelPort}`}
+                        </TableCell>
+                        
+                        {/* 目标地址列 */}
+                        <TableCell className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none">
+                          {showFullAddress ? `${tunnel.targetAddress}:${tunnel.targetPort}` : `**.**.**.**:${tunnel.targetPort}`}
+                        </TableCell>
+                        
+                        {/* 状态列 */}
+                        <TableCell>
+                          <Chip 
+                            variant="flat"
+                            color={tunnel.status.type}
+                            size="sm"
+                            classNames={{
+                              base: "text-xs md:text-sm"
+                            }}
+                          >
+                            {tunnel.status.text}
+                          </Chip>
+                        </TableCell>
+                        
+                        {/* 操作列 */}
+                        <TableCell>
+                          <div className="flex justify-center gap-1">
+                            <Button
+                              isIconOnly
+                              variant="light"
+                              size="sm"
+                              color="primary"
+                              onClick={() => router.push(`/tunnels/details?id=${tunnel.id}`)}
+                              startContent={<FontAwesomeIcon icon={faEye} className="text-xs" />}
+                            />
+                            <Button
+                              isIconOnly
+                              variant="light"
+                              size="sm"
+                              color={tunnel.status.type === "success" ? "warning" : "success"}
+                              onClick={() => handleToggleStatus(tunnel)}
+                              startContent={<FontAwesomeIcon icon={tunnel.status.type === "success" ? faPause : faPlay} className="text-xs" />}
+                            />
+                            <Button
+                              isIconOnly
+                              variant="light"
+                              size="sm"
+                              color="primary"
+                              onClick={() => handleRestart(tunnel)}
+                              isDisabled={tunnel.status.type !== "success"}
+                              startContent={<FontAwesomeIcon icon={faRotateRight} className="text-xs" />}
+                            />
+                            <Button
+                              isIconOnly
+                              variant="light"
+                              size="sm"
+                              color="default"
+                              onClick={()=>{ setEditTunnel(tunnel); setEditModalOpen(true);} }
+                              startContent={<FontAwesomeIcon icon={faPen} className="text-xs" />}
+                            />
+                            <Button
+                              isIconOnly
+                              variant="light"
+                              size="sm"
+                              color="danger"
+                              onClick={() => handleDeleteClick(tunnel)}
+                              startContent={<FontAwesomeIcon icon={faTrash} className="text-xs" />}
+                            />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
                   )}
                 </TableBody>
               </Table>
