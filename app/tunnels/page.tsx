@@ -333,10 +333,6 @@ export default function TunnelsPage() {
   const handleExportConfig = () => {
     if (!selectedKeys || (selectedKeys instanceof Set && selectedKeys.size === 0)) return;
 
-    // 调试日志
-    console.log('导出配置 - selectedKeys:', selectedKeys);
-    console.log('导出配置 - filteredItems:', filteredItems);
-
     // 计算要导出的隧道
     let selectedTunnels: Tunnel[] = [];
     if (selectedKeys === "all") {
@@ -348,16 +344,12 @@ export default function TunnelsPage() {
       );
     }
 
-    console.log('导出配置 - selectedTunnels:', selectedTunnels);
-
     // 转换为导出格式
     const exportData = selectedTunnels.map(tunnel => ({
       dest: `${tunnel.targetAddress}:${tunnel.targetPort}`,
       listen_port: parseInt(tunnel.tunnelPort),
       name: tunnel.name
     }));
-
-    console.log('导出配置 - exportData:', exportData);
 
     // 格式化为您期望的样式，每个对象平铺一行
     const flattenedConfig = "[\n" + exportData.map(item => 
@@ -858,77 +850,69 @@ export default function TunnelsPage() {
 
             {/* 桌面端：使用表格布局 */}
             <div className="hidden md:block">
-              <Table
-                shadow="none"
-                selectionMode="multiple"
-                selectedKeys={selectedKeys}
-                onSelectionChange={setSelectedKeys}
-                aria-label="实例实例表格"
-                className="min-w-full"
-                classNames={{
-                  th: "text-xs md:text-sm",
-                  td: "py-3"
-                }}
-              >
-                <TableHeader columns={columns}>
-                  {(column) => (
-                    <TableColumn
-                      key={column.key}
-                      hideHeader={false}
-                      className={column.key === "actions" ? "w-[140px]" : ""}
-                    >
-                      {column.label}
-                    </TableColumn>
-                  )}
-                </TableHeader>
-                <TableBody>
+              {loading || error || items.length === 0 ? (
+                <div className="min-h-[400px] flex items-center justify-center py-16">
                   {loading ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-16">
-                        <div className="flex justify-center items-center">
-                          <div className="flex flex-col items-center gap-4">
-                            <Spinner size="lg" />
-                            <p className="text-default-500">加载中...</p>
-                          </div>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ) : items.length === 0 ? (
-                    <TableRow>
-                      <TableCell colSpan={7} className="text-center py-16">
-                        {error ? (
-                          <div className="flex flex-col items-center gap-4">
-                            <div className="w-20 h-20 rounded-full bg-danger-50 flex items-center justify-center">
-                              <FontAwesomeIcon icon={faRotateRight} className="text-3xl text-danger" />
-                            </div>
-                            <div className="space-y-2">
-                              <p className="text-danger text-base font-medium">加载失败</p>
-                              <p className="text-default-400 text-sm">{error}</p>
-                            </div>
-                            <Button 
-                              color="danger" 
-                              variant="flat"
-                              startContent={<FontAwesomeIcon icon={faRotateRight} />}
-                              onClick={fetchTunnels}
-                            >
-                              重试
-                            </Button>
-                          </div>
-                        ) : (
-                          <div className="flex flex-col items-center gap-4">
-                            <div className="w-20 h-20 rounded-full bg-default-100 flex items-center justify-center">
-                              <FontAwesomeIcon icon={faEye} className="text-3xl text-default-400" />
-                            </div>
-                            <div className="space-y-2">
-                              <p className="text-default-500 text-base font-medium">暂无实例</p>
-                              <p className="text-default-400 text-sm">您还没有创建任何实例</p>
-                            </div>
-                          </div>
-                        )}
-                      </TableCell>
-                    </TableRow>
+                    <div className="flex flex-col items-center gap-4">
+                      <Spinner size="lg" />
+                      <p className="text-default-500">加载中...</p>
+                    </div>
+                  ) : error ? (
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-20 h-20 rounded-full bg-danger-50 flex items-center justify-center">
+                        <FontAwesomeIcon icon={faRotateRight} className="text-3xl text-danger" />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-danger text-base font-medium">加载失败</p>
+                        <p className="text-default-400 text-sm">{error}</p>
+                      </div>
+                      <Button 
+                        color="danger" 
+                        variant="flat"
+                        startContent={<FontAwesomeIcon icon={faRotateRight} />}
+                        onClick={fetchTunnels}
+                      >
+                        重试
+                      </Button>
+                    </div>
                   ) : (
-                    items.map((tunnel) => (
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-20 h-20 rounded-full bg-default-100 flex items-center justify-center">
+                        <FontAwesomeIcon icon={faEye} className="text-3xl text-default-400" />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-default-500 text-base font-medium">暂无实例</p>
+                        <p className="text-default-400 text-sm">您还没有创建任何实例</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+              ) : (
+                <Table
+                  shadow="none"
+                  selectionMode="multiple"
+                  selectedKeys={selectedKeys}
+                  onSelectionChange={setSelectedKeys}
+                  aria-label="实例实例表格"
+                  className="min-w-full"
+                  classNames={{
+                    th: "text-xs md:text-sm",
+                    td: "py-3"
+                  }}
+                >
+                  <TableHeader columns={columns}>
+                    {(column) => (
+                      <TableColumn
+                        key={column.key}
+                        hideHeader={false}
+                        className={column.key === "actions" ? "w-[140px]" : ""}
+                      >
+                        {column.label}
+                      </TableColumn>
+                    )}
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((tunnel) => (
                       <TableRow key={tunnel.id}>
                         {/* 类型列 */}
                         <TableCell>
@@ -1044,10 +1028,10 @@ export default function TunnelsPage() {
                           </div>
                         </TableCell>
                       </TableRow>
-                    ))
-                  )}
-                </TableBody>
-              </Table>
+                    ))}
+                  </TableBody>
+                </Table>
+              )}
             </div>
           </Box>
           

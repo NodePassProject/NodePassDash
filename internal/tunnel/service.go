@@ -463,6 +463,15 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		UpdatedAt:     now,
 	}
 
+	// 更新端点隧道计数
+	_, err = s.db.Exec(`UPDATE "Endpoint" SET tunnelCount = (
+		SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
+	) WHERE id = ?`, req.EndpointID, req.EndpointID)
+	if err != nil {
+		log.Errorf("[API] 更新端点隧道计数失败: %v", err)
+		// 不影响隧道创建的成功，只记录错误
+	}
+
 	log.Infof("[API] 隧道创建成功: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, tunnel.InstanceID)
 	return tunnel, nil
 }
@@ -517,6 +526,15 @@ func (s *Service) DeleteTunnel(instanceID string) error {
 	}
 	if affected == 0 {
 		return errors.New("隧道不存在")
+	}
+
+	// 更新端点隧道计数
+	_, err = s.db.Exec(`UPDATE "Endpoint" SET tunnelCount = (
+		SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
+	) WHERE id = ?`, tunnel.EndpointID, tunnel.EndpointID)
+	if err != nil {
+		log.Errorf("[API] 更新端点隧道计数失败: %v", err)
+		// 不影响隧道删除的成功，只记录错误
 	}
 
 	// 记录操作日志
