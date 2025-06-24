@@ -333,15 +333,22 @@ export default function TunnelsPage() {
   const handleExportConfig = () => {
     if (!selectedKeys || (selectedKeys instanceof Set && selectedKeys.size === 0)) return;
 
+    // 调试日志
+    console.log('导出配置 - selectedKeys:', selectedKeys);
+    console.log('导出配置 - filteredItems:', filteredItems);
+
     // 计算要导出的隧道
     let selectedTunnels: Tunnel[] = [];
     if (selectedKeys === "all") {
       selectedTunnels = filteredItems;
     } else {
+      // 确保字符串匹配，因为 selectedKeys 是字符串类型
       selectedTunnels = filteredItems.filter(tunnel => 
-        (selectedKeys as Set<string>).has(tunnel.id)
+        (selectedKeys as Set<string>).has(String(tunnel.id))
       );
     }
+
+    console.log('导出配置 - selectedTunnels:', selectedTunnels);
 
     // 转换为导出格式
     const exportData = selectedTunnels.map(tunnel => ({
@@ -350,7 +357,9 @@ export default function TunnelsPage() {
       name: tunnel.name
     }));
 
-    // 拍平对象，每行一个对象
+    console.log('导出配置 - exportData:', exportData);
+
+    // 格式化为您期望的样式，每个对象平铺一行
     const flattenedConfig = "[\n" + exportData.map(item => 
       `  ${JSON.stringify(item)}`
     ).join(",\n") + "\n]";
