@@ -718,8 +718,26 @@ export default function EndpointsPage() {
             aria-label="布局切换"
             className="w-auto"
           >
-            <Tab key="card" title={<FontAwesomeIcon icon={faGrip} />} />
-            <Tab key="table" title={<FontAwesomeIcon icon={faTable} />} />
+            <Tab 
+              key="card" 
+              title={
+                <Tooltip content="卡片视图" >
+                  <div>
+                    <FontAwesomeIcon icon={faGrip} />
+                  </div>
+                </Tooltip>
+              } 
+            />
+            <Tab 
+              key="table" 
+              title={
+                <Tooltip content="表格视图" >
+                  <div>
+                    <FontAwesomeIcon icon={faTable} />
+                  </div>
+                </Tooltip>
+              } 
+            />
           </Tabs>
         </div>
       </div>
