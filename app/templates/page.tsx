@@ -191,15 +191,35 @@ export default function TemplatesPage() {
     { value: 'debug', label: 'Debug' }
   ];
 
-  const listenTypes = [
-    { value: 'external', label: '外部' },
-    { value: 'local', label: '本地' }
-  ];
+  // 根据模式动态生成用户监听策略选项
+  const getUserListenTypes = () => {
+    if (selectedMode === 'single') {
+      return [
+        { value: 'all', label: '全部IP' },
+        { value: 'assign', label: '指定IP' }
+      ];
+    } else {
+      return [
+        { value: 'all', label: '全部入口' },
+        { value: 'assign', label: '指定入口' }
+      ];
+    }
+  };
 
-  const userListenTypes = [
-    { value: 'all', label: '全部入口' },
-    { value: 'assign', label: '指定入口' }
-  ];
+  // 根据模式动态生成目标访问策略选项
+  const getTargetAccessTypes = () => {
+    if (selectedMode === 'single') {
+      return [
+        { value: 'external', label: '外部服务' },
+        { value: 'local', label: '本地中转' }
+      ];
+    } else {
+      return [
+        { value: 'external', label: '外部服务' },
+        { value: 'local', label: '本地出口' }
+      ];
+    }
+  };
 
   const [formData, setFormData] = useState<FormData>({
     userPort: '',
@@ -526,7 +546,7 @@ export default function TemplatesPage() {
                 type: 'radio',
                 placeholder: '选择监听策略',
                 value: formData.userListenType,
-                options: userListenTypes.map(type => ({
+                options: getUserListenTypes().map(type => ({
                   value: type.value,
                   label: type.label
                 }))
@@ -590,7 +610,7 @@ export default function TemplatesPage() {
                 type: 'radio',
                 placeholder: '选择访问类型',
                 value: formData.targetListenType,
-                options: listenTypes.map(type => ({
+                options: getTargetAccessTypes().map(type => ({
                   value: type.value,
                   label: type.label
                 }))
@@ -624,7 +644,7 @@ export default function TemplatesPage() {
                 type: 'radio',
                 placeholder: '选择监听策略',
                 value: formData.userListenType,
-                options: userListenTypes.map(type => ({
+                options: getUserListenTypes().map(type => ({
                   value: type.value,
                   label: type.label
                 }))
@@ -706,7 +726,7 @@ export default function TemplatesPage() {
                 type: 'radio',
                 placeholder: '选择访问策略类型',
                 value: formData.targetListenType,
-                options: listenTypes.map(type => ({
+                options: getTargetAccessTypes().map(type => ({
                   value: type.value,
                   label: type.label
                 }))
@@ -740,7 +760,7 @@ export default function TemplatesPage() {
                 type: 'radio',
                 placeholder: '选择监听策略',
                 value: formData.userListenType,
-                options: userListenTypes.map(type => ({
+                options: getUserListenTypes().map(type => ({
                   value: type.value,
                   label: type.label
                 }))
@@ -822,7 +842,7 @@ export default function TemplatesPage() {
                 type: 'radio',
                 placeholder: '选择访问策略类型',
                 value: formData.targetListenType,
-                options: listenTypes.map(type => ({
+                options: getTargetAccessTypes().map(type => ({
                   value: type.value,
                   label: type.label
                 }))

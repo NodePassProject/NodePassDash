@@ -394,7 +394,7 @@ export default function TunnelsPage() {
         <div className="flex items-center gap-1">
           <span>隧道地址</span>
           <FontAwesomeIcon 
-            icon={showFullAddress ? faEyeSlash : faEye}
+            icon={showFullAddress ? faEye: faEyeSlash }
             className="text-xs cursor-pointer hover:text-primary" 
             onClick={() => setShowFullAddress(!showFullAddress)}
           />
@@ -407,7 +407,7 @@ export default function TunnelsPage() {
         <div className="flex items-center gap-1">
           <span>目标地址</span>
           <FontAwesomeIcon 
-            icon={showFullAddress ? faEyeSlash : faEye}
+            icon={showFullAddress ? faEye : faEyeSlash}
             className="text-xs cursor-pointer hover:text-primary" 
             onClick={() => setShowFullAddress(!showFullAddress)}
           />
