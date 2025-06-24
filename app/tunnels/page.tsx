@@ -505,9 +505,6 @@ export default function TunnelsPage() {
     setEditModalTunnel(tunnel);
     setNewTunnelName(tunnel.name);
     setIsEditModalOpen(true);
-    // open quick modal for comprehensive edit
-    setEditTunnel(tunnel);
-    setEditModalOpen(true);
   };
 
   const handleEditSubmit = async () => {
