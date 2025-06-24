@@ -875,17 +875,17 @@ export default function TunnelsPage() {
                         重试
                       </Button>
                     </div>
-                  ) : (
-                    <div className="flex flex-col items-center gap-4">
-                      <div className="w-20 h-20 rounded-full bg-default-100 flex items-center justify-center">
-                        <FontAwesomeIcon icon={faEye} className="text-3xl text-default-400" />
-                      </div>
-                      <div className="space-y-2">
-                        <p className="text-default-500 text-base font-medium">暂无实例</p>
-                        <p className="text-default-400 text-sm">您还没有创建任何实例</p>
-                      </div>
+                                  ) : (
+                  <div className="flex flex-col items-center justify-center gap-4 text-center">
+                    <div className="w-20 h-20 rounded-full bg-default-100 flex items-center justify-center">
+                      <FontAwesomeIcon icon={faEye} className="text-3xl text-default-400" />
                     </div>
-                  )}
+                    <div className="space-y-2">
+                      <p className="text-default-500 text-base font-medium">暂无实例</p>
+                      <p className="text-default-400 text-sm">您还没有创建任何实例</p>
+                    </div>
+                  </div>
+                )}
                 </div>
               ) : (
                 <Table
@@ -1036,27 +1036,15 @@ export default function TunnelsPage() {
           </Box>
           
           {/* 分页器 - 响应式优化 */}
-          <Flex justify="between" align="center" className="w-full px-3 md:px-4 py-3 gap-2 md:gap-4 flex-col lg:flex-row">
-            {/* 左侧：统计信息 */}
-            <Box className="text-xs md:text-sm text-default-500 order-3 lg:order-1">
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <Spinner size="sm" />
-                  <span>统计中...</span>
-                </div>
-              ) : (
+          {!loading && !error && filteredItems.length > 0 && (
+            <Flex justify="between" align="center" className="w-full px-3 md:px-4 py-3 gap-2 md:gap-4 flex-col lg:flex-row">
+              {/* 左侧：统计信息 */}
+              <Box className="text-xs md:text-sm text-default-500 order-3 lg:order-1">
                 <span>共 {filteredItems.length} 个实例</span>
-              )}
-            </Box>
-            
-            {/* 中间：分页器 */}
-            <div className="order-1 lg:order-2">
-              {loading ? (
-                <div className="flex items-center gap-2">
-                  <Spinner size="sm" />
-                  <span className="text-sm text-default-500">分页加载中...</span>
-                </div>
-              ) : (
+              </Box>
+              
+              {/* 中间：分页器 */}
+              <div className="order-1 lg:order-2">
                 <Pagination 
                   loop 
                   total={pages || 1} 
@@ -1069,29 +1057,29 @@ export default function TunnelsPage() {
                     item: "text-xs md:text-sm"
                   }}
                 />
-              )}
-            </div>
+              </div>
 
-            {/* 右侧：每页数量选择器 */}
-            <div className="flex items-center gap-2 order-2 lg:order-3">
-              <span className="text-xs text-default-400">每页显示:</span>
-              <Select
-                size="sm"
-                className="w-20"
-                selectedKeys={[String(rowsPerPage)]}
-                onSelectionChange={(keys) => {
-                  const value = Array.from(keys)[0] as string;
-                  setRowsPerPage(Number(value));
-                  setPage(1);
-                }}
-              >
-                <SelectItem key="10">10</SelectItem>
-                <SelectItem key="20">20</SelectItem>
-                <SelectItem key="50">50</SelectItem>
-                <SelectItem key="100">100</SelectItem>
-              </Select>
-            </div>
-          </Flex>
+              {/* 右侧：每页数量选择器 */}
+              <div className="flex items-center gap-2 order-2 lg:order-3">
+                <span className="text-xs text-default-400">每页显示:</span>
+                <Select
+                  size="sm"
+                  className="w-20"
+                  selectedKeys={[String(rowsPerPage)]}
+                  onSelectionChange={(keys) => {
+                    const value = Array.from(keys)[0] as string;
+                    setRowsPerPage(Number(value));
+                    setPage(1);
+                  }}
+                >
+                  <SelectItem key="10">10</SelectItem>
+                  <SelectItem key="20">20</SelectItem>
+                  <SelectItem key="50">50</SelectItem>
+                  <SelectItem key="100">100</SelectItem>
+                </Select>
+              </div>
+            </Flex>
+          )}
         </Flex>
       </div>
 
