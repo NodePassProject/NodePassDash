@@ -9,6 +9,7 @@ import {
   NavbarMenuToggle
 } from "@heroui/react";
 import { ThemeSwitch } from "@/components/theme-switch";
+import { LocaleSwitch } from "@/components/locale-switch";
 import { NavbarLogo } from "./navbar-logo";
 import { NavbarMenu as DesktopNavbarMenu } from "./navbar-menu";
 import { NavbarSocial } from "./navbar-social";
@@ -42,6 +43,9 @@ export const Navbar = () => {
           {/* 社交链接 */}
           <NavbarSocial />
           
+          {/* 语言切换 */}
+          <LocaleSwitch />
+          
           {/* 主题切换 */}
           <ThemeSwitch />
         </NavbarItem>
@@ -50,6 +54,7 @@ export const Navbar = () => {
 
       {/* 右侧工具栏 - 移动端 */}
       <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
+        <LocaleSwitch />
         <ThemeSwitch />
         <NavbarUser />
         <NavbarMenuToggle />
