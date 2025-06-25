@@ -14,12 +14,13 @@ import {
   ModalHeader,
   Tab,
   Tabs,
-  useDisclosure
+  useDisclosure,
+  Tooltip
 } from "@heroui/react";
 import React, { useEffect } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh,faStop, faQuestionCircle } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
@@ -177,6 +178,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   const searchParams = useSearchParams();
   const resolvedId = searchParams.get('id');
 
+  // 是否移入回收站
+  const [moveToRecycle, setMoveToRecycle] = React.useState(false);
 
   // 日志计数器，确保每个日志都有唯一的ID
   const logCounterRef = React.useRef(0);
@@ -423,13 +426,13 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   }, [logs, selectedTab, scrollToBottom]);
 
   // 使用全局SSE监听页面刷新事件
-  useGlobalSSE({
-    onMessage: (data) => {
-      if (data.type === 'refresh' && data.route === `/tunnels/${resolvedId}`) {
-        router.refresh();
-      }
-    }
-  });
+  // useGlobalSSE({
+  //   onMessage: (data) => {
+  //     if (data.type === 'refresh' && data.route === `/tunnels/${resolvedId}`) {
+  //       router.refresh();
+  //     }
+  //   }
+  // });
   
   // 使用实例SSE监听更新 - 使用统一的SSE hook
   console.log('🚀 [前端SSE] 准备订阅SSE:', {
@@ -547,6 +550,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       instanceId: tunnelInfo.instanceId,
       tunnelName: tunnelInfo.name,
       redirectAfterDelete: true,
+      recycle: moveToRecycle,
     });
   };
 
@@ -578,7 +582,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           <Button
             isIconOnly
             variant="flat"
-            size="sm"
             onClick={() => router.back()}
             className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
           >
@@ -588,7 +591,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           <Chip 
             variant="flat"
             color={tunnelInfo.status.type}
-            size="sm"
             className="flex-shrink-0"
           >
             {tunnelInfo.status.text}
@@ -600,8 +602,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           <Button
             variant="flat"
             color={tunnelInfo.status.type === "success" ? "warning" : "success"}
-            size="sm"
-            startContent={<FontAwesomeIcon icon={tunnelInfo.status.type === "success" ? faPause : faPlay} />}
+            startContent={<FontAwesomeIcon icon={tunnelInfo.status.type === "success" ? faStop : faPlay} />}
             onClick={handleToggleStatus}
             className="flex-shrink-0"
           >
@@ -610,7 +611,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           <Button
             variant="flat"
             color="primary"
-            size="sm"
             startContent={<FontAwesomeIcon icon={faRotateRight} />}
             onClick={handleRestart}
             isDisabled={tunnelInfo.status.type !== "success"}
@@ -621,7 +621,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           <Button
             variant="flat"
             color="danger"
-            size="sm"
             startContent={<FontAwesomeIcon icon={faTrash} />}
             onClick={handleDeleteClick}
             className="flex-shrink-0"
@@ -631,7 +630,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           <Button
             variant="flat"
             color="default"
-            size="sm"
             startContent={<FontAwesomeIcon icon={faRefresh} />}
             onClick={handleRefresh}
             isLoading={refreshLoading}
@@ -661,6 +659,18 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                 <p className="text-xs md:text-small text-warning">
                   ⚠️ 此操作不可撤销，实例的所有配置和数据都将被永久删除。
                 </p>
+                {/* 选择是否移入回收站 */}
+                <div className="pt-2">
+                  <label className="flex items-center gap-2 cursor-pointer select-none text-sm">
+                    <input
+                      type="checkbox"
+                      className="form-checkbox h-4 w-4 text-primary"
+                      checked={moveToRecycle}
+                      onChange={(e) => setMoveToRecycle(e.target.checked)}
+                    />
+                    <span>删除后历史记录移至回收站</span>
+                  </label>
+                </div>
               </ModalBody>
               <ModalFooter>
                 <Button color="default" variant="light" onPress={onClose} size="sm">
@@ -672,6 +682,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   onPress={() => {
                     handleDelete();
                     onClose();
+                    setMoveToRecycle(false);
                   }}
                   startContent={<FontAwesomeIcon icon={faTrash} />}
                 >
@@ -787,7 +798,17 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
 
       {/* 流量趋势图 - 响应式高度 */}
       <Card className="p-2">
-        <CardHeader className="font-bold text-sm md:text-base">流量趋势</CardHeader>
+        <CardHeader className="font-bold text-sm md:text-base">
+          <div className="flex items-center gap-2">
+            流量趋势
+            <Tooltip content="需要日志级别设为debug才会有流量变化推送" placement="top">
+              <FontAwesomeIcon 
+                icon={faQuestionCircle} 
+                className="text-default-400 hover:text-default-600 cursor-help text-xs"
+              />
+            </Tooltip>
+          </div>
+        </CardHeader>
         <CardBody>
           <div className="h-[250px] md:h-[300px]">
             {loading ? (

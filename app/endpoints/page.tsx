@@ -689,24 +689,21 @@ export default function EndpointsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2 md:gap-4 mt-2 md:mt-0">
           <Button 
-            variant="light"
-            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
+            variant="flat"
             startContent={<FontAwesomeIcon icon={faLayerGroup} />}
             onPress={() => router.push('/templates')}
           >
             创建场景
           </Button>
           <Button 
-            variant="light"
-            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
+            variant="flat"
             startContent={<FontAwesomeIcon icon={faCopy} />}
             onPress={handleCopyInstallScript}
           >
             安装脚本
           </Button>
           <Button 
-            variant="light"
-            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
+            variant="flat"
             startContent={  <FontAwesomeIcon icon={faRotateRight} />}
             onPress={async ()=>{await fetchEndpoints();}}
               >
