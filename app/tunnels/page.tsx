@@ -25,7 +25,8 @@ import {
   ButtonGroup,
   Select,
   SelectItem,
-  Code
+  Code,
+  Tooltip
 } from "@heroui/react";
 import { Selection } from "@react-types/shared";
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -36,6 +37,7 @@ import {
   faEyeSlash,
   faPause, 
   faPlay, 
+  faStop,
   faTrash,
   faRotateRight,
   faPen,
@@ -751,11 +753,13 @@ export default function TunnelsPage() {
                         </Chip>
                         <div className="flex items-center gap-1 min-w-0">
                           <span className="font-semibold text-sm truncate">{tunnel.name}</span>
-                          <FontAwesomeIcon 
-                            icon={faPen} 
-                            className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer" 
-                            onClick={() => handleEditClick(tunnel)}
-                          />
+                          <Tooltip content="修改名称" size="sm">
+                            <FontAwesomeIcon 
+                              icon={faPen} 
+                              className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer" 
+                              onClick={() => handleEditClick(tunnel)}
+                            />
+                          </Tooltip>
                         </div>
                       </div>
                       <Chip 
@@ -801,47 +805,57 @@ export default function TunnelsPage() {
 
                     {/* 操作按钮 */}
                     <div className="flex justify-end gap-1 pt-2 border-t border-default-100">
-                      <Button
-                        isIconOnly
-                        variant="light"
-                        size="sm"
-                        color="primary"
-                        onClick={() => router.push(`/tunnels/details?id=${tunnel.id}`)}
-                        startContent={<FontAwesomeIcon icon={faEye} className="text-xs" />}
-                      />
-                      <Button
-                        isIconOnly
-                        variant="light"
-                        size="sm"
-                        color={tunnel.status.type === "success" ? "warning" : "success"}
-                        onClick={() => handleToggleStatus(tunnel)}
-                        startContent={<FontAwesomeIcon icon={tunnel.status.type === "success" ? faPause : faPlay} className="text-xs" />}
-                      />
-                      <Button
-                        isIconOnly
-                        variant="light"
-                        size="sm"
-                        color="primary"
-                        onClick={() => handleRestart(tunnel)}
-                        isDisabled={tunnel.status.type !== "success"}
-                        startContent={<FontAwesomeIcon icon={faRotateRight} className="text-xs" />}
-                      />
-                      <Button
-                        isIconOnly
-                        variant="light"
-                        size="sm"
-                        color="default"
-                        onClick={()=>{ setEditTunnel(tunnel); setEditModalOpen(true);} }
-                        startContent={<FontAwesomeIcon icon={faPen} className="text-xs" />}
-                      />
-                      <Button
-                        isIconOnly
-                        variant="light"
-                        size="sm"
-                        color="danger"
-                        onClick={() => handleDeleteClick(tunnel)}
-                        startContent={<FontAwesomeIcon icon={faTrash} className="text-xs" />}
-                      />
+                      <Tooltip content="查看实例" size="sm">
+                        <Button
+                          isIconOnly
+                          variant="light"
+                          size="sm"
+                          color="primary"
+                          onClick={() => router.push(`/tunnels/details?id=${tunnel.id}`)}
+                          startContent={<FontAwesomeIcon icon={faEye} className="text-xs" />}
+                        />
+                      </Tooltip>
+                      <Tooltip content={tunnel.status.type === "success" ? "停止实例" : "启动实例"} size="sm">
+                        <Button
+                          isIconOnly
+                          variant="light"
+                          size="sm"
+                          color={tunnel.status.type === "success" ? "warning" : "success"}
+                          onClick={() => handleToggleStatus(tunnel)}
+                          startContent={<FontAwesomeIcon icon={tunnel.status.type === "success" ? faStop : faPlay} className="text-xs" />}
+                        />
+                      </Tooltip>
+                      <Tooltip content="重启实例" size="sm">
+                        <Button
+                          isIconOnly
+                          variant="light"
+                          size="sm"
+                          color="primary"
+                          onClick={() => handleRestart(tunnel)}
+                          isDisabled={tunnel.status.type !== "success"}
+                          startContent={<FontAwesomeIcon icon={faRotateRight} className="text-xs" />}
+                        />
+                      </Tooltip>
+                      <Tooltip content="编辑实例" size="sm">
+                        <Button
+                          isIconOnly
+                          variant="light"
+                          size="sm"
+                          color="default"
+                          onClick={()=>{ setEditTunnel(tunnel); setEditModalOpen(true);} }
+                          startContent={<FontAwesomeIcon icon={faPen} className="text-xs" />}
+                        />
+                      </Tooltip>
+                      <Tooltip content="删除实例" size="sm">
+                        <Button
+                          isIconOnly
+                          variant="light"
+                          size="sm"
+                          color="danger"
+                          onClick={() => handleDeleteClick(tunnel)}
+                          startContent={<FontAwesomeIcon icon={faTrash} className="text-xs" />}
+                        />
+                      </Tooltip>
                     </div>
                   </div>
                 ))
@@ -934,11 +948,13 @@ export default function TunnelsPage() {
                             <Box className="text-xs md:text-sm font-semibold truncate max-w-[120px] md:max-w-none">
                               {tunnel.name}
                             </Box>
-                            <FontAwesomeIcon 
-                              icon={faPen} 
-                              className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer" 
-                              onClick={() => handleEditClick(tunnel)}
-                            />
+                            <Tooltip content="修改名称" size="sm">
+                              <FontAwesomeIcon 
+                                icon={faPen} 
+                                className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer" 
+                                onClick={() => handleEditClick(tunnel)}
+                              />
+                            </Tooltip>
                           </Flex>
                         </TableCell>
                         
@@ -984,47 +1000,57 @@ export default function TunnelsPage() {
                         {/* 操作列 */}
                         <TableCell>
                           <div className="flex justify-center gap-1">
-                            <Button
-                              isIconOnly
-                              variant="light"
-                              size="sm"
-                              color="primary"
-                              onClick={() => router.push(`/tunnels/details?id=${tunnel.id}`)}
-                              startContent={<FontAwesomeIcon icon={faEye} className="text-xs" />}
-                            />
-                            <Button
-                              isIconOnly
-                              variant="light"
-                              size="sm"
-                              color={tunnel.status.type === "success" ? "warning" : "success"}
-                              onClick={() => handleToggleStatus(tunnel)}
-                              startContent={<FontAwesomeIcon icon={tunnel.status.type === "success" ? faPause : faPlay} className="text-xs" />}
-                            />
-                            <Button
-                              isIconOnly
-                              variant="light"
-                              size="sm"
-                              color="primary"
-                              onClick={() => handleRestart(tunnel)}
-                              isDisabled={tunnel.status.type !== "success"}
-                              startContent={<FontAwesomeIcon icon={faRotateRight} className="text-xs" />}
-                            />
-                            <Button
-                              isIconOnly
-                              variant="light"
-                              size="sm"
-                              color="warning"
-                              onClick={()=>{ setEditTunnel(tunnel); setEditModalOpen(true);} }
-                              startContent={<FontAwesomeIcon icon={faPen} className="text-xs" />}
-                            />
-                            <Button
-                              isIconOnly
-                              variant="light"
-                              size="sm"
-                              color="danger"
-                              onClick={() => handleDeleteClick(tunnel)}
-                              startContent={<FontAwesomeIcon icon={faTrash} className="text-xs" />}
-                            />
+                            <Tooltip content="查看实例" size="sm">
+                              <Button
+                                isIconOnly
+                                variant="light"
+                                size="sm"
+                                color="primary"
+                                onClick={() => router.push(`/tunnels/details?id=${tunnel.id}`)}
+                                startContent={<FontAwesomeIcon icon={faEye} className="text-xs" />}
+                              />
+                            </Tooltip>
+                            <Tooltip content={tunnel.status.type === "success" ? "停止实例" : "启动实例"} size="sm">
+                              <Button
+                                isIconOnly
+                                variant="light"
+                                size="sm"
+                                color={tunnel.status.type === "success" ? "warning" : "success"}
+                                onClick={() => handleToggleStatus(tunnel)}
+                                startContent={<FontAwesomeIcon icon={tunnel.status.type === "success" ? faStop : faPlay} className="text-xs" />}
+                              />
+                            </Tooltip>
+                            <Tooltip content="重启实例" size="sm">
+                              <Button
+                                isIconOnly
+                                variant="light"
+                                size="sm"
+                                color="primary"
+                                onClick={() => handleRestart(tunnel)}
+                                isDisabled={tunnel.status.type !== "success"}
+                                startContent={<FontAwesomeIcon icon={faRotateRight} className="text-xs" />}
+                              />
+                            </Tooltip>
+                            <Tooltip content="编辑实例" size="sm">
+                              <Button
+                                isIconOnly
+                                variant="light"
+                                size="sm"
+                                color="warning"
+                                onClick={()=>{ setEditTunnel(tunnel); setEditModalOpen(true);} }
+                                startContent={<FontAwesomeIcon icon={faPen} className="text-xs" />}
+                              />
+                            </Tooltip>
+                            <Tooltip content="删除实例" size="sm">
+                              <Button
+                                isIconOnly
+                                variant="light"
+                                size="sm"
+                                color="danger"
+                                onClick={() => handleDeleteClick(tunnel)}
+                                startContent={<FontAwesomeIcon icon={faTrash} className="text-xs" />}
+                              />
+                            </Tooltip>
                           </div>
                         </TableCell>
                       </TableRow>
