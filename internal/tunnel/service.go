@@ -921,7 +921,12 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 	// 调用 NodePass API 删除实例
 	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
 	if err := npClient.DeleteInstance(instanceID); err != nil {
-		return err
+		// 如果收到401错误，说明NodePass核心已经没有这个实例了，按删除成功处理
+		if strings.Contains(err.Error(), "NodePass API 返回错误: 401") {
+			log.Warnf("[API] NodePass API 返回401错误，实例 %s 可能已不存在，继续删除本地记录", instanceID)
+		} else {
+			return err
+		}
 	}
 
 	// 轮询等待数据库记录被删除
