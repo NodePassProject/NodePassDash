@@ -1419,13 +1419,13 @@ export default function TemplatesPage() {
           inbounds: {
             target_host: getUserListenHost(), // 用户节点的访问策略，空字符串表示全部IP
             target_port: parseInt(formData.userPort), // 用户节点的访问端口
-            master_id: getEndpointIdByName(formData.masterServer), // 客户端
+            master_id: getEndpointIdByName(formData.targetMaster), // 客户端
             type: 'client'
           },
           outbounds: {
             target_host: getTargetHost(), // 目标节点的访问策略
             target_port: parseInt(formData.exitPort), // 目标节点的目标端口
-            master_id: getEndpointIdByName(formData.targetMaster), // 服务端
+            master_id: getEndpointIdByName(formData.masterServer), // 服务端
             type: 'server'
           }
         };
