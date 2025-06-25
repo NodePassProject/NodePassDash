@@ -328,18 +328,21 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
               aria-label="批量操作"
               onAction={(key) => onBulkAction?.(key as string)}
             >
+              <DropdownItem key="start" startContent={<FontAwesomeIcon icon={faPlay} />} className="text-success">
+                批量启动
+              </DropdownItem>
+              <DropdownItem key="stop" startContent={<FontAwesomeIcon icon={faStop} />} className="text-warning">
+                批量停止
+              </DropdownItem>
+              <DropdownItem key="restart" startContent={<FontAwesomeIcon icon={faRotateRight} />} className="text-primary">
+                批量重启
+              </DropdownItem>
               <DropdownItem key="export" startContent={<FontAwesomeIcon icon={faDownload} />}>
                 导出配置规则
               </DropdownItem>
               <DropdownItem key="delete" startContent={<FontAwesomeIcon icon={faTrash} />} className="text-danger">
                 批量删除
               </DropdownItem>
-              {/* 预留后续批量操作 */}
-              {/*
-              <DropdownItem key="start" startContent={<FontAwesomeIcon icon={faPlay} />}>批量启动</DropdownItem>
-              <DropdownItem key="stop" startContent={<FontAwesomeIcon icon={faStop} />}>批量停止</DropdownItem>
-              <DropdownItem key="restart" startContent={<FontAwesomeIcon icon={faRotateRight} />}>批量重启</DropdownItem>
-              */}
             </DropdownMenu>
           </Dropdown>
         </Flex>

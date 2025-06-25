@@ -331,6 +331,258 @@ export default function TunnelsPage() {
     });
   };
 
+  // 执行批量启动
+  const executeBatchStart = async () => {
+    if (!selectedKeys || (selectedKeys instanceof Set && selectedKeys.size === 0)) {
+      addToast({
+        title: '批量启动失败',
+        description: '请先选择需要启动的实例',
+        color: 'warning'
+      });
+      return;
+    }
+
+    // 计算待启动的实例列表
+    let selectedTunnels: Tunnel[] = [];
+    if (selectedKeys === "all") {
+      selectedTunnels = filteredItems;
+    } else {
+      selectedTunnels = filteredItems.filter(tunnel => 
+        (selectedKeys as Set<string>).has(String(tunnel.id))
+      );
+    }
+
+    // 过滤出已停止的实例
+    const stoppedTunnels = selectedTunnels.filter(tunnel => tunnel.status.type !== "success");
+    
+    if (stoppedTunnels.length === 0) {
+      addToast({
+        title: '批量启动失败',
+        description: '所选实例中没有可启动的实例（已停止状态）',
+        color: 'warning'
+      });
+      return;
+    }
+
+    // 执行批量启动
+    addToast({
+      timeout: 1,
+      title: "批量启动中...",
+      description: `正在启动 ${stoppedTunnels.length} 个实例，请稍候`,
+      color: "primary",
+      promise: fetch(buildApiUrl('/api/tunnels/batch/action'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          ids: stoppedTunnels.map(t => Number(t.id)),
+          action: 'start'
+        })
+      })
+        .then(async (response) => {
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || '批量启动失败');
+          }
+
+          const succeeded = data.operated || 0;
+          const failed = data.failCount || 0;
+
+          if (succeeded > 0) {
+            addToast({
+              title: '批量启动完成',
+              description: `成功启动 ${succeeded} 个实例${failed > 0 ? `，${failed} 个失败` : ''}`,
+              color: failed === 0 ? 'success' : 'warning',
+            });
+          }
+
+          if (failed > 0 && data.results) {
+            const failedTunnels = data.results.filter((r: any) => !r.success);
+            console.error('启动失败的实例:', failedTunnels.map((f: any) => `${f.name}: ${f.error}`));
+          }
+
+          // 刷新实例列表
+          fetchTunnels();
+          return { succeeded, failed };
+        })
+        .catch((error) => {
+          addToast({
+            title: '批量启动失败',
+            description: error instanceof Error ? error.message : '未知错误',
+            color: 'danger',
+          });
+          throw error;
+        }),
+    });
+  };
+
+  // 执行批量停止
+  const executeBatchStop = async () => {
+    if (!selectedKeys || (selectedKeys instanceof Set && selectedKeys.size === 0)) {
+      addToast({
+        title: '批量停止失败',
+        description: '请先选择需要停止的实例',
+        color: 'warning'
+      });
+      return;
+    }
+
+    // 计算待停止的实例列表
+    let selectedTunnels: Tunnel[] = [];
+    if (selectedKeys === "all") {
+      selectedTunnels = filteredItems;
+    } else {
+      selectedTunnels = filteredItems.filter(tunnel => 
+        (selectedKeys as Set<string>).has(String(tunnel.id))
+      );
+    }
+
+    // 过滤出运行中的实例
+    const runningTunnels = selectedTunnels.filter(tunnel => tunnel.status.type === "success");
+    
+    if (runningTunnels.length === 0) {
+      addToast({
+        title: '批量停止失败',
+        description: '所选实例中没有可停止的实例（运行中状态）',
+        color: 'warning'
+      });
+      return;
+    }
+
+    // 执行批量停止
+    addToast({
+      timeout: 1,
+      title: "批量停止中...",
+      description: `正在停止 ${runningTunnels.length} 个实例，请稍候`,
+      color: "primary",
+      promise: fetch(buildApiUrl('/api/tunnels/batch/action'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          ids: runningTunnels.map(t => Number(t.id)),
+          action: 'stop'
+        })
+      })
+        .then(async (response) => {
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || '批量停止失败');
+          }
+
+          const succeeded = data.operated || 0;
+          const failed = data.failCount || 0;
+
+          if (succeeded > 0) {
+            addToast({
+              title: '批量停止完成',
+              description: `成功停止 ${succeeded} 个实例${failed > 0 ? `，${failed} 个失败` : ''}`,
+              color: failed === 0 ? 'success' : 'warning',
+            });
+          }
+
+          if (failed > 0 && data.results) {
+            const failedTunnels = data.results.filter((r: any) => !r.success);
+            console.error('停止失败的实例:', failedTunnels.map((f: any) => `${f.name}: ${f.error}`));
+          }
+
+          // 刷新实例列表
+          fetchTunnels();
+          return { succeeded, failed };
+        })
+        .catch((error) => {
+          addToast({
+            title: '批量停止失败',
+            description: error instanceof Error ? error.message : '未知错误',
+            color: 'danger',
+          });
+          throw error;
+        }),
+    });
+  };
+
+  // 执行批量重启
+  const executeBatchRestart = async () => {
+    if (!selectedKeys || (selectedKeys instanceof Set && selectedKeys.size === 0)) {
+      addToast({
+        title: '批量重启失败',
+        description: '请先选择需要重启的实例',
+        color: 'warning'
+      });
+      return;
+    }
+
+    // 计算待重启的实例列表
+    let selectedTunnels: Tunnel[] = [];
+    if (selectedKeys === "all") {
+      selectedTunnels = filteredItems;
+    } else {
+      selectedTunnels = filteredItems.filter(tunnel => 
+        (selectedKeys as Set<string>).has(String(tunnel.id))
+      );
+    }
+
+    // 过滤出运行中的实例（只有运行中的实例才能重启）
+    const runningTunnels = selectedTunnels.filter(tunnel => tunnel.status.type === "success");
+    
+    if (runningTunnels.length === 0) {
+      addToast({
+        title: '批量重启失败',
+        description: '所选实例中没有可重启的实例（运行中状态）',
+        color: 'warning'
+      });
+      return;
+    }
+
+    // 执行批量重启
+    addToast({
+      timeout: 1,
+      title: "批量重启中...",
+      description: `正在重启 ${runningTunnels.length} 个实例，请稍候`,
+      color: "primary",
+      promise: fetch(buildApiUrl('/api/tunnels/batch/action'), {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ 
+          ids: runningTunnels.map(t => Number(t.id)),
+          action: 'restart'
+        })
+      })
+        .then(async (response) => {
+          const data = await response.json();
+          if (!response.ok) {
+            throw new Error(data.error || '批量重启失败');
+          }
+
+          const succeeded = data.operated || 0;
+          const failed = data.failCount || 0;
+
+          if (succeeded > 0) {
+            addToast({
+              title: '批量重启完成',
+              description: `成功重启 ${succeeded} 个实例${failed > 0 ? `，${failed} 个失败` : ''}`,
+              color: failed === 0 ? 'success' : 'warning',
+            });
+          }
+
+          if (failed > 0 && data.results) {
+            const failedTunnels = data.results.filter((r: any) => !r.success);
+            console.error('重启失败的实例:', failedTunnels.map((f: any) => `${f.name}: ${f.error}`));
+          }
+
+          // 刷新实例列表
+          fetchTunnels();
+          return { succeeded, failed };
+        })
+        .catch((error) => {
+          addToast({
+            title: '批量重启失败',
+            description: error instanceof Error ? error.message : '未知错误',
+            color: 'danger',
+          });
+          throw error;
+        }),
+    });
+  };
+
   // 导出配置功能
   const handleExportConfig = () => {
     if (!selectedKeys || (selectedKeys instanceof Set && selectedKeys.size === 0)) return;
@@ -506,7 +758,7 @@ export default function TunnelsPage() {
 
     try {
       setIsEditLoading(true);
-      const response = await fetch(`/api/tunnels/${editModalTunnel.id}`, {
+      const response = await fetch(buildApiUrl(`/api/tunnels/${editModalTunnel.id}`), {
         method: 'PATCH',
         headers: {
           'Content-Type': 'application/json',
@@ -617,6 +869,15 @@ export default function TunnelsPage() {
   // 处理批量操作
   const handleBulkAction = (action: string) => {
     switch(action) {
+      case 'start':
+        executeBatchStart();
+        break;
+      case 'stop':
+        executeBatchStop();
+        break;
+      case 'restart':
+        executeBatchRestart();
+        break;
       case 'delete':
         showBatchDeleteModal();
         break;

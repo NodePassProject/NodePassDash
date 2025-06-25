@@ -877,6 +877,19 @@ func (s *Service) GetInstanceIDByTunnelID(id int64) (string, error) {
 	return instanceNS.String, nil
 }
 
+// GetTunnelNameByID 根据隧道数据库ID获取隧道名称
+func (s *Service) GetTunnelNameByID(id int64) (string, error) {
+	var name string
+	err := s.db.QueryRow(`SELECT name FROM "Tunnel" WHERE id = ?`, id).Scan(&name)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return "", errors.New("隧道不存在")
+		}
+		return "", err
+	}
+	return name, nil
+}
+
 // DeleteTunnelAndWait 触发远端删除后等待数据库记录被移除
 // 该方法不会主动删除本地记录，而是假设有其它进程 (如 SSE 监听) 负责删除
 // timeout 为等待的最长时长

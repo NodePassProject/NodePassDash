@@ -1802,3 +1802,157 @@ func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *ht
 
 	json.NewEncoder(w).Encode(response)
 }
+
+// HandleBatchActionTunnels 批量操作隧道（启动、停止、重启）
+func (h *TunnelHandler) HandleBatchActionTunnels(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 请求结构体
+	type batchActionRequest struct {
+		// 根据数据库 ID 操作
+		IDs []int64 `json:"ids"`
+		// 操作类型: start, stop, restart
+		Action string `json:"action"`
+	}
+
+	// 操作结果
+	type actionResult struct {
+		ID         int64  `json:"id"`
+		InstanceID string `json:"instanceId"`
+		Name       string `json:"name"`
+		Success    bool   `json:"success"`
+		Error      string `json:"error,omitempty"`
+	}
+
+	// 响应结构体
+	type batchActionResponse struct {
+		Success   bool           `json:"success"`
+		Operated  int            `json:"operated"`
+		FailCount int            `json:"failCount"`
+		Error     string         `json:"error,omitempty"`
+		Results   []actionResult `json:"results,omitempty"`
+		Action    string         `json:"action"`
+	}
+
+	var req batchActionRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(batchActionResponse{
+			Success: false,
+			Error:   "无效的请求数据",
+		})
+		return
+	}
+
+	// 验证操作类型
+	if req.Action != "start" && req.Action != "stop" && req.Action != "restart" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(batchActionResponse{
+			Success: false,
+			Error:   "无效的操作类型，支持: start, stop, restart",
+		})
+		return
+	}
+
+	// 验证 ID 列表
+	if len(req.IDs) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(batchActionResponse{
+			Success: false,
+			Error:   "请提供要操作的隧道ID列表",
+		})
+		return
+	}
+
+	// 限制批量操作的数量
+	const maxBatchSize = 50
+	if len(req.IDs) > maxBatchSize {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(batchActionResponse{
+			Success: false,
+			Error:   fmt.Sprintf("批量操作数量不能超过 %d 个", maxBatchSize),
+		})
+		return
+	}
+
+	log.Infof("[API] 开始批量%s操作，共 %d 个隧道", req.Action, len(req.IDs))
+
+	var results []actionResult
+	successCount := 0
+	failCount := 0
+
+	// 逐个处理每个隧道
+	for _, tunnelID := range req.IDs {
+		result := actionResult{
+			ID: tunnelID,
+		}
+
+		// 获取隧道的 instanceID 和名称
+		instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
+		if err != nil {
+			result.Success = false
+			result.Error = fmt.Sprintf("获取实例ID失败: %v", err)
+			failCount++
+			results = append(results, result)
+			continue
+		}
+		result.InstanceID = instanceID
+
+		// 获取隧道名称（用于日志）
+		tunnelName, err := h.tunnelService.GetTunnelNameByID(tunnelID)
+		if err != nil {
+			tunnelName = fmt.Sprintf("Tunnel-%d", tunnelID)
+		}
+		result.Name = tunnelName
+
+		// 执行操作
+		actionReq := tunnel.TunnelActionRequest{
+			InstanceID: instanceID,
+			Action:     req.Action,
+		}
+
+		if err := h.tunnelService.ControlTunnel(actionReq); err != nil {
+			result.Success = false
+			result.Error = err.Error()
+			failCount++
+			log.Warnf("[API] 批量%s操作失败 - 隧道: %s (ID: %d, InstanceID: %s), 错误: %v",
+				req.Action, tunnelName, tunnelID, instanceID, err)
+		} else {
+			result.Success = true
+			successCount++
+			log.Infof("[API] 批量%s操作成功 - 隧道: %s (ID: %d, InstanceID: %s)",
+				req.Action, tunnelName, tunnelID, instanceID)
+		}
+
+		results = append(results, result)
+	}
+
+	// 构建响应
+	response := batchActionResponse{
+		Success:   successCount > 0,
+		Operated:  successCount,
+		FailCount: failCount,
+		Results:   results,
+		Action:    req.Action,
+	}
+
+	// 设置整体错误信息
+	if failCount > 0 && successCount == 0 {
+		response.Error = "所有操作都失败了"
+	} else if failCount > 0 {
+		response.Error = fmt.Sprintf("部分操作失败: %d 个成功, %d 个失败", successCount, failCount)
+	}
+
+	statusCode := http.StatusOK
+	if successCount == 0 {
+		statusCode = http.StatusBadRequest
+	}
+
+	w.WriteHeader(statusCode)
+	json.NewEncoder(w).Encode(response)
+
+	log.Infof("[API] 批量%s操作完成 - 成功: %d, 失败: %d", req.Action, successCount, failCount)
+}

@@ -129,6 +129,7 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/tunnels/batch", r.tunnelHandler.HandleBatchCreateTunnels).Methods("POST")
 	r.router.HandleFunc("/api/tunnels/batch-new", r.tunnelHandler.HandleNewBatchCreateTunnels).Methods("POST")
 	r.router.HandleFunc("/api/tunnels/batch", r.tunnelHandler.HandleBatchDeleteTunnels).Methods("DELETE")
+	r.router.HandleFunc("/api/tunnels/batch/action", r.tunnelHandler.HandleBatchActionTunnels).Methods("POST")
 	r.router.HandleFunc("/api/tunnels/quick", r.tunnelHandler.HandleQuickCreateTunnel).Methods("POST")
 	r.router.HandleFunc("/api/tunnels/template", r.tunnelHandler.HandleTemplateCreate).Methods("POST")
 	r.router.HandleFunc("/api/tunnels", r.tunnelHandler.HandlePatchTunnels).Methods("PATCH")
@@ -137,6 +138,7 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/tunnels/{id}", r.tunnelHandler.HandleUpdateTunnel).Methods("PUT")
 	r.router.HandleFunc("/api/tunnels/{id}", r.tunnelHandler.HandleDeleteTunnel).Methods("DELETE")
 	r.router.HandleFunc("/api/tunnels/{id}/status", r.tunnelHandler.HandleControlTunnel).Methods("PATCH")
+	r.router.HandleFunc("/api/tunnels/{id}/action", r.tunnelHandler.HandleControlTunnel).Methods("POST")
 	r.router.HandleFunc("/api/tunnels/{id}/details", r.tunnelHandler.HandleGetTunnelDetails).Methods("GET")
 	r.router.HandleFunc("/api/tunnels/{id}/logs", r.tunnelHandler.HandleTunnelLogs).Methods("GET")
 
