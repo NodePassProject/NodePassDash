@@ -14,6 +14,7 @@ import (
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
+	"github.com/mattn/go-ieproxy"
 )
 
 // SSEHandler SSE处理器
@@ -131,6 +132,8 @@ func (h *SSEHandler) HandleTestSSEEndpoint(w http.ResponseWriter, r *http.Reques
 
 	client := &http.Client{
 		Transport: &http.Transport{
+			// 启用系统/环境代理检测：先读 env，再回退到系统代理
+			Proxy:           ieproxy.GetProxyFunc(),
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}

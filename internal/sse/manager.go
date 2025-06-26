@@ -13,6 +13,7 @@ import (
 	"sync"
 	"time"
 
+	"github.com/mattn/go-ieproxy"
 	"github.com/r3labs/sse/v2"
 )
 
@@ -110,6 +111,8 @@ func (m *Manager) ConnectEndpoint(endpointID int64, url, apiPath, apiKey string)
 		APIKey:     apiKey,
 		Client: &http.Client{
 			Transport: &http.Transport{
+				// 启用系统/环境代理检测：先读 env，再回退到系统代理
+				Proxy:           ieproxy.GetProxyFunc(),
 				TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 				DialContext: (&net.Dialer{
 					Timeout:   30 * time.Second,
@@ -153,8 +156,10 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 
 	client := sse.NewClient(sseURL)
 	client.Headers["X-API-Key"] = conn.APIKey
-	// 自签名 SSL
+	// 自签名 SSL + 代理支持
 	client.Connection.Transport = &http.Transport{
+		// 启用系统/环境代理检测：先读 env，再回退到系统代理
+		Proxy:           ieproxy.GetProxyFunc(),
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
