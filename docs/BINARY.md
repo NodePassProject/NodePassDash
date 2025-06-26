@@ -13,9 +13,8 @@
 ## 📋 系统要求
 
 ### 支持的操作系统
-- Linux (x86_64, arm64)
-- Windows (x86_64)
-- macOS (x86_64, arm64)
+- Linux (x86_64, arm64, armv7hf, armv6hf)
+- Windows (x86_64, i386)
 
 ### 最低硬件要求
 - CPU: 1 核心
@@ -38,31 +37,43 @@ chmod +x install.sh
 
 ### 方式二：手动安装
 
-#### 1. 下载二进制文件
+#### 1. 下载并解压二进制文件
 
 ```bash
 # Linux x86_64
-wget https://github.com/NodePassProject/NodePassDash/releases/latest/download/nodepassdash-linux-amd64 -O nodepassdash
+wget https://github.com/NodePassProject/NodePassDash/releases/latest/download/NodePassDash_Linux_x86_64.tar.gz
+tar -xzf NodePassDash_Linux_x86_64.tar.gz
 chmod +x nodepassdash
 
 # Linux ARM64
-wget https://github.com/NodePassProject/NodePassDash/releases/latest/download/nodepassdash-linux-arm64 -O nodepassdash
+wget https://github.com/NodePassProject/NodePassDash/releases/latest/download/NodePassDash_Linux_arm64.tar.gz
+tar -xzf NodePassDash_Linux_arm64.tar.gz
 chmod +x nodepassdash
 
-# macOS x86_64
-wget https://github.com/NodePassProject/NodePassDash/releases/latest/download/nodepassdash-darwin-amd64 -O nodepassdash
+# Linux ARMv7
+wget https://github.com/NodePassProject/NodePassDash/releases/latest/download/NodePassDash_Linux_armv7hf.tar.gz
+tar -xzf NodePassDash_Linux_armv7hf.tar.gz
 chmod +x nodepassdash
 
-# macOS ARM64 (M1/M2)
-wget https://github.com/NodePassProject/NodePassDash/releases/latest/download/nodepassdash-darwin-arm64 -O nodepassdash
+# Linux ARMv6
+wget https://github.com/NodePassProject/NodePassDash/releases/latest/download/NodePassDash_Linux_armv6hf.tar.gz
+tar -xzf NodePassDash_Linux_armv6hf.tar.gz
 chmod +x nodepassdash
+
+# Windows x86_64
+wget https://github.com/NodePassProject/NodePassDash/releases/latest/download/NodePassDash_Windows_x86_64.zip
+unzip NodePassDash_Windows_x86_64.zip
+
+# Windows i386
+wget https://github.com/NodePassProject/NodePassDash/releases/latest/download/NodePassDash_Windows_i386.zip
+unzip NodePassDash_Windows_i386.zip
 ```
 
 #### 2. 创建目录结构
 
 ```bash
 # 创建应用目录
-sudo mkdir -p /opt/nodepassdash/{bin,data,logs}
+sudo mkdir -p /opt/nodepassdash/{bin,data,logs,backups}
 
 # 移动二进制文件
 sudo mv nodepassdash /opt/nodepassdash/bin/
@@ -70,6 +81,9 @@ sudo mv nodepassdash /opt/nodepassdash/bin/
 # 设置权限
 sudo chown -R root:root /opt/nodepassdash/bin
 sudo chmod 755 /opt/nodepassdash/bin/nodepassdash
+
+# 清理下载的压缩包
+rm -f NodePassDash_*.tar.gz
 ```
 
 #### 3. 创建专用用户（推荐）
@@ -78,36 +92,37 @@ sudo chmod 755 /opt/nodepassdash/bin/nodepassdash
 # 创建系统用户
 sudo useradd --system --home /opt/nodepassdash --shell /bin/false nodepass
 
-# 设置数据目录权限
-sudo chown -R nodepass:nodepass /opt/nodepassdash/data /opt/nodepassdash/logs
+# 设置目录权限
+sudo chown -R nodepass:nodepass /opt/nodepassdash/{data,logs,backups}
+# nodepassdash 运行时会创建 dist 和 public 目录，确保有写权限
+sudo chown nodepass:nodepass /opt/nodepassdash
 ```
 
 ## ⚙️ 配置管理
 
-### 基本配置
-
-```bash
-# 创建配置目录
-sudo mkdir -p /etc/nodepassdash
-
-# 创建配置文件
-sudo tee /etc/nodepassdash/config.env > /dev/null << 'EOF'
-# NodePassDash 配置文件
-PORT=3000
-DATA_DIR=/opt/nodepassdash/data
-LOG_DIR=/opt/nodepassdash/logs
-LOG_LEVEL=info
-EOF
-```
-
 ### 环境变量
+
+NodePassDash 支持以下环境变量进行配置：
 
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
 | `PORT` | 3000 | HTTP 服务端口 |
-| `DATA_DIR` | ./public | 数据存储目录 |
+| `DATA_DIR` | ./data | 数据存储目录 |
 | `LOG_DIR` | ./logs | 日志存储目录 |
 | `LOG_LEVEL` | info | 日志级别 (debug/info/warn/error) |
+
+### 命令行参数
+
+```bash
+# 指定端口启动
+/opt/nodepassdash/bin/nodepassdash --port 8080
+
+# 查看帮助信息
+/opt/nodepassdash/bin/nodepassdash --help
+
+# 查看版本信息
+/opt/nodepassdash/bin/nodepassdash --version
+```
 
 ## 🔧 SystemD 服务配置
 
@@ -128,14 +143,19 @@ Group=nodepass
 WorkingDirectory=/opt/nodepassdash
 ExecStart=/opt/nodepassdash/bin/nodepassdash --port 3000
 ExecReload=/bin/kill -HUP $MAINPID
-EnvironmentFile=-/etc/nodepassdash/config.env
+
+# 日志输出
+StandardOutput=journal
+StandardError=journal
+SyslogIdentifier=nodepassdash
 
 # 安全设置
 NoNewPrivileges=true
-PrivateTmp=true
-ProtectSystem=strict
-ProtectHome=true
-ReadWritePaths=/opt/nodepassdash/data /opt/nodepassdash/logs
+# PrivateTmp=true
+# ProtectSystem=strict
+# ProtectHome=true
+# nodepassdash 需要在工作目录创建 dist 和 public 目录
+ReadWritePaths=/opt/nodepassdash
 
 # 资源限制
 LimitNOFILE=65536
@@ -237,22 +257,48 @@ case "$1" in
         sudo systemctl stop $SERVICE_NAME
         
         # 备份当前版本
-        sudo cp $BINARY_PATH $BINARY_PATH.backup
+        sudo cp $BINARY_PATH $BINARY_PATH.backup.$(date +%Y%m%d%H%M%S)
         
-        # 下载最新版本
+        # 检测架构并下载最新版本
         ARCH=$(uname -m)
-        if [ "$ARCH" = "x86_64" ]; then
-            DOWNLOAD_URL="https://github.com/NodePassProject/NodePassDash/releases/latest/download/nodepassdash-linux-amd64"
-        elif [ "$ARCH" = "aarch64" ]; then
-            DOWNLOAD_URL="https://github.com/NodePassProject/NodePassDash/releases/latest/download/nodepassdash-linux-arm64"
-        else
-            echo "不支持的架构: $ARCH"
-            exit 1
-        fi
+        case $ARCH in
+            x86_64)
+                DOWNLOAD_ARCH="Linux_x86_64"
+                ;;
+            aarch64)
+                DOWNLOAD_ARCH="Linux_arm64"
+                ;;
+            armv7l)
+                DOWNLOAD_ARCH="Linux_armv7hf"
+                ;;
+            armv6l)
+                DOWNLOAD_ARCH="Linux_armv6hf"
+                ;;
+            *)
+                echo "不支持的架构: $ARCH"
+                exit 1
+                ;;
+        esac
         
-        sudo wget $DOWNLOAD_URL -O $BINARY_PATH
+        DOWNLOAD_URL="https://github.com/NodePassProject/NodePassDash/releases/latest/download/NodePassDash_${DOWNLOAD_ARCH}.tar.gz"
+        TEMP_DIR="/tmp/nodepassdash-update"
+        
+        # 创建临时目录并下载
+        mkdir -p $TEMP_DIR
+        cd $TEMP_DIR
+        
+        echo "下载最新版本..."
+        sudo wget $DOWNLOAD_URL -O nodepassdash.tar.gz
+        
+        # 解压并安装
+        sudo tar -xzf nodepassdash.tar.gz
+        sudo cp nodepassdash $BINARY_PATH
         sudo chmod 755 $BINARY_PATH
         sudo chown root:root $BINARY_PATH
+        
+        # 清理临时文件
+        cd /
+        sudo rm -rf $TEMP_DIR
         
         sudo systemctl start $SERVICE_NAME
         echo "更新完成"
@@ -341,6 +387,26 @@ sudo apt install certbot python3-certbot-nginx
 sudo certbot --nginx -d your-domain.com
 ```
 
+## 📁 目录结构
+
+NodePassDash 安装后的目录结构如下：
+
+```
+/opt/nodepassdash/
+├── bin/                    # 二进制文件目录 (root权限)
+│   └── nodepassdash        # 主程序
+├── data/                   # 数据存储目录 (nodepass权限)
+├── logs/                   # 日志存储目录 (nodepass权限)
+├── backups/               # 备份目录 (nodepass权限)
+├── dist/                  # 运行时创建的前端资源 (nodepass权限)
+└── public/                # 运行时创建的静态资源 (nodepass权限)
+```
+
+**说明：**
+- `dist` 和 `public` 目录会在首次运行时自动创建
+- 所有数据和日志文件由 `nodepass` 用户拥有
+- 二进制文件由 `root` 用户拥有，确保安全性
+
 ## 📊 监控和日志
 
 ### 系统日志
@@ -418,8 +484,8 @@ sudo ss -tulpn | grep :3000
 # 查找占用进程
 sudo lsof -i :3000
 
-# 修改配置文件中的端口
-sudo nano /etc/nodepassdash/config.env
+# 修改systemd服务中的端口
+sudo systemctl edit nodepassdash
 ```
 
 #### 3. 权限问题
@@ -428,8 +494,8 @@ sudo nano /etc/nodepassdash/config.env
 # 修复数据目录权限
 sudo chown -R nodepass:nodepass /opt/nodepassdash/data /opt/nodepassdash/logs
 
-# 修复配置文件权限
-sudo chmod 644 /etc/nodepassdash/config.env
+# 修复工作目录权限
+sudo chown nodepass:nodepass /opt/nodepassdash
 ```
 
 #### 4. 内存不足
