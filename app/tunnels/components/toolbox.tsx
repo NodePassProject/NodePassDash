@@ -26,7 +26,8 @@ import {
   faBolt,
   faCopy,
   faRecycle,
-  faDownload
+  faDownload,
+  faHammer,
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { Box, Flex } from "@/components";
@@ -34,6 +35,7 @@ import { addToast } from "@heroui/toast";
 import QuickCreateTunnelModal from "./quick-create-tunnel-modal";
 import BatchCreateModal from "./batch-create-modal";
 import { ButtonGroup } from "@heroui/react";
+import ManualCreateTunnelModal from "./manual-create-tunnel-modal";
 
 type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL';
 
@@ -77,10 +79,13 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
   const [endpointsLoading, setEndpointsLoading] = useState(true);
 
   // 快速创建模态
-  const [isQuickOpen, setIsQuickOpen] = useState(false);
+  const [isNormalOpen, setIsNormalOpen] = useState(false);
 
   // 批量创建模态
   const [isBatchOpen, setIsBatchOpen] = useState(false);
+
+  // 手搓创建模态控制
+  const [manualCreateOpen, setManualCreateOpen] = useState(false);
 
   useEffect(() => {
     const fetchEndpoints = async () => {
@@ -287,8 +292,11 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
                 aria-label="创建选项"
                 onAction={(key) => {
                   switch(key) {
-                    case 'quick':
-                      setIsQuickOpen(true);
+                    case 'manual':
+                      setManualCreateOpen(true);
+                      break;
+                    case 'normal':
+                      setIsNormalOpen(true);
                       break;
                     case 'batch':
                       setIsBatchOpen(true);
@@ -299,8 +307,11 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
                   }
                 }}
               >
-                <DropdownItem key="quick" startContent={<FontAwesomeIcon icon={faBolt} />}>
+                <DropdownItem key="normal" startContent={<FontAwesomeIcon icon={faBolt} />}>
                   快速创建
+                </DropdownItem>
+                <DropdownItem key="manual" startContent={<FontAwesomeIcon icon={faHammer} />}>
+                  手搓创建
                 </DropdownItem>
                 <DropdownItem key="batch" startContent={<FontAwesomeIcon icon={faCopy} />}>
                   批量创建
@@ -350,8 +361,8 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
 
       {/* 快速创建实例弹窗 */}
       <QuickCreateTunnelModal
-        isOpen={isQuickOpen}
-        onOpenChange={setIsQuickOpen}
+        isOpen={isNormalOpen}
+        onOpenChange={setIsNormalOpen}
         onSaved={onRefresh}
       />
 
@@ -359,6 +370,13 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
       <BatchCreateModal
         isOpen={isBatchOpen}
         onOpenChange={setIsBatchOpen}
+        onSaved={onRefresh}
+      />
+      
+      {/* 手搓创建模态框 */}
+      <ManualCreateTunnelModal
+        isOpen={manualCreateOpen}
+        onOpenChange={setManualCreateOpen}
         onSaved={onRefresh}
       />
     </div>

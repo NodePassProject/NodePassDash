@@ -45,6 +45,7 @@ import {
   faRocket,
   faLayerGroup,
   faCopy,
+  faHammer,
   faSearch,
   faChevronDown,
   faBolt,
@@ -60,6 +61,7 @@ import { copyToClipboard } from '@/lib/utils/clipboard';
 import ManualCopyModal from '@/components/ui/manual-copy-modal';
 import QuickCreateTunnelModal from "./components/quick-create-tunnel-modal";
 import BatchCreateModal from "./components/batch-create-modal";
+import ManualCreateTunnelModal from "./components/manual-create-tunnel-modal";
 
 // 定义实例类型
 interface Tunnel {
@@ -130,6 +132,9 @@ export default function TunnelsPage() {
 
   // 快建实例模态控制
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
+
+  // 手搓创建模态控制
+  const [manualCreateOpen, setManualCreateOpen] = useState(false);
 
   // 批量删除确认模态控制
   const [batchDeleteModalOpen, setBatchDeleteModalOpen] = useState(false);
@@ -893,8 +898,8 @@ export default function TunnelsPage() {
     <>
       <div className="p-4 md:p-0">
         {/* 顶部快捷操作按钮区域 */}
-        <div className="mb-4">
-          <div className="grid grid-cols-2 lg:grid-cols-4 gap-3">
+        {/* <div className="mb-4">
+          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
             {/* 创建实例按钮 */}
             {/* <Button
               size="lg"
@@ -904,7 +909,7 @@ export default function TunnelsPage() {
             >
               <FontAwesomeIcon icon={faPlus} className="text-sm" />
               <span className="text-sm">创建实例</span>
-            </Button> */}
+            </Button>
 
             {/* 快建实例按钮 */}
             {/* <Button
@@ -915,7 +920,18 @@ export default function TunnelsPage() {
             >
               <FontAwesomeIcon icon={faRocket} className="text-sm" />
               <span className="text-sm">快建实例</span>
-            </Button> */}
+            </Button>
+
+            {/* 手搓创建按钮 */}
+            {/* <Button
+              size="lg"
+              color="warning"
+              className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
+              onClick={() => setManualCreateOpen(true)}
+            >
+              <FontAwesomeIcon icon={faHammer} className="text-sm" />
+              <span className="text-sm">手搓创建</span>
+            </Button>
 
             {/* 场景创建按钮 */}
             {/* <Button
@@ -926,20 +942,20 @@ export default function TunnelsPage() {
             >
               <FontAwesomeIcon icon={faLayerGroup} className="text-sm" />
               <span className="text-sm">场景创建</span>
-            </Button> */}
+            </Button>
 
             {/* 批量创建按钮 */}
             {/* <Button
               size="lg"
-              color="warning"
+              color="default"
               className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
               onClick={() => setBatchCreateOpen(true)}
             >
               <FontAwesomeIcon icon={faCopy} className="text-sm" />
               <span className="text-sm">批量创建</span>
-            </Button> */}
+            </Button>
           </div>
-        </div>
+        </div> */}
 
         <Flex direction="col" className="border border-default-200 rounded-lg transition-all duration-300 hover:shadow-sm">
           <TunnelToolBox 
@@ -1491,6 +1507,13 @@ export default function TunnelsPage() {
         isOpen={batchCreateOpen}
         onOpenChange={setBatchCreateOpen}
         onSaved={() => { setBatchCreateOpen(false); fetchTunnels(); }}
+      />
+
+      {/* 手搓创建模态框 */}
+      <ManualCreateTunnelModal
+        isOpen={manualCreateOpen}
+        onOpenChange={setManualCreateOpen}
+        onSaved={() => { setManualCreateOpen(false); fetchTunnels(); }}
       />
 
       {/* 批量删除确认模态框 */}
