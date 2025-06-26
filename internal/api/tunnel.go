@@ -1293,8 +1293,8 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 
 		// ⇔生成隧道名称 - 格式：${入口主控名}to${出口主控名}-${类型}-${时间}
 		timestamp := time.Now().Unix()
-		serverTunnelName := fmt.Sprintf("%s→%s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
-		clientTunnelName := fmt.Sprintf("%s→%s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
+		serverTunnelName := fmt.Sprintf("%s→%s-s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
+		clientTunnelName := fmt.Sprintf("%s→%s-c-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
 
 		log.Infof("[API] 开始创建双端隧道 - 先创建server端，再创建client端")
 
@@ -1448,8 +1448,8 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 
 		// 生成隧道名称 - 格式：${入口主控名}to${出口主控名}-${类型}-${时间}
 		timestamp := time.Now().Unix()
-		serverTunnelName := fmt.Sprintf("%s→%s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
-		clientTunnelName := fmt.Sprintf("%s→%s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
+		serverTunnelName := fmt.Sprintf("%s→%s-s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
+		clientTunnelName := fmt.Sprintf("%s→%s-c-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
 
 		log.Infof("[API] 开始创建内网穿透隧道 - 先创建server端，再创建client端")
 
