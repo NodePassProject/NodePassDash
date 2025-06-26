@@ -313,7 +313,7 @@ type SimpleEndpoint struct {
 func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error) {
 	query := `SELECT e.id, e.name, e.url, e.apiPath, e.status, e.tunnelCount FROM "Endpoint" e`
 	if excludeFail {
-		query += ` WHERE e.status != 'FAIL'`
+		query += ` WHERE e.status not in ('FAIL', 'DISCONNECT')`
 	}
 	query += ` ORDER BY e.createdAt DESC`
 

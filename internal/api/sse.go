@@ -20,12 +20,14 @@ import (
 // SSEHandler SSE处理器
 type SSEHandler struct {
 	sseService *sse.Service
+	sseManager *sse.Manager
 }
 
 // NewSSEHandler 创建SSE处理器实例
-func NewSSEHandler(sseService *sse.Service) *SSEHandler {
+func NewSSEHandler(sseService *sse.Service, sseManager *sse.Manager) *SSEHandler {
 	return &SSEHandler{
 		sseService: sseService,
+		sseManager: sseManager,
 	}
 }
 
@@ -176,6 +178,55 @@ func (h *SSEHandler) HandleTestSSEEndpoint(w http.ResponseWriter, r *http.Reques
 		},
 	}
 	json.NewEncoder(w).Encode(res)
+}
+
+// HandleSSEStatus 查看SSE连接状态
+func (h *SSEHandler) HandleSSEStatus(w http.ResponseWriter, r *http.Request) {
+	// 仅允许 GET
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 设置响应头
+	w.Header().Set("Content-Type", "application/json")
+
+	// 获取连接状态
+	connectionStatus := h.sseManager.GetConnectionStatus()
+
+	// 构建响应
+	response := map[string]interface{}{
+		"success":     true,
+		"message":     "SSE连接状态查询成功",
+		"connections": connectionStatus,
+		"summary": map[string]interface{}{
+			"total_connections": len(connectionStatus),
+			"connected_count": func() int {
+				count := 0
+				for _, status := range connectionStatus {
+					if connected, ok := status["connected"].(bool); ok && connected {
+						count++
+					}
+				}
+				return count
+			}(),
+			"manually_disconnected_count": func() int {
+				count := 0
+				for _, status := range connectionStatus {
+					if manuallyDisconnected, ok := status["manually_disconnected"].(bool); ok && manuallyDisconnected {
+						count++
+					}
+				}
+				return count
+			}(),
+		},
+	}
+
+	// 返回JSON响应
+	if err := json.NewEncoder(w).Encode(response); err != nil {
+		h.loggerError(w, "序列化响应失败", err)
+		return
+	}
 }
 
 // writeError 写 JSON 错误响应

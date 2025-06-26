@@ -4,9 +4,10 @@ package models
 type EndpointStatus string
 
 const (
-	EndpointStatusOnline  EndpointStatus = "ONLINE"
-	EndpointStatusOffline EndpointStatus = "OFFLINE"
-	EndpointStatusFail    EndpointStatus = "FAIL"
+	EndpointStatusOnline     EndpointStatus = "ONLINE"
+	EndpointStatusOffline    EndpointStatus = "OFFLINE"
+	EndpointStatusFail       EndpointStatus = "FAIL"
+	EndpointStatusDisconnect EndpointStatus = "DISCONNECT"
 )
 
 // SSEEventType SSE事件类型枚举

@@ -25,6 +25,9 @@ type Service struct {
 	// 数据存储
 	db *sql.DB
 
+	// Manager引用（用于状态通知）
+	manager *Manager
+
 	// 异步持久化队列
 	storeJobCh chan models.EndpointSSE // 事件持久化任务队列
 
@@ -75,6 +78,11 @@ func NewService(db *sql.DB) *Service {
 	go s.startBatchProcessor()
 
 	return s
+}
+
+// SetManager 设置Manager引用（避免循环依赖）
+func (s *Service) SetManager(manager *Manager) {
+	s.manager = manager
 }
 
 // AddClient 添加新的SSE客户端
@@ -188,7 +196,7 @@ func (s *Service) processEventImmediate(endpointID int64, event models.EndpointS
 		s.handleDeleteEvent(event)
 	case models.SSEEventTypeLog:
 		s.handleLogEvent(event)
-		log.Debugf("[Master-%d#SSE]处理log事件，准备推送给前端，instanceID=%s", endpointID, event.InstanceID)
+		// log.Debugf("[Master-%d#SSE]处理log事件，准备推送给前端，instanceID=%s", endpointID, event.InstanceID)
 	}
 
 	// 更新最后事件时间
@@ -197,7 +205,7 @@ func (s *Service) processEventImmediate(endpointID int64, event models.EndpointS
 	// 推流转发给前端订阅
 	if event.EventType != models.SSEEventTypeInitial {
 		if event.InstanceID != "" {
-			log.Debugf("[Master-%d#SSE]准备推送事件给前端，eventType=%s instanceID=%s", endpointID, event.EventType, event.InstanceID)
+			// log.Debugf("[Master-%d#SSE]准备推送事件给前端，eventType=%s instanceID=%s", endpointID, event.EventType, event.InstanceID)
 			s.sendTunnelUpdateByInstanceId(event.InstanceID, event)
 		}
 		return nil
@@ -212,7 +220,7 @@ func (s *Service) handleShutdownEvent(event models.EndpointSSE) {
 
 func (s *Service) updateEndpointStatus(endpointID int64, status models.EndpointStatus) {
 	// 更新端点状态到数据库
-	_, err := s.db.Exec(`
+	res, err := s.db.Exec(`
 		UPDATE "Endpoint" 
 		SET status = ?, updatedAt = CURRENT_TIMESTAMP 
 		WHERE id = ? AND status != ?
@@ -223,8 +231,15 @@ func (s *Service) updateEndpointStatus(endpointID int64, status models.EndpointS
 		return
 	}
 
-	log.Infof("[Master-%d#SSE]端点状态已更新为: %s", endpointID, status)
+	// 检查是否确实更新了状态
+	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
+		log.Infof("[Master-%d#SSE]端点状态已更新为: %s", endpointID, status)
 
+		// 通知Manager状态变化
+		if s.manager != nil {
+			s.manager.NotifyEndpointStatusChanged(endpointID, string(status))
+		}
+	}
 }
 
 // StartStoreWorkers 启动固定数量的事件持久化 worker

@@ -65,7 +65,7 @@ import { buildApiUrl } from '@/lib/utils';
 import { copyToClipboard } from '@/lib/utils/clipboard';
 import ManualCopyModal from '@/components/ui/manual-copy-modal';
 // 本地定义 EndpointStatus 枚举，后端通过 API 返回字符串
-type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL';
+type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL' | 'DISCONNECT';
 // 后端返回的 Endpoint 基础结构
 interface EndpointBase {
   id: number;
@@ -362,7 +362,7 @@ export default function EndpointsPage() {
     return {
       status: endpoint.status,
       tunnelCount: endpoint.tunnelCount || 0,
-      canRetry: endpoint.status === 'FAIL'
+      canRetry: endpoint.status === 'FAIL' || endpoint.status === 'DISCONNECT'
     };
   };
 
@@ -411,20 +411,23 @@ export default function EndpointsPage() {
                   variant="flat"
                   color={
                     realTimeData.status === 'ONLINE' ? 'success' : 
-                    realTimeData.status === 'FAIL' ? 'danger' : 'warning'
+                    realTimeData.status === 'FAIL' ? 'danger' : 
+                    realTimeData.status === 'DISCONNECT' ? 'default' : 'warning'
                   }
                   startContent={
                     <FontAwesomeIcon 
                       icon={
                         realTimeData.status === 'ONLINE' ? faLink : 
-                        realTimeData.status === 'FAIL' ? faPlugCircleXmark : faTimesCircle
+                        realTimeData.status === 'FAIL' ? faPlugCircleXmark : 
+                        realTimeData.status === 'DISCONNECT' ? faPlugCircleXmark : faTimesCircle
                       } 
                       className="text-xs"
                     />
                   }
                 >
                   {realTimeData.status === 'ONLINE' ? '在线' : 
-                   realTimeData.status === 'FAIL' ? '异常' : '离线'}
+                   realTimeData.status === 'FAIL' ? '异常' : 
+                   realTimeData.status === 'DISCONNECT' ? '断开' : '离线'}
                 </Chip>
               </div>
               
@@ -439,6 +442,13 @@ export default function EndpointsPage() {
               {realTimeData.status === 'FAIL' && (
                 <div className="p-2 bg-danger-50 rounded-lg">
                   <p className="text-tiny text-danger-600">主控连接失败，已停止重试</p>
+                </div>
+              )}
+              
+              {/* 显示断开状态提示 */}
+              {realTimeData.status === 'DISCONNECT' && (
+                <div className="p-2 bg-default-50 rounded-lg">
+                  <p className="text-tiny text-default-600">主控已断开连接</p>
                 </div>
               )}
             </div>
@@ -474,7 +484,8 @@ export default function EndpointsPage() {
               icon={faBullseye} 
               className={
                 realTimeData.status === 'ONLINE' ? "text-success-600" : 
-                realTimeData.status === 'FAIL' ? "text-danger-600" : "text-warning-600"
+                realTimeData.status === 'FAIL' ? "text-danger-600" :
+                realTimeData.status === 'DISCONNECT' ? "text-default-400" : "text-warning-600"
               } 
             />
           <p className="text-small text-default-500">
@@ -938,7 +949,8 @@ export default function EndpointsPage() {
                       <span className={
                         `inline-block w-2 h-2 rounded-full mr-2 ${
                           realTimeData.status === 'ONLINE' ? 'bg-success-500' :
-                          realTimeData.status === 'FAIL' ? 'bg-danger-500' : 'bg-warning-500'
+                          realTimeData.status === 'FAIL' ? 'bg-danger-500' :
+                          realTimeData.status === 'DISCONNECT' ? 'bg-default-400' : 'bg-warning-500'
                         }`
                       } />
                       {ep.name}&nbsp;

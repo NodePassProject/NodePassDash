@@ -191,12 +191,19 @@ func main() {
 	// 创建SSE服务和管理器（需先于处理器创建）
 	sseService := sse.NewService(db)
 	sseManager := sse.NewManager(db, sseService)
+
+	// 设置Manager引用到Service（避免循环依赖）
+	sseService.SetManager(sseManager)
+
 	// 适当减少 worker 数量，避免过多并发写入
 	workerCount := runtime.NumCPU()
 	if workerCount > 4 {
 		workerCount = 4 // 最多4个worker
 	}
 	sseManager.StartWorkers(workerCount)
+
+	// 启动SSE守护进程（自动重连功能）
+	sseManager.StartDaemon()
 
 	// 初始化处理器
 	authHandler := api.NewAuthHandler(authService)

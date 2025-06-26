@@ -6,9 +6,10 @@ import "time"
 type EndpointStatus string
 
 const (
-	StatusOnline  EndpointStatus = "ONLINE"
-	StatusOffline EndpointStatus = "OFFLINE"
-	StatusFail    EndpointStatus = "FAIL"
+	StatusOnline     EndpointStatus = "ONLINE"
+	StatusOffline    EndpointStatus = "OFFLINE"
+	StatusFail       EndpointStatus = "FAIL"
+	StatusDisconnect EndpointStatus = "DISCONNECT"
 )
 
 // Endpoint 端点基本信息

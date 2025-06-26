@@ -2,7 +2,8 @@
 export const EndpointStatus = {
   ONLINE: 'ONLINE',
   OFFLINE: 'OFFLINE',
-  FAIL: 'FAIL'
+  FAIL: 'FAIL',
+  DISCONNECT: 'DISCONNECT'
 } as const;
 
 export type EndpointStatusType = typeof EndpointStatus[keyof typeof EndpointStatus];

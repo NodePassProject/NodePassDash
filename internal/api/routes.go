@@ -53,7 +53,7 @@ func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Ro
 	endpointHandler := NewEndpointHandler(endpointService, sseManager)
 	instanceHandler := NewInstanceHandler(db, instanceService)
 	tunnelHandler := NewTunnelHandler(tunnelService)
-	sseHandler := NewSSEHandler(sseService)
+	sseHandler := NewSSEHandler(sseService, sseManager)
 	dataHandler := NewDataHandler(db, sseManager)
 	dashboardHandler := NewDashboardHandler(dashboardService)
 
@@ -122,6 +122,7 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/sse/global", r.sseHandler.HandleGlobalSSE).Methods("GET")
 	r.router.HandleFunc("/api/sse/tunnel/{tunnelId}", r.sseHandler.HandleTunnelSSE).Methods("GET")
 	r.router.HandleFunc("/api/sse/test", r.sseHandler.HandleTestSSEEndpoint).Methods("POST")
+	r.router.HandleFunc("/api/sse/status", r.sseHandler.HandleSSEStatus).Methods("GET")
 
 	// 隧道相关路由
 	r.router.HandleFunc("/api/tunnels", r.tunnelHandler.HandleGetTunnels).Methods("GET")

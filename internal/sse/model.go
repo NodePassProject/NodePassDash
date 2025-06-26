@@ -3,6 +3,7 @@ package sse
 import (
 	"context"
 	"net/http"
+	"sync"
 	"time"
 )
 
@@ -22,9 +23,10 @@ const (
 type EndpointStatus string
 
 const (
-	EndpointStatusOnline  EndpointStatus = "ONLINE"
-	EndpointStatusOffline EndpointStatus = "OFFLINE"
-	EndpointStatusFail    EndpointStatus = "FAIL"
+	EndpointStatusOnline     EndpointStatus = "ONLINE"
+	EndpointStatusOffline    EndpointStatus = "OFFLINE"
+	EndpointStatusFail       EndpointStatus = "FAIL"
+	EndpointStatusDisconnect EndpointStatus = "DISCONNECT"
 )
 
 // SSEEvent SSE事件数据
@@ -48,19 +50,79 @@ type SSEEvent struct {
 
 // EndpointConnection 端点连接状态
 type EndpointConnection struct {
-	EndpointID           int64
-	URL                  string
-	APIPath              string
-	APIKey               string
-	Client               *http.Client
-	Cancel               context.CancelFunc
-	IsHealthy            bool
-	RetryCount           int
-	MaxRetries           int
-	LastError            string
-	LastEventTime        time.Time
-	ReconnectTimer       *time.Timer
-	ManuallyDisconnected bool
+	EndpointID int64
+	URL        string
+	APIPath    string
+	APIKey     string
+	Client     *http.Client
+	Cancel     context.CancelFunc
+
+	// 连接状态管理
+	mu                     sync.RWMutex
+	isManuallyDisconnected bool      // 是否手动断开
+	lastConnectAttempt     time.Time // 最后一次连接尝试时间
+	reconnectAttempts      int       // 重连尝试次数
+	isConnected            bool      // 当前连接状态
+}
+
+// SetManuallyDisconnected 设置手动断开状态
+func (ec *EndpointConnection) SetManuallyDisconnected(manual bool) {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
+	ec.isManuallyDisconnected = manual
+}
+
+// IsManuallyDisconnected 检查是否手动断开
+func (ec *EndpointConnection) IsManuallyDisconnected() bool {
+	ec.mu.RLock()
+	defer ec.mu.RUnlock()
+	return ec.isManuallyDisconnected
+}
+
+// SetConnected 设置连接状态
+func (ec *EndpointConnection) SetConnected(connected bool) {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
+	ec.isConnected = connected
+	if connected {
+		ec.reconnectAttempts = 0
+	}
+}
+
+// IsConnected 检查连接状态
+func (ec *EndpointConnection) IsConnected() bool {
+	ec.mu.RLock()
+	defer ec.mu.RUnlock()
+	return ec.isConnected
+}
+
+// UpdateLastConnectAttempt 更新最后连接尝试时间
+func (ec *EndpointConnection) UpdateLastConnectAttempt() {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
+	ec.lastConnectAttempt = time.Now()
+	ec.reconnectAttempts++
+}
+
+// ResetLastConnectAttempt 重置最后连接尝试时间（用于立即重连）
+func (ec *EndpointConnection) ResetLastConnectAttempt() {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
+	ec.lastConnectAttempt = time.Time{} // 重置为零值，确保可以立即重连
+}
+
+// GetLastConnectAttempt 获取最后连接尝试时间
+func (ec *EndpointConnection) GetLastConnectAttempt() time.Time {
+	ec.mu.RLock()
+	defer ec.mu.RUnlock()
+	return ec.lastConnectAttempt
+}
+
+// GetReconnectAttempts 获取重连尝试次数
+func (ec *EndpointConnection) GetReconnectAttempts() int {
+	ec.mu.RLock()
+	defer ec.mu.RUnlock()
+	return ec.reconnectAttempts
 }
 
 // Event 事件类型
