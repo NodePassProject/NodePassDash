@@ -83,7 +83,8 @@ func parseInstanceURL(raw, mode string) parsedURL {
 		if part == "" {
 			return "", ""
 		}
-		// IPv6 Literals
+
+		// 处理方括号包围的IPv6地址格式：[IPv6]:port
 		if strings.HasPrefix(part, "[") {
 			if end := strings.Index(part, "]"); end != -1 {
 				addr = part[:end+1]
@@ -93,10 +94,34 @@ func parseInstanceURL(raw, mode string) parsedURL {
 				return
 			}
 		}
+
+		// 检查是否包含冒号
 		if strings.Contains(part, ":") {
-			pieces := strings.SplitN(part, ":", 2)
-			addr, port = pieces[0], pieces[1]
+			// 判断是否为IPv6地址（包含多个冒号或双冒号）
+			colonCount := strings.Count(part, ":")
+			if colonCount > 1 || strings.Contains(part, "::") {
+				// 可能是IPv6地址，尝试从右侧找最后一个冒号作为端口分隔符
+				lastColonIdx := strings.LastIndex(part, ":")
+				// 检查最后一个冒号后面是否为纯数字（端口号）
+				if lastColonIdx != -1 && lastColonIdx < len(part)-1 {
+					potentialPort := part[lastColonIdx+1:]
+					if portNum, err := strconv.Atoi(potentialPort); err == nil && portNum > 0 && portNum <= 65535 {
+						// 最后部分是有效的端口号
+						addr = part[:lastColonIdx]
+						port = potentialPort
+						return
+					}
+				}
+				// 没有找到有效端口，整个部分都是地址
+				addr = part
+				return
+			} else {
+				// 只有一个冒号，按照传统方式分割
+				pieces := strings.SplitN(part, ":", 2)
+				addr, port = pieces[0], pieces[1]
+			}
 		} else {
+			// 没有冒号，判断是纯数字端口还是地址
 			if _, err := strconv.Atoi(part); err == nil {
 				port = part
 			} else {
