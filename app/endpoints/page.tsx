@@ -819,11 +819,13 @@ export default function EndpointsPage() {
                     variant="flat"
                     color={
                       realTimeData.status === 'ONLINE' ? "success" : 
-                      realTimeData.status === 'FAIL' ? "danger" : "warning"
+                      realTimeData.status === 'FAIL' ? "danger" : 
+                      realTimeData.status === 'DISCONNECT' ? 'default' : 'warning'
                     }
                   >
                     {realTimeData.status === 'ONLINE' ? "在线" : 
-                     realTimeData.status === 'FAIL' ? "异常" : "离线"}
+                     realTimeData.status === 'FAIL' ? "异常" : 
+                     realTimeData.status === 'DISCONNECT' ? '断开' : '离线'}
                   </Chip>
                 </div>
 

@@ -12,6 +12,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/mattn/go-ieproxy"
 
 	"NodePassDash/internal/endpoint"
 	"NodePassDash/internal/nodepass"
@@ -300,13 +301,25 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 		})
 	case "reconnect":
 		if h.sseManager != nil {
+			ep, err := h.endpointService.GetEndpointByID(id)
+			if err != nil {
+				w.WriteHeader(http.StatusInternalServerError)
+				json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: false, Error: "获取端点信息失败: " + err.Error()})
+				return
+			}
+
+			// 先测试端点连接
+			if err := h.testEndpointConnection(ep.URL, ep.APIPath, ep.APIKey, 5000); err != nil {
+				log.Warnf("[Master-%v] 端点连接测试失败: %v", id, err)
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: false, Error: "主控离线或无法连接: " + err.Error()})
+				return
+			}
+
 			go func(eid int64) {
-				ep, err := h.endpointService.GetEndpointByID(eid)
-				if err == nil {
-					log.Infof("[Master-%v] 手动重连端点，启动 SSE", eid)
-					if err := h.sseManager.ConnectEndpoint(eid, ep.URL, ep.APIPath, ep.APIKey); err != nil {
-						log.Errorf("[Master-%v] 手动重连端点失败: %v", eid, err)
-					}
+				log.Infof("[Master-%v] 手动重连端点，启动 SSE", eid)
+				if err := h.sseManager.ConnectEndpoint(eid, ep.URL, ep.APIPath, ep.APIKey); err != nil {
+					log.Errorf("[Master-%v] 手动重连端点失败: %v", eid, err)
 				}
 			}(id)
 		}
@@ -1224,4 +1237,36 @@ func parseInstanceURL(raw, mode string) struct {
 	}
 
 	return res
+}
+
+// testEndpointConnection 测试端点连接是否可用
+func (h *EndpointHandler) testEndpointConnection(url, apiPath, apiKey string, timeoutMs int) error {
+	testURL := url + apiPath + "/events"
+
+	client := &http.Client{
+		Timeout: time.Duration(timeoutMs) * time.Millisecond,
+		Transport: &http.Transport{
+			Proxy:           ieproxy.GetProxyFunc(),
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	httpReq, err := http.NewRequest("GET", testURL, nil)
+	if err != nil {
+		return fmt.Errorf("创建请求失败: %v", err)
+	}
+	httpReq.Header.Set("X-API-Key", apiKey)
+	httpReq.Header.Set("Cache-Control", "no-cache")
+
+	resp, err := client.Do(httpReq)
+	if err != nil {
+		return fmt.Errorf("连接失败: %v", err)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		return fmt.Errorf("HTTP错误: %d", resp.StatusCode)
+	}
+
+	return nil
 }

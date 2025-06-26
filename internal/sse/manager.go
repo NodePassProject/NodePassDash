@@ -292,9 +292,7 @@ func (m *Manager) ConnectEndpoint(endpointID int64, url, apiPath, apiKey string)
 	// 启动SSE监听
 	go m.listenSSE(ctx, conn)
 
-	// 立即标记端点为 ONLINE（监听协程会负责后续状态更新）
-	m.markEndpointOnline(endpointID)
-
+	// 不要立即标记为ONLINE，等待SSE连接真正建立后再更新状态
 	return nil
 }
 
@@ -338,6 +336,9 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 	// 使用默认 ReconnectStrategy（指数退避），不限重试次数
 	events := make(chan *sse.Event)
 
+	// 添加连接状态跟踪
+	connectionEstablished := false
+
 	// 在独立 goroutine 中订阅；SubscribeChanRawWithContext 会阻塞直至 ctx.Done()
 	go func() {
 		if err := client.SubscribeChanRawWithContext(ctx, events); err != nil {
@@ -353,9 +354,9 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 		}
 	}()
 
-	// 连接成功，标记为已连接
-	conn.SetConnected(true)
-	log.Infof("[Master-%d#SSE]连接已建立", conn.EndpointID)
+	// 设置一个超时检查，如果在合理时间内没有接收到任何事件，则认为连接失败
+	connectionTimeout := time.NewTimer(10 * time.Second)
+	defer connectionTimeout.Stop()
 
 	for {
 		select {
@@ -365,6 +366,17 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 			conn.SetConnected(false)
 			log.Infof("[Master-%d#SSE]监听协程退出", conn.EndpointID)
 			return
+		case <-connectionTimeout.C:
+			// 连接超时，如果还没有建立连接则认为失败
+			if !connectionEstablished {
+				log.Warnf("[Master-%d#SSE]连接超时，未能在规定时间内建立连接", conn.EndpointID)
+				conn.SetConnected(false)
+				if !conn.IsManuallyDisconnected() {
+					m.markEndpointFail(conn.EndpointID)
+					conn.ResetLastConnectAttempt()
+				}
+				return
+			}
 		case ev, ok := <-events:
 			if !ok {
 				// 事件通道关闭，这是真正的连接断开
@@ -382,6 +394,17 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 			if ev == nil {
 				continue
 			}
+
+			// 第一次接收到事件时，标记连接成功
+			if !connectionEstablished {
+				connectionEstablished = true
+				conn.SetConnected(true)
+				m.markEndpointOnline(conn.EndpointID)
+				log.Infof("[Master-%d#SSE]连接已建立，接收到首个事件", conn.EndpointID)
+				// 停止超时计时器
+				connectionTimeout.Stop()
+			}
+
 			log.Debugf("[Master-%d#SSE]MSG: %s", conn.EndpointID, ev.Data)
 
 			// 投递到全局 worker pool 异步处理
