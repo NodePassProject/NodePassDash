@@ -6,7 +6,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState, useCallback } from "react";
 import { buildApiUrl } from "@/lib/utils";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faTrash, faRotateLeft, faChevronDown, faChevronUp, faEye } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faTrash, faRotateLeft, faChevronDown, faChevronUp, faEye, faCode } from "@fortawesome/free-solid-svg-icons";
 import { motion } from "framer-motion";
 import { Box, Flex } from "@/components";
 
@@ -41,6 +41,8 @@ export default function RecyclePage(){
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [itemToDelete, setItemToDelete] = useState<{id: number, name: string, endpointId: number} | null>(null);
   const [clearModalOpen,setClearModalOpen]=useState(false);
+  const [commandModalOpen, setCommandModalOpen] = useState(false);
+  const [selectedCommand, setSelectedCommand] = useState<{name: string, command: string} | null>(null);
   const [page,setPage]=useState(1);
   const [rowsPerPage,setRowsPerPage]=useState(10);
 
@@ -60,6 +62,7 @@ export default function RecyclePage(){
     {key:"instance",label:"实例ID", width:"w-32"},
     {key:"name",label:"名称", width:"w-40"},
     {key:"endpoint",label:"主控", width:"w-32"},
+    {key:"logLevel",label:"日志级别", width:"w-24"},
     {key:"tunnel",label:"隧道地址", width:"w-56"},
     {key:"target",label:"目标地址", width:"w-56"},
     {key:"actions",label:"操作", width:"w-28"}
@@ -78,6 +81,21 @@ export default function RecyclePage(){
   const openDeleteModal = (item: RecycleItem) => {
     setItemToDelete({id: item.id, name: item.name, endpointId: item.endpointId});
     setDeleteModalOpen(true);
+  };
+
+  const openCommandModal = (item: RecycleItem) => {
+    setSelectedCommand({name: item.name, command: item.commandLine});
+    setCommandModalOpen(true);
+  };
+
+  const copyToClipboard = async (text: string) => {
+    try {
+      await navigator.clipboard.writeText(text);
+      addToast({title:"复制成功",description:"命令行已复制到剪贴板",color:"success"});
+    } catch (err) {
+      console.error('复制失败:', err);
+      addToast({title:"复制失败",description:"无法访问剪贴板",color:"danger"});
+    }
   };
 
   const handleDelete = async ()=>{
@@ -184,9 +202,20 @@ export default function RecyclePage(){
                           <Button
                             isIconOnly
                             size="sm"
+                            color="default"
+                            variant="light"
+                            onPress={() => openCommandModal(item)}
+                            title="查看命令行"
+                          >
+                            <FontAwesomeIcon icon={faCode} className="text-xs" />
+                          </Button>
+                          <Button
+                            isIconOnly
+                            size="sm"
                             color="danger"
                             variant="light"
                             onPress={() => openDeleteModal(item)}
+                            title="删除记录"
                           >
                             <FontAwesomeIcon icon={faTrash} className="text-xs" />
                           </Button>
@@ -223,6 +252,18 @@ export default function RecyclePage(){
                         </Chip>
                       );
                       break;
+                    case "logLevel":
+                      val = (
+                        <Chip
+                          variant="flat"
+                          color="default"
+                          size="sm"
+                          classNames={{ base: "text-xs" }}
+                        >
+                          {formatVal(item.logLevel)}
+                        </Chip>
+                      );
+                      break;
                     case "tunnel":
                       val = `${item.tunnelAddress}:${item.tunnelPort}`;
                       break;
@@ -255,55 +296,66 @@ export default function RecyclePage(){
                     transition={{ duration: 0.2 }}
                     className="p-4 bg-default-100/50 dark:bg-default-100/10"
                   >
-                    <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 text-sm">
-                      <div>
-                        <span className="font-medium mr-1">TLS 模式:</span>
-                        {formatVal(item.tlsMode)}
+                    <div className="space-y-4 text-sm">
+                      {/* 流量统计信息 - 最顶部 */}
+                      <div className="grid grid-cols-2 md:grid-cols-4 gap-3">
+                        <div>
+                          <span className="font-medium mr-1">TCP ⬇:</span>
+                          {formatVal(item.tcpRx)}
+                        </div>
+                        <div>
+                          <span className="font-medium mr-1">TCP ⬆:</span>
+                          {formatVal(item.tcpTx)}
+                        </div>
+                        <div>
+                          <span className="font-medium mr-1">UDP ⬇:</span>
+                          {formatVal(item.udpRx)}
+                        </div>
+                        <div>
+                          <span className="font-medium mr-1">UDP ⬆:</span>
+                          {formatVal(item.udpTx)}
+                        </div>
                       </div>
-                      <div>
-                        <span className="font-medium mr-1">证书路径:</span>
-                        {formatVal(item.certPath)}
-                      </div>
-                      <div>
-                        <span className="font-medium mr-1">密钥路径:</span>
-                        {formatVal(item.keyPath)}
-                      </div>
-                      <div>
-                        <span className="font-medium mr-1">日志级别:</span>
-                        {formatVal(item.logLevel)}
-                      </div>
-                      <div className="col-span-2 md:col-span-3 break-all">
-                        <span className="font-medium mr-1">命令行:</span>
-                        {formatVal(item.commandLine)}
-                      </div>
-                      <div>
-                        <span className="font-medium mr-1">实例 ID:</span>
-                        {formatVal(item.instanceId)}
-                      </div>
-                      <div>
-                        <span className="font-medium mr-1">TCP ⬇:</span>
-                        {formatVal(item.tcpRx)}
-                      </div>
-                      <div>
-                        <span className="font-medium mr-1">TCP ⬆:</span>
-                        {formatVal(item.tcpTx)}
-                      </div>
-                      <div>
-                        <span className="font-medium mr-1">UDP ⬇:</span>
-                        {formatVal(item.udpRx)}
-                      </div>
-                      <div>
-                        <span className="font-medium mr-1">UDP ⬆:</span>
-                        {formatVal(item.udpTx)}
-                      </div>
-                      <div>
-                        <span className="font-medium mr-1">最小连接:</span>
-                        {formatVal(item.min)}
-                      </div>
-                      <div>
-                        <span className="font-medium mr-1">最大连接:</span>
-                        {formatVal(item.max)}
-                      </div>
+
+
+
+                      {/* 基础信息行 - 最下面 */}
+                      {(item.mode === "server" || item.mode === "client") && (
+                        <div className="pt-2 border-t border-default-200/50">
+                          <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                            {/* 服务端模式才显示 TLS 相关信息 */}
+                            {item.mode === "server" && (
+                              <>
+                                <div>
+                                  <span className="font-medium mr-1">TLS 模式:</span>
+                                  {formatVal(item.tlsMode)}
+                                </div>
+                                <div>
+                                  <span className="font-medium mr-1">证书路径:</span>
+                                  {formatVal(item.certPath)}
+                                </div>
+                                <div>
+                                  <span className="font-medium mr-1">密钥路径:</span>
+                                  {formatVal(item.keyPath)}
+                                </div>
+                              </>
+                            )}
+                            {/* 客户端模式才显示连接数限制 */}
+                            {item.mode === "client" && (
+                              <>
+                                <div>
+                                  <span className="font-medium mr-1">最小连接:</span>
+                                  {formatVal(item.min)}
+                                </div>
+                                <div>
+                                  <span className="font-medium mr-1">最大连接:</span>
+                                  {formatVal(item.max)}
+                                </div>
+                              </>
+                            )}
+                          </div>
+                        </div>
+                      )}
                     </div>
                   </motion.div>
                 </TableCell>
@@ -374,6 +426,58 @@ export default function RecyclePage(){
               </ModalFooter>
             </>
           )}
+        </ModalContent>
+      </Modal>
+
+      {/* 查看命令行模态框 */}
+      <Modal 
+        isOpen={commandModalOpen} 
+        onClose={() => {
+          setCommandModalOpen(false);
+          setSelectedCommand(null);
+        }}
+        size="2xl"
+        scrollBehavior="inside"
+      >
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">
+            <div className="flex items-center gap-2">
+              <FontAwesomeIcon icon={faCode} className="text-primary" />
+              命令行详情
+            </div>
+            {selectedCommand && (
+              <p className="text-sm text-default-500 font-normal">隧道: {selectedCommand.name}</p>
+            )}
+          </ModalHeader>
+          <ModalBody>
+            {selectedCommand && (
+              <div className="space-y-3">
+                <div className="bg-default-100 dark:bg-default-100/50 rounded-lg p-4">
+                  <pre className="text-sm whitespace-pre-wrap break-all font-mono text-default-700 dark:text-default-300">
+                    {formatVal(selectedCommand.command)}
+                  </pre>
+                </div>
+              </div>
+            )}
+          </ModalBody>
+          <ModalFooter>
+            <Button 
+              variant="light" 
+              onPress={() => {
+                setCommandModalOpen(false);
+                setSelectedCommand(null);
+              }}
+            >
+              关闭
+            </Button>
+            <Button 
+              color="primary"
+              startContent={<FontAwesomeIcon icon={faCode} />}
+              onPress={() => selectedCommand && copyToClipboard(selectedCommand.command)}
+            >
+              复制命令
+            </Button>
+          </ModalFooter>
         </ModalContent>
       </Modal>
 
