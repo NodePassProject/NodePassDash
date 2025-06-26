@@ -13,24 +13,17 @@ export function useGlobalSSE(options: SSEOptions = {}) {
 
   useEffect(() => {
     const url = buildApiUrl('/api/sse/global');
-    console.log(`[前端SSE] 尝试建立全局SSE连接`, { url });
+
 
     const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
     
     eventSource.onmessage = (event) => {
-      console.log(`[前端SSE] 收到SSE消息`, {
-        原始数据: event.data,
-        时间戳: new Date().toISOString()
-      });
-      
       try {
         const data = JSON.parse(event.data);
-        console.log('[前端SSE] 解析后的全局数据', data);
         
         // 检查连接成功消息
         if (data.type === 'connected') {
-          console.log(`[前端SSE] ✅ 收到SSE连接成功消息`);
           if (options.onConnected) {
             options.onConnected();
           }
@@ -54,7 +47,6 @@ export function useGlobalSSE(options: SSEOptions = {}) {
 
     return () => {
       if (eventSourceRef.current) {
-        console.log('[前端SSE] 清理全局SSE连接');
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
@@ -70,13 +62,11 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
 
   useEffect(() => {
     if (!instanceId) {
-      console.log('[前端SSE] instanceId为空，跳过SSE订阅');
       return;
     }
 
     // const url = `http://localhost:3000/api/sse/tunnel/${instanceId}`;
     const url = buildApiUrl(`/api/sse/tunnel/${instanceId}`);
-    console.log(`[前端SSE] 尝试建立隧道SSE连接`, { url, instanceId });
 
     const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
@@ -87,18 +77,11 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
         
         // 检查连接成功消息
         if (data.type === 'connected') {
-          console.log(`[前端SSE] ✅ 收到隧道连接成功消息`);
           if (options.onConnected) {
             options.onConnected();
           }
           return;
         }
-        
-        console.log(`[前端SSE] 收到隧道SSE消息:`, {
-          instanceId,
-          事件类型: data.type,
-          数据: data
-        });
         
         if (options.onMessage) {
           options.onMessage(data);
@@ -117,7 +100,6 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
 
     return () => {
       if (eventSourceRef.current) {
-        console.log('[前端SSE] 清理隧道SSE连接');
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
@@ -143,7 +125,6 @@ export function useSSE(endpoint: string, options: SSEOptions) {
 
     // 连接成功回调
     eventSource.onopen = () => {
-      console.log('[SSE] 连接成功');
       options.onConnected?.();
     };
 
@@ -165,7 +146,6 @@ export function useSSE(endpoint: string, options: SSEOptions) {
 
     // 清理函数
     return () => {
-      console.log('[SSE] 关闭连接');
       eventSource.close();
       eventSourceRef.current = null;
     };

@@ -38,15 +38,18 @@ interface FlowTrafficChartProps {
   data: FlowTrafficData[];
   height?: number;
   unit?: string;
+  timeRange?: "1h" | "6h" | "12h" | "24h";
 }
 
-export function FlowTrafficChart({ data, height = 300, unit = 'GB' }: FlowTrafficChartProps) {
+export function FlowTrafficChart({ data, height = 300, unit = 'GB', timeRange = '24h' }: FlowTrafficChartProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
   // 转换数据格式为 Chart.js 格式
   const chartData = React.useMemo(() => {
     const labels = data[0]?.data.map(point => point.x) || [];
+    
+
     
     const datasets = data.map((series, index) => {
       const colors = [
@@ -111,6 +114,26 @@ export function FlowTrafficChart({ data, height = 300, unit = 'GB' }: FlowTraffi
           font: {
             size: 12,
           },
+                    // 全部显示横坐标，太多时允许旋转
+          maxTicksLimit: 1000, // 设置足够大的数字，实现全部显示
+          maxRotation: 45, // 允许旋转45度
+          minRotation: 0, // 优先水平显示
+          callback: function(value: any, index: number, ticks: any[]) {
+            const labels = chartData.labels;
+            if (!labels || labels.length === 0) return '';
+            
+            const label = labels[index];
+            if (!label || typeof label !== 'string') return '';
+            
+            // 解析时间格式提取小时:分钟部分
+            const timeMatch = label.match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}):(\d{2})/);
+            if (!timeMatch) return label;
+            
+            const [, date, hour, minute] = timeMatch;
+            
+            // 全部显示，让Chart.js自动处理旋转
+            return `${hour}:${minute}`;
+          },
         },
         border: {
           display: false,
@@ -165,6 +188,15 @@ export function FlowTrafficChart({ data, height = 300, unit = 'GB' }: FlowTraffi
         cornerRadius: 8,
         displayColors: true,
         callbacks: {
+          title: function(context: any) {
+            // 显示完整的时间信息
+            if (context && context.length > 0) {
+              const index = context[0].dataIndex;
+              const fullLabel = chartData.labels[index];
+              return fullLabel || '';
+            }
+            return '';
+          },
           label: function(context: any) {
             return `${context.dataset.label}: ${context.parsed.y} ${unit}`;
           },

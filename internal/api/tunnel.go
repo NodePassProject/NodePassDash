@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"net/http"
 	"regexp"
+	"sort"
 	"strconv"
 	"strings"
 	"time"
@@ -788,7 +789,6 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 
 	// 2. 查询日志记录 (最多 200 条)
 	logs := make([]map[string]interface{}, 0)
-	trafficTrend := make([]map[string]interface{}, 0)
 
 	if instanceID != "" {
 		// 日志
@@ -818,25 +818,6 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 								return nil
 							}
 						}(),
-					})
-				}
-			}
-		}
-
-		// 流量趋势
-		trendRows, err := db.Query(`SELECT eventTime, tcpRx, tcpTx, udpRx, udpTx FROM "EndpointSSE" WHERE endpointId = ? AND instanceId = ? AND pushType IN ('update','initial') AND (tcpRx IS NOT NULL OR tcpTx IS NOT NULL OR udpRx IS NOT NULL OR udpTx IS NOT NULL) ORDER BY eventTime ASC LIMIT 100`, tunnelRecord.EndpointID, instanceID)
-		if err == nil {
-			defer trendRows.Close()
-			for trendRows.Next() {
-				var eventTime time.Time
-				var tcpRx, tcpTx, udpRx, udpTx sql.NullInt64
-				if err := trendRows.Scan(&eventTime, &tcpRx, &tcpTx, &udpRx, &udpTx); err == nil {
-					trafficTrend = append(trafficTrend, map[string]interface{}{
-						"eventTime": eventTime.Format(time.RFC3339),
-						"tcpRx":     tcpRx.Int64,
-						"tcpTx":     tcpTx.Int64,
-						"udpRx":     udpRx.Int64,
-						"udpTx":     udpTx.Int64,
 					})
 				}
 			}
@@ -885,8 +866,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 			"targetAddress": tunnelRecord.TargetAddress,
 			"commandLine":   tunnelRecord.CommandLine,
 		},
-		"logs":         logs,
-		"trafficTrend": trafficTrend,
+		"logs": logs,
 	}
 
 	json.NewEncoder(w).Encode(resp)
@@ -951,6 +931,9 @@ func (h *TunnelHandler) HandleTunnelLogs(w http.ResponseWriter, r *http.Request)
 	logs := make([]map[string]interface{}, 0)
 	trafficTrend := make([]map[string]interface{}, 0)
 
+	// 使用 map 来存储每分钟的最新流量记录
+	minuteTrafficMap := make(map[string]map[string]interface{})
+
 	for logRows.Next() {
 		var id int64
 		var logsStr sql.NullString
@@ -964,15 +947,31 @@ func (h *TunnelHandler) HandleTunnelLogs(w http.ResponseWriter, r *http.Request)
 				"traffic":   map[string]int64{"tcpRx": tcpRx.Int64, "tcpTx": tcpTx.Int64, "udpRx": udpRx.Int64, "udpTx": udpTx.Int64},
 				"timestamp": createdAt,
 			})
-			trafficTrend = append(trafficTrend, map[string]interface{}{
-				"timestamp": createdAt,
-				"tcpRx":     tcpRx.Int64,
-				"tcpTx":     tcpTx.Int64,
-				"udpRx":     udpRx.Int64,
-				"udpTx":     udpTx.Int64,
-			})
+
+			// 格式化时间到分钟用于流量趋势去重
+			minuteKey := createdAt.Format("2006-01-02 15:04")
+			// 存储这一分钟的最新流量记录（由于是按时间降序，先出现的是最新的）
+			if _, exists := minuteTrafficMap[minuteKey]; !exists {
+				minuteTrafficMap[minuteKey] = map[string]interface{}{
+					"timestamp": minuteKey,
+					"tcpRx":     tcpRx.Int64,
+					"tcpTx":     tcpTx.Int64,
+					"udpRx":     udpRx.Int64,
+					"udpTx":     udpTx.Int64,
+				}
+			}
 		}
 	}
+
+	// 将去重后的流量数据转换为 slice，并按时间排序
+	for _, record := range minuteTrafficMap {
+		trafficTrend = append(trafficTrend, record)
+	}
+
+	// 按时间排序（升序）
+	sort.Slice(trafficTrend, func(i, j int) bool {
+		return trafficTrend[i]["timestamp"].(string) < trafficTrend[j]["timestamp"].(string)
+	})
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
@@ -1957,4 +1956,178 @@ func (h *TunnelHandler) HandleBatchActionTunnels(w http.ResponseWriter, r *http.
 	json.NewEncoder(w).Encode(response)
 
 	log.Infof("[API] 批量%s操作完成 - 成功: %d, 失败: %d", req.Action, successCount, failCount)
+}
+
+// HandleGetTunnelTrafficTrend 获取隧道流量趋势数据 (GET /api/tunnels/{id}/traffic-trend)
+func (h *TunnelHandler) HandleGetTunnelTrafficTrend(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	if idStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "缺少隧道ID"})
+		return
+	}
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的隧道ID"})
+		return
+	}
+
+	db := h.tunnelService.DB()
+
+	// 查询隧道基本信息
+	var endpointID int64
+	var instanceID sql.NullString
+	if err := db.QueryRow(`SELECT endpointId, instanceId FROM "Tunnel" WHERE id = ?`, id).Scan(&endpointID, &instanceID); err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "隧道不存在"})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	trafficTrend := make([]map[string]interface{}, 0)
+
+	if instanceID.Valid && instanceID.String != "" {
+		// 流量趋势 - 查询24小时内的数据
+		trendRows, err := db.Query(`SELECT eventTime, tcpRx, tcpTx, udpRx, udpTx FROM "EndpointSSE" WHERE endpointId = ? AND instanceId = ? AND pushType IN ('update','initial') AND (tcpRx IS NOT NULL OR tcpTx IS NOT NULL OR udpRx IS NOT NULL OR udpTx IS NOT NULL) AND eventTime >= datetime('now', '-24 hours') ORDER BY eventTime ASC`, endpointID, instanceID.String)
+		if err == nil {
+			defer trendRows.Close()
+
+			// 使用 map 来存储每分钟的最新记录
+			minuteMap := make(map[string]map[string]interface{})
+
+			for trendRows.Next() {
+				var eventTime time.Time
+				var tcpRx, tcpTx, udpRx, udpTx sql.NullInt64
+				if err := trendRows.Scan(&eventTime, &tcpRx, &tcpTx, &udpRx, &udpTx); err == nil {
+					// 格式化时间到分钟
+					minuteKey := eventTime.Format("2006-01-02 15:04")
+
+					// 存储这一分钟的最新记录（由于是按时间升序，后面的会覆盖前面的）
+					minuteMap[minuteKey] = map[string]interface{}{
+						"eventTime": minuteKey,
+						"tcpRx":     tcpRx.Int64,
+						"tcpTx":     tcpTx.Int64,
+						"udpRx":     udpRx.Int64,
+						"udpTx":     udpTx.Int64,
+					}
+				}
+			}
+
+			// 将 map 转换为有序的 slice
+			type TrafficPoint struct {
+				EventTime string `json:"eventTime"`
+				TcpRx     int64  `json:"tcpRx"`
+				TcpTx     int64  `json:"tcpTx"`
+				UdpRx     int64  `json:"udpRx"`
+				UdpTx     int64  `json:"udpTx"`
+			}
+
+			var sortedPoints []TrafficPoint
+			for _, record := range minuteMap {
+				sortedPoints = append(sortedPoints, TrafficPoint{
+					EventTime: record["eventTime"].(string),
+					TcpRx:     record["tcpRx"].(int64),
+					TcpTx:     record["tcpTx"].(int64),
+					UdpRx:     record["udpRx"].(int64),
+					UdpTx:     record["udpTx"].(int64),
+				})
+			}
+
+			// 按时间排序
+			sort.Slice(sortedPoints, func(i, j int) bool {
+				return sortedPoints[i].EventTime < sortedPoints[j].EventTime
+			})
+
+			// 计算差值并构建最终的流量趋势数据
+			for i := 1; i < len(sortedPoints); i++ {
+				current := sortedPoints[i]
+				previous := sortedPoints[i-1]
+
+				// 计算差值，确保非负数
+				tcpRxDiff := int64(0)
+				if current.TcpRx >= previous.TcpRx {
+					tcpRxDiff = current.TcpRx - previous.TcpRx
+				}
+
+				tcpTxDiff := int64(0)
+				if current.TcpTx >= previous.TcpTx {
+					tcpTxDiff = current.TcpTx - previous.TcpTx
+				}
+
+				udpRxDiff := int64(0)
+				if current.UdpRx >= previous.UdpRx {
+					udpRxDiff = current.UdpRx - previous.UdpRx
+				}
+
+				udpTxDiff := int64(0)
+				if current.UdpTx >= previous.UdpTx {
+					udpTxDiff = current.UdpTx - previous.UdpTx
+				}
+
+				// 添加差值数据到趋势中
+				trafficTrend = append(trafficTrend, map[string]interface{}{
+					"eventTime": current.EventTime,
+					"tcpRxDiff": float64(tcpRxDiff), // 确保JSON序列化为数字
+					"tcpTxDiff": float64(tcpTxDiff), // 确保JSON序列化为数字
+					"udpRxDiff": float64(udpRxDiff), // 确保JSON序列化为数字
+					"udpTxDiff": float64(udpTxDiff), // 确保JSON序列化为数字
+				})
+			}
+
+			// 补充缺失的时间点到当前时间
+			if len(trafficTrend) > 0 {
+				// 获取最后一个数据点的时间
+				lastItem := trafficTrend[len(trafficTrend)-1]
+				lastTimeStr := lastItem["eventTime"].(string)
+
+				// 解析最后时间
+				lastTime, err := time.Parse("2006-01-02 15:04", lastTimeStr)
+				if err == nil {
+					now := time.Now()
+					// 计算时间差（分钟）
+					timeDiffMinutes := int(now.Sub(lastTime).Minutes())
+
+					// 如果最后数据时间距离当前时间超过2分钟，就补充虚拟时间点
+					if timeDiffMinutes > 2 {
+						// 从最后数据时间的下一分钟开始补充
+						currentTime := lastTime.Add(time.Minute)
+
+						for currentTime.Before(now) {
+							// 格式化为 "YYYY-MM-DD HH:mm" 格式
+							virtualTimeStr := currentTime.Format("2006-01-02 15:04")
+
+							// 添加虚拟数据点（所有流量差值都为0）
+							trafficTrend = append(trafficTrend, map[string]interface{}{
+								"eventTime": virtualTimeStr,
+								"tcpRxDiff": float64(0),
+								"tcpTxDiff": float64(0),
+								"udpRxDiff": float64(0),
+								"udpTxDiff": float64(0),
+							})
+
+							// 移动到下一分钟
+							currentTime = currentTime.Add(time.Minute)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 返回流量趋势数据
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":      true,
+		"trafficTrend": trafficTrend,
+	})
 }

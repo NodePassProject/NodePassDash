@@ -98,13 +98,13 @@ interface FlowTrafficData {
   }>;
 }
 
-// 添加流量趋势数据类型
+// 添加流量趋势数据类型 - 后端返回的是差值数据
 interface TrafficTrendData {
   eventTime: string;
-  tcpRx: number;
-  tcpTx: number;
-  udpRx: number;
-  udpTx: number;
+  tcpRxDiff: number;
+  tcpTxDiff: number;
+  udpRxDiff: number;
+  udpTxDiff: number;
 }
 
 // 添加流量单位转换函数
@@ -175,6 +175,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   const [trafficTrend, setTrafficTrend] = React.useState<TrafficTrendData[]>([]);
   const [initialDataLoaded, setInitialDataLoaded] = React.useState(false);
   const [refreshLoading, setRefreshLoading] = React.useState(false);
+  const [trafficRefreshLoading, setTrafficRefreshLoading] = React.useState(false);
+  const [trafficTimeRange, setTrafficTimeRange] = React.useState<"1h" | "6h" | "12h" | "24h">("24h");
   const searchParams = useSearchParams();
   const resolvedId = searchParams.get('id');
 
@@ -207,32 +209,43 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     }
   }, [scrollToBottom]);
 
-  // 计算流量趋势差值数据
-  const calculateTrafficDiff = React.useCallback((trendData: TrafficTrendData[]) => {
-    if (trendData.length < 2) return [];
+  // 根据时间范围过滤数据
+  const filterDataByTimeRange = React.useCallback((data: TrafficTrendData[], timeRange: "1h" | "6h" | "12h" | "24h") => {
+    if (data.length === 0) return data;
+    
+    // 获取当前时间
+    const now = new Date();
+    const hoursAgo = timeRange === "1h" ? 1 : timeRange === "6h" ? 6 : timeRange === "12h" ? 12 : 24;
+    const cutoffTime = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
+    
 
-    const diffs = [];
     
-    for (let i = 1; i < trendData.length; i++) {
-      const current = trendData[i];
-      const previous = trendData[i - 1];
+    // 过滤数据
+    const filteredData = data.filter((item, index) => {
+      const timeStr = item.eventTime;
+      if (!timeStr) return false;
       
-      // 计算差值
-      const tcpRxDiff = Math.max(0, current.tcpRx - previous.tcpRx);
-      const tcpTxDiff = Math.max(0, current.tcpTx - previous.tcpTx);
-      const udpRxDiff = Math.max(0, current.udpRx - previous.udpRx);
-      const udpTxDiff = Math.max(0, current.udpTx - previous.udpTx);
-      
-      diffs.push({
-        eventTime: current.eventTime,
-        tcpRxDiff,
-        tcpTxDiff,
-        udpRxDiff,
-        udpTxDiff
-      });
-    }
+      try {
+        const [datePart, timePart] = timeStr.split(' ');
+        if (datePart && timePart) {
+          const [year, month, day] = datePart.split('-').map(Number);
+          const [hour, minute] = timePart.split(':').map(Number);
+          const itemTime = new Date(year, month - 1, day, hour, minute);
+          const isValid = !isNaN(itemTime.getTime());
+          const isInRange = isValid && itemTime >= cutoffTime;
+          
+
+          
+          return isInRange;
+        }
+        return false;
+      } catch (error) {
+        console.error(`时间解析错误: ${timeStr}`, error);
+        return false;
+      }
+    });
     
-    return diffs;
+    return filteredData;
   }, []);
 
   // 延迟更新页面数据的函数
@@ -244,26 +257,33 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     
     // 设置2秒后更新数据
     updateTimeoutRef.current = setTimeout(async () => {
-      console.log('[前端SSE] 延迟更新页面数据');
+      
       setRefreshLoading(true);
       
       try {
-        // 调用API获取最新数据
-        const response = await fetch(`/api/tunnels/${resolvedId}/details`);
-        if (!response.ok) {
+        // 获取基本信息
+        const detailsResponse = await fetch(`/api/tunnels/${resolvedId}/details`);
+        if (!detailsResponse.ok) {
           throw new Error('获取实例详情失败');
         }
         
-        const data = await response.json();
+        const detailsData = await detailsResponse.json();
         
-        // 只更新实例信息，不影响日志
-        if (data.tunnelInfo) {
-          setTunnelInfo(data.tunnelInfo);
-          console.log('[前端SSE] 页面数据更新成功', {
-            新的流量数据: data.tunnelInfo.traffic,
-            更新时间: new Date().toISOString()
-          });
+        // 更新实例信息
+        if (detailsData.tunnelInfo) {
+          setTunnelInfo(detailsData.tunnelInfo);
         }
+
+        // 获取流量趋势数据
+        const trafficResponse = await fetch(`/api/tunnels/${resolvedId}/traffic-trend`);
+        if (trafficResponse.ok) {
+          const trafficData = await trafficResponse.json();
+          if (trafficData.trafficTrend && Array.isArray(trafficData.trafficTrend)) {
+            setTrafficTrend(trafficData.trafficTrend);
+          }
+        }
+        
+
       } catch (error) {
         console.error('[前端SSE] 延迟更新数据失败:', error);
       } finally {
@@ -273,33 +293,40 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       updateTimeoutRef.current = null;
     }, 2000);
     
-    console.log('[前端SSE] 已安排2秒后更新页面数据');
+    
   }, [resolvedId]);
 
   // 手动刷新页面数据的函数
   const handleRefresh = React.useCallback(async () => {
     if (refreshLoading) return; // 防抖：如果正在loading则直接返回
     
-    console.log('[前端手动刷新] 开始刷新页面数据');
+    
     setRefreshLoading(true);
     
     try {
-      // 调用API获取最新数据
-      const response = await fetch(`/api/tunnels/${resolvedId}/details`);
-      if (!response.ok) {
+      // 获取基本信息
+      const detailsResponse = await fetch(`/api/tunnels/${resolvedId}/details`);
+      if (!detailsResponse.ok) {
         throw new Error('获取实例详情失败');
       }
       
-      const data = await response.json();
+      const detailsData = await detailsResponse.json();
       
-      // 只更新实例信息，不影响日志
-      if (data.tunnelInfo) {
-        setTunnelInfo(data.tunnelInfo);
-        console.log('[前端手动刷新] 页面数据刷新成功', {
-          新的流量数据: data.tunnelInfo.traffic,
-          更新时间: new Date().toISOString()
-        });
+      // 更新实例信息
+      if (detailsData.tunnelInfo) {
+        setTunnelInfo(detailsData.tunnelInfo);
       }
+
+      // 获取流量趋势数据
+      const trafficResponse = await fetch(`/api/tunnels/${resolvedId}/traffic-trend`);
+      if (trafficResponse.ok) {
+        const trafficData = await trafficResponse.json();
+        if (trafficData.trafficTrend && Array.isArray(trafficData.trafficTrend)) {
+          setTrafficTrend(trafficData.trafficTrend);
+        }
+      }
+      
+
     } catch (error) {
       console.error('[前端手动刷新] 刷新数据失败:', error);
       addToast({
@@ -331,7 +358,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     udp_out_rates: []
   });
 
-  // 获取实例详情和历史数据
+  // 获取实例详情（不包含流量趋势）
   const fetchTunnelDetails = React.useCallback(async () => {
     try {
       setLoading(true);
@@ -347,13 +374,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       // 设置基本信息
       setTunnelInfo(data.tunnelInfo);
       
-      console.log('[前端数据] 实例信息获取成功', {
-        tunnelInfo: data.tunnelInfo,
-        endpointId: data.tunnelInfo?.endpointId,
-        instanceId: data.tunnelInfo?.instanceId,
-        流量趋势数据条数: data.trafficTrend?.length || 0,
-        完整数据: JSON.stringify(data.tunnelInfo, null, 2)
-      });
+
       
       // 设置历史日志 - 处理带时间信息的日志对象
       if (data.logs && Array.isArray(data.logs)) {
@@ -390,15 +411,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         setTimeout(scrollToBottom, 100);
       }
 
-      // 设置流量趋势数据
-      if (data.trafficTrend && Array.isArray(data.trafficTrend)) {
-        setTrafficTrend(data.trafficTrend);
-        console.log('[前端数据] 流量趋势数据获取成功', {
-          数据点数: data.trafficTrend.length,
-          最新数据: data.trafficTrend[data.trafficTrend.length - 1] || null
-        });
-      }
-
       setInitialDataLoaded(true);
     } catch (error) {
       console.error('获取实例详情失败:', error);
@@ -412,10 +424,46 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     }
   }, [resolvedId]);
 
+  // 获取流量趋势数据
+  const fetchTrafficTrend = React.useCallback(async () => {
+    try {
+      setTrafficRefreshLoading(true);
+      
+      const response = await fetch(`/api/tunnels/${resolvedId}/traffic-trend`);
+      if (!response.ok) {
+        throw new Error('获取流量趋势失败');
+      }
+      
+      const data = await response.json();
+      
+      // 设置流量趋势数据
+      if (data.trafficTrend && Array.isArray(data.trafficTrend)) {
+        setTrafficTrend(data.trafficTrend);
+        console.log('[流量趋势] 数据获取成功', {
+          数据点数: data.trafficTrend.length,
+          最新数据: data.trafficTrend[data.trafficTrend.length - 1] || null
+        });
+      } else {
+        console.log('[流量趋势] 数据为空或格式错误', { trafficTrend: data.trafficTrend });
+        setTrafficTrend([]);
+      }
+    } catch (error) {
+      console.error('获取流量趋势失败:', error);
+      addToast({
+        title: "获取流量趋势失败",
+        description: error instanceof Error ? error.message : "未知错误",
+        color: "danger",
+      });
+    } finally {
+      setTrafficRefreshLoading(false);
+    }
+  }, [resolvedId]);
+
   // 初始加载数据
   React.useEffect(() => {
     fetchTunnelDetails();
-  }, [fetchTunnelDetails]);
+    fetchTrafficTrend();
+  }, [fetchTunnelDetails, fetchTrafficTrend]);
 
   // 监听日志变化，自动滚动到底部
   React.useEffect(() => {
@@ -435,22 +483,12 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   // });
   
   // 使用实例SSE监听更新 - 使用统一的SSE hook
-  console.log('🚀 [前端SSE] 准备订阅SSE:', {
-    instanceId: tunnelInfo?.instanceId,
-    isEmpty: !tunnelInfo?.instanceId,
-    tunnelInfo: tunnelInfo
-  });
   
   useTunnelSSE(tunnelInfo?.instanceId || '', {
     onMessage: (data) => {
-      console.log('🔥 [前端SSE] 收到消息！', data);
-      console.log('🔥 [前端SSE] 消息类型:', data.eventType);
-      console.log('🔥 [前端SSE] 是否有logs:', !!data.logs);
-      
       try {
         // 处理log类型的事件
         if (data.eventType === 'log' && data.logs) {
-          console.log('🎯 [前端SSE] 开始处理log事件');
           
           // 使用递增计数器确保唯一ID
           logCounterRef.current += 1;
@@ -467,29 +505,17 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
             timestamp: new Date(data.eventTime || Date.now())
           };
           
-          console.log('✅ [前端SSE] 新日志对象创建完成:', newLog);
+
           
           // 将新日志追加到控制台
           setLogs(prev => {
             const newLogs = [newLog, ...prev].slice(0, 100);
-            console.log('✅ [前端SSE] 日志状态更新:', {
-              原数量: prev.length,
-              新数量: newLogs.length,
-              新日志ID: newLog.id
-            });
             return newLogs;
           });
           
           // 滚动到底部显示最新日志
           setTimeout(scrollToBottom, 50);
           
-          console.log('✅ [前端SSE] log事件处理完成');
-        } else {
-          console.log('❌ [前端SSE] 事件不匹配log条件:', {
-            eventType: data.eventType,
-            hasLogs: !!data.logs,
-            rawData: data
-          });
         }
       } catch (error) {
         console.error('💥 [前端SSE] 处理消息时发生错误:', error);
@@ -499,7 +525,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       console.error('💥 [前端SSE] SSE连接错误:', error);
     },
     onConnected: () => {
-      console.log('✅ [前端SSE] SSE连接成功!');
+      // SSE连接成功
     }
   });
 
@@ -798,16 +824,51 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
 
       {/* 流量趋势图 - 响应式高度 */}
       <Card className="p-2">
-        <CardHeader className="font-bold text-sm md:text-base">
-          <div className="flex items-center gap-2">
-            流量趋势
-            <Tooltip content="需要日志级别设为debug才会有流量变化推送" placement="top">
-              <FontAwesomeIcon 
-                icon={faQuestionCircle} 
-                className="text-default-400 hover:text-default-600 cursor-help text-xs"
-              />
-            </Tooltip>
+        <CardHeader className="font-bold text-sm md:text-base justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              流量趋势
+              <Tooltip content="需要日志级别设为debug才会有流量变化推送" placement="top">
+                <FontAwesomeIcon 
+                  icon={faQuestionCircle} 
+                  className="text-default-400 hover:text-default-600 cursor-help text-xs"
+                />
+              </Tooltip>
+            </div>
+            
+           
+            
           </div>
+          <div className="flex items-center gap-2">
+           {/* 刷新按钮 */}
+           <Button
+              size="sm"
+              variant="flat"
+              isIconOnly
+              onPress={fetchTrafficTrend}
+              isLoading={trafficRefreshLoading}
+              className="h-7 w-7 min-w-0"
+            >
+                <FontAwesomeIcon icon={faRefresh} className="text-xs" />
+            </Button>
+           {/* 时间范围选择 */}
+           <Tabs 
+              selectedKey={trafficTimeRange}
+              onSelectionChange={(key) => setTrafficTimeRange(key as "1h" | "6h" | "12h" | "24h")}
+              size="sm"
+              variant="light"
+              classNames={{
+                tabList: "gap-1",
+                tab: "text-xs px-2 py-1 min-w-0 h-7",
+                tabContent: "text-xs"
+              }}
+            >
+              <Tab key="1h" title="1小时" />
+              <Tab key="6h" title="6小时" />
+              <Tab key="12h" title="12小时" />
+              <Tab key="24h" title="24小时" />
+            </Tabs>
+            </div>
         </CardHeader>
         <CardBody>
           <div className="h-[250px] md:h-[300px]">
@@ -822,85 +883,109 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   <p className="text-default-500 animate-pulse text-sm md:text-base">加载流量数据中...</p>
                 </div>
               </div>
-            ) : trafficTrend.length === 0 ? (
+            ) : (() => {
+              // 检查原始数据是否为空
+              if (!trafficTrend || !Array.isArray(trafficTrend) || trafficTrend.length === 0) {
+                return true; // 显示占位符
+              }
+              
+              // 检查过滤后的数据是否为空
+              const filteredData = filterDataByTimeRange(trafficTrend, trafficTimeRange);
+              return filteredData.length === 0;
+            })() ? (
               <div className="flex items-center justify-center h-full">
                 <div className="text-center">
                   <p className="text-default-500 text-base md:text-lg">暂无流量数据</p>
-                  <p className="text-default-400 text-xs md:text-sm mt-2">当实例运行时，流量趋势数据将在此显示</p>
+                  <p className="text-default-400 text-xs md:text-sm mt-2">
+                    {!trafficTrend || trafficTrend.length === 0 
+                      ? "当实例运行时，流量趋势数据将在此显示" 
+                      : `在过去${trafficTimeRange === "1h" ? "1小时" : trafficTimeRange === "6h" ? "6小时" : trafficTimeRange === "12h" ? "12小时" : "24小时"}内暂无流量数据`
+                    }
+                  </p>
                 </div>
               </div>
             ) : (
               <FlowTrafficChart 
+                key={`${trafficTimeRange}-${trafficTrend?.length || 0}`} // 强制重新渲染
+                timeRange={trafficTimeRange}
                 data={(() => {
-                  const diffs = calculateTrafficDiff(trafficTrend);
-                  if (diffs.length === 0) return [];
+                  // 安全检查
+                  if (!trafficTrend || !Array.isArray(trafficTrend) || trafficTrend.length === 0) {
+                    return [];
+                  }
+                  
+                  // 首先根据时间范围过滤数据 - 后端已经返回差值数据
+                  const filteredData = filterDataByTimeRange(trafficTrend, trafficTimeRange);
+                  
+                  if (filteredData.length === 0) return [];
                   
                   // 收集所有差值数据，找到最合适的统一单位
                   const allValues: number[] = [];
-                  diffs.forEach(item => {
-                    allValues.push(item.tcpRxDiff, item.tcpTxDiff, item.udpRxDiff, item.udpTxDiff);
+                  filteredData.forEach((item: TrafficTrendData) => {
+                    // 安全检查数据字段
+                    const tcpRxDiff = Number(item.tcpRxDiff) || 0;
+                    const tcpTxDiff = Number(item.tcpTxDiff) || 0;
+                    const udpRxDiff = Number(item.udpRxDiff) || 0;
+                    const udpTxDiff = Number(item.udpTxDiff) || 0;
+                    
+                    allValues.push(tcpRxDiff, tcpTxDiff, udpRxDiff, udpTxDiff);
                   });
                   
                   const { unit: commonUnit, divisor } = getBestUnit(allValues);
                   
-                  return [
+                  const chartData = [
                     {
                       id: `TCP接收`,
-                      data: diffs.map((item) => ({
-                        x: new Date(item.eventTime).toLocaleTimeString('zh-CN', { 
-                          hour: '2-digit', 
-                          minute: '2-digit',
-                          second: '2-digit'
-                        }),
-                        y: parseFloat((item.tcpRxDiff / divisor).toFixed(2)),
+                      data: filteredData.map((item: TrafficTrendData) => ({
+                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
+                        y: parseFloat(((Number(item.tcpRxDiff) || 0) / divisor).toFixed(2)),
                         unit: commonUnit
                       }))
                     },
                     {
                       id: `TCP发送`,
-                      data: diffs.map((item) => ({
-                        x: new Date(item.eventTime).toLocaleTimeString('zh-CN', { 
-                          hour: '2-digit', 
-                          minute: '2-digit',
-                          second: '2-digit'
-                        }),
-                        y: parseFloat((item.tcpTxDiff / divisor).toFixed(2)),
+                      data: filteredData.map((item: TrafficTrendData) => ({
+                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
+                        y: parseFloat(((Number(item.tcpTxDiff) || 0) / divisor).toFixed(2)),
                         unit: commonUnit
                       }))
                     },
                     {
                       id: `UDP接收`,
-                      data: diffs.map((item) => ({
-                        x: new Date(item.eventTime).toLocaleTimeString('zh-CN', { 
-                          hour: '2-digit', 
-                          minute: '2-digit',
-                          second: '2-digit'
-                        }),
-                        y: parseFloat((item.udpRxDiff / divisor).toFixed(2)),
+                      data: filteredData.map((item: TrafficTrendData) => ({
+                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
+                        y: parseFloat(((Number(item.udpRxDiff) || 0) / divisor).toFixed(2)),
                         unit: commonUnit
                       }))
                     },
                     {
                       id: `UDP发送`,
-                      data: diffs.map((item) => ({
-                        x: new Date(item.eventTime).toLocaleTimeString('zh-CN', { 
-                          hour: '2-digit', 
-                          minute: '2-digit',
-                          second: '2-digit'
-                        }),
-                        y: parseFloat((item.udpTxDiff / divisor).toFixed(2)),
+                      data: filteredData.map((item: TrafficTrendData) => ({
+                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
+                        y: parseFloat(((Number(item.udpTxDiff) || 0) / divisor).toFixed(2)),
                         unit: commonUnit
                       }))
                     }
                   ];
+                  
+                  return chartData;
                 })()}
                 unit={(() => {
-                  const diffs = calculateTrafficDiff(trafficTrend);
-                  if (diffs.length === 0) return 'B';
+                  // 使用过滤后的数据计算单位 - 后端已经返回差值数据
+                  if (!trafficTrend || !Array.isArray(trafficTrend) || trafficTrend.length === 0) {
+                    return 'B';
+                  }
+                  
+                  const filteredData = filterDataByTimeRange(trafficTrend, trafficTimeRange);
+                  if (filteredData.length === 0) return 'B';
                   
                   const allValues: number[] = [];
-                  diffs.forEach(item => {
-                    allValues.push(item.tcpRxDiff, item.tcpTxDiff, item.udpRxDiff, item.udpTxDiff);
+                  filteredData.forEach((item: TrafficTrendData) => {
+                    const tcpRxDiff = Number(item.tcpRxDiff) || 0;
+                    const tcpTxDiff = Number(item.tcpTxDiff) || 0;
+                    const udpRxDiff = Number(item.udpRxDiff) || 0;
+                    const udpTxDiff = Number(item.udpTxDiff) || 0;
+                    allValues.push(tcpRxDiff, tcpTxDiff, udpRxDiff, udpTxDiff);
                   });
                   
                   const { unit } = getBestUnit(allValues);
