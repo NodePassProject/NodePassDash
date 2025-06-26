@@ -633,6 +633,22 @@ export default function TunnelsPage() {
     copyToClipboard(exportConfig, '配置已复制到剪贴板', showManualCopyModal);
   };
 
+  // 格式化地址显示（处理脱敏逻辑）
+  const formatAddress = (address: string, port: string) => {
+    // 如果显示完整地址，直接返回
+    if (showFullAddress) {
+      return `${address}:${port}`;
+    }
+    
+    // 如果地址是 127.0.0.1 或为空，保持原样显示
+    if (address === '127.0.0.1' || address === '' || !address) {
+      return `${address}:${port}`;
+    }
+    
+    // 其他情况显示脱敏地址
+    return `**.**.**.**:${port}`;
+  };
+
   // 初始加载
   React.useEffect(() => {
     fetchTunnels();
@@ -650,11 +666,13 @@ export default function TunnelsPage() {
       label: (
         <div className="flex items-center gap-1">
           <span>隧道地址</span>
-          <FontAwesomeIcon 
-            icon={showFullAddress ? faEye: faEyeSlash }
-            className="text-xs cursor-pointer hover:text-primary" 
-            onClick={() => setShowFullAddress(!showFullAddress)}
-          />
+          <Tooltip content={showFullAddress ? "点击隐藏IP地址" : "点击显示完整IP地址"} size="sm">
+            <FontAwesomeIcon 
+              icon={showFullAddress ? faEye: faEyeSlash }
+              className="text-xs cursor-pointer hover:text-primary" 
+              onClick={() => setShowFullAddress(!showFullAddress)}
+            />
+          </Tooltip>
         </div>
       )
     },
@@ -663,11 +681,13 @@ export default function TunnelsPage() {
       label: (
         <div className="flex items-center gap-1">
           <span>目标地址</span>
-          <FontAwesomeIcon 
-            icon={showFullAddress ? faEye : faEyeSlash}
-            className="text-xs cursor-pointer hover:text-primary" 
-            onClick={() => setShowFullAddress(!showFullAddress)}
-          />
+          <Tooltip content={showFullAddress ? "点击隐藏IP地址" : "点击显示完整IP地址"} size="sm">
+            <FontAwesomeIcon 
+              icon={showFullAddress ? faEye : faEyeSlash}
+              className="text-xs cursor-pointer hover:text-primary" 
+              onClick={() => setShowFullAddress(!showFullAddress)}
+            />
+          </Tooltip>
         </div>
       )
     },
@@ -1065,17 +1085,13 @@ export default function TunnelsPage() {
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-default-500 w-12 flex-shrink-0">实例:</span>
                         <span className="text-xs font-mono text-default-600 truncate">
-                          {showFullAddress 
-                            ? `${tunnel.tunnelAddress}:${tunnel.tunnelPort}`
-                            : `**.**.**.**:${tunnel.tunnelPort}`}
+                          {formatAddress(tunnel.tunnelAddress, tunnel.tunnelPort)}
                         </span>
                       </div>
                       <div className="flex items-center gap-2">
                         <span className="text-xs text-default-500 w-12 flex-shrink-0">目标:</span>
                         <span className="text-xs font-mono text-default-600 truncate">
-                          {showFullAddress 
-                            ? `${tunnel.targetAddress}:${tunnel.targetPort}`
-                            : `**.**.**.**:${tunnel.targetPort}`}
+                          {formatAddress(tunnel.targetAddress, tunnel.targetPort)}
                         </span>
                       </div>
                     </div>
@@ -1252,12 +1268,12 @@ export default function TunnelsPage() {
                         
                         {/* 隧道地址列 */}
                         <TableCell className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none">
-                          {showFullAddress ? `${tunnel.tunnelAddress}:${tunnel.tunnelPort}` : `**.**.**.**:${tunnel.tunnelPort}`}
+                          {formatAddress(tunnel.tunnelAddress, tunnel.tunnelPort)}
                         </TableCell>
                         
                         {/* 目标地址列 */}
                         <TableCell className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none">
-                          {showFullAddress ? `${tunnel.targetAddress}:${tunnel.targetPort}` : `**.**.**.**:${tunnel.targetPort}`}
+                          {formatAddress(tunnel.targetAddress, tunnel.targetPort)}
                         </TableCell>
                         
                         {/* 状态列 */}

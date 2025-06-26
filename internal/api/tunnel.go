@@ -1120,12 +1120,12 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		}
 
 		// 获取中转主控信息
-		var endpointURL, endpointAPIPath, endpointAPIKey string
+		var endpointURL, endpointAPIPath, endpointAPIKey, endpointName string
 		db := h.tunnelService.DB()
 		err := db.QueryRow(
-			"SELECT url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
+			"SELECT url, apiPath, apiKey, name FROM \"Endpoint\" WHERE id = ?",
 			req.Inbounds.MasterID,
-		).Scan(&endpointURL, &endpointAPIPath, &endpointAPIKey)
+		).Scan(&endpointURL, &endpointAPIPath, &endpointAPIKey, &endpointName)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				w.WriteHeader(http.StatusBadRequest)
@@ -1158,8 +1158,8 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			req.Log,
 		)
 
-		// 生成隧道名称
-		tunnelName := fmt.Sprintf("template-single-%d-%d", req.Inbounds.MasterID, time.Now().Unix())
+		// 生成隧道名称 - 单端模式使用主控名-single-时间戳
+		tunnelName := fmt.Sprintf("%s-single-%d", endpointName, time.Now().Unix())
 
 		// 使用QuickCreateTunnel创建隧道
 		if err := h.tunnelService.QuickCreateTunnel(req.Inbounds.MasterID, tunnelURL, tunnelName); err != nil {
@@ -1208,14 +1208,15 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			URL     string
 			APIPath string
 			APIKey  string
+			Name    string
 		}
 
 		db := h.tunnelService.DB()
 		// 获取server endpoint信息
 		err := db.QueryRow(
-			"SELECT id, url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
+			"SELECT id, url, apiPath, apiKey, name FROM \"Endpoint\" WHERE id = ?",
 			serverConfig.MasterID,
-		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.APIPath, &serverEndpoint.APIKey)
+		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				w.WriteHeader(http.StatusBadRequest)
@@ -1235,9 +1236,9 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 
 		// 获取client endpoint信息
 		err = db.QueryRow(
-			"SELECT id, url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
+			"SELECT id, url, apiPath, apiKey, name FROM \"Endpoint\" WHERE id = ?",
 			clientConfig.MasterID,
-		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.APIPath, &clientEndpoint.APIKey)
+		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				w.WriteHeader(http.StatusBadRequest)
@@ -1290,10 +1291,10 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			req.Log,
 		)
 
-		// 生成隧道名称
+		// ⇔生成隧道名称 - 格式：${入口主控名}to${出口主控名}-${类型}-${时间}
 		timestamp := time.Now().Unix()
-		serverTunnelName := fmt.Sprintf("template-server-%d-%d", serverConfig.MasterID, timestamp)
-		clientTunnelName := fmt.Sprintf("template-client-%d-%d", clientConfig.MasterID, timestamp)
+		serverTunnelName := fmt.Sprintf("%s→%s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
+		clientTunnelName := fmt.Sprintf("%s→%s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
 
 		log.Infof("[API] 开始创建双端隧道 - 先创建server端，再创建client端")
 
@@ -1362,14 +1363,15 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			URL     string
 			APIPath string
 			APIKey  string
+			Name    string
 		}
 
 		db := h.tunnelService.DB()
 		// 获取server endpoint信息
 		err := db.QueryRow(
-			"SELECT id, url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
+			"SELECT id, url, apiPath, apiKey, name FROM \"Endpoint\" WHERE id = ?",
 			serverConfig.MasterID,
-		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.APIPath, &serverEndpoint.APIKey)
+		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				w.WriteHeader(http.StatusBadRequest)
@@ -1389,9 +1391,9 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 
 		// 获取client endpoint信息
 		err = db.QueryRow(
-			"SELECT id, url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
+			"SELECT id, url, apiPath, apiKey, name FROM \"Endpoint\" WHERE id = ?",
 			clientConfig.MasterID,
-		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.APIPath, &clientEndpoint.APIKey)
+		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				w.WriteHeader(http.StatusBadRequest)
@@ -1444,10 +1446,10 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			req.Log,
 		)
 
-		// 生成隧道名称
+		// 生成隧道名称 - 格式：${入口主控名}to${出口主控名}-${类型}-${时间}
 		timestamp := time.Now().Unix()
-		serverTunnelName := fmt.Sprintf("template-intranet-server-%d-%d", serverConfig.MasterID, timestamp)
-		clientTunnelName := fmt.Sprintf("template-intranet-client-%d-%d", clientConfig.MasterID, timestamp)
+		serverTunnelName := fmt.Sprintf("%s→%s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
+		clientTunnelName := fmt.Sprintf("%s→%s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
 
 		log.Infof("[API] 开始创建内网穿透隧道 - 先创建server端，再创建client端")
 
