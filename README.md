@@ -1,11 +1,13 @@
 # 🚀 NodePassDash
 
-![Version](https://img.shields.io/badge/version-2.0.3-blue.svg)
+![GHCR Version](https://ghcr-badge.egpl.dev/nodepassproject/nodepassdash/latest_tag?color=%23487ebd&ignore=latest&label=version)
+![GHCR Size](https://ghcr-badge.egpl.dev/nodepassproject/nodepassdash/size?color=%2344cc11&label=image%20size)
+![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)
 
 NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + Next.js 14、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
 
 > **⚠️ 重大版本升级通知**  
-> **v2.0.0 是一个重大的架构迁移版本！** 从 Node.js 后端完全重构为 Go 后端，带来了更高的性能和稳定性。 
+> **version 2.x 是一个重大的架构迁移版本！** 从 Node.js 后端完全重构为 Go 后端，带来了更高的性能和稳定性。 
 > 
 > ***升级前请务必备份好你的数据！*** 新版本支持数据迁移，但建议在安全的环境中先进行测试。
 
@@ -147,3 +149,6 @@ docker run -d \
 ---
 
 ⭐ 如果这个项目对你有帮助，请给我们一个 Star！
+
+[![Star History Chart](https://api.star-history.com/svg?repos=NodePassProject/NodePassDash&type=Date)](https://star-history.com/#NodePassProject/NodePassDash&Date)
+
