@@ -328,10 +328,11 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
             </Dropdown>
           </ButtonGroup>
 
-          {/* 批量操作按钮 */}
-          <Dropdown placement="bottom-end">
+          {/* 批量操作按钮 - 移动端隐藏 */}
+          <Dropdown placement="bottom-end" className="hidden md:block">
             <DropdownTrigger>
               <Button
+              className="hidden md:block"
                 isIconOnly
                 variant="flat"
                 isDisabled={selectedCount === 0 || loading}
