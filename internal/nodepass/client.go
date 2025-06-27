@@ -96,6 +96,16 @@ func (c *Client) UpdateInstance(instanceID, commandLine string) error {
 	return c.doRequest(http.MethodPut, url, payload, nil)
 }
 
+// GetInfo 获取NodePass实例的系统信息
+func (c *Client) GetInfo() (*NodePassInfo, error) {
+	url := fmt.Sprintf("%s%s/info", c.baseURL, c.apiPath)
+	var resp NodePassInfo
+	if err := c.doRequest(http.MethodGet, url, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // doRequest 内部方法：构建并发送 HTTP 请求，解析 JSON
 func (c *Client) doRequest(method, url string, body interface{}, dest interface{}) error {
 	var buf *bytes.Buffer
@@ -167,6 +177,18 @@ type Instance struct {
 	TCPTx  int64  `json:"tcptx"`
 	UDPRx  int64  `json:"udprx"`
 	UDPTx  int64  `json:"udptx"`
+}
+
+// NodePassInfo NodePass实例的系统信息
+type NodePassInfo struct {
+	OS   string `json:"os"`
+	Arch string `json:"arch"`
+	Ver  string `json:"ver"`
+	Name string `json:"name"`
+	Log  string `json:"log"`
+	TLS  string `json:"tls"`
+	Crt  string `json:"crt"`
+	Key  string `json:"key"`
 }
 
 // GetInstances 获取所有隧道实例列表

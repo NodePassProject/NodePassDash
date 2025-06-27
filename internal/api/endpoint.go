@@ -1270,3 +1270,133 @@ func (h *EndpointHandler) testEndpointConnection(url, apiPath, apiKey string, ti
 
 	return nil
 }
+
+// HandleGetEndpointInfo 获取端点系统信息
+func (h *EndpointHandler) HandleGetEndpointInfo(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+			Success: false,
+			Error:   "无效的端点ID",
+		})
+		return
+	}
+
+	// 获取端点信息
+	ep, err := h.endpointService.GetEndpointByID(id)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 创建NodePass客户端
+	client := nodepass.NewClient(ep.URL, ep.APIPath, ep.APIKey, nil)
+
+	// 尝试获取系统信息 (处理低版本API不存在的情况)
+	var info *nodepass.NodePassInfo
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Warnf("[Master-%v] 获取系统信息失败(可能为低版本): %v", ep.ID, r)
+			}
+		}()
+
+		info, err = client.GetInfo()
+		if err != nil {
+			log.Warnf("[Master-%v] 获取系统信息失败: %v", ep.ID, err)
+			// 不返回错误，继续处理
+		}
+	}()
+
+	// 如果成功获取到信息，更新数据库
+	if info != nil && err == nil {
+		epInfo := endpoint.NodePassInfo{
+			OS:   info.OS,
+			Arch: info.Arch,
+			Ver:  info.Ver,
+			Name: info.Name,
+			Log:  info.Log,
+			TLS:  info.TLS,
+			Crt:  info.Crt,
+			Key:  info.Key,
+		}
+		if updateErr := h.endpointService.UpdateEndpointInfo(id, epInfo); updateErr != nil {
+			log.Errorf("[Master-%v] 更新系统信息失败: %v", ep.ID, updateErr)
+		} else {
+			log.Infof("[Master-%v] 系统信息已更新: OS=%s, Arch=%s, Ver=%s", ep.ID, info.OS, info.Arch, info.Ver)
+		}
+
+		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+			Success:  true,
+			Message:  "系统信息获取成功",
+			Endpoint: info,
+		})
+	} else {
+		// 返回当前已存储的信息
+		infoResponse := endpoint.NodePassInfo{
+			OS:   ep.OS,
+			Arch: ep.Arch,
+			Ver:  ep.Ver,
+			Name: ep.Name,
+			Log:  ep.Log,
+			TLS:  ep.TLS,
+			Crt:  ep.Crt,
+			Key:  ep.KeyPath,
+		}
+
+		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+			Success:  true,
+			Message:  "返回已存储的系统信息",
+			Endpoint: infoResponse,
+		})
+	}
+}
+
+// HandleGetEndpointDetail 获取端点详细信息
+func (h *EndpointHandler) HandleGetEndpointDetail(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+			Success: false,
+			Error:   "无效的端点ID",
+		})
+		return
+	}
+
+	// 获取端点详细信息
+	ep, err := h.endpointService.GetEndpointByID(id)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		Success:  true,
+		Message:  "获取端点详情成功",
+		Endpoint: ep,
+	})
+}

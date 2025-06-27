@@ -103,6 +103,8 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/endpoints/simple", r.endpointHandler.HandleGetSimpleEndpoints).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/test", r.endpointHandler.HandleTestEndpoint).Methods("POST")
 	r.router.HandleFunc("/api/endpoints/status", r.endpointHandler.HandleEndpointStatus).Methods("GET")
+	r.router.HandleFunc("/api/endpoints/{id}/detail", r.endpointHandler.HandleGetEndpointDetail).Methods("GET")
+	r.router.HandleFunc("/api/endpoints/{id}/info", r.endpointHandler.HandleGetEndpointInfo).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{id}/logs", r.endpointHandler.HandleEndpointLogs).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{id}/logs/search", r.endpointHandler.HandleSearchEndpointLogs).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{id}/recycle", r.endpointHandler.HandleRecycleList).Methods("GET")

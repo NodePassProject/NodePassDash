@@ -147,6 +147,29 @@ func initSchema(db *sql.DB) error {
 		return err
 	}
 
+	// --------  为 Endpoint 表添加系统信息字段 --------
+	if err := ensureColumn(db, "Endpoint", "os", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Endpoint", "arch", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Endpoint", "ver", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Endpoint", "log", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Endpoint", "tls", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Endpoint", "crt", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Endpoint", "key_path", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+
 	return nil
 }
 

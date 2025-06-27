@@ -93,6 +93,7 @@ interface FormattedEndpoint extends EndpointWithRelations {
   updatedAt: Date;
   lastCheck: Date;
   lastResponse: string | null;
+  ver?: string; // 添加版本字段
 }
 
 interface EndpointFormData {
@@ -831,10 +832,15 @@ export default function EndpointsPage() {
 
                 {/* 主要内容区域 */}
                 <CardBody className="relative h-[140px] bg-gradient-to-br from-content1 to-default-100/50 p-6">
-                  <div className="flex items-center gap-3 mb-2 pr-20">
+                  <div className="flex items-center gap-2 mb-2 pr-20">
                     <h2 className="inline bg-gradient-to-br from-foreground-800 to-foreground-500 bg-clip-text text-2xl font-semibold tracking-tight text-transparent dark:to-foreground-200">
                       {endpoint.name}
                     </h2>
+                    {endpoint.ver && (
+                      <Chip size="sm" variant="flat" className="text-xs">
+                        {endpoint.ver}
+                      </Chip>
+                    )}
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-default-400">
@@ -899,6 +905,7 @@ export default function EndpointsPage() {
           <TableHeader>
             <TableColumn key="id">ID</TableColumn>
             <TableColumn key="name" className="min-w-[140px]">名称</TableColumn>
+            <TableColumn key="version" className="w-24">版本</TableColumn>
             <TableColumn key="url" className="min-w-[200px]">
               <div className="flex items-center gap-1">
                 <span>URL</span>
@@ -925,10 +932,10 @@ export default function EndpointsPage() {
             {endpoints.length === 0 ? (
               <>
                 <TableRow>
-                  <TableCell colSpan={5} className="text-center py-4">暂无主控数据</TableCell>
+                  <TableCell colSpan={6} className="text-center py-4">暂无主控数据</TableCell>
                 </TableRow>
                 <TableRow key="add-row-empty">
-                  <TableCell colSpan={5}>
+                  <TableCell colSpan={6}>
                     <Button
                       variant="light"
                       className="w-full border-2 border-dashed border-default-300 hover:border-primary"
@@ -957,6 +964,13 @@ export default function EndpointsPage() {
                       } />
                       {ep.name}&nbsp;
                       <span className="text-default-400 text-small">[{realTimeData.tunnelCount}实例]</span>
+                    </TableCell>
+                    <TableCell className="w-32">
+                    {ep.ver ?
+                      <Chip size="sm" variant="flat" className="text-xs">
+                      {ep.ver}
+                      </Chip> : ''
+                      }
                     </TableCell>
                     <TableCell className="truncate min-w-[200px]">{showUrlAll ? `${ep.url}${ep.apiPath}` : '••••••••••••••••••••••••••'}
                     </TableCell>
@@ -1018,7 +1032,7 @@ export default function EndpointsPage() {
               })}
               {/* 添加主控行 */}
               <TableRow key="add-row">
-                <TableCell colSpan={5}>
+                <TableCell colSpan={6}>
                   <Button
                     variant="light"
                     className="w-full border-2 border-dashed border-default-300 hover:border-primary"

@@ -189,7 +189,7 @@ func main() {
 	dashboardService := dashboard.NewService(db)
 
 	// 创建SSE服务和管理器（需先于处理器创建）
-	sseService := sse.NewService(db)
+	sseService := sse.NewService(db, endpointService)
 	sseManager := sse.NewManager(db, sseService)
 
 	// 设置Manager引用到Service（避免循环依赖）

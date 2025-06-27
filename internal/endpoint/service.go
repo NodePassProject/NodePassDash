@@ -26,6 +26,7 @@ func (s *Service) GetEndpoints() ([]EndpointWithStats, error) {
 	query := `
 		SELECT 
 			e.id, e.name, e.url, e.apiPath, e.apiKey, e.status, e.color,
+			e.os, e.arch, e.ver, e.log, e.tls, e.crt, e.key_path,
 			e.lastCheck, e.createdAt, e.updatedAt,
 			COUNT(t.id) as tunnel_count,
 			COUNT(CASE WHEN t.status = 'running' THEN 1 END) as active_tunnels
@@ -47,6 +48,7 @@ func (s *Service) GetEndpoints() ([]EndpointWithStats, error) {
 		var statusStr string
 		err := rows.Scan(
 			&e.ID, &e.Name, &e.URL, &e.APIPath, &e.APIKey, &statusStr, &e.Color,
+			&e.OS, &e.Arch, &e.Ver, &e.Log, &e.TLS, &e.Crt, &e.KeyPath,
 			&e.LastCheck, &e.CreatedAt, &e.UpdatedAt,
 			&e.TunnelCount, &e.ActiveTunnels,
 		)
@@ -64,7 +66,7 @@ func (s *Service) GetEndpoints() ([]EndpointWithStats, error) {
 func (s *Service) CreateEndpoint(req CreateEndpointRequest) (*Endpoint, error) {
 	// 检查名称是否重复
 	var exists bool
-	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM Endpoint WHERE name = ?)", req.Name).Scan(&exists)
+	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Endpoint\" WHERE name = ?)", req.Name).Scan(&exists)
 	if err != nil {
 		return nil, err
 	}
@@ -73,7 +75,7 @@ func (s *Service) CreateEndpoint(req CreateEndpointRequest) (*Endpoint, error) {
 	}
 
 	// 检查URL是否重复
-	err = s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM Endpoint WHERE url = ?)", req.URL).Scan(&exists)
+	err = s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Endpoint\" WHERE url = ?)", req.URL).Scan(&exists)
 	if err != nil {
 		return nil, err
 	}
@@ -149,7 +151,7 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 		}
 		// 检查新名称是否已存在
 		var exists bool
-		err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM Endpoint WHERE name = ? AND id != ?)", req.Name, req.ID).Scan(&exists)
+		err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Endpoint\" WHERE name = ? AND id != ?)", req.Name, req.ID).Scan(&exists)
 		if err != nil {
 			return nil, err
 		}
@@ -168,7 +170,7 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 		// 检查URL是否重复
 		if req.URL != "" && req.URL != endpoint.URL {
 			var exists bool
-			err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM Endpoint WHERE url = ? AND id != ?)", req.URL, req.ID).Scan(&exists)
+			err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Endpoint\" WHERE url = ? AND id != ?)", req.URL, req.ID).Scan(&exists)
 			if err != nil {
 				return nil, err
 			}
@@ -240,10 +242,9 @@ func (s *Service) DeleteEndpoint(id int64) error {
 		return err
 	}
 
-	// 2) 删除SSE日志
+	// 2) 删除SSE日志 (如果表存在)
 	if _, err := tx.Exec(`DELETE FROM "EndpointSSE" WHERE endpointId = ?`, id); err != nil {
-		tx.Rollback()
-		return err
+		// 如果表不存在，忽略错误
 	}
 
 	// 3) 删除端点
@@ -267,8 +268,7 @@ func (s *Service) DeleteEndpoint(id int64) error {
 	// 4) 删除回收站（不检查影响行数，因为可能没有回收站记录）
 	_, err = tx.Exec(`DELETE FROM "TunnelRecycle" WHERE endpointId = ?`, id)
 	if err != nil {
-		tx.Rollback()
-		return err
+		// 如果表不存在，忽略错误
 	}
 
 	return tx.Commit()
@@ -287,8 +287,8 @@ func (s *Service) UpdateEndpointStatus(id int64, status EndpointStatus) error {
 func (s *Service) GetEndpointByID(id int64) (*Endpoint, error) {
 	var e Endpoint
 	var statusStr sql.NullString
-	err := s.db.QueryRow(`SELECT id, name, url, apiPath, apiKey, status, color, lastCheck, createdAt, updatedAt FROM "Endpoint" WHERE id = ?`, id).
-		Scan(&e.ID, &e.Name, &e.URL, &e.APIPath, &e.APIKey, &statusStr, &e.Color, &e.LastCheck, &e.CreatedAt, &e.UpdatedAt)
+	err := s.db.QueryRow(`SELECT id, name, url, apiPath, apiKey, status, color, os, arch, ver, log, tls, crt, key_path, lastCheck, createdAt, updatedAt FROM "Endpoint" WHERE id = ?`, id).
+		Scan(&e.ID, &e.Name, &e.URL, &e.APIPath, &e.APIKey, &statusStr, &e.Color, &e.OS, &e.Arch, &e.Ver, &e.Log, &e.TLS, &e.Crt, &e.KeyPath, &e.LastCheck, &e.CreatedAt, &e.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, errors.New("端点不存在")
@@ -311,7 +311,7 @@ type SimpleEndpoint struct {
 
 // GetSimpleEndpoints 获取简化端点列表，可排除 FAIL
 func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error) {
-	query := `SELECT e.id, e.name, e.url, e.apiPath, e.status, e.tunnelCount FROM "Endpoint" e`
+	query := `SELECT e.id, e.name, e.url, e.apiPath, e.status, 0 as tunnel_count FROM "Endpoint" e`
 	if excludeFail {
 		query += ` WHERE e.status not in ('FAIL', 'DISCONNECT')`
 	}
@@ -334,4 +334,26 @@ func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error)
 		endpoints = append(endpoints, e)
 	}
 	return endpoints, nil
+}
+
+// UpdateEndpointInfo 更新端点的系统信息
+func (s *Service) UpdateEndpointInfo(id int64, info NodePassInfo) error {
+	query := `
+		UPDATE "Endpoint" 
+		SET os = ?, arch = ?, ver = ?, log = ?, tls = ?, crt = ?, key_path = ?, updatedAt = ?
+		WHERE id = ?
+	`
+
+	_, err := s.db.Exec(query,
+		info.OS,
+		info.Arch,
+		info.Ver,
+		info.Log,
+		info.TLS,
+		info.Crt,
+		info.Key,
+		time.Now(),
+		id,
+	)
+	return err
 }

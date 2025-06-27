@@ -2,8 +2,10 @@ package sse
 
 import (
 	"NodePassDash/internal/db"
+	"NodePassDash/internal/endpoint"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
+	"NodePassDash/internal/nodepass"
 	"context"
 	"database/sql"
 	"encoding/json"
@@ -24,6 +26,9 @@ type Service struct {
 
 	// 数据存储
 	db *sql.DB
+
+	// 端点服务引用
+	endpointService *endpoint.Service
 
 	// Manager引用（用于状态通知）
 	manager *Manager
@@ -53,12 +58,13 @@ type Service struct {
 }
 
 // NewService 创建SSE服务实例
-func NewService(db *sql.DB) *Service {
+func NewService(db *sql.DB, endpointService *endpoint.Service) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
 	s := &Service{
 		clients:             make(map[string]*Client),
 		tunnelSubs:          make(map[string]map[string]*Client),
 		db:                  db,
+		endpointService:     endpointService,
 		storeJobCh:          make(chan models.EndpointSSE, 1000), // 缓冲大小按需调整
 		batchUpdateCh:       make(chan models.EndpointSSE, 100),  // 批量更新通道
 		batchTimer:          time.NewTimer(1 * time.Second),      // 批处理定时器
@@ -832,6 +838,8 @@ func parseInstanceURL(raw, mode string) parsedURL {
 
 func (s *Service) handleInitialEvent(e models.EndpointSSE) {
 	if e.InstanceType == nil || *e.InstanceType == "" {
+		// 当InstanceType为空时，尝试获取端点系统信息
+		go s.fetchAndUpdateEndpointInfo(e.EndpointID)
 		return
 	}
 	cfg := parseInstanceURL(ptrString(e.URL), *e.InstanceType)
@@ -1095,4 +1103,52 @@ func (s *Service) processSingleEventInTx(tx *sql.Tx, event models.EndpointSSE) e
 		return s.tunnelDelete(tx, event.EndpointID, event.InstanceID)
 	}
 	return nil
+}
+
+// fetchAndUpdateEndpointInfo 获取并更新端点系统信息
+func (s *Service) fetchAndUpdateEndpointInfo(endpointID int64) {
+	// 获取端点信息
+	ep, err := s.endpointService.GetEndpointByID(endpointID)
+	if err != nil {
+		log.Errorf("[Master-%d] 获取端点信息失败: %v", endpointID, err)
+		return
+	}
+
+	// 创建NodePass客户端
+	client := nodepass.NewClient(ep.URL, ep.APIPath, ep.APIKey, nil)
+
+	// 尝试获取系统信息 (处理低版本API不存在的情况)
+	var info *nodepass.NodePassInfo
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Warnf("[Master-%d] 获取系统信息失败(可能为低版本): %v", endpointID, r)
+			}
+		}()
+
+		info, err = client.GetInfo()
+		if err != nil {
+			log.Warnf("[Master-%d] 获取系统信息失败: %v", endpointID, err)
+			// 不返回错误，继续处理
+		}
+	}()
+
+	// 如果成功获取到信息，更新数据库
+	if info != nil && err == nil {
+		epInfo := endpoint.NodePassInfo{
+			OS:   info.OS,
+			Arch: info.Arch,
+			Ver:  info.Ver,
+			Name: info.Name,
+			Log:  info.Log,
+			TLS:  info.TLS,
+			Crt:  info.Crt,
+			Key:  info.Key,
+		}
+		if updateErr := s.endpointService.UpdateEndpointInfo(endpointID, epInfo); updateErr != nil {
+			log.Errorf("[Master-%d] 更新系统信息失败: %v", endpointID, updateErr)
+		} else {
+			log.Infof("[Master-%d] 系统信息已更新: OS=%s, Arch=%s, Ver=%s", endpointID, info.OS, info.Arch, info.Ver)
+		}
+	}
 }

@@ -21,6 +21,13 @@ type Endpoint struct {
 	APIKey    string         `json:"apiKey"`
 	Status    EndpointStatus `json:"status"`
 	Color     string         `json:"color,omitempty"`
+	OS        string         `json:"os,omitempty"`
+	Arch      string         `json:"arch,omitempty"`
+	Ver       string         `json:"ver,omitempty"`
+	Log       string         `json:"log,omitempty"`
+	TLS       string         `json:"tls,omitempty"`
+	Crt       string         `json:"crt,omitempty"`
+	KeyPath   string         `json:"keyPath,omitempty"`
 	LastCheck time.Time      `json:"lastCheck"`
 	CreatedAt time.Time      `json:"createdAt"`
 	UpdatedAt time.Time      `json:"updatedAt"`
@@ -58,4 +65,16 @@ type EndpointResponse struct {
 	Message  string      `json:"message,omitempty"`
 	Error    string      `json:"error,omitempty"`
 	Endpoint interface{} `json:"endpoint,omitempty"`
+}
+
+// NodePassInfo NodePass实例的系统信息
+type NodePassInfo struct {
+	OS   string `json:"os"`
+	Arch string `json:"arch"`
+	Ver  string `json:"ver"`
+	Name string `json:"name"`
+	Log  string `json:"log"`
+	TLS  string `json:"tls"`
+	Crt  string `json:"crt"`
+	Key  string `json:"key"`
 }
