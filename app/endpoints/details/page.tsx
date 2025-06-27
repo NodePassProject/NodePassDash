@@ -207,22 +207,7 @@ export default function EndpointDetailPage() {
             <h1 className="text-lg md:text-2xl font-bold truncate">主控详情</h1>
           )}
         </div>
-        <div className="flex items-center gap-2">
-          
-          {/* 回收站按钮 */}
-          <Button
-            isIconOnly
-            color="danger"
-            variant="light"
-            className="relative bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
-            onPress={()=>router.push(`/endpoints/recycle?id=${endpointId}`)}
-          >
-            <Badge color="danger" size="sm" content={recycleCount?recycleCount:0} className="absolute -top-1 -right-1 pointer-events-none">
-              <FontAwesomeIcon icon={faTrash} />
-            </Badge>
-          </Button>
-
-          
+        <div className="flex items-center gap-2"> 
         </div>
       </div>
 
