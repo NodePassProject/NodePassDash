@@ -720,7 +720,7 @@ func (h *EndpointHandler) HandleRecycleList(w http.ResponseWriter, r *http.Reque
 
 	// 查询 TunnelRecycle 表所有字段
 	rows, err := db.Query(`SELECT id, name, mode, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode,
-		certPath, keyPath, logLevel, commandLine, instanceId, tcpRx, tcpTx, udpRx, udpTx, min, max
+		certPath, keyPath, logLevel, commandLine, instanceId, password, tcpRx, tcpTx, udpRx, udpTx, min, max
 		FROM "TunnelRecycle" WHERE endpointId = ? ORDER BY id DESC`, endpointID)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -743,6 +743,7 @@ func (h *EndpointHandler) HandleRecycleList(w http.ResponseWriter, r *http.Reque
 		LogLevel      string         `json:"logLevel"`
 		CommandLine   string         `json:"commandLine"`
 		InstanceID    sql.NullString `json:"instanceId"`
+		Password      string         `json:"password"`
 		TCPRx         int64          `json:"tcpRx"`
 		TCPTx         int64          `json:"tcpTx"`
 		UDPRx         int64          `json:"udpRx"`
@@ -756,7 +757,7 @@ func (h *EndpointHandler) HandleRecycleList(w http.ResponseWriter, r *http.Reque
 		var item recycleItem
 		if err := rows.Scan(
 			&item.ID, &item.Name, &item.Mode, &item.TunnelAddress, &item.TunnelPort, &item.TargetAddress, &item.TargetPort, &item.TLSMode,
-			&item.CertPath, &item.KeyPath, &item.LogLevel, &item.CommandLine, &item.InstanceID, &item.TCPRx, &item.TCPTx, &item.UDPRx, &item.UDPTx, &item.Min, &item.Max,
+			&item.CertPath, &item.KeyPath, &item.LogLevel, &item.CommandLine, &item.InstanceID, &item.Password, &item.TCPRx, &item.TCPTx, &item.UDPRx, &item.UDPTx, &item.Min, &item.Max,
 		); err == nil {
 			list = append(list, item)
 		}
@@ -870,7 +871,7 @@ func (h *EndpointHandler) HandleRecycleListAll(w http.ResponseWriter, r *http.Re
 	db := h.endpointService.DB()
 
 	rows, err := db.Query(`SELECT tr.id, tr.name, tr.mode, tr.tunnelAddress, tr.tunnelPort, tr.targetAddress, tr.targetPort, tr.tlsMode,
-		tr.certPath, tr.keyPath, tr.logLevel, tr.commandLine, tr.instanceId, tr.tcpRx, tr.tcpTx, tr.udpRx, tr.udpTx, tr.min, tr.max,
+		tr.certPath, tr.keyPath, tr.logLevel, tr.commandLine, tr.instanceId, tr.password, tr.tcpRx, tr.tcpTx, tr.udpRx, tr.udpTx, tr.min, tr.max,
 		tr.endpointId, ep.name as endpointName
 		FROM "TunnelRecycle" tr
 		JOIN "Endpoint" ep ON tr.endpointId = ep.id
@@ -898,6 +899,7 @@ func (h *EndpointHandler) HandleRecycleListAll(w http.ResponseWriter, r *http.Re
 		LogLevel      string         `json:"logLevel"`
 		CommandLine   string         `json:"commandLine"`
 		InstanceID    sql.NullString `json:"instanceId"`
+		Password      string         `json:"password"`
 		TCPRx         int64          `json:"tcpRx"`
 		TCPTx         int64          `json:"tcpTx"`
 		UDPRx         int64          `json:"udpRx"`
@@ -911,7 +913,7 @@ func (h *EndpointHandler) HandleRecycleListAll(w http.ResponseWriter, r *http.Re
 		var item recycleItemAll
 		if err := rows.Scan(
 			&item.ID, &item.Name, &item.Mode, &item.TunnelAddress, &item.TunnelPort, &item.TargetAddress, &item.TargetPort, &item.TLSMode,
-			&item.CertPath, &item.KeyPath, &item.LogLevel, &item.CommandLine, &item.InstanceID, &item.TCPRx, &item.TCPTx, &item.UDPRx, &item.UDPTx, &item.Min, &item.Max,
+			&item.CertPath, &item.KeyPath, &item.LogLevel, &item.CommandLine, &item.InstanceID, &item.Password, &item.TCPRx, &item.TCPTx, &item.UDPRx, &item.UDPTx, &item.Min, &item.Max,
 			&item.EndpointID, &item.EndpointName,
 		); err == nil {
 			list = append(list, item)

@@ -323,7 +323,14 @@ func initDatabase(db *sql.DB) error {
 		lastCheck DATETIME DEFAULT CURRENT_TIMESTAMP,
 		createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		tunnelCount INTEGER DEFAULT 0
+		tunnelCount INTEGER DEFAULT 0,
+		os TEXT DEFAULT '',
+		arch TEXT DEFAULT '',
+		ver TEXT DEFAULT '',
+		log TEXT DEFAULT '',
+		tls TEXT DEFAULT '',
+		crt TEXT DEFAULT '',
+		key_path TEXT DEFAULT ''
 	);`
 
 	createTunnelTable := `
@@ -343,6 +350,7 @@ func initDatabase(db *sql.DB) error {
 		logLevel TEXT NOT NULL DEFAULT 'info',
 		commandLine TEXT NOT NULL,
 		instanceId TEXT,
+		password TEXT DEFAULT '',
 		tcpRx INTEGER DEFAULT 0,
 		tcpTx INTEGER DEFAULT 0,
 		udpRx INTEGER DEFAULT 0,
@@ -371,6 +379,7 @@ func initDatabase(db *sql.DB) error {
 		logLevel TEXT NOT NULL DEFAULT 'info',
 		commandLine TEXT NOT NULL,
 		instanceId TEXT,
+		password TEXT DEFAULT '',
 		tcpRx INTEGER DEFAULT 0,
 		tcpTx INTEGER DEFAULT 0,
 		udpRx INTEGER DEFAULT 0,
@@ -459,6 +468,39 @@ func initDatabase(db *sql.DB) error {
 		return err
 	}
 	if err := ensureColumn(db, "Tunnel", "max", "INTEGER"); err != nil {
+		return err
+	}
+
+	// ---- 为 Tunnel 表添加密码字段 ----
+	if err := ensureColumn(db, "Tunnel", "password", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+
+	// ---- 为 TunnelRecycle 表添加密码字段 ----
+	if err := ensureColumn(db, "TunnelRecycle", "password", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+
+	// ---- 为 Endpoint 表添加系统信息字段 ----
+	if err := ensureColumn(db, "Endpoint", "os", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Endpoint", "arch", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Endpoint", "ver", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Endpoint", "log", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Endpoint", "tls", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Endpoint", "crt", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Endpoint", "key_path", "TEXT DEFAULT ''"); err != nil {
 		return err
 	}
 

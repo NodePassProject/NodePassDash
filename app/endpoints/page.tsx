@@ -981,8 +981,8 @@ export default function EndpointsPage() {
                     </TableCell>
                     <TableCell className="w-52">
                       <div className="flex items-center gap-1 justify-start">
-                        {/* 查看日志 */}
-                        <Tooltip content="查看日志">
+                        {/* 查看详情 */}
+                        <Tooltip content="查看详情">
                           <Button isIconOnly size="sm" variant="light" color="primary" onPress={()=>router.push(`/endpoints/details?id=${ep.id}`)}>
                             <FontAwesomeIcon icon={faFileLines} />
                           </Button>

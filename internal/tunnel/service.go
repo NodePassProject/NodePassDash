@@ -977,9 +977,9 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 	if recycle {
 		_, _ = s.db.Exec(`INSERT INTO "TunnelRecycle" (
 			name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode,
-			certPath, keyPath, logLevel, commandLine, instanceId, tcpRx, tcpTx, udpRx, udpTx, min, max
+			certPath, keyPath, logLevel, commandLine, instanceId, password, tcpRx, tcpTx, udpRx, udpTx, min, max
 		) SELECT name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode,
-			certPath, keyPath, logLevel, commandLine, instanceId, tcpRx, tcpTx, udpRx, udpTx, min, max
+			certPath, keyPath, logLevel, commandLine, instanceId, password, tcpRx, tcpTx, udpRx, udpTx, min, max
 		FROM "Tunnel" WHERE instanceId = ?`, instanceID)
 	}
 

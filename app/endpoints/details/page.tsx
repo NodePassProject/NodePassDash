@@ -208,20 +208,7 @@ export default function EndpointDetailPage() {
           )}
         </div>
         <div className="flex items-center gap-2">
-          <Button 
-            variant="light"
-            isDisabled={refreshLoading}
-            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
-            startContent={
-              <FontAwesomeIcon 
-                icon={faRotateRight} 
-                className={refreshLoading ? "animate-spin" : ""}
-              />
-            }
-            onPress={handleRefresh}
-          >
-            {refreshLoading ? "刷新中..." : "刷新"}
-          </Button>
+          
           {/* 回收站按钮 */}
           <Button
             isIconOnly
@@ -235,14 +222,7 @@ export default function EndpointDetailPage() {
             </Badge>
           </Button>
 
-          {/* 日志查询按钮 */}
-          <Button
-            isIconOnly
-            color="primary"
-            onPress={()=>router.push(`/endpoints/log?id=${endpointId}`)}
-          >
-            <FontAwesomeIcon icon={faMagnifyingGlass} />
-          </Button>
+          
         </div>
       </div>
 
@@ -387,8 +367,34 @@ export default function EndpointDetailPage() {
 
       {/* 日志区域 */}
       <Card className="p-2">
-        <CardHeader>
+        <CardHeader className="flex items-center justify-between">
           <h3 className="text-lg font-semibold">日志输出</h3>
+          <div className="flex items-center gap-2">
+            <Button 
+              variant="light"
+              size="sm"
+              isDisabled={refreshLoading}
+              className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
+              startContent={
+                <FontAwesomeIcon 
+                  icon={faRotateRight} 
+                  className={refreshLoading ? "animate-spin" : ""}
+                />
+              }
+              onPress={handleRefresh}
+            >
+              {refreshLoading ? "刷新中..." : "刷新"}
+            </Button>
+            {/* 日志查询按钮 */}
+            <Button
+              size="sm"
+              isIconOnly
+              color="primary"
+              onPress={()=>router.push(`/endpoints/log?id=${endpointId}`)}
+            >
+              <FontAwesomeIcon icon={faMagnifyingGlass} />
+            </Button>
+          </div>
         </CardHeader>
         <CardBody>
           <LogViewer logs={logs} loading={loading} heightClass="h-[550px] md:h-[900px]" containerRef={logContainerRef} />

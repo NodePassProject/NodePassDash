@@ -26,6 +26,7 @@ interface RecycleItem {
   logLevel: string;
   commandLine: string;
   instanceId?: string | null;
+  password?: string | null;
   tcpRx: number;
   tcpTx: number;
   udpRx: number;
@@ -323,6 +324,13 @@ export default function RecyclePage(){
                       {(item.mode === "server" || item.mode === "client") && (
                         <div className="pt-2 border-t border-default-200/50">
                           <div className="grid gap-3 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4">
+                            {/* 隧道密码显示 - 优先显示 */}
+                            <div>
+                              <span className="font-medium mr-1">隧道密码:</span>
+                              <span className="font-mono text-sm">
+                                {formatVal(item.password) !== "-" && item.password ? item.password : "-"}
+                              </span>
+                            </div>
                             {/* 服务端模式才显示 TLS 相关信息 */}
                             {item.mode === "server" && (
                               <>

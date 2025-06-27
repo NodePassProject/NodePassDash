@@ -164,7 +164,6 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
     try {
       setSubmitting(true);
       const url = modalMode==='edit' ? buildApiUrl(`/api/tunnels/${editData?.id}`) : buildApiUrl("/api/tunnels");
-      console.log("url",url);
       const method = modalMode==='edit' ? 'PUT' : 'POST';
       const res = await fetch(url, {
         method: method,
@@ -295,28 +294,18 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                   {/* 密码配置（可选） - 仅在选中主控版本不为空时显示 */}
                   {(() => {
                     // 更详细的调试信息
-                    console.log('=== 密码显示调试开始 ===');
-                    console.log('formData.apiEndpoint:', formData.apiEndpoint, typeof formData.apiEndpoint);
-                    console.log('endpoints:', endpoints);
-                    
+
                     // 尝试不同的匹配方式
                     const selectedEndpoint1 = endpoints.find(ep => ep.id === formData.apiEndpoint);
                     const selectedEndpoint2 = endpoints.find(ep => String(ep.id) === String(formData.apiEndpoint));
                     const selectedEndpoint3 = endpoints.find(ep => Number(ep.id) === Number(formData.apiEndpoint));
                     
-                    console.log('匹配方式1 (直接相等):', selectedEndpoint1);
-                    console.log('匹配方式2 (String转换):', selectedEndpoint2);
-                    console.log('匹配方式3 (Number转换):', selectedEndpoint3);
-                    
+
                     // 使用最安全的匹配方式
                     const selectedEndpoint = selectedEndpoint2 || selectedEndpoint1 || selectedEndpoint3;
                     const hasVersion = selectedEndpoint && selectedEndpoint.version && selectedEndpoint.version.trim() !== '';
                     
-                    console.log('最终选中的endpoint:', selectedEndpoint);
-                    console.log('version:', selectedEndpoint?.version);
-                    console.log('hasVersion:', hasVersion);
-                    console.log('=== 密码显示调试结束 ===');
-                    
+
                     if (!hasVersion) return null;
                     
                     return (
