@@ -316,7 +316,7 @@ type SimpleEndpoint struct {
 
 // GetSimpleEndpoints 获取简化端点列表，可排除 FAIL
 func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error) {
-	query := `SELECT e.id, e.name, e.url, e.apiPath, e.status, 0 as tunnel_count, e.ver, e.tls, e.log, e.crt, e.key_path FROM "Endpoint" e`
+	query := `SELECT e.id, e.name, e.url, e.apiPath, e.status, e.tunnelCount, e.ver, e.tls, e.log, e.crt, e.key_path FROM "Endpoint" e`
 	if excludeFail {
 		query += ` WHERE e.status not in ('FAIL', 'DISCONNECT')`
 	}
