@@ -12,7 +12,7 @@ import {
 } from "@heroui/react";
 import { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBolt } from "@fortawesome/free-solid-svg-icons";
+import { faBolt, faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 import { buildApiUrl } from "@/lib/utils";
 
@@ -69,6 +69,7 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
   const [endpoints, setEndpoints] = useState<EndpointSimple[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
   // 表单数据
   const [formData, setFormData] = useState({
@@ -180,11 +181,7 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
           certPath: mode==='server' && tlsMode==='mode2' ? certPath.trim() : undefined,
           keyPath: mode==='server' && tlsMode==='mode2' ? keyPath.trim() : undefined,
           logLevel,
-          password: (() => {
-            const selectedEndpoint = endpoints.find(ep => ep.id === apiEndpoint);
-            const hasVersion = selectedEndpoint && selectedEndpoint.version && selectedEndpoint.version.trim() !== '';
-            return hasVersion && password ? password : undefined;
-          })(),
+          password: password || undefined,
           min: mode==='client' && min ? min : undefined,
           max: mode==='client' && max ? max : undefined
         })
@@ -203,8 +200,9 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
 
   const handleField = (field:string, value:string)=> {
     if (field === 'apiEndpoint') {
-      // 切换主控时清空密码
+      // 切换主控时清空密码并重置可见性
       setFormData(prev=>({...prev, [field]:value, password: ''}));
+      setIsPasswordVisible(false);
     } else {
       setFormData(prev=>({...prev, [field]:value}));
     }
@@ -265,7 +263,11 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                     >
                       <SelectItem key="inherit">
                         {(() => {
-                          const selectedEndpoint = endpoints.find(ep => ep.id === formData.apiEndpoint);
+                          // 使用相同的匹配逻辑
+                          const selectedEndpoint1 = endpoints.find(ep => ep.id === formData.apiEndpoint);
+                          const selectedEndpoint2 = endpoints.find(ep => String(ep.id) === String(formData.apiEndpoint));
+                          const selectedEndpoint3 = endpoints.find(ep => Number(ep.id) === Number(formData.apiEndpoint));
+                          const selectedEndpoint = selectedEndpoint2 || selectedEndpoint1 || selectedEndpoint3;
                           const masterLog = selectedEndpoint?.log;
                           return masterLog ? `继承 (${masterLog.toUpperCase()})` : "继承";
                         })()}
@@ -292,27 +294,50 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
 
                   {/* 密码配置（可选） - 仅在选中主控版本不为空时显示 */}
                   {(() => {
-                    const selectedEndpoint = endpoints.find(ep => ep.id === formData.apiEndpoint);
+                    // 更详细的调试信息
+                    console.log('=== 密码显示调试开始 ===');
+                    console.log('formData.apiEndpoint:', formData.apiEndpoint, typeof formData.apiEndpoint);
+                    console.log('endpoints:', endpoints);
+                    
+                    // 尝试不同的匹配方式
+                    const selectedEndpoint1 = endpoints.find(ep => ep.id === formData.apiEndpoint);
+                    const selectedEndpoint2 = endpoints.find(ep => String(ep.id) === String(formData.apiEndpoint));
+                    const selectedEndpoint3 = endpoints.find(ep => Number(ep.id) === Number(formData.apiEndpoint));
+                    
+                    console.log('匹配方式1 (直接相等):', selectedEndpoint1);
+                    console.log('匹配方式2 (String转换):', selectedEndpoint2);
+                    console.log('匹配方式3 (Number转换):', selectedEndpoint3);
+                    
+                    // 使用最安全的匹配方式
+                    const selectedEndpoint = selectedEndpoint2 || selectedEndpoint1 || selectedEndpoint3;
                     const hasVersion = selectedEndpoint && selectedEndpoint.version && selectedEndpoint.version.trim() !== '';
                     
-                    // 调试信息
-                    console.log('密码显示调试:', {
-                      selectedEndpointId: formData.apiEndpoint,
-                      selectedEndpoint,
-                      version: selectedEndpoint?.version,
-                      hasVersion,
-                      allEndpoints: endpoints
-                    });
+                    console.log('最终选中的endpoint:', selectedEndpoint);
+                    console.log('version:', selectedEndpoint?.version);
+                    console.log('hasVersion:', hasVersion);
+                    console.log('=== 密码显示调试结束 ===');
                     
                     if (!hasVersion) return null;
                     
                     return (
                       <Input
                         label="隧道密码（可选）"
-                        type="password"
+                        type={isPasswordVisible ? "text" : "password"}
                         placeholder="设置后隧道连接需要提供此密码进行认证"
                         value={formData.password}
                         onValueChange={(v)=>handleField('password',v)}
+                        endContent={
+                          <button
+                            className="focus:outline-none"
+                            type="button"
+                            onClick={() => setIsPasswordVisible(!isPasswordVisible)}
+                          >
+                            <FontAwesomeIcon
+                              icon={isPasswordVisible ? faEyeSlash : faEye}
+                              className="text-sm text-default-400 pointer-events-none"
+                            />
+                          </button>
+                        }
                       />
                     );
                   })()}
@@ -327,9 +352,24 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                     >
                       <SelectItem key="inherit">
                         {(() => {
-                          const selectedEndpoint = endpoints.find(ep => ep.id === formData.apiEndpoint);
+                          // 使用相同的匹配逻辑
+                          const selectedEndpoint1 = endpoints.find(ep => ep.id === formData.apiEndpoint);
+                          const selectedEndpoint2 = endpoints.find(ep => String(ep.id) === String(formData.apiEndpoint));
+                          const selectedEndpoint3 = endpoints.find(ep => Number(ep.id) === Number(formData.apiEndpoint));
+                          const selectedEndpoint = selectedEndpoint2 || selectedEndpoint1 || selectedEndpoint3;
                           const masterTls = selectedEndpoint?.tls;
-                          return masterTls ? `继承主控 (模式${masterTls.toUpperCase()})` : "继承主控";
+                          
+                          // TLS模式转换
+                          const getTLSModeText = (mode: string) => {
+                            switch(mode) {
+                              case '0': return '无 TLS 加密';
+                              case '1': return '自签名证书';  
+                              case '2': return '自定义证书';
+                              default: return mode;
+                            }
+                          };
+                          
+                          return masterTls ? `继承主控 (${getTLSModeText(masterTls)})` : "继承主控";
                         })()}
                       </SelectItem>
                       <SelectItem key="mode0">模式0 无 TLS</SelectItem>
