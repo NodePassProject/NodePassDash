@@ -307,11 +307,16 @@ type SimpleEndpoint struct {
 	APIPath     string         `json:"apiPath"`
 	Status      EndpointStatus `json:"status"`
 	TunnelCount int            `json:"tunnelCount"`
+	Version     string         `json:"version"`
+	TLS         string         `json:"tls"`
+	Log         string         `json:"log"`
+	Crt         string         `json:"crt"`
+	KeyPath     string         `json:"keyPath"`
 }
 
 // GetSimpleEndpoints 获取简化端点列表，可排除 FAIL
 func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error) {
-	query := `SELECT e.id, e.name, e.url, e.apiPath, e.status, 0 as tunnel_count FROM "Endpoint" e`
+	query := `SELECT e.id, e.name, e.url, e.apiPath, e.status, 0 as tunnel_count, e.ver, e.tls, e.log, e.crt, e.key_path FROM "Endpoint" e`
 	if excludeFail {
 		query += ` WHERE e.status not in ('FAIL', 'DISCONNECT')`
 	}
@@ -327,10 +332,26 @@ func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error)
 	for rows.Next() {
 		var e SimpleEndpoint
 		var statusStr string
-		if err := rows.Scan(&e.ID, &e.Name, &e.URL, &e.APIPath, &statusStr, &e.TunnelCount); err != nil {
+		var version, tls, log, crt, keyPath sql.NullString
+		if err := rows.Scan(&e.ID, &e.Name, &e.URL, &e.APIPath, &statusStr, &e.TunnelCount, &version, &tls, &log, &crt, &keyPath); err != nil {
 			return nil, err
 		}
 		e.Status = EndpointStatus(statusStr)
+		if version.Valid {
+			e.Version = version.String
+		}
+		if tls.Valid {
+			e.TLS = tls.String
+		}
+		if log.Valid {
+			e.Log = log.String
+		}
+		if crt.Valid {
+			e.Crt = crt.String
+		}
+		if keyPath.Valid {
+			e.KeyPath = keyPath.String
+		}
 		endpoints = append(endpoints, e)
 	}
 	return endpoints, nil

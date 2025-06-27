@@ -19,6 +19,11 @@ import { buildApiUrl } from "@/lib/utils";
 interface EndpointSimple {
   id: string;
   name: string;
+  version: string;
+  tls: string;
+  log: string;
+  crt: string;
+  keyPath: string;
 }
 
 interface QuickCreateTunnelModalProps {
@@ -28,6 +33,34 @@ interface QuickCreateTunnelModalProps {
   mode?: 'create' | 'edit';
   editData?: Partial<Record<string, any>> & { id?: string };
 }
+
+// 版本比较函数
+const compareVersions = (version1: string, version2: string): number => {
+  if (!version1 || !version2) return 0;
+  
+  const v1Parts = version1.replace(/^v/, '').split('.').map(Number);
+  const v2Parts = version2.replace(/^v/, '').split('.').map(Number);
+  
+  const maxLength = Math.max(v1Parts.length, v2Parts.length);
+  
+  for (let i = 0; i < maxLength; i++) {
+    const v1Part = v1Parts[i] || 0;
+    const v2Part = v2Parts[i] || 0;
+    
+    if (v1Part > v2Part) return 1;
+    if (v1Part < v2Part) return -1;
+  }
+  
+  return 0;
+};
+
+// 检查版本是否支持密码功能（1.4.0及以上）
+const isVersionSupportsPassword = (version: string): boolean => {
+  if (!version || version.trim() === '') {
+    return false; // 版本为空表示不支持
+  }
+  return compareVersions(version, '1.4.0') >= 0;
+};
 
 /**
  * 快速创建实例模态框（简易表单）
@@ -47,7 +80,8 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
     targetAddress: "",
     targetPort: "",
     tlsMode: "inherit", // inherit | mode0 | mode1 | mode2
-    logLevel: "inherit", // inherit, debug, info, warn, error
+    logLevel: "inherit", // inherit, debug, info, warn, error, event
+    password: "",
     min: "",
     max: "",
     certPath: "",
@@ -91,6 +125,7 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
         targetPort: String(editData.targetPort||''),
         tlsMode: editData.tlsMode || prev.tlsMode,
         logLevel: editData.logLevel || prev.logLevel,
+        password: editData.password || '',
         min: editData.min!==undefined? String(editData.min):'',
         max: editData.max!==undefined? String(editData.max):'',
         certPath: editData.certPath || '',
@@ -103,7 +138,7 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
   const handleSubmit = async () => {
     const {
       apiEndpoint, mode, tunnelName, tunnelAddress, tunnelPort,
-      targetAddress, targetPort, tlsMode, logLevel, min, max,
+      targetAddress, targetPort, tlsMode, logLevel, password, min, max,
       certPath, keyPath
     } = formData;
 
@@ -145,6 +180,11 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
           certPath: mode==='server' && tlsMode==='mode2' ? certPath.trim() : undefined,
           keyPath: mode==='server' && tlsMode==='mode2' ? keyPath.trim() : undefined,
           logLevel,
+          password: (() => {
+            const selectedEndpoint = endpoints.find(ep => ep.id === apiEndpoint);
+            const hasVersion = selectedEndpoint && selectedEndpoint.version && selectedEndpoint.version.trim() !== '';
+            return hasVersion && password ? password : undefined;
+          })(),
           min: mode==='client' && min ? min : undefined,
           max: mode==='client' && max ? max : undefined
         })
@@ -161,7 +201,14 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
     }
   };
 
-  const handleField = (field:string, value:string)=> setFormData(prev=>({...prev,[field]:value}));
+  const handleField = (field:string, value:string)=> {
+    if (field === 'apiEndpoint') {
+      // 切换主控时清空密码
+      setFormData(prev=>({...prev, [field]:value, password: ''}));
+    } else {
+      setFormData(prev=>({...prev, [field]:value}));
+    }
+  };
 
   return (
     <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center" size="lg">
@@ -216,11 +263,18 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                       selectedKeys={[formData.logLevel]}
                       onSelectionChange={(keys)=> handleField('logLevel', Array.from(keys)[0] as string)}
                     >
-                      <SelectItem key="inherit">继承</SelectItem>
+                      <SelectItem key="inherit">
+                        {(() => {
+                          const selectedEndpoint = endpoints.find(ep => ep.id === formData.apiEndpoint);
+                          const masterLog = selectedEndpoint?.log;
+                          return masterLog ? `继承 (${masterLog.toUpperCase()})` : "继承";
+                        })()}
+                      </SelectItem>
                       <SelectItem key="debug">Debug</SelectItem>
                       <SelectItem key="info">Info</SelectItem>
                       <SelectItem key="warn">Warn</SelectItem>
                       <SelectItem key="error">Error</SelectItem>
+                      <SelectItem key="event">Event</SelectItem>
                     </Select>
                   </div>
 
@@ -236,6 +290,33 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                     <Input label="目标端口" type="number" value={formData.targetPort}  placeholder="8080" onValueChange={(v)=>handleField('targetPort',v)} />
                   </div>
 
+                  {/* 密码配置（可选） - 仅在选中主控版本不为空时显示 */}
+                  {(() => {
+                    const selectedEndpoint = endpoints.find(ep => ep.id === formData.apiEndpoint);
+                    const hasVersion = selectedEndpoint && selectedEndpoint.version && selectedEndpoint.version.trim() !== '';
+                    
+                    // 调试信息
+                    console.log('密码显示调试:', {
+                      selectedEndpointId: formData.apiEndpoint,
+                      selectedEndpoint,
+                      version: selectedEndpoint?.version,
+                      hasVersion,
+                      allEndpoints: endpoints
+                    });
+                    
+                    if (!hasVersion) return null;
+                    
+                    return (
+                      <Input
+                        label="隧道密码（可选）"
+                        type="password"
+                        placeholder="设置后隧道连接需要提供此密码进行认证"
+                        value={formData.password}
+                        onValueChange={(v)=>handleField('password',v)}
+                      />
+                    );
+                  })()}
+
                   {/* TLS 下拉 - server */}
                   {formData.mode === 'server' && (
                     <Select
@@ -244,7 +325,13 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                       selectedKeys={[formData.tlsMode]}
                       onSelectionChange={(keys)=> handleField('tlsMode', Array.from(keys)[0] as string)}
                     >
-                      <SelectItem key="inherit">继承主控</SelectItem>
+                      <SelectItem key="inherit">
+                        {(() => {
+                          const selectedEndpoint = endpoints.find(ep => ep.id === formData.apiEndpoint);
+                          const masterTls = selectedEndpoint?.tls;
+                          return masterTls ? `继承主控 (模式${masterTls.toUpperCase()})` : "继承主控";
+                        })()}
+                      </SelectItem>
                       <SelectItem key="mode0">模式0 无 TLS</SelectItem>
                       <SelectItem key="mode1">模式1 自签名</SelectItem>
                       <SelectItem key="mode2">模式2 自定义证书</SelectItem>

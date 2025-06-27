@@ -35,6 +35,7 @@ type Tunnel struct {
 	KeyPath       *string      `json:"keyPath,omitempty" db:"keyPath"`
 	LogLevel      LogLevel     `json:"logLevel" db:"logLevel"`
 	CommandLine   string       `json:"commandLine" db:"commandLine"`
+	Password      *string      `json:"password,omitempty" db:"password"`
 	InstanceID    *string      `json:"instanceId,omitempty" db:"instanceId"`
 
 	// 网络流量统计

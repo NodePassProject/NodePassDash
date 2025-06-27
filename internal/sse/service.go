@@ -570,10 +570,10 @@ func (s *Service) updateTunnelData(event models.EndpointSSE) {
 					instanceId, endpointId, name, mode,
 					status, tunnelAddress, tunnelPort, targetAddress, targetPort,
 					tlsMode, certPath, keyPath, logLevel, commandLine,
-					min, max,
+					password, min, max,
 					tcpRx, tcpTx, udpRx, udpTx,
 					createdAt, updatedAt, lastEventTime
-				) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+				) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 					event.InstanceID,
 					event.EndpointID,
 					event.InstanceID,
@@ -588,6 +588,7 @@ func (s *Service) updateTunnelData(event models.EndpointSSE) {
 					cfg.KeyPath,
 					logLevel,
 					commandLine,
+					cfg.Password,
 					func() interface{} {
 						if cfg.Min != "" {
 							return cfg.Min
@@ -688,6 +689,7 @@ type parsedURL struct {
 	LogLevel      string
 	CertPath      string
 	KeyPath       string
+	Password      string
 	Min           string
 	Max           string
 }
@@ -753,6 +755,7 @@ func parseInstanceURL(raw, mode string) parsedURL {
 		LogLevel: "inherit",
 		CertPath: "",
 		KeyPath:  "",
+		Password: "",
 	}
 
 	if raw == "" {
@@ -764,6 +767,12 @@ func parseInstanceURL(raw, mode string) parsedURL {
 	// strip protocol
 	if idx := strings.Index(raw, "://"); idx != -1 {
 		raw = raw[idx+3:]
+	}
+
+	// 分离用户认证信息 (password@)
+	if atIdx := strings.Index(raw, "@"); atIdx != -1 {
+		res.Password = raw[:atIdx]
+		raw = raw[atIdx+1:]
 	}
 
 	// split query
@@ -901,13 +910,14 @@ func (s *Service) tunnelCreate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 		instanceId, endpointId, name, mode,
 		status, tunnelAddress, tunnelPort, targetAddress, targetPort,
 		tlsMode, certPath, keyPath, logLevel, commandLine,
-		min, max,
+		password, min, max,
 		tcpRx, tcpTx, udpRx, udpTx,
 		createdAt, updatedAt, lastEventTime
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		e.InstanceID, e.EndpointID, name, ptrStringDefault(e.InstanceType, ""), ptrStringDefault(e.Status, "stopped"),
 		cfg.TunnelAddress, cfg.TunnelPort, cfg.TargetAddress, cfg.TargetPort,
 		cfg.TLSMode, cfg.CertPath, cfg.KeyPath, cfg.LogLevel, ptrString(e.URL),
+		cfg.Password,
 		func() interface{} {
 			if cfg.Min != "" {
 				return cfg.Min

@@ -21,7 +21,7 @@ const systemSettingsSchema = z.object({
   language: z.enum(["zh", "en"]),
   maxConnections: z.number().int().min(1).max(1000),
   connectionTimeout: z.number().int().min(1).max(3600),
-  logLevel: z.enum(["debug", "info", "warn", "error"]),
+  logLevel: z.enum(["debug", "info", "warn", "error", "event"]),
   logRetentionDays: z.number().int().min(1).max(365),
   autoBackup: z.boolean(),
   backupInterval: z.enum(["daily", "weekly", "monthly"]),
@@ -162,7 +162,7 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
                 </div>
                 <Select
                   selectedKeys={[watch("logLevel")]}
-                  onChange={(e) => setValue("logLevel", e.target.value as "debug" | "info" | "warn" | "error")}
+                  onChange={(e) => setValue("logLevel", e.target.value as "debug" | "info" | "warn" | "error" | "event")}
                   variant="bordered"
                   className="w-32"
                 >
@@ -170,6 +170,7 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
                   <SelectItem key="info">Info</SelectItem>
                   <SelectItem key="warn">Warn</SelectItem>
                   <SelectItem key="error">Error</SelectItem>
+                  <SelectItem key="event">Event</SelectItem>
                 </Select>
               </div>
               <div className="flex items-center justify-between">

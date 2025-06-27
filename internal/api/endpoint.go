@@ -1018,12 +1018,12 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 			name := fmt.Sprintf("auto-%s", inst.ID)
 			_, err = tx.Exec(`INSERT INTO "Tunnel" (
 				instanceId, name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort,
-				tlsMode, certPath, keyPath, logLevel, commandLine, status, min, max,
+				tlsMode, certPath, keyPath, logLevel, commandLine, password, status, min, max,
 				tcpRx, tcpTx, udpRx, udpTx, createdAt, updatedAt)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
 				inst.ID, name, endpointID, inst.Type,
 				parsed.TunnelAddress, convPort(parsed.TunnelPort), parsed.TargetAddress, convPort(parsed.TargetPort),
-				parsed.TLSMode, parsed.CertPath, parsed.KeyPath, parsed.LogLevel, inst.URL, inst.Status,
+				parsed.TLSMode, parsed.CertPath, parsed.KeyPath, parsed.LogLevel, inst.URL, parsed.Password, inst.Status,
 				convInt(parsed.Min), convInt(parsed.Max),
 				inst.TCPRx, inst.TCPTx, inst.UDPRx, inst.UDPTx)
 			if err != nil {
@@ -1035,11 +1035,11 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 			// 更新已有隧道（除 name 外其它字段全部更新）
 			_, err = tx.Exec(`UPDATE "Tunnel" SET 
 				mode = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?,
-				tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, status = ?,
+				tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, password = ?, status = ?,
 				min = ?, max = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, updatedAt = CURRENT_TIMESTAMP
 				WHERE id = ?`,
 				inst.Type, parsed.TunnelAddress, convPort(parsed.TunnelPort), parsed.TargetAddress, convPort(parsed.TargetPort),
-				parsed.TLSMode, parsed.CertPath, parsed.KeyPath, parsed.LogLevel, inst.URL, inst.Status,
+				parsed.TLSMode, parsed.CertPath, parsed.KeyPath, parsed.LogLevel, inst.URL, parsed.Password, inst.Status,
 				convInt(parsed.Min), convInt(parsed.Max), inst.TCPRx, inst.TCPTx, inst.UDPRx, inst.UDPTx, tunnelID)
 			if err != nil {
 				tx.Rollback()
@@ -1087,6 +1087,7 @@ func parseInstanceURL(raw, mode string) struct {
 	LogLevel      string
 	CertPath      string
 	KeyPath       string
+	Password      string
 	Min           string
 	Max           string
 } {
@@ -1099,11 +1100,12 @@ func parseInstanceURL(raw, mode string) struct {
 		LogLevel      string
 		CertPath      string
 		KeyPath       string
+		Password      string
 		Min           string
 		Max           string
 	}
 
-	res := parsedURL{TLSMode: "inherit", LogLevel: "inherit"}
+	res := parsedURL{TLSMode: "inherit", LogLevel: "inherit", Password: ""}
 
 	if raw == "" {
 		return res
@@ -1112,6 +1114,12 @@ func parseInstanceURL(raw, mode string) struct {
 	// 去协议
 	if idx := strings.Index(raw, "://"); idx != -1 {
 		raw = raw[idx+3:]
+	}
+
+	// 分离用户认证信息 (password@)
+	if atIdx := strings.Index(raw, "@"); atIdx != -1 {
+		res.Password = raw[:atIdx]
+		raw = raw[atIdx+1:]
 	}
 
 	// query 部分

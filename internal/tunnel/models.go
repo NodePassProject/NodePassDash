@@ -58,6 +58,7 @@ type Tunnel struct {
 	KeyPath       string       `json:"keyPath,omitempty"`
 	LogLevel      LogLevel     `json:"logLevel"`
 	CommandLine   string       `json:"commandLine"`
+	Password      string       `json:"password,omitempty"`
 	Min           int          `json:"min,omitempty"`
 	Max           int          `json:"max,omitempty"`
 	Status        TunnelStatus `json:"status"`
@@ -104,6 +105,7 @@ type CreateTunnelRequest struct {
 	CertPath      string   `json:"certPath,omitempty"`
 	KeyPath       string   `json:"keyPath,omitempty"`
 	LogLevel      LogLevel `json:"logLevel"`
+	Password      string   `json:"password,omitempty"`
 	Min           int      `json:"min,omitempty"`
 	Max           int      `json:"max,omitempty"`
 }
@@ -194,6 +196,7 @@ type UpdateTunnelRequest struct {
 	CertPath      string   `json:"certPath,omitempty"`
 	KeyPath       string   `json:"keyPath,omitempty"`
 	LogLevel      LogLevel `json:"logLevel,omitempty"`
+	Password      string   `json:"password,omitempty"`
 	Min           int      `json:"min,omitempty"`
 	Max           int      `json:"max,omitempty"`
 }

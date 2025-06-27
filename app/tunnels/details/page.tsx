@@ -15,12 +15,15 @@ import {
   Tab,
   Tabs,
   useDisclosure,
-  Tooltip
+  Tooltip,
+  Accordion,
+  AccordionItem,
+  Snippet
 } from "@heroui/react";
 import React, { useEffect } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh,faStop, faQuestionCircle } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh,faStop, faQuestionCircle, faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
@@ -42,12 +45,15 @@ interface TunnelInfo {
   };
   endpoint: string;
   endpointId: string;
+  password?: string;
   config: {
     listenPort: number;
     targetPort: number;
     tls: boolean;
     logLevel: string;
     tlsMode?: string;  // 添加 tlsMode 字段
+    endpointTLS?: string; // 主控的TLS配置
+    endpointLog?: string; // 主控的Log配置
     min?: number | null;
     max?: number | null;
   };
@@ -146,6 +152,20 @@ const getBestUnit = (values: number[]) => {
   };
 };
 
+// 将主控的TLS数字转换为对应的模式文案
+const getTLSModeText = (tlsValue: string): string => {
+  switch (tlsValue) {
+    case '0':
+      return '无 TLS 加密';
+    case '1':
+      return '自签名证书';
+    case '2':
+      return '自定义证书';
+    default:
+      return tlsValue; // 如果不是数字，直接返回原值
+  }
+};
+
 // 添加流量历史记录类型
 interface TrafficMetrics {
   timestamp: number;
@@ -177,6 +197,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   const [refreshLoading, setRefreshLoading] = React.useState(false);
   const [trafficRefreshLoading, setTrafficRefreshLoading] = React.useState(false);
   const [trafficTimeRange, setTrafficTimeRange] = React.useState<"1h" | "6h" | "12h" | "24h">("24h");
+  const [isPasswordVisible, setIsPasswordVisible] = React.useState(false);
   const searchParams = useSearchParams();
   const resolvedId = searchParams.get('id');
 
@@ -613,7 +634,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           >
             <FontAwesomeIcon icon={faArrowLeft} />
           </Button>
-          <h1 className="text-lg md:text-2xl font-bold truncate">实例监控</h1>
+          <h1 className="text-lg md:text-2xl font-bold truncate">{tunnelInfo.name}</h1>
           <Chip 
             variant="flat"
             color={tunnelInfo.status.type}
@@ -751,19 +772,31 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                     </span>
                   } 
                 />
-                <div className="flex flex-col md:flex-row md:items-center gap-1 md:gap-3">
-                  <span className="text-small text-default-500 md:min-w-[60px]">命令</span>
-                  <span className="font-mono text-xs md:text-sm break-all flex-1 md:text-right">
-                    {tunnelInfo.commandLine}
-                  </span>
-                </div>
+                {/* 密码显示 - 仅在有密码时显示 */}
+                {tunnelInfo.password && (
+                  <CellValue 
+                    label="密码" 
+                    value={
+                      <div className="flex items-center gap-2">
+                        <span className="font-mono text-xs md:text-sm break-all text-default-500">
+                          {isPasswordVisible ? tunnelInfo.password : '••••••••'}
+                        </span>
+                        <FontAwesomeIcon 
+                          icon={isPasswordVisible ? faEyeSlash : faEye}
+                          className="text-xs cursor-pointer hover:text-primary w-4 text-default-500"
+                          onClick={() => setIsPasswordVisible(!isPasswordVisible)}
+                        />
+                      </div>
+                    }
+                  />
+                )}
               </CardBody>
             </Card>
             
             {/* 右侧：流量统计卡片 - 响应式网格 */}
-            <div className="grid grid-cols-2 gap-2 md:gap-3 h-fit">
-              <Card className="p-2 bg-blue-50 dark:bg-blue-950/30 shadow-none">
-                <CardBody className="p-2 md:p-3">
+            <div className="grid grid-cols-2 gap-2 md:gap-3 h-full">
+              <Card className="p-2 bg-blue-50 dark:bg-blue-950/30 shadow-none h-full">
+                <CardBody className="p-2 md:p-3 flex items-center justify-center h-full">
                   <div className="text-center">
                     <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">TCP 接收</p>
                     <p className="text-sm md:text-lg font-bold text-blue-700 dark:text-blue-300">
@@ -776,8 +809,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                 </CardBody>
               </Card>
               
-              <Card className="p-2 bg-green-50 dark:bg-green-950/30 shadow-none">
-                <CardBody className="p-2 md:p-3">
+              <Card className="p-2 bg-green-50 dark:bg-green-950/30 shadow-none h-full">
+                <CardBody className="p-2 md:p-3 flex items-center justify-center h-full">
                   <div className="text-center">
                     <p className="text-xs text-green-600 dark:text-green-400 mb-1">TCP 发送</p>
                     <p className="text-sm md:text-lg font-bold text-green-700 dark:text-green-300">
@@ -790,8 +823,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                 </CardBody>
               </Card>
               
-              <Card className="p-2 bg-purple-50 dark:bg-purple-950/30 shadow-none">
-                <CardBody className="p-2 md:p-3">
+              <Card className="p-2 bg-purple-50 dark:bg-purple-950/30 shadow-none h-full">
+                <CardBody className="p-2 md:p-3 flex items-center justify-center h-full">
                   <div className="text-center">
                     <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">UDP 接收</p>
                     <p className="text-sm md:text-lg font-bold text-purple-700 dark:text-purple-300">
@@ -804,8 +837,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                 </CardBody>
               </Card>
               
-              <Card className="p-2 bg-orange-50 dark:bg-orange-950/30 shadow-none">
-                <CardBody className="p-2 md:p-3">
+              <Card className="p-2 bg-orange-50 dark:bg-orange-950/30 shadow-none h-full">
+                <CardBody className="p-2 md:p-3 flex items-center justify-center h-full">
                   <div className="text-center">
                     <p className="text-xs text-orange-600 dark:text-orange-400 mb-1">UDP 发送</p>
                     <p className="text-sm md:text-lg font-bold text-orange-700 dark:text-orange-300">
@@ -821,6 +854,30 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           </div>
         </CardBody>
       </Card>
+
+      {/* 命令行信息 */}
+      <Accordion variant="shadow">
+        <AccordionItem 
+          key="command" 
+          aria-label="命令行" 
+          title={
+            <span className="font-bold text-sm md:text-base">命令行</span>
+          }
+        >
+          <div className="pb-4">
+            <Snippet 
+              hideCopyButton={false}
+              hideSymbol={true}
+              classNames={{
+                base: "w-full",
+                content: "text-xs font-mono break-all whitespace-pre-wrap"
+              }}
+            >
+              {tunnelInfo.commandLine}
+            </Snippet>
+          </div>
+        </AccordionItem>
+      </Accordion>
 
       {/* 流量趋势图 - 响应式高度 */}
       <Card className="p-2">
@@ -1071,7 +1128,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                                       tunnelInfo.config.tlsMode === 'mode0' ? "default" : "success"} 
                                 size="sm"
                               >
-                                {tunnelInfo.config.tlsMode === 'inherit' ? '继承主控设置' :
+                                {tunnelInfo.config.tlsMode === 'inherit' ? 
+                                  (tunnelInfo.config.endpointTLS ? `继承主控 [${getTLSModeText(tunnelInfo.config.endpointTLS)}]` : '继承主控设置') :
                                  tunnelInfo.config.tlsMode === 'mode0' ? '无 TLS 加密' :
                                  tunnelInfo.config.tlsMode === 'mode1' ? '自签名证书' : '自定义证书'}
                               </Chip>
@@ -1089,7 +1147,9 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                             color={tunnelInfo.config.logLevel === 'inherit' ? "primary" : "default"} 
                             size="sm"
                           >
-                            {tunnelInfo.config.logLevel === 'inherit' ? '继承主控设置' : tunnelInfo.config.logLevel.toUpperCase()}
+                            {tunnelInfo.config.logLevel === 'inherit' ? 
+                              (tunnelInfo.config.endpointLog ? `继承主控 [${tunnelInfo.config.endpointLog.toUpperCase()}]` : '继承主控设置') : 
+                              tunnelInfo.config.logLevel.toUpperCase()}
                           </Chip>
                         </div>
                       } 

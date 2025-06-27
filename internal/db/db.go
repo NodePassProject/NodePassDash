@@ -147,6 +147,11 @@ func initSchema(db *sql.DB) error {
 		return err
 	}
 
+	// --------  为 Tunnel 表添加密码字段 --------
+	if err := ensureColumn(db, "Tunnel", "password", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+
 	// --------  为 Endpoint 表添加系统信息字段 --------
 	if err := ensureColumn(db, "Endpoint", "os", "TEXT DEFAULT ''"); err != nil {
 		return err

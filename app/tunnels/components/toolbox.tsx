@@ -45,6 +45,11 @@ interface ApiEndpoint {
   url: string;
   status: EndpointStatus;
   tunnelCount: number;
+  version: string;
+  tls: string;
+  log: string;
+  crt: string;
+  keyPath: string;
 }
 
 interface TunnelToolBoxProps {

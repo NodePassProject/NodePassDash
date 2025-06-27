@@ -53,7 +53,8 @@ export const LogLevel = {
   INFO: 'info',
   WARN: 'warn',
   ERROR: 'error',
-  FATAL: 'fatal'
+  FATAL: 'fatal',
+  EVENT: 'event'
 } as const;
 
 export type LogLevelType = typeof LogLevel[keyof typeof LogLevel];
@@ -88,6 +89,7 @@ export interface Tunnel {
   keyPath?: string;
   logLevel: LogLevelType;
   commandLine: string;
+  password?: string;
   instanceId?: string;
   
   // 网络流量统计字段

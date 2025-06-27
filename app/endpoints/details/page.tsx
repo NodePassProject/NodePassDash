@@ -186,12 +186,11 @@ export default function EndpointDetailPage() {
             <div className="flex items-center gap-3">
               <h1 className="text-lg md:text-2xl font-bold truncate">{endpointDetail.name}</h1>
               {endpointDetail.ver && (
-                <Chip size="sm" variant="flat" color="secondary">
+                <Chip variant="flat" color="secondary">
                   {endpointDetail.ver}
                 </Chip>
               )}
               <Chip 
-                size="sm" 
                 variant="flat" 
                 color={
                   endpointDetail.status === 'ONLINE' ? 'success' : 

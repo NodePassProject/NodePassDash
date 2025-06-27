@@ -38,6 +38,7 @@ type parsedURL struct {
 	LogLevel      string
 	CertPath      string
 	KeyPath       string
+	Password      string
 	Min           string
 	Max           string
 }
@@ -50,6 +51,7 @@ func parseInstanceURL(raw, mode string) parsedURL {
 		LogLevel: "inherit",
 		CertPath: "",
 		KeyPath:  "",
+		Password: "",
 	}
 
 	if raw == "" {
@@ -59,6 +61,14 @@ func parseInstanceURL(raw, mode string) parsedURL {
 	// 去除协议部分 protocol://
 	if idx := strings.Index(raw, "://"); idx != -1 {
 		raw = raw[idx+3:]
+	}
+
+	// 分离用户认证信息 (password@)
+	var userInfo string
+	if atIdx := strings.Index(raw, "@"); atIdx != -1 {
+		userInfo = raw[:atIdx]
+		raw = raw[atIdx+1:]
+		res.Password = userInfo
 	}
 
 	// 分离查询参数
@@ -198,7 +208,7 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 			t.id, t.instanceId, t.name, t.endpointId, t.mode,
 			t.tunnelAddress, t.tunnelPort, t.targetAddress, t.targetPort,
 			t.tlsMode, t.certPath, t.keyPath, t.logLevel, t.commandLine,
-			t.status, t.min, t.max, t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
+			t.password, t.status, t.min, t.max, t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
 			t.createdAt, t.updatedAt,
 			e.name as endpointName
 		FROM "Tunnel" t
@@ -217,14 +227,14 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		var t TunnelWithStats
 		var modeStr, statusStr, tlsModeStr, logLevelStr string
 		var instanceID sql.NullString
-		var certPathNS, keyPathNS sql.NullString
+		var certPathNS, keyPathNS, passwordNS sql.NullString
 		var endpointNameNS sql.NullString
 		var minNS, maxNS sql.NullInt64
 		err := rows.Scan(
 			&t.ID, &instanceID, &t.Name, &t.EndpointID, &modeStr,
 			&t.TunnelAddress, &t.TunnelPort, &t.TargetAddress, &t.TargetPort,
 			&tlsModeStr, &certPathNS, &keyPathNS, &logLevelStr, &t.CommandLine,
-			&statusStr, &minNS, &maxNS, &t.Traffic.TCPRx, &t.Traffic.TCPTx, &t.Traffic.UDPRx, &t.Traffic.UDPTx,
+			&passwordNS, &statusStr, &minNS, &maxNS, &t.Traffic.TCPRx, &t.Traffic.TCPTx, &t.Traffic.UDPRx, &t.Traffic.UDPTx,
 			&t.CreatedAt, &t.UpdatedAt,
 			&endpointNameNS,
 		)
@@ -239,6 +249,9 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		}
 		if keyPathNS.Valid {
 			t.KeyPath = keyPathNS.String
+		}
+		if passwordNS.Valid {
+			t.Password = passwordNS.String
 		}
 		if endpointNameNS.Valid {
 			t.EndpointName = endpointNameNS.String
@@ -322,13 +335,25 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 	}
 
 	// 构建命令行
-	commandLine := fmt.Sprintf("%s://%s:%d/%s:%d",
-		req.Mode,
-		req.TunnelAddress,
-		req.TunnelPort,
-		req.TargetAddress,
-		req.TargetPort,
-	)
+	var commandLine string
+	if req.Password != "" {
+		commandLine = fmt.Sprintf("%s://%s@%s:%d/%s:%d",
+			req.Mode,
+			req.Password,
+			req.TunnelAddress,
+			req.TunnelPort,
+			req.TargetAddress,
+			req.TargetPort,
+		)
+	} else {
+		commandLine = fmt.Sprintf("%s://%s:%d/%s:%d",
+			req.Mode,
+			req.TunnelAddress,
+			req.TunnelPort,
+			req.TargetAddress,
+			req.TargetPort,
+		)
+	}
 
 	log.Infof("[API] 构建的命令行: %s", commandLine)
 
@@ -396,9 +421,9 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 				instanceId, name, endpointId, mode,
 				tunnelAddress, tunnelPort, targetAddress, targetPort,
 				tlsMode, certPath, keyPath, logLevel, commandLine,
-				min, max,
+				password, min, max,
 				status, createdAt, updatedAt
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 			instanceID,
 			req.Name,
@@ -413,6 +438,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 			req.KeyPath,
 			req.LogLevel,
 			commandLine,
+			req.Password,
 			func() interface{} {
 				if req.Min > 0 {
 					return req.Min
@@ -482,6 +508,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		KeyPath:       req.KeyPath,
 		LogLevel:      req.LogLevel,
 		CommandLine:   commandLine,
+		Password:      req.Password,
 		Min:           req.Min,
 		Max:           req.Max,
 		CreatedAt:     now,
@@ -1081,6 +1108,7 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string
 		CertPath:      cfg.CertPath,
 		KeyPath:       cfg.KeyPath,
 		LogLevel:      LogLevel(cfg.LogLevel),
+		Password:      cfg.Password,
 		Min:           func() int { v, _ := strconv.Atoi(cfg.Min); return v }(),
 		Max:           func() int { v, _ := strconv.Atoi(cfg.Max); return v }(),
 	}

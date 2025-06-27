@@ -26,7 +26,9 @@ import {
   faXmark,
   faExclamationTriangle,
   faBars,
-  faTableCells
+  faTableCells,
+  faEye,
+  faEyeSlash
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 
@@ -96,7 +98,40 @@ interface ApiEndpoint {
   apiPath: string;
   status: EndpointStatus;
   tunnelCount: number;
+  version: string;
+  tls: string;
+  log: string;
+  crt: string;
+  keyPath: string;
 }
+
+// 版本比较函数
+const compareVersions = (version1: string, version2: string): number => {
+  if (!version1 || !version2) return 0;
+  
+  const v1Parts = version1.replace(/^v/, '').split('.').map(Number);
+  const v2Parts = version2.replace(/^v/, '').split('.').map(Number);
+  
+  const maxLength = Math.max(v1Parts.length, v2Parts.length);
+  
+  for (let i = 0; i < maxLength; i++) {
+    const v1Part = v1Parts[i] || 0;
+    const v2Part = v2Parts[i] || 0;
+    
+    if (v1Part > v2Part) return 1;
+    if (v1Part < v2Part) return -1;
+  }
+  
+  return 0;
+};
+
+// 检查版本是否支持密码功能（1.4.0及以上）
+const isVersionSupportsPassword = (version: string): boolean => {
+  if (!version || version.trim() === '') {
+    return false; // 版本为空表示不支持
+  }
+  return compareVersions(version, '1.4.0') >= 0;
+};
 
 export default function CreateTunnelPage() {
   const router = useRouter();
@@ -112,6 +147,7 @@ export default function CreateTunnelPage() {
     certPath: "",
     keyPath: "",
     logLevel: "inherit",
+    password: "",
     min: "",
     max: ""
   });
@@ -120,6 +156,7 @@ export default function CreateTunnelPage() {
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [layout, setLayout] = useState<"card" | "list">("card");
+  const [isPasswordVisible, setIsPasswordVisible] = useState(false);
   const [toast, setToast] = useState<{
     message: string;
     type: "success" | "error" | "warning";
@@ -167,7 +204,14 @@ export default function CreateTunnelPage() {
     if (field === "min" || field === "max") {
       if (!/^\d*$/.test(value)) return;
     }
-    setFormData((prev) => ({ ...prev, [field]: value }));
+
+    // 当切换主控时，清除密码字段并重置密码可见性
+    if (field === "apiEndpoint") {
+      setFormData((prev) => ({ ...prev, [field]: value, password: "" }));
+      setIsPasswordVisible(false);
+    } else {
+      setFormData((prev) => ({ ...prev, [field]: value }));
+    }
   };
 
   const handleSubmit = async () => {
@@ -212,6 +256,11 @@ export default function CreateTunnelPage() {
           certPath: formData.mode === 'server' && formData.certPath && formData.tlsMode === 'mode2' ? formData.certPath : undefined,
           keyPath: formData.mode === 'server' && formData.keyPath && formData.tlsMode === 'mode2' ? formData.keyPath : undefined,
           logLevel: formData.logLevel,
+          password: (() => {
+            const selectedEndpoint = endpoints.find(e => e.id === formData.apiEndpoint);
+            const supportsPassword = selectedEndpoint ? isVersionSupportsPassword(selectedEndpoint.version) : false;
+            return supportsPassword && formData.password ? formData.password : undefined;
+          })(),
           min: formData.mode === 'client' && formData.min ? formData.min : undefined,
           max: formData.mode === 'client' && formData.max ? formData.max : undefined,
         }),
@@ -453,8 +502,16 @@ export default function CreateTunnelPage() {
                   return <div>{items[0]?.textValue}</div>;
                 }}
               >
-                <SelectItem key="inherit" textValue="Inherit">
-                  Inherit
+                <SelectItem key="inherit" textValue={(() => {
+                  const selectedEndpoint = endpoints.find(e => e.id === formData.apiEndpoint);
+                  const masterLog = selectedEndpoint?.log;
+                  return masterLog ? `Inherit (${masterLog.toUpperCase()})` : "Inherit";
+                })()}>
+                  {(() => {
+                    const selectedEndpoint = endpoints.find(e => e.id === formData.apiEndpoint);
+                    const masterLog = selectedEndpoint?.log;
+                    return masterLog ? `Inherit (${masterLog.toUpperCase()})` : "Inherit";
+                  })()}
                   <div className="text-tiny text-default-400">使用主控配置的日志级别</div>
                 </SelectItem>
                 <SelectItem key="debug" textValue="Debug">
@@ -472,6 +529,10 @@ export default function CreateTunnelPage() {
                 <SelectItem key="error" textValue="Error">
                   Error
                   <div className="text-tiny text-default-400">错误条件</div>
+                </SelectItem>
+                <SelectItem key="event" textValue="Event">
+                  Event
+                  <div className="text-tiny text-default-400">事件信息</div>
                 </SelectItem>
               </Select>
             </div>
@@ -548,45 +609,88 @@ export default function CreateTunnelPage() {
         </CardBody>
       </Card>
 
-      {formData.mode === "server" && (
-        <Card className="p-2 shadow-none border-2 border-default-200">
-          <CardHeader>
-            <h2 className="text-xl font-semibold">安全设置</h2>
-          </CardHeader>
-          <Divider />
-          <CardBody className="p-6 space-y-4">
-            <RadioGroup
-              label="TLS 安全级别"
-              value={formData.tlsMode}
-              onValueChange={(value: string) => handleInputChange("tlsMode", value)}
-            >
-              <Radio value="inherit">继承主控: 使用主控配置的 TLS 设置</Radio>
-              <Radio value="mode0">模式 0: 无 TLS 加密（明文 TCP/UDP）</Radio>
-              <Radio value="mode1">模式 1: 自签名证书（自动生成）</Radio>
-              <Radio value="mode2">模式 2: 自定义证书（需要 crt 和 key 参数）</Radio>
-            </RadioGroup>
-            
-            {formData.tlsMode === "mode2" && (
-              <>
-                <Input
-                  label="证书文件路径"
-                  placeholder="/path/to/cert.pem"
-                  value={formData.certPath}
-                  onChange={(e) => handleInputChange("certPath", e.target.value)}
-                />
-                <Input
-                  label="密钥文件路径"
-                  placeholder="/path/to/key.pem"
-                  value={formData.keyPath}
-                  onChange={(e) => handleInputChange("keyPath", e.target.value)}
-                />
-              </>
-            )}
-          </CardBody>
-        </Card>
-      )}
 
-      {/* 客户端专用 min/max 设置 */}
+
+      <Card className="p-2 shadow-none border-2 border-default-200">
+        <CardHeader>
+          <h2 className="text-xl font-semibold">安全设置</h2>
+        </CardHeader>
+        <Divider />
+        <CardBody className="p-6 space-y-4">
+          {/* 隧道密码 - 仅在选中主控版本>=1.4.0时显示 */}
+          {(() => {
+            const selectedEndpoint = endpoints.find(e => e.id === formData.apiEndpoint);
+            const supportsPassword = selectedEndpoint ? isVersionSupportsPassword(selectedEndpoint.version) : false;
+            
+            if (supportsPassword) {
+              return (
+                <Input
+                  label="隧道密码（可选）"
+                  placeholder="设置后，隧道连接需要提供此密码进行认证"
+                  type={isPasswordVisible ? "text" : "password"}
+                  value={formData.password}
+                  onChange={(e) => handleInputChange("password", e.target.value)}
+                  endContent={
+                    <button
+                      className="focus:outline-none"
+                      type="button"
+                      onClick={() => setIsPasswordVisible(!isPasswordVisible)}
+                    >
+                      <FontAwesomeIcon
+                        icon={isPasswordVisible ? faEyeSlash : faEye}
+                        className="text-sm text-default-400 pointer-events-none"
+                      />
+                    </button>
+                  }
+                />
+              );
+            }
+            return null;
+          })()}
+          
+          {/* TLS设置 - 仅在服务端模式时显示 */}
+          {formData.mode === "server" && (
+            <>
+              <RadioGroup
+                label="TLS 安全级别"
+                value={formData.tlsMode}
+                onValueChange={(value: string) => handleInputChange("tlsMode", value)}
+              >
+                <Radio value="inherit">
+                  {(() => {
+                    const selectedEndpoint = endpoints.find(e => e.id === formData.apiEndpoint);
+                    const masterTls = selectedEndpoint?.tls;
+                    const tlsText = masterTls ? ` (模式${masterTls.toUpperCase()})` : '';
+                    return `继承主控${tlsText}: 使用主控配置的 TLS 设置`;
+                  })()}
+                </Radio>
+                <Radio value="mode0">模式 0: 无 TLS 加密（明文 TCP/UDP）</Radio>
+                <Radio value="mode1">模式 1: 自签名证书（自动生成）</Radio>
+                <Radio value="mode2">模式 2: 自定义证书（需要 crt 和 key 参数）</Radio>
+              </RadioGroup>
+              
+              {formData.tlsMode === "mode2" && (
+                <>
+                  <Input
+                    label="证书文件路径"
+                    placeholder="/path/to/cert.pem"
+                    value={formData.certPath}
+                    onChange={(e) => handleInputChange("certPath", e.target.value)}
+                  />
+                  <Input
+                    label="密钥文件路径"
+                    placeholder="/path/to/key.pem"
+                    value={formData.keyPath}
+                    onChange={(e) => handleInputChange("keyPath", e.target.value)}
+                  />
+                </>
+              )}
+            </>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* 客户端专用设置 */}
       {formData.mode === 'client' && (
         <Card className="p-2 shadow-none border-2 border-default-200">
           <CardHeader>
@@ -627,9 +731,26 @@ export default function CreateTunnelPage() {
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">目标地址：</span> {formData.targetAddress}:{formData.targetPort}</p>
                 {formData.mode === "server" &&
-                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">TLS 安全级别：</span> {formData.tlsMode === "inherit" ? "继承主控设置" : formData.tlsMode === "mode0" ? "模式 0 (无 TLS 加密)" : formData.tlsMode === "mode1" ? "模式 1 (自签名证书)" : "模式 2 (自定义证书)"}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">TLS 安全级别：</span> {(() => {
+                  if (formData.tlsMode === "inherit") {
+                    const selectedEndpoint = endpoints.find(e => e.id === formData.apiEndpoint);
+                    const masterTls = selectedEndpoint?.tls;
+                    return masterTls ? `继承主控设置 (${masterTls.toUpperCase()})` : "继承主控设置";
+                  }
+                  return formData.tlsMode === "mode0" ? "模式 0 (无 TLS 加密)" : formData.tlsMode === "mode1" ? "模式 1 (自签名证书)" : "模式 2 (自定义证书)";
+                })()}</p>
                 }
-                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">日志级别：</span> {formData.logLevel === "inherit" ? "继承主控设置" : formData.logLevel.toUpperCase()}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">日志级别：</span> {(() => {
+                  if (formData.logLevel === "inherit") {
+                    const selectedEndpoint = endpoints.find(e => e.id === formData.apiEndpoint);
+                    const masterLog = selectedEndpoint?.log;
+                    return masterLog ? `继承主控设置 (${masterLog.toUpperCase()})` : "继承主控设置";
+                  }
+                  return formData.logLevel.toUpperCase();
+                })()}</p>
+                {formData.password && (
+                  <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道密码：</span> 已设置密码保护</p>
+                )}
                 {formData.mode === "client" && (formData.min || formData.max) && (
                   <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">连接池容量：</span> {formData.min || '默认(64)'} ~ {formData.max || '默认(8192)'}</p>
                 )}
@@ -641,7 +762,12 @@ export default function CreateTunnelPage() {
               <h3 className="text-lg font-semibold mb-4">等效命令行</h3>
               <Snippet>
                 {(() => {
-                  const base = `${formData.mode}://${formData.tunnelAddress}:${formData.tunnelPort}/${formData.targetAddress}:${formData.targetPort}`;
+                  let base = formData.mode + "://";
+                  if (formData.password) {
+                    base += `${formData.password}@`;
+                  }
+                  base += `${formData.tunnelAddress}:${formData.tunnelPort}/${formData.targetAddress}:${formData.targetPort}`;
+                  
                   if (formData.mode === "server") {
                     const params: string[] = [];
                     if (formData.logLevel !== "inherit") params.push(`log=${formData.logLevel}`);
