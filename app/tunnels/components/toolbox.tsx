@@ -355,7 +355,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
                 批量重启
               </DropdownItem>
               <DropdownItem key="export" startContent={<FontAwesomeIcon icon={faDownload} />}>
-                导出配置规则
+                批量导出
               </DropdownItem>
               <DropdownItem key="delete" startContent={<FontAwesomeIcon icon={faTrash} />} className="text-danger">
                 批量删除
