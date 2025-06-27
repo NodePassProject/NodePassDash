@@ -1016,33 +1016,62 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 		}
 
 		if err == sql.ErrNoRows {
-			// 插入新隧道
+			// 插入新隧道 - 如果有 alias 则使用 alias，否则使用自动生成的名称
 			name := fmt.Sprintf("auto-%s", inst.ID)
+			if inst.Alias != "" {
+				name = inst.Alias
+				log.Infof("[API] 端点 %d 更新：使用别名作为隧道名称: %s -> %s", endpointID, inst.ID, name)
+			}
+
 			_, err = tx.Exec(`INSERT INTO "Tunnel" (
 				instanceId, name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort,
 				tlsMode, certPath, keyPath, logLevel, commandLine, password, status, min, max,
-				tcpRx, tcpTx, udpRx, udpTx, createdAt, updatedAt)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+				tcpRx, tcpTx, udpRx, udpTx, restart, createdAt, updatedAt)
+				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
 				inst.ID, name, endpointID, inst.Type,
 				parsed.TunnelAddress, convPort(parsed.TunnelPort), parsed.TargetAddress, convPort(parsed.TargetPort),
 				parsed.TLSMode, parsed.CertPath, parsed.KeyPath, parsed.LogLevel, inst.URL, parsed.Password, inst.Status,
 				convInt(parsed.Min), convInt(parsed.Max),
-				inst.TCPRx, inst.TCPTx, inst.UDPRx, inst.UDPTx)
+				inst.TCPRx, inst.TCPTx, inst.UDPRx, inst.UDPTx, inst.Restart)
 			if err != nil {
 				tx.Rollback()
 				return err
 			}
 			log.Infof("[API] 端点 %d 更新：插入新隧道 %v", endpointID, inst.ID)
 		} else {
-			// 更新已有隧道（除 name 外其它字段全部更新）
-			_, err = tx.Exec(`UPDATE "Tunnel" SET 
-				mode = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?,
-				tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, password = ?, status = ?,
-				min = ?, max = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, updatedAt = CURRENT_TIMESTAMP
-				WHERE id = ?`,
-				inst.Type, parsed.TunnelAddress, convPort(parsed.TunnelPort), parsed.TargetAddress, convPort(parsed.TargetPort),
-				parsed.TLSMode, parsed.CertPath, parsed.KeyPath, parsed.LogLevel, inst.URL, parsed.Password, inst.Status,
-				convInt(parsed.Min), convInt(parsed.Max), inst.TCPRx, inst.TCPTx, inst.UDPRx, inst.UDPTx, tunnelID)
+			// 更新已有隧道 - 如果有 alias 则更新 name，同时更新 restart 字段
+			var namePart string
+			var nameParam interface{}
+
+			if inst.Alias != "" {
+				namePart = "name = ?,"
+				nameParam = inst.Alias
+				log.Infof("[API] 端点 %d 更新：使用别名更新隧道名称: %s -> %s", endpointID, inst.ID, inst.Alias)
+			} else {
+				namePart = ""
+				nameParam = nil
+			}
+
+			if nameParam != nil {
+				_, err = tx.Exec(`UPDATE "Tunnel" SET 
+					`+namePart+` mode = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?,
+					tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, password = ?, status = ?,
+					min = ?, max = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, restart = ?, updatedAt = CURRENT_TIMESTAMP
+					WHERE id = ?`,
+					nameParam, inst.Type, parsed.TunnelAddress, convPort(parsed.TunnelPort), parsed.TargetAddress, convPort(parsed.TargetPort),
+					parsed.TLSMode, parsed.CertPath, parsed.KeyPath, parsed.LogLevel, inst.URL, parsed.Password, inst.Status,
+					convInt(parsed.Min), convInt(parsed.Max), inst.TCPRx, inst.TCPTx, inst.UDPRx, inst.UDPTx, inst.Restart, tunnelID)
+			} else {
+				_, err = tx.Exec(`UPDATE "Tunnel" SET 
+					mode = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?,
+					tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, password = ?, status = ?,
+					min = ?, max = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, restart = ?, updatedAt = CURRENT_TIMESTAMP
+					WHERE id = ?`,
+					inst.Type, parsed.TunnelAddress, convPort(parsed.TunnelPort), parsed.TargetAddress, convPort(parsed.TargetPort),
+					parsed.TLSMode, parsed.CertPath, parsed.KeyPath, parsed.LogLevel, inst.URL, parsed.Password, inst.Status,
+					convInt(parsed.Min), convInt(parsed.Max), inst.TCPRx, inst.TCPTx, inst.UDPRx, inst.UDPTx, inst.Restart, tunnelID)
+			}
+
 			if err != nil {
 				tx.Rollback()
 				return err

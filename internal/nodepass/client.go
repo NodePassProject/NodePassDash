@@ -93,7 +93,28 @@ func (c *Client) ControlInstance(instanceID, action string) (string, error) {
 func (c *Client) UpdateInstance(instanceID, commandLine string) error {
 	url := fmt.Sprintf("%s%s/instances/%s", c.baseURL, c.apiPath, instanceID)
 	payload := map[string]string{"url": commandLine}
+
 	return c.doRequest(http.MethodPut, url, payload, nil)
+}
+
+// PatchInstance 更新指定实例的别名 (PATCH /instances/{id})
+func (c *Client) RenameInstance(instanceID string, name string) error {
+	payload := map[string]string{"alias": name}
+	url := fmt.Sprintf("%s%s/instances/%s", c.baseURL, c.apiPath, instanceID)
+	if err := c.doRequest(http.MethodPatch, url, payload, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
+// PatchInstance 更新指定实例的重启策略 (PATCH /instances/{id})
+func (c *Client) SetRestartInstance(instanceID string, restart bool) error {
+	payload := map[string]bool{"restart": restart}
+	url := fmt.Sprintf("%s%s/instances/%s", c.baseURL, c.apiPath, instanceID)
+	if err := c.doRequest(http.MethodPatch, url, payload, nil); err != nil {
+		return err
+	}
+	return nil
 }
 
 // GetInfo 获取NodePass实例的系统信息
@@ -169,14 +190,16 @@ func (c *Client) doRequest(method, url string, body interface{}, dest interface{
 //
 //go:generate stringer -type=Instance
 type Instance struct {
-	ID     string `json:"id"`
-	Type   string `json:"type"`
-	Status string `json:"status"`
-	URL    string `json:"url"`
-	TCPRx  int64  `json:"tcprx"`
-	TCPTx  int64  `json:"tcptx"`
-	UDPRx  int64  `json:"udprx"`
-	UDPTx  int64  `json:"udptx"`
+	ID      string `json:"id"`
+	Type    string `json:"type"`
+	Status  string `json:"status"`
+	URL     string `json:"url"`
+	TCPRx   int64  `json:"tcprx"`
+	TCPTx   int64  `json:"tcptx"`
+	UDPRx   int64  `json:"udprx"`
+	UDPTx   int64  `json:"udptx"`
+	Alias   string `json:"alias"`
+	Restart bool   `json:"restart"`
 }
 
 // NodePassInfo NodePass实例的系统信息

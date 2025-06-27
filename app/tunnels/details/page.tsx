@@ -18,7 +18,8 @@ import {
   Tooltip,
   Accordion,
   AccordionItem,
-  Snippet
+  Snippet,
+  Switch
 } from "@heroui/react";
 import React, { useEffect } from "react";
 
@@ -56,6 +57,7 @@ interface TunnelInfo {
     endpointLog?: string; // 主控的Log配置
     min?: number | null;
     max?: number | null;
+    restart: boolean; // 添加 restart 字段
   };
   traffic: {
     tcpRx: number;
@@ -203,6 +205,9 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
 
   // 是否移入回收站
   const [moveToRecycle, setMoveToRecycle] = React.useState(false);
+
+  // 自动重启开关状态更新
+  const [isUpdatingRestart, setIsUpdatingRestart] = React.useState(false);
 
   // 日志计数器，确保每个日志都有唯一的ID
   const logCounterRef = React.useRef(0);
@@ -605,6 +610,65 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     onOpen();
   };
 
+  // 处理重启开关状态变更
+  const handleRestartToggle = async (newRestartValue: boolean) => {
+    if (!tunnelInfo || isUpdatingRestart) return;
+    
+    setIsUpdatingRestart(true);
+    
+    try {
+      // 调用新的重启策略专用接口
+      const response = await fetch(`/api/tunnels/${tunnelInfo.id}/restart`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ restart: newRestartValue }),
+      });
+
+      const data = await response.json();
+      
+      if (response.ok && data.success) {
+        // 更新本地状态
+        setTunnelInfo(prev => prev ? {
+          ...prev,
+          config: {
+            ...prev.config,
+            restart: newRestartValue
+          }
+        } : null);
+        
+        addToast({
+          title: "配置更新成功",
+          description: data.message || `自动重启已${newRestartValue ? '开启' : '关闭'}`,
+          color: "success",
+        });
+      } else {
+        throw new Error(data.error || '更新失败');
+      }
+    } catch (error) {
+      console.error('更新重启配置失败:', error);
+      
+      // 检查是否为404错误或不支持错误，表示当前实例不支持自动重启功能
+      let errorMessage = "未知错误";
+      if (error instanceof Error) {
+        errorMessage = error.message;
+        // 检查错误信息中是否包含不支持相关内容
+        if (errorMessage.includes('404') || errorMessage.includes('Not Found') || 
+            errorMessage.includes('不支持') || errorMessage.includes('unsupported') ||
+            errorMessage.includes('当前实例不支持自动重启功能')) {
+          errorMessage = "当前实例不支持自动重启功能";
+        }
+      }
+      
+      addToast({
+        title: "配置更新失败",
+        description: errorMessage,
+        color: "danger",
+      });
+    } finally {
+      setIsUpdatingRestart(false);
+    }
+  };
+
   // 如果正在加载或没有数据，显示加载状态
   if (loading || !tunnelInfo) {
     return (
@@ -761,16 +825,12 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   </Chip>} 
                 />
                 <CellValue 
-                  label="状态" 
-                  value={
-                    <span className={`font-semibold text-sm ${
-                      tunnelInfo.status.type === 'success' 
-                        ? 'text-green-600 dark:text-green-400' 
-                        : 'text-red-600 dark:text-red-400'
-                    }`}>
-                      {tunnelInfo.status.text}
-                    </span>
-                  } 
+                  label="实例地址" 
+                  value={<span className="font-mono text-sm">{tunnelInfo.tunnelAddress}:{tunnelInfo.config.listenPort}</span>} 
+                />
+                <CellValue 
+                  label="目标地址" 
+                  value={<span className="font-mono text-sm">{tunnelInfo.targetAddress}:{tunnelInfo.config.targetPort}</span>} 
                 />
                 {/* 密码显示 - 仅在有密码时显示 */}
                 {tunnelInfo.password && (
@@ -1107,36 +1167,27 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   <h4 className="font-semibold mb-3 text-sm md:text-base">实例配置</h4>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                     <CellValue 
-                      label="实例地址" 
-                      value={<span className="font-mono text-sm">{tunnelInfo.tunnelAddress}:{tunnelInfo.config.listenPort}</span>} 
+                      label="TLS 设置" 
+                      value={
+                        <div className="flex items-center gap-2">
+                          {tunnelInfo.type === '客户端' ? (
+                            <span className="text-default-500">-</span>
+                          ) : (
+                            <Chip 
+                              variant="flat" 
+                              color={tunnelInfo.config.tlsMode === 'inherit' ? "primary" : 
+                                    tunnelInfo.config.tlsMode === 'mode0' ? "default" : "success"} 
+                              size="sm"
+                            >
+                              {tunnelInfo.config.tlsMode === 'inherit' ? 
+                                (tunnelInfo.config.endpointTLS ? `继承主控 [${getTLSModeText(tunnelInfo.config.endpointTLS)}]` : '继承主控设置') :
+                               tunnelInfo.config.tlsMode === 'mode0' ? '无 TLS 加密' :
+                               tunnelInfo.config.tlsMode === 'mode1' ? '自签名证书' : '自定义证书'}
+                            </Chip>
+                          )}
+                        </div>
+                      }
                     />
-                    <CellValue 
-                      label="目标地址" 
-                      value={<span className="font-mono text-sm">{tunnelInfo.targetAddress}:{tunnelInfo.config.targetPort}</span>} 
-                    />
-                      
-                      <CellValue 
-                        label="TLS 设置" 
-                        value={
-                          <div className="flex items-center gap-2">
-                            {tunnelInfo.type === '客户端' ? (
-                              <span className="text-default-500">-</span>
-                            ) : (
-                              <Chip 
-                                variant="flat" 
-                                color={tunnelInfo.config.tlsMode === 'inherit' ? "primary" : 
-                                      tunnelInfo.config.tlsMode === 'mode0' ? "default" : "success"} 
-                                size="sm"
-                              >
-                                {tunnelInfo.config.tlsMode === 'inherit' ? 
-                                  (tunnelInfo.config.endpointTLS ? `继承主控 [${getTLSModeText(tunnelInfo.config.endpointTLS)}]` : '继承主控设置') :
-                                 tunnelInfo.config.tlsMode === 'mode0' ? '无 TLS 加密' :
-                                 tunnelInfo.config.tlsMode === 'mode1' ? '自签名证书' : '自定义证书'}
-                              </Chip>
-                            )}
-                          </div>
-                        }
-                      />
                   
                     <CellValue 
                       label="日志级别" 
@@ -1168,6 +1219,22 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                         />
                       </>
                     )}
+
+                    {/* 自动重启配置 */}
+                    <CellValue 
+                      label="自动重启" 
+                      value={
+                          <Switch
+                            size="sm"
+                            isSelected={tunnelInfo.config.restart}
+                            onValueChange={handleRestartToggle}
+                            isDisabled={isUpdatingRestart}
+                            endContent={<span className="text-xs text-default-600">off</span>}
+                            startContent={<span className="text-xs text-default-600">on</span>}
+                            color="success"
+                          />
+                      } 
+                    />
                   </div>
                 </div>
               </div>

@@ -14,6 +14,8 @@ CREATE TABLE IF NOT EXISTS "TunnelRecycle" (
     logLevel TEXT NOT NULL DEFAULT 'inherit' CHECK (logLevel IN ('inherit', 'debug', 'info', 'warn', 'error')),
     commandLine TEXT NOT NULL,
     instanceId TEXT,
+    password TEXT DEFAULT '',
+    restart BOOLEAN DEFAULT FALSE,
     tcpRx INTEGER NOT NULL DEFAULT 0,
     tcpTx INTEGER NOT NULL DEFAULT 0,
     udpRx INTEGER NOT NULL DEFAULT 0,

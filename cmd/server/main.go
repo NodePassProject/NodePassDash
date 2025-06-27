@@ -504,6 +504,24 @@ func initDatabase(db *sql.DB) error {
 		return err
 	}
 
+	// ---- 为 Tunnel 表添加 restart 字段 ----
+	if err := ensureColumn(db, "Tunnel", "restart", "BOOLEAN DEFAULT FALSE"); err != nil {
+		return err
+	}
+
+	// ---- 为 TunnelRecycle 表添加 restart 字段 ----
+	if err := ensureColumn(db, "TunnelRecycle", "restart", "BOOLEAN DEFAULT FALSE"); err != nil {
+		return err
+	}
+
+	// ---- 为 EndpointSSE 表添加 alias 和 restart 字段 ----
+	if err := ensureColumn(db, "EndpointSSE", "alias", "TEXT"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "EndpointSSE", "restart", "BOOLEAN"); err != nil {
+		return err
+	}
+
 	return nil
 }
 

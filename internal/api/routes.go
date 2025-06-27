@@ -137,6 +137,8 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/tunnels/template", r.tunnelHandler.HandleTemplateCreate).Methods("POST")
 	r.router.HandleFunc("/api/tunnels", r.tunnelHandler.HandlePatchTunnels).Methods("PATCH")
 	r.router.HandleFunc("/api/tunnels/{id}", r.tunnelHandler.HandlePatchTunnels).Methods("PATCH")
+	r.router.HandleFunc("/api/tunnels/{id}/attributes", r.tunnelHandler.HandlePatchTunnelAttributes).Methods("PATCH")
+	r.router.HandleFunc("/api/tunnels/{id}/restart", r.tunnelHandler.HandleSetTunnelRestart).Methods("PATCH")
 	r.router.HandleFunc("/api/tunnels/{id}", r.tunnelHandler.HandleGetTunnels).Methods("GET")
 	r.router.HandleFunc("/api/tunnels/{id}", r.tunnelHandler.HandleUpdateTunnel).Methods("PUT")
 	r.router.HandleFunc("/api/tunnels/{id}", r.tunnelHandler.HandleDeleteTunnel).Methods("DELETE")

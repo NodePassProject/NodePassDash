@@ -61,6 +61,7 @@ type Tunnel struct {
 	Password      string       `json:"password,omitempty"`
 	Min           int          `json:"min,omitempty"`
 	Max           int          `json:"max,omitempty"`
+	Restart       bool         `json:"restart"`
 	Status        TunnelStatus `json:"status"`
 	CreatedAt     time.Time    `json:"createdAt"`
 	UpdatedAt     time.Time    `json:"updatedAt"`
@@ -108,6 +109,7 @@ type CreateTunnelRequest struct {
 	Password      string   `json:"password,omitempty"`
 	Min           int      `json:"min,omitempty"`
 	Max           int      `json:"max,omitempty"`
+	Restart       bool     `json:"restart"`
 }
 
 // BatchCreateTunnelItem 批量创建隧道的单个项目
@@ -198,6 +200,7 @@ type UpdateTunnelRequest struct {
 	LogLevel      LogLevel `json:"logLevel,omitempty"`
 	Password      string   `json:"password,omitempty"`
 	Min           int      `json:"min,omitempty"`
+	Restart       bool     `json:"restart"`
 	Max           int      `json:"max,omitempty"`
 }
 

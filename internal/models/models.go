@@ -84,6 +84,10 @@ type EndpointSSE struct {
 	Logs *string `json:"logs,omitempty" db:"logs"`
 
 	CreatedAt time.Time `json:"createdAt" db:"createdAt"`
+
+	// 其他信息
+	Alias   *string `json:"alias,omitempty" db:"alias"`
+	Restart *bool   `json:"restart,omitempty" db:"restart"`
 }
 
 // SystemConfig 系统配置表

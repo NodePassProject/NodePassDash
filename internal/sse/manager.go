@@ -548,19 +548,30 @@ func (m *Manager) processPayload(endpointID int64, payload string) {
 
 	// 处理 create / update / delete / log 单实例事件
 	var inst struct {
-		ID     string `json:"id"`
-		Type   string `json:"type"`
-		Status string `json:"status"`
-		URL    string `json:"url"`
-		TCPRx  int64  `json:"tcprx"`
-		TCPTx  int64  `json:"tcptx"`
-		UDPRx  int64  `json:"udprx"`
-		UDPTx  int64  `json:"udptx"`
+		ID      string `json:"id"`
+		Type    string `json:"type"`
+		Status  string `json:"status"`
+		URL     string `json:"url"`
+		TCPRx   int64  `json:"tcprx"`
+		TCPTx   int64  `json:"tcptx"`
+		UDPRx   int64  `json:"udprx"`
+		UDPTx   int64  `json:"udptx"`
+		Alias   string `json:"alias"`
+		Restart bool   `json:"restart"`
 	}
 	if err := json.Unmarshal(event.Instance, &inst); err != nil {
 		log.Errorf("[Master-%d#SSE]解析实例数据失败 %v", endpointID, err)
 		return
 	}
+
+	// 对 alias 和 restart 字段进行适当的指针处理
+	var aliasPtr *string
+	var restartPtr *bool
+
+	if inst.Alias != "" {
+		aliasPtr = &inst.Alias
+	}
+	restartPtr = &inst.Restart
 
 	evt := models.EndpointSSE{
 		EventType:    models.SSEEventType(event.Type),
@@ -576,6 +587,8 @@ func (m *Manager) processPayload(endpointID int64, payload string) {
 		UDPRx:        inst.UDPRx,
 		UDPTx:        inst.UDPTx,
 		Logs:         &logsStr,
+		Alias:        aliasPtr,
+		Restart:      restartPtr,
 	}
 
 	if err := m.service.ProcessEvent(endpointID, evt); err != nil {

@@ -163,6 +163,13 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// 主动创建的隧道需要调用 NodePass API 设置别名
+	if err := h.tunnelService.SetTunnelAlias(newTunnel.ID, newTunnel.Name); err != nil {
+		// 别名设置失败不影响隧道创建成功的返回，只记录警告
+		log.Warnf("[API] 设置隧道别名失败，隧道已创建成功: tunnelID=%d, name=%s, err=%v",
+			newTunnel.ID, newTunnel.Name, err)
+	}
+
 	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 		Success: true,
 		Message: "隧道创建成功",
@@ -680,6 +687,138 @@ func (h *TunnelHandler) HandlePatchTunnels(w http.ResponseWriter, r *http.Reques
 	}
 }
 
+// HandlePatchTunnelAttributes 处理隧道属性更新 (PATCH /api/tunnels/{id}/attributes)
+// 支持更新别名和重启策略
+func (h *TunnelHandler) HandlePatchTunnelAttributes(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 获取隧道ID
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	if idStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "缺少隧道ID",
+		})
+		return
+	}
+
+	tunnelID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "无效的隧道ID",
+		})
+		return
+	}
+
+	// 解析请求体
+	var updates map[string]interface{}
+	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "无效的请求数据",
+		})
+		return
+	}
+
+	// 只允许更新 alias 字段
+	if alias, ok := updates["alias"]; ok {
+		aliasStr, ok := alias.(string)
+		if !ok {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "alias 必须是字符串类型",
+			})
+			return
+		}
+
+		filteredUpdates := map[string]interface{}{"alias": aliasStr}
+		if err := h.tunnelService.PatchTunnel(tunnelID, filteredUpdates); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   err.Error(),
+			})
+			return
+		}
+
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: true,
+			Message: "隧道别名更新成功",
+		})
+		return
+	}
+
+	w.WriteHeader(http.StatusBadRequest)
+	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		Success: false,
+		Error:   "只允许更新 alias 字段",
+	})
+}
+
+// HandleSetTunnelRestart 设置隧道重启策略的专用接口
+func (h *TunnelHandler) HandleSetTunnelRestart(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	if idStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "缺少隧道ID",
+		})
+		return
+	}
+
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "无效的隧道ID",
+		})
+		return
+	}
+
+	var requestData struct {
+		Restart bool `json:"restart"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "无效的请求数据",
+		})
+		return
+	}
+
+	if err := h.tunnelService.SetTunnelRestart(id, requestData.Restart); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		Success: true,
+		Message: fmt.Sprintf("自动重启已%s", map[bool]string{true: "开启", false: "关闭"}[requestData.Restart]),
+	})
+}
+
 // HandleGetTunnelDetails 获取隧道详细信息 (GET /api/tunnels/{id}/details)
 func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -728,13 +867,14 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		UDPTx         int64
 		Min           sql.NullInt64
 		Max           sql.NullInt64
+		Restart       bool
 	}
 
 	query := `SELECT t.id, t.instanceId, t.name, t.mode, t.status, t.endpointId,
 		   e.name, e.tls, e.log, t.tunnelPort, t.targetPort, t.tlsMode, t.logLevel,
 		   t.tunnelAddress, t.targetAddress, t.commandLine, t.password,
 		   t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
-		   t.min, t.max
+		   t.min, t.max, t.restart
 		   FROM "Tunnel" t
 		   LEFT JOIN "Endpoint" e ON t.endpointId = e.id
 		   WHERE t.id = ?`
@@ -762,6 +902,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		&tunnelRecord.UDPTx,
 		&tunnelRecord.Min,
 		&tunnelRecord.Max,
+		&tunnelRecord.Restart,
 	); err != nil {
 		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusNotFound)
@@ -880,6 +1021,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 					}
 					return nil
 				}(),
+				"restart": tunnelRecord.Restart,
 			},
 			"traffic": map[string]int64{
 				"tcpRx": tunnelRecord.TCPRx,

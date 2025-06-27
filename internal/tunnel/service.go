@@ -208,7 +208,7 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 			t.id, t.instanceId, t.name, t.endpointId, t.mode,
 			t.tunnelAddress, t.tunnelPort, t.targetAddress, t.targetPort,
 			t.tlsMode, t.certPath, t.keyPath, t.logLevel, t.commandLine,
-			t.password, t.status, t.min, t.max, t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
+			t.password, t.restart, t.status, t.min, t.max, t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
 			t.createdAt, t.updatedAt,
 			e.name as endpointName
 		FROM "Tunnel" t
@@ -234,7 +234,7 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 			&t.ID, &instanceID, &t.Name, &t.EndpointID, &modeStr,
 			&t.TunnelAddress, &t.TunnelPort, &t.TargetAddress, &t.TargetPort,
 			&tlsModeStr, &certPathNS, &keyPathNS, &logLevelStr, &t.CommandLine,
-			&passwordNS, &statusStr, &minNS, &maxNS, &t.Traffic.TCPRx, &t.Traffic.TCPTx, &t.Traffic.UDPRx, &t.Traffic.UDPTx,
+			&passwordNS, &t.Restart, &statusStr, &minNS, &maxNS, &t.Traffic.TCPRx, &t.Traffic.TCPTx, &t.Traffic.UDPRx, &t.Traffic.UDPTx,
 			&t.CreatedAt, &t.UpdatedAt,
 			&endpointNameNS,
 		)
@@ -421,9 +421,9 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 				instanceId, name, endpointId, mode,
 				tunnelAddress, tunnelPort, targetAddress, targetPort,
 				tlsMode, certPath, keyPath, logLevel, commandLine,
-				password, min, max,
+				password, min, max, restart,
 				status, createdAt, updatedAt
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 		`,
 			instanceID,
 			req.Name,
@@ -451,6 +451,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 				}
 				return nil
 			}(),
+			req.Restart,
 			"running",
 			now,
 			now,
@@ -511,6 +512,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		Password:      req.Password,
 		Min:           req.Min,
 		Max:           req.Max,
+		Restart:       req.Restart,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
@@ -522,6 +524,11 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 	if err != nil {
 		log.Errorf("[API] 更新端点隧道计数失败: %v", err)
 		// 不影响隧道创建的成功，只记录错误
+	}
+
+	// 设置隧道别名
+	if err := s.SetTunnelAlias(tunnel.ID, tunnel.Name); err != nil {
+		log.Warnf("[API] 设置隧道别名失败，但不影响创建: %v", err)
 	}
 
 	log.Infof("[API] 隧道创建成功: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, tunnel.InstanceID)
@@ -977,9 +984,9 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 	if recycle {
 		_, _ = s.db.Exec(`INSERT INTO "TunnelRecycle" (
 			name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode,
-			certPath, keyPath, logLevel, commandLine, instanceId, password, tcpRx, tcpTx, udpRx, udpTx, min, max
+			certPath, keyPath, logLevel, commandLine, instanceId, password, restart, tcpRx, tcpTx, udpRx, udpTx, min, max
 		) SELECT name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode,
-			certPath, keyPath, logLevel, commandLine, instanceId, password, tcpRx, tcpTx, udpRx, udpTx, min, max
+			certPath, keyPath, logLevel, commandLine, instanceId, password, restart, tcpRx, tcpTx, udpRx, udpTx, min, max
 		FROM "Tunnel" WHERE instanceId = ?`, instanceID)
 	}
 
@@ -1044,7 +1051,153 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 	return nil
 }
 
-// RenameTunnel 仅修改隧道名称，不调用远端 API
+// PatchTunnel 更新隧道别名或重启策略
+func (s *Service) PatchTunnel(id int64, updates map[string]interface{}) error {
+	log.Infof("[API] 修补隧道: %v, 更新: %+v", id, updates)
+
+	// 获取隧道和端点信息
+	var tunnel struct {
+		InstanceID string
+		EndpointID int64
+	}
+	var endpoint struct {
+		URL     string
+		APIPath string
+		APIKey  string
+	}
+
+	err := s.db.QueryRow(`
+		SELECT t.instanceId, t.endpointId, e.url, e.apiPath, e.apiKey
+		FROM "Tunnel" t
+		JOIN "Endpoint" e ON t.endpointId = e.id
+		WHERE t.id = ?
+	`, id).Scan(&tunnel.InstanceID, &tunnel.EndpointID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return errors.New("隧道不存在")
+		}
+		return err
+	}
+
+	// 准备本地数据库更新和远程API更新
+	localUpdates := make(map[string]interface{})
+	remoteUpdates := make(map[string]interface{})
+
+	// 处理别名更新
+	if alias, ok := updates["alias"]; ok {
+		aliasStr, ok := alias.(string)
+		if !ok {
+			return errors.New("alias 必须是字符串类型")
+		}
+		if aliasStr == "" {
+			return errors.New("alias 不能为空")
+		}
+
+		// 检查名称是否重复
+		var exists bool
+		err = s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Tunnel\" WHERE name = ? AND id != ?)", aliasStr, id).Scan(&exists)
+		if err != nil {
+			return err
+		}
+		if exists {
+			return errors.New("隧道名称已存在")
+		}
+
+		localUpdates["name"] = aliasStr
+		remoteUpdates["alias"] = aliasStr
+	}
+
+	if len(localUpdates) == 0 {
+		return errors.New("没有有效的更新字段")
+	}
+
+	// 更新本地数据库
+	if len(localUpdates) > 0 {
+		setParts := []string{}
+		values := []interface{}{}
+
+		for field, value := range localUpdates {
+			setParts = append(setParts, fmt.Sprintf("%s = ?", field))
+			values = append(values, value)
+		}
+		setParts = append(setParts, "updatedAt = ?")
+		values = append(values, time.Now())
+		values = append(values, id)
+
+		sql := fmt.Sprintf("UPDATE \"Tunnel\" SET %s WHERE id = ?", strings.Join(setParts, ", "))
+		_, err = s.db.Exec(sql, values...)
+		if err != nil {
+			return err
+		}
+	}
+
+	// 调用 NodePass API 更新远程实例
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+
+	// 处理别名更新
+	if alias, ok := remoteUpdates["alias"]; ok {
+		aliasStr := alias.(string)
+		if err := npClient.RenameInstance(tunnel.InstanceID, aliasStr); err != nil {
+			// 检查是否为 404 错误（旧版本 NodePass 不支持）
+			if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
+				log.Warnf("[API] NodePass API 不支持重命名功能（可能是旧版本）: %v", err)
+				// 不返回错误，继续执行
+			} else {
+				log.Errorf("[API] NodePass API 重命名失败: %v", err)
+				return fmt.Errorf("NodePass API 重命名失败: %v", err)
+			}
+		}
+	}
+
+	return nil
+}
+
+// SetTunnelAlias 为隧道设置别名（调用 NodePass API）
+func (s *Service) SetTunnelAlias(tunnelID int64, alias string) error {
+	log.Infof("[API] 设置隧道别名: tunnelID=%d, alias=%s", tunnelID, alias)
+
+	// 获取隧道和端点信息
+	var tunnel struct {
+		InstanceID string
+		EndpointID int64
+	}
+	var endpoint struct {
+		URL     string
+		APIPath string
+		APIKey  string
+	}
+
+	err := s.db.QueryRow(`
+		SELECT t.instanceId, t.endpointId, e.url, e.apiPath, e.apiKey
+		FROM "Tunnel" t
+		JOIN "Endpoint" e ON t.endpointId = e.id
+		WHERE t.id = ?
+	`, tunnelID).Scan(&tunnel.InstanceID, &tunnel.EndpointID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return errors.New("隧道不存在")
+		}
+		return err
+	}
+
+	// 调用 NodePass API 设置别名
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	if err := npClient.RenameInstance(tunnel.InstanceID, alias); err != nil {
+		// 检查是否为 404 错误（旧版本 NodePass 不支持）
+		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
+			log.Warnf("[API] NodePass API 不支持别名功能（可能是旧版本），跳过设置: %v", err)
+			return nil // 不返回错误，继续执行
+		} else {
+			log.Errorf("[API] NodePass API 设置别名失败: %v", err)
+			return fmt.Errorf("NodePass API 设置别名失败: %v", err)
+		}
+	}
+
+	log.Infof("[API] 隧道别名设置成功: tunnelID=%d, alias=%s", tunnelID, alias)
+	return nil
+}
+
+// RenameTunnel 修改隧道名称，同时调用远端 API
 func (s *Service) RenameTunnel(id int64, newName string) error {
 	log.Infof("[API] 重命名隧道: %v", newName)
 
@@ -1057,7 +1210,44 @@ func (s *Service) RenameTunnel(id int64, newName string) error {
 		return errors.New("隧道名称已存在")
 	}
 
-	// 更新名称
+	// 获取隧道和端点信息
+	var tunnel struct {
+		InstanceID string
+		EndpointID int64
+	}
+	var endpoint struct {
+		URL     string
+		APIPath string
+		APIKey  string
+	}
+
+	err := s.db.QueryRow(`
+		SELECT t.instanceId, t.endpointId, e.url, e.apiPath, e.apiKey
+		FROM "Tunnel" t
+		JOIN "Endpoint" e ON t.endpointId = e.id
+		WHERE t.id = ?
+	`, id).Scan(&tunnel.InstanceID, &tunnel.EndpointID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return errors.New("隧道不存在")
+		}
+		return err
+	}
+
+	// 首先调用 NodePass API 尝试重命名远程实例
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	if err := npClient.RenameInstance(tunnel.InstanceID, newName); err != nil {
+		// 检查是否为 404 错误（旧版本 NodePass 不支持）
+		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
+			log.Warnf("[API] NodePass API 不支持重命名功能（可能是旧版本），仅更新本地记录: %v", err)
+			// 继续执行本地更新
+		} else {
+			log.Errorf("[API] NodePass API 重命名失败: %v", err)
+			return fmt.Errorf("NodePass API 重命名失败: %v", err)
+		}
+	}
+
+	// 更新本地数据库名称
 	result, err := s.db.Exec(`UPDATE "Tunnel" SET name = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`, newName, id)
 	if err != nil {
 		return err
@@ -1233,6 +1423,11 @@ func (s *Service) BatchCreateTunnels(req BatchCreateTunnelRequest) (*BatchCreate
 			result.Error = err.Error()
 			failCount++
 		} else {
+			// 设置隧道别名（批量创建时已经在 CreateTunnel 中调用过了，这里注释掉避免重复）
+			// if err := s.SetTunnelAlias(tunnel.ID, tunnel.Name); err != nil {
+			//	log.Warnf("[API] 批量创建第 %d 项设置别名失败: %v", i+1, err)
+			// }
+
 			log.Infof("[API] 批量创建第 %d 项成功: %s (ID: %d)", i+1, tunnel.Name, tunnel.ID)
 			result.Success = true
 			result.Message = "创建成功"
@@ -1574,4 +1769,60 @@ func (s *Service) NewBatchCreateTunnels(req NewBatchCreateRequest) (*NewBatchCre
 
 	log.Infof("[API] 新批量创建隧道完成: 成功 %d 个，失败 %d 个", successCount, failCount)
 	return response, nil
+}
+
+// SetTunnelRestart 设置隧道重启策略（只有在 NodePass API 调用成功后才更新数据库）
+func (s *Service) SetTunnelRestart(tunnelID int64, restart bool) error {
+	log.Infof("[API] 设置隧道重启策略: tunnelID=%d, restart=%t", tunnelID, restart)
+
+	// 获取隧道和端点信息
+	var tunnel struct {
+		InstanceID string
+		EndpointID int64
+	}
+	var endpoint struct {
+		URL     string
+		APIPath string
+		APIKey  string
+	}
+
+	err := s.db.QueryRow(`
+		SELECT t.instanceId, t.endpointId, e.url, e.apiPath, e.apiKey
+		FROM "Tunnel" t
+		JOIN "Endpoint" e ON t.endpointId = e.id
+		WHERE t.id = ?
+	`, tunnelID).Scan(&tunnel.InstanceID, &tunnel.EndpointID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return errors.New("隧道不存在")
+		}
+		return err
+	}
+
+	// 先调用 NodePass API 设置重启策略
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	if err := npClient.SetRestartInstance(tunnel.InstanceID, restart); err != nil {
+		// 检查是否为 404 错误（旧版本 NodePass 不支持）
+		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
+			log.Warnf("[API] NodePass API 不支持重启策略功能（可能是旧版本）: %v", err)
+			return errors.New("当前实例不支持自动重启功能")
+		} else {
+			log.Errorf("[API] NodePass API 设置重启策略失败: %v", err)
+			return fmt.Errorf("NodePass API 设置重启策略失败: %v", err)
+		}
+	}
+
+	// 只有 NodePass API 调用成功后才更新数据库
+	_, err = s.db.Exec(`
+		UPDATE "Tunnel" 
+		SET restart = ?, updatedAt = ? 
+		WHERE id = ?
+	`, restart, time.Now(), tunnelID)
+	if err != nil {
+		log.Errorf("[API] 数据库更新重启策略失败: %v", err)
+		return fmt.Errorf("数据库更新重启策略失败: %v", err)
+	}
+
+	log.Infof("[API] 隧道重启策略设置成功: tunnelID=%d, restart=%t", tunnelID, restart)
+	return nil
 }

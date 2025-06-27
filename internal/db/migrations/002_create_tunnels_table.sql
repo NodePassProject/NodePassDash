@@ -14,6 +14,7 @@ CREATE TABLE IF NOT EXISTS tunnels (
     key_path TEXT,
     log_level TEXT NOT NULL DEFAULT 'inherit' CHECK (log_level IN ('inherit', 'debug', 'info', 'warn', 'error')),
     command_line TEXT NOT NULL,
+    restart BOOLEAN NOT NULL DEFAULT FALSE,
     status TEXT NOT NULL DEFAULT 'stopped' CHECK (status IN ('running', 'stopped', 'error')),
     tcp_rx INTEGER NOT NULL DEFAULT 0,
     tcp_tx INTEGER NOT NULL DEFAULT 0,

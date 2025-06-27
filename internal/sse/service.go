@@ -280,13 +280,13 @@ func (s *Service) storeEvent(event models.EndpointSSE) error {
 			eventType, pushType, eventTime, endpointId,
 			instanceId, instanceType, status, url,
 			tcpRx, tcpTx, udpRx, udpTx,
-			logs, createdAt
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+			logs, alias, restart, createdAt
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		event.EventType, event.PushType, event.EventTime, event.EndpointID,
 		event.InstanceID, event.InstanceType, event.Status, event.URL,
 		event.TCPRx, event.TCPTx, event.UDPRx, event.UDPTx,
-		event.Logs, time.Now(),
+		event.Logs, event.Alias, event.Restart, time.Now(),
 	)
 	if err != nil {
 		return err
@@ -896,7 +896,14 @@ func (s *Service) tunnelCreate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 		log.Warnf("[Master-%d#SSE]Inst.%s已存在记录，跳过创建", e.EndpointID, e.InstanceID)
 		return err
 	}
+
+	// 如果 SSE 事件包含 alias，使用 alias 作为隧道名称，否则使用 instanceID
 	name := e.InstanceID
+	if e.Alias != nil && *e.Alias != "" {
+		name = *e.Alias
+		log.Infof("[Master-%d#SSE]Inst.%s使用别名作为隧道名称: %s", e.EndpointID, e.InstanceID, name)
+	}
+
 	if cfg.LogLevel == "" {
 		cfg.LogLevel = "inherit"
 	}
@@ -906,14 +913,21 @@ func (s *Service) tunnelCreate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 		}
 	}
 
+	// 处理重启策略字段
+	restart := false // 默认值为 false
+	if e.Restart != nil {
+		restart = *e.Restart
+		log.Infof("[Master-%d#SSE]Inst.%s创建隧道时设置重启策略: %t", e.EndpointID, e.InstanceID, restart)
+	}
+
 	_, err = tx.Exec(`INSERT INTO "Tunnel" (
 		instanceId, endpointId, name, mode,
 		status, tunnelAddress, tunnelPort, targetAddress, targetPort,
 		tlsMode, certPath, keyPath, logLevel, commandLine,
 		password, min, max,
 		tcpRx, tcpTx, udpRx, udpTx,
-		createdAt, updatedAt, lastEventTime
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		restart, createdAt, updatedAt, lastEventTime
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		e.InstanceID, e.EndpointID, name, ptrStringDefault(e.InstanceType, ""), ptrStringDefault(e.Status, "stopped"),
 		cfg.TunnelAddress, cfg.TunnelPort, cfg.TargetAddress, cfg.TargetPort,
 		cfg.TLSMode, cfg.CertPath, cfg.KeyPath, cfg.LogLevel, ptrString(e.URL),
@@ -930,7 +944,7 @@ func (s *Service) tunnelCreate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 			}
 			return nil
 		}(),
-		e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, time.Now(), time.Now(), e.EventTime,
+		e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, restart, time.Now(), time.Now(), e.EventTime,
 	)
 	if err != nil {
 		log.Errorf("[Master-%d#SSE]Inst.%s创建隧道失败,err=%v", e.EndpointID, e.InstanceID, err)
@@ -950,9 +964,11 @@ func (s *Service) tunnelUpdate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 	var curStatus string
 	var curTCPRx, curTCPTx, curUDPRx, curUDPTx int64
 	var curEventTime sql.NullTime
+	var curName string
+	var curRestart bool
 
-	err := tx.QueryRow(`SELECT status, tcpRx, tcpTx, udpRx, udpTx, lastEventTime FROM "Tunnel" WHERE endpointId = ? AND instanceId = ?`, e.EndpointID, e.InstanceID).
-		Scan(&curStatus, &curTCPRx, &curTCPTx, &curUDPRx, &curUDPTx, &curEventTime)
+	err := tx.QueryRow(`SELECT status, tcpRx, tcpTx, udpRx, udpTx, lastEventTime, name, restart FROM "Tunnel" WHERE endpointId = ? AND instanceId = ?`, e.EndpointID, e.InstanceID).
+		Scan(&curStatus, &curTCPRx, &curTCPTx, &curUDPRx, &curUDPTx, &curEventTime, &curName, &curRestart)
 	if err == sql.ErrNoRows {
 		log.Infof("[Master-%d#SSE]Inst.%s不存在，跳过更新", e.EndpointID, e.InstanceID)
 		return nil // 尚未创建对应记录，等待后续 create/initial
@@ -966,8 +982,26 @@ func (s *Service) tunnelUpdate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 	statusChanged := newStatus != curStatus
 	trafficChanged := curTCPRx != e.TCPRx || curTCPTx != e.TCPTx || curUDPRx != e.UDPRx || curUDPTx != e.UDPTx
 
-	// 只有状态/流量变化且事件时间更新时才更新
-	if !statusChanged && !trafficChanged {
+	// 检查别名是否变化
+	aliasChanged := false
+	newName := curName
+	if e.Alias != nil && *e.Alias != "" && *e.Alias != curName {
+		aliasChanged = true
+		newName = *e.Alias
+		log.Infof("[Master-%d#SSE]Inst.%s别名变化: %s -> %s", e.EndpointID, e.InstanceID, curName, newName)
+	}
+
+	// 检查重启策略是否变化
+	restartChanged := false
+	newRestart := curRestart
+	if e.Restart != nil && *e.Restart != curRestart {
+		restartChanged = true
+		newRestart = *e.Restart
+		log.Infof("[Master-%d#SSE]Inst.%s重启策略变化: %t -> %t", e.EndpointID, e.InstanceID, curRestart, newRestart)
+	}
+
+	// 只有状态/流量/别名/重启策略变化且事件时间更新时才更新
+	if !statusChanged && !trafficChanged && !aliasChanged && !restartChanged {
 		return nil
 	}
 
@@ -976,8 +1010,8 @@ func (s *Service) tunnelUpdate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 		return nil
 	}
 
-	_, err = tx.Exec(`UPDATE "Tunnel" SET status = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, lastEventTime = ?, updatedAt = ? WHERE endpointId = ? AND instanceId = ?`,
-		newStatus, e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, e.EventTime, time.Now(), e.EndpointID, e.InstanceID)
+	_, err = tx.Exec(`UPDATE "Tunnel" SET status = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, name = ?, restart = ?, lastEventTime = ?, updatedAt = ? WHERE endpointId = ? AND instanceId = ?`,
+		newStatus, e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, newName, newRestart, e.EventTime, time.Now(), e.EndpointID, e.InstanceID)
 	if err != nil {
 		log.Errorf("[Master-%d#SSE]Inst.%s更新隧道失败,err=%v", e.EndpointID, e.InstanceID, err)
 		return err
