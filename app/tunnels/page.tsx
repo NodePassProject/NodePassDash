@@ -49,7 +49,8 @@ import {
   faSearch,
   faChevronDown,
   faBolt,
-  faDownload
+  faDownload,
+  faQuestionCircle
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { Box, Flex } from "@/components";
@@ -80,6 +81,13 @@ interface Tunnel {
     text: string;
   };
   avatar: string;
+  // 流量统计信息
+  traffic?: {
+    tcpRx: number;
+    tcpTx: number;
+    udpRx: number;
+    udpTx: number;
+  };
 }
 
 interface Endpoint {
@@ -649,6 +657,42 @@ export default function TunnelsPage() {
     return `**.**.**.**:${port}`;
   };
 
+  // 格式化流量显示
+  const formatTraffic = (bytes: number): string => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+  };
+
+  // 格式化流量信息组件
+  const TrafficInfo = ({ traffic }: { traffic?: Tunnel['traffic'] }) => {
+    if (!traffic) {
+      return (
+        <div className="text-xs text-default-400">
+          <div>TCP: - / -</div>
+          <div>UDP: - / -</div>
+        </div>
+      );
+    }
+
+    return (
+      <div className="text-xs">
+        <div className="text-default-600">
+          <span className="text-success-600">↓{formatTraffic(traffic.tcpRx)}</span>
+          {" / "}
+          <span className="text-warning-600">↑{formatTraffic(traffic.tcpTx)}</span>
+        </div>
+        <div className="text-default-500">
+          <span className="text-success-500">↓{formatTraffic(traffic.udpRx)}</span>
+          {" / "}
+          <span className="text-warning-500">↑{formatTraffic(traffic.udpTx)}</span>
+        </div>
+      </div>
+    );
+  };
+
   // 初始加载
   React.useEffect(() => {
     fetchTunnels();
@@ -692,6 +736,28 @@ export default function TunnelsPage() {
       )
     },
     { key: "status", label: "状态" },
+    { 
+      key: "traffic", 
+      label: (
+        <div className="flex items-center gap-1">
+          <span>流量统计</span>
+          <Tooltip 
+            content={
+              <div className="text-xs">
+                <div>第一行：TCP 下载↓ / 上传↑</div>
+                <div>第二行：UDP 下载↓ / 上传↑</div>
+              </div>
+            } 
+            size="sm"
+          >
+            <FontAwesomeIcon 
+              icon={faQuestionCircle}
+              className="text-xs text-default-400 hover:text-default-600 cursor-help" 
+            />
+          </Tooltip>
+        </div>
+      )
+    },
     { key: "actions", label: "操作" },
   ];
 
@@ -1094,6 +1160,12 @@ export default function TunnelsPage() {
                           {formatAddress(tunnel.targetAddress, tunnel.targetPort)}
                         </span>
                       </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-default-500 w-12 flex-shrink-0">流量:</span>
+                        <div className="flex-1">
+                          <TrafficInfo traffic={tunnel.traffic} />
+                        </div>
+                      </div>
                     </div>
 
                     {/* 操作按钮 */}
@@ -1212,7 +1284,12 @@ export default function TunnelsPage() {
                       <TableColumn
                         key={column.key}
                         hideHeader={false}
-                        className={column.key === "actions" ? "w-[140px]" : ""}
+                        className={
+                          column.key === "actions" ? "w-[140px]" : 
+                          column.key === "traffic" ? "w-[160px]" : 
+                          column.key === "type" ? "w-[80px]" :
+                          column.key === "endpoint" ? "w-[120px]" : ""
+                        }
                       >
                         {column.label}
                       </TableColumn>
@@ -1288,6 +1365,11 @@ export default function TunnelsPage() {
                           >
                             {tunnel.status.text}
                           </Chip>
+                        </TableCell>
+                        
+                        {/* 流量列 */}
+                        <TableCell>
+                          <TrafficInfo traffic={tunnel.traffic} />
                         </TableCell>
                         
                         {/* 操作列 */}
