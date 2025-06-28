@@ -134,7 +134,16 @@ func main() {
 	// 命令行参数处理
 	resetPwdCmd := flag.Bool("resetpwd", false, "重置管理员密码")
 	portFlag := flag.String("port", "", "HTTP 服务端口 (优先级高于环境变量 PORT)，默认 3000")
+	versionFlag := flag.Bool("version", false, "显示版本信息")
 	flag.Parse()
+
+	// 如果指定了版本参数，显示版本信息后退出
+	if *versionFlag {
+		fmt.Printf("NodePassDash %s\n", Version)
+		fmt.Printf("Go version: %s\n", runtime.Version())
+		fmt.Printf("OS/Arch: %s/%s\n", runtime.GOOS, runtime.GOARCH)
+		return
+	}
 
 	// 解压 dist 目录（如果需要）
 	if err := extractDistIfNeeded(); err != nil {
@@ -210,6 +219,9 @@ func main() {
 	endpointHandler := api.NewEndpointHandler(endpointService, sseManager)
 	tunnelHandler := api.NewTunnelHandler(tunnelService)
 	dashboardHandler := api.NewDashboardHandler(dashboardService)
+
+	// 设置版本号到 API 包
+	api.SetVersion(Version)
 
 	// 创建API路由器 (仅处理 /api/*)
 	apiRouter := api.NewRouter(db, sseService, sseManager)
