@@ -844,34 +844,35 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 
 	// 1. 查询隧道及端点信息（包含主控的tls和log信息）
 	var tunnelRecord struct {
-		ID            int64
-		InstanceIDNS  sql.NullString
-		Name          string
-		Mode          string
-		Status        string
-		EndpointID    int64
-		EndpointName  sql.NullString
-		EndpointTLS   sql.NullString
-		EndpointLog   sql.NullString
-		TunnelPort    string
-		TargetPort    string
-		TLSMode       string
-		LogLevel      string
-		TunnelAddress string
-		TargetAddress string
-		CommandLine   string
-		PasswordNS    sql.NullString
-		TCPRx         int64
-		TCPTx         int64
-		UDPRx         int64
-		UDPTx         int64
-		Min           sql.NullInt64
-		Max           sql.NullInt64
-		Restart       bool
+		ID              int64
+		InstanceIDNS    sql.NullString
+		Name            string
+		Mode            string
+		Status          string
+		EndpointID      int64
+		EndpointName    sql.NullString
+		EndpointTLS     sql.NullString
+		EndpointLog     sql.NullString
+		EndpointVersion sql.NullString
+		TunnelPort      string
+		TargetPort      string
+		TLSMode         string
+		LogLevel        string
+		TunnelAddress   string
+		TargetAddress   string
+		CommandLine     string
+		PasswordNS      sql.NullString
+		TCPRx           int64
+		TCPTx           int64
+		UDPRx           int64
+		UDPTx           int64
+		Min             sql.NullInt64
+		Max             sql.NullInt64
+		Restart         bool
 	}
 
 	query := `SELECT t.id, t.instanceId, t.name, t.mode, t.status, t.endpointId,
-		   e.name, e.tls, e.log, t.tunnelPort, t.targetPort, t.tlsMode, t.logLevel,
+		   e.name, e.tls, e.log, e.ver, t.tunnelPort, t.targetPort, t.tlsMode, t.logLevel,
 		   t.tunnelAddress, t.targetAddress, t.commandLine, t.password,
 		   t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
 		   t.min, t.max, t.restart
@@ -888,6 +889,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		&tunnelRecord.EndpointName,
 		&tunnelRecord.EndpointTLS,
 		&tunnelRecord.EndpointLog,
+		&tunnelRecord.EndpointVersion,
 		&tunnelRecord.TunnelPort,
 		&tunnelRecord.TargetPort,
 		&tunnelRecord.TLSMode,
@@ -929,6 +931,10 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 	endpointLog := ""
 	if tunnelRecord.EndpointLog.Valid {
 		endpointLog = tunnelRecord.EndpointLog.String
+	}
+	endpointVersion := ""
+	if tunnelRecord.EndpointVersion.Valid {
+		endpointVersion = tunnelRecord.EndpointVersion.String
 	}
 	password := ""
 	if tunnelRecord.PasswordNS.Valid {
@@ -998,9 +1004,10 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 				"type": statusType,
 				"text": statusText,
 			},
-			"endpoint":   endpointName,
-			"endpointId": tunnelRecord.EndpointID,
-			"password":   password, // 添加密码字段
+			"endpoint":        endpointName,
+			"endpointId":      tunnelRecord.EndpointID,
+			"endpointVersion": endpointVersion,
+			"password":        password, // 添加密码字段
 			"config": map[string]interface{}{
 				"listenPort":  listenPort,
 				"targetPort":  targetPort,

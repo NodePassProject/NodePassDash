@@ -57,7 +57,8 @@ import {
   faGrip,
   faTable,
   faFileLines,
-  faLayerGroup
+  faLayerGroup,
+  faSync
 } from "@fortawesome/free-solid-svg-icons";
 import AddEndpointModal from "./components/add-endpoint-modal";
 import RenameEndpointModal from "./components/rename-endpoint-modal";
@@ -955,22 +956,36 @@ export default function EndpointsPage() {
                   <TableRow key={ep.id}>
                     <TableCell>{ep.id}</TableCell>
                     <TableCell className="truncate min-w-[140px]">
-                      <span className={
-                        `inline-block w-2 h-2 rounded-full mr-2 ${
-                          realTimeData.status === 'ONLINE' ? 'bg-success-500' :
-                          realTimeData.status === 'FAIL' ? 'bg-danger-500' :
-                          realTimeData.status === 'DISCONNECT' ? 'bg-default-400' : 'bg-warning-500'
-                        }`
-                      } />
+                      <Tooltip 
+                        content={
+                          realTimeData.status === 'ONLINE' ? '在线' :
+                          realTimeData.status === 'FAIL' ? '异常' :
+                          realTimeData.status === 'DISCONNECT' ? '断开' : '离线'
+                        }
+                        size="sm"
+                      >
+                        <span className={
+                          `inline-block w-2 h-2 rounded-full mr-2 cursor-help ${
+                            realTimeData.status === 'ONLINE' ? 'bg-success-500' :
+                            realTimeData.status === 'FAIL' ? 'bg-danger-500' :
+                            realTimeData.status === 'DISCONNECT' ? 'bg-default-400' : 'bg-warning-500'
+                          }`
+                        } />
+                      </Tooltip>
                       {ep.name}&nbsp;
-                      <span className="text-default-400 text-small">[{realTimeData.tunnelCount}实例]</span>
+                      <span className="text-default-400 text-small">[{realTimeData.tunnelCount}实例]</span> 
+                      <Tooltip content="修改名称" size="sm">
+                        <FontAwesomeIcon 
+                          icon={faPen} 
+                          className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer ps-1" 
+                          onClick={()=>handleCardClick(ep)}
+                        />
+                      </Tooltip>
                     </TableCell>
                     <TableCell className="w-32">
-                    {ep.ver ?
                       <Chip size="sm" variant="flat" className="text-xs">
-                      {ep.ver}
-                      </Chip> : ''
-                      }
+                      {ep.ver ?ep.ver:"unknown"}
+                      </Chip> 
                     </TableCell>
                     <TableCell className="truncate min-w-[200px]">{showUrlAll ? `${ep.url}${ep.apiPath}` : '••••••••••••••••••••••••••'}
                     </TableCell>
@@ -984,25 +999,19 @@ export default function EndpointsPage() {
                         {/* 查看详情 */}
                         <Tooltip content="查看详情">
                           <Button isIconOnly size="sm" variant="light" color="primary" onPress={()=>router.push(`/endpoints/details?id=${ep.id}`)}>
-                            <FontAwesomeIcon icon={faFileLines} />
+                            <FontAwesomeIcon icon={faEye} />
                           </Button>
                         </Tooltip>
                         {/* 添加实例 */}
-                        <Tooltip content="添加实例">
+                        {/* <Tooltip content="添加实例">
                           <Button isIconOnly size="sm" variant="light" color="primary" onPress={()=>handleAddTunnel(ep)}>
                             <FontAwesomeIcon icon={faPlus} />
                           </Button>
-                        </Tooltip>
+                        </Tooltip> */}
                         {/* 刷新实例 */}
-                        <Tooltip content="强刷实例">
+                        <Tooltip content="同步实例">
                           <Button isIconOnly size="sm" variant="light" color="secondary" onPress={()=>handleRefreshTunnels(ep.id)}>
-                            <FontAwesomeIcon icon={faRotateRight} />
-                          </Button>
-                        </Tooltip>
-                        {/* 重命名 */}
-                        <Tooltip content="重命名"> 
-                          <Button isIconOnly size="sm" variant="light" color="warning" onPress={()=>handleCardClick(ep)}>
-                            <FontAwesomeIcon icon={faPen} />
+                            <FontAwesomeIcon icon={faSync} />
                           </Button>
                         </Tooltip>
                         {/* 复制配置 */}
@@ -1013,7 +1022,7 @@ export default function EndpointsPage() {
                         </Tooltip>
                         {/* 连接 / 断开 */}
                         <Tooltip content={realTimeData.status==='ONLINE' ? '断开连接' : '连接主控'}>
-                          <Button isIconOnly size="sm" variant="light" color={realTimeData.status==='ONLINE' ? 'danger' : 'success'} onPress={()=>{
+                          <Button isIconOnly size="sm" variant="light" color={realTimeData.status==='ONLINE' ? 'warning' : 'success'} onPress={()=>{
                             if(realTimeData.status==='ONLINE') handleDisconnect(ep.id); else handleConnect(ep.id);
                           }}>
                             <FontAwesomeIcon icon={realTimeData.status==='ONLINE'?faPlugCircleXmark:faPlug} />

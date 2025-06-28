@@ -47,6 +47,7 @@ interface TunnelInfo {
   };
   endpoint: string;
   endpointId: string;
+  endpointVersion?: string;
   password?: string;
   config: {
     listenPort: number;
@@ -1222,35 +1223,36 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                     )}
 
                     {/* 自动重启配置 */}
-                    <CellValue 
-                      label="自动重启" 
-                      value={
-                          <Switch
-                            size="sm"
-                            isSelected={tunnelInfo.config.restart}
-                            onValueChange={handleRestartToggle}
-                            isDisabled={isUpdatingRestart}
-                            endContent={<span className="text-xs text-default-600">禁用</span>}
-                            startContent={<span className="text-xs text-default-600">启用</span>}
-                            classNames={{
-                              base: cn(
-                                "inline-flex flex-row-reverse w-full max-w-md  items-center",
-                                "justify-between "
-                              ),
-                              wrapper: "p-0 h-6 w-14 overflow-visible",
-                              thumb: cn(
-                                "w-6 h-6 border-2 shadow-lg",
-                                "group-data-[hover=true]:border-primary",
-                                //selected
-                                "group-data-[selected=true]:ms-8",
-                                // pressed
-                                "group-data-[pressed=true]:w-16",
-                                "group-data-[selected]:group-data-[pressed]:ms-4",
-                              ),
-                            }}
-                          />
-                      } 
-                    />
+                    {tunnelInfo.endpointVersion && 
+                      <CellValue 
+                        label="自动重启" 
+                        value={
+                            <Switch
+                              size="sm"
+                              isSelected={tunnelInfo.config.restart}
+                              onValueChange={handleRestartToggle}
+                              isDisabled={isUpdatingRestart}
+                              endContent={<span className="text-xs text-default-600">禁用</span>}
+                              startContent={<span className="text-xs text-default-600">启用</span>}
+                              classNames={{
+                                base: cn(
+                                  "inline-flex flex-row-reverse w-full max-w-md  items-center",
+                                  "justify-between "
+                                ),
+                                wrapper: "p-0 h-6 w-14 overflow-visible",
+                                thumb: cn(
+                                  "w-6 h-6 border-2 shadow-lg",
+                                  "group-data-[hover=true]:border-primary",
+                                  //selected
+                                  "group-data-[selected=true]:ms-8",
+                                  // pressed
+                                  "group-data-[pressed=true]:w-16",
+                                  "group-data-[selected]:group-data-[pressed]:ms-4",
+                                ),
+                              }}
+                            />
+                        } 
+                    />}
                   </div>
                 </div>
               </div>
