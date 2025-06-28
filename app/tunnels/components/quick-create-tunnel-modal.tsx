@@ -362,7 +362,7 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                         })()}
                       </SelectItem>
                       <SelectItem key="mode0">模式0 无 TLS</SelectItem>
-                      <SelectItem key="mode1">模式1 自签名</SelectItem>
+                      <SelectItem key="mode1">模式1 自签名证书</SelectItem>
                       <SelectItem key="mode2">模式2 自定义证书</SelectItem>
                     </Select>
                   )}

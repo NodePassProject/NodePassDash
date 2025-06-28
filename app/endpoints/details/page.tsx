@@ -356,10 +356,9 @@ export default function EndpointDetailPage() {
           <h3 className="text-lg font-semibold">日志输出</h3>
           <div className="flex items-center gap-2">
             <Button 
-              variant="light"
               size="sm"
               isDisabled={refreshLoading}
-              className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
+              className="bg-default-100 hover:bg-default-200"
               startContent={
                 <FontAwesomeIcon 
                   icon={faRotateRight} 
@@ -373,11 +372,13 @@ export default function EndpointDetailPage() {
             {/* 日志查询按钮 */}
             <Button
               size="sm"
-              isIconOnly
               color="primary"
               onPress={()=>router.push(`/endpoints/log?id=${endpointId}`)}
+              startContent={
+                <FontAwesomeIcon icon={faMagnifyingGlass} />
+              }
             >
-              <FontAwesomeIcon icon={faMagnifyingGlass} />
+              查询
             </Button>
           </div>
         </CardHeader>
