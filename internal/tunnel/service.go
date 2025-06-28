@@ -663,34 +663,84 @@ func (s *Service) ControlTunnel(req TunnelActionRequest) error {
 		return err
 	}
 
-	// 目标状态映射
-	var targetStatus TunnelStatus
-	switch req.Action {
-	case "start", "restart":
-		targetStatus = StatusRunning
-	case "stop":
-		targetStatus = StatusStopped
-	default:
-		targetStatus = "" // 不会发生，已验证
-	}
+	// 重启操作需要特殊处理：先监听stopped，再监听running
+	if req.Action == "restart" {
+		log.Infof("[API] 重启隧道 %s: 开始监听状态变化", req.InstanceID)
 
-	// 轮询数据库等待状态变更 (最多8秒)
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		var curStatus string
-		if err := s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&curStatus); err == nil {
-			if TunnelStatus(curStatus) == targetStatus {
-				break // 成功
+		// 第一阶段：等待状态变为 stopped（最多5秒）
+		log.Infof("[API] 重启隧道 %s: 等待停止状态", req.InstanceID)
+		stoppedDeadline := time.Now().Add(5 * time.Second)
+		stoppedDetected := false
+
+		for time.Now().Before(stoppedDeadline) {
+			var curStatus string
+			if err := s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&curStatus); err == nil {
+				if TunnelStatus(curStatus) == StatusStopped {
+					log.Infof("[API] 重启隧道 %s: 检测到停止状态", req.InstanceID)
+					stoppedDetected = true
+					break
+				}
 			}
+			time.Sleep(200 * time.Millisecond)
 		}
-		time.Sleep(200 * time.Millisecond)
-	}
 
-	// 再次检查，若仍未到目标状态则手动更新
-	var finalStatus string
-	_ = s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&finalStatus)
-	if TunnelStatus(finalStatus) != targetStatus {
-		_ = s.UpdateTunnelStatus(req.InstanceID, targetStatus)
+		if !stoppedDetected {
+			log.Warnf("[API] 重启隧道 %s: 未检测到停止状态，继续等待启动", req.InstanceID)
+		}
+
+		// 第二阶段：等待状态变为 running（最多5秒）
+		log.Infof("[API] 重启隧道 %s: 等待运行状态", req.InstanceID)
+		runningDeadline := time.Now().Add(5 * time.Second)
+		runningDetected := false
+
+		for time.Now().Before(runningDeadline) {
+			var curStatus string
+			if err := s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&curStatus); err == nil {
+				if TunnelStatus(curStatus) == StatusRunning {
+					log.Infof("[API] 重启隧道 %s: 检测到运行状态，重启完成", req.InstanceID)
+					runningDetected = true
+					break
+				}
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+
+		// 如果未检测到运行状态，手动更新
+		if !runningDetected {
+			log.Warnf("[API] 重启隧道 %s: 未检测到运行状态，手动更新状态", req.InstanceID)
+			_ = s.UpdateTunnelStatus(req.InstanceID, StatusRunning)
+		}
+
+	} else {
+		// start 和 stop 操作使用原有的简单轮询逻辑
+		var targetStatus TunnelStatus
+		switch req.Action {
+		case "start":
+			targetStatus = StatusRunning
+		case "stop":
+			targetStatus = StatusStopped
+		default:
+			targetStatus = "" // 不会发生，已验证
+		}
+
+		// 轮询数据库等待状态变更 (最多3秒)
+		deadline := time.Now().Add(3 * time.Second)
+		for time.Now().Before(deadline) {
+			var curStatus string
+			if err := s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&curStatus); err == nil {
+				if TunnelStatus(curStatus) == targetStatus {
+					break // 成功
+				}
+			}
+			time.Sleep(200 * time.Millisecond)
+		}
+
+		// 再次检查，若仍未到目标状态则手动更新
+		var finalStatus string
+		_ = s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&finalStatus)
+		if TunnelStatus(finalStatus) != targetStatus {
+			_ = s.UpdateTunnelStatus(req.InstanceID, targetStatus)
+		}
 	}
 
 	// 记录操作日志
