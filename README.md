@@ -1,7 +1,6 @@
 # 🚀 NodePassDash
 
-![GHCR Version](https://ghcr-badge.egpl.dev/nodepassproject/nodepassdash/latest_tag?color=%23487ebd&ignore=latest&label=version)
-![GHCR Size](https://ghcr-badge.egpl.dev/nodepassproject/nodepassdash/size?color=%2344cc11&label=image%20size)
+![Version](https://img.shields.io/badge/version-2.1.0--beta3-blue.svg)
 ![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)
 
 NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + Next.js 14、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
