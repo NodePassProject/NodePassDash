@@ -58,10 +58,12 @@ import {
   faTable,
   faFileLines,
   faLayerGroup,
-  faSync
+  faSync,
+  faKey
 } from "@fortawesome/free-solid-svg-icons";
 import AddEndpointModal from "./components/add-endpoint-modal";
 import RenameEndpointModal from "./components/rename-endpoint-modal";
+import EditApiKeyModal from "./components/edit-apikey-modal";
 import { buildApiUrl } from '@/lib/utils';
 import { copyToClipboard } from '@/lib/utils/clipboard';
 import ManualCopyModal from '@/components/ui/manual-copy-modal';
@@ -115,6 +117,7 @@ export default function EndpointsPage() {
   const {isOpen: isAddOpen, onOpen: onAddOpen, onOpenChange: onAddOpenChange} = useDisclosure();
   const {isOpen: isDeleteOpen, onOpen: onDeleteOpen, onOpenChange: onDeleteOpenChange} = useDisclosure();
   const {isOpen: isRenameOpen, onOpen: onRenameOpen, onOpenChange: onRenameOpenChange} = useDisclosure();
+  const {isOpen: isEditApiKeyOpen, onOpen: onEditApiKeyOpen, onOpenChange: onEditApiKeyOpenChange} = useDisclosure();
   const [selectedEndpoint, setSelectedEndpoint] = useState<FormattedEndpoint | null>(null);
   // Next.js 路由
   const router = useRouter();
@@ -509,6 +512,9 @@ export default function EndpointsPage() {
                   case 'rename':
                     handleCardClick(endpoint);
                     break;
+                  case 'editApiKey':
+                    handleEditApiKeyClick(endpoint);
+                    break;
                   case 'copy':
                     handleCopyConfig(endpoint);
                     break;
@@ -525,6 +531,7 @@ export default function EndpointsPage() {
               <DropdownItem key="addTunnel" startContent={<FontAwesomeIcon icon={faPlus}/>} className="text-primary" color="primary">添加实例</DropdownItem>
               <DropdownItem key="refresTunnel" startContent={<FontAwesomeIcon icon={faSync}/>} className="text-secondary" color="secondary">同步实例</DropdownItem>
               <DropdownItem key="rename" startContent={<FontAwesomeIcon icon={faPen} />} className="text-warning" color="warning">重命名</DropdownItem>
+              <DropdownItem key="editApiKey" startContent={<FontAwesomeIcon icon={faKey} />} className="text-warning" color="warning">修改密钥</DropdownItem>
               <DropdownItem key="copy" startContent={<FontAwesomeIcon icon={faCopy}/>} className="text-success" color="success">复制配置</DropdownItem>
               <DropdownItem 
                 key="toggle" 
@@ -616,6 +623,61 @@ export default function EndpointsPage() {
         color: 'danger'
       });
     }
+  };
+
+  // 处理修改密钥
+  const handleEditApiKey = async (newApiKey: string) => {
+    if (!selectedEndpoint?.id) return;
+
+    try {
+      // 1. 先断开连接
+      await handleDisconnect(selectedEndpoint.id);
+      
+      // 2. 更新密钥
+      const response = await fetch(buildApiUrl(`/api/endpoints/${selectedEndpoint.id}`), {
+        method: 'PUT',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          apiKey: newApiKey,
+          action: 'editApiKey'
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || '修改密钥失败');
+      }
+
+      addToast({
+        title: "密钥修改成功",
+        description: "API Key 已更新，正在重新连接...",
+        color: "success",
+      });
+
+      // 3. 刷新主控列表
+      await fetchEndpoints();
+      
+      // 4. 重新连接
+      setTimeout(async () => {
+        await handleConnect(selectedEndpoint.id);
+      }, 1000);
+
+    } catch (error) {
+      addToast({
+        title: "修改密钥失败",
+        description: error instanceof Error ? error.message : "请稍后重试",
+        color: "danger",
+      });
+      throw error; // 重新抛出错误以便模态框处理
+    }
+  };
+
+  // 打开修改密钥弹窗
+  const handleEditApiKeyClick = (endpoint: FormattedEndpoint) => {
+    setSelectedEndpoint(endpoint);
+    onEditApiKeyOpen();
   };
 
   // 打开添加隧道弹窗
@@ -1014,6 +1076,12 @@ export default function EndpointsPage() {
                             <FontAwesomeIcon icon={faSync} />
                           </Button>
                         </Tooltip>
+                        {/* 修改密钥 */}
+                        <Tooltip content="修改密钥">
+                          <Button isIconOnly size="sm" variant="light" color="warning" onPress={()=>handleEditApiKeyClick(ep)}>
+                            <FontAwesomeIcon icon={faKey} />
+                          </Button>
+                        </Tooltip>
                         {/* 复制配置 */}
                         <Tooltip content="复制配置">
                           <Button isIconOnly size="sm" variant="light" color="success" onPress={()=>handleCopyConfig(ep)}>
@@ -1071,6 +1139,17 @@ export default function EndpointsPage() {
           onOpenChange={onRenameOpenChange}
           currentName={selectedEndpoint.name}
           onRename={handleRename}
+        />
+      )}
+
+      {/* 修改密钥模态框 */}
+      {selectedEndpoint && (
+        <EditApiKeyModal
+          isOpen={isEditApiKeyOpen}
+          onOpenChange={onEditApiKeyOpenChange}
+          currentApiKey={selectedEndpoint.apiKey}
+          endpointName={selectedEndpoint.name}
+          onSave={handleEditApiKey}
         />
       )}
 
