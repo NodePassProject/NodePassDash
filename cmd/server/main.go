@@ -336,7 +336,7 @@ func initDatabase(db *sql.DB) error {
 	createTunnelTable := `
 	CREATE TABLE IF NOT EXISTS "Tunnel" (
 		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL UNIQUE,
+		name TEXT NOT NULL,
 		endpointId INTEGER NOT NULL,
 		mode TEXT NOT NULL,
 		status TEXT NOT NULL DEFAULT 'stopped',
@@ -357,10 +357,10 @@ func initDatabase(db *sql.DB) error {
 		udpTx INTEGER DEFAULT 0,
 		min INTEGER,
 		max INTEGER,
+		restart BOOLEAN DEFAULT FALSE,
 		createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
 		updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		lastEventTime DATETIME,
-		FOREIGN KEY (endpointId) REFERENCES "Endpoint"(id) ON DELETE CASCADE
+		lastEventTime DATETIME
 	);`
 
 	createTunnelRecycleTable := `
@@ -385,8 +385,7 @@ func initDatabase(db *sql.DB) error {
 		udpRx INTEGER DEFAULT 0,
 		udpTx INTEGER DEFAULT 0,
 		min INTEGER,
-		max INTEGER,
-		FOREIGN KEY (endpointId) REFERENCES "Endpoint"(id) ON DELETE CASCADE
+		max INTEGER
 	);`
 
 	createEndpointSSE := `
@@ -405,8 +404,7 @@ func initDatabase(db *sql.DB) error {
 		udpRx INTEGER DEFAULT 0,
 		udpTx INTEGER DEFAULT 0,
 		logs TEXT,
-		createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (endpointId) REFERENCES "Endpoint"(id) ON DELETE CASCADE
+		createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
 	);`
 
 	createTunnelLog := `

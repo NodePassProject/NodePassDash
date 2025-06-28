@@ -205,7 +205,7 @@ export const NavbarUser = () => {
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement('a');
       a.href = url;
-      a.download = `nodepass-data-${new Date().toISOString().split('T')[0]}.json`;
+      a.download = `nodepassdash-${new Date().toISOString().split('T')[0]}.json`;
       document.body.appendChild(a);
       a.click();
       window.URL.revokeObjectURL(url);
@@ -245,7 +245,7 @@ export const NavbarUser = () => {
     if (!selectedFile) {
       addToast({
         title: "请选择文件",
-        description: "请先选择要导入的数据文件",
+        description: "请先选择要导入的端点配置文件",
         color: "danger",
       });
       return;

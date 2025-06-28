@@ -523,7 +523,7 @@ export default function EndpointsPage() {
                     break;
                 }}}>
               <DropdownItem key="addTunnel" startContent={<FontAwesomeIcon icon={faPlus}/>} className="text-primary" color="primary">添加实例</DropdownItem>
-              <DropdownItem key="refresTunnel" startContent={<FontAwesomeIcon icon={faRotateRight}/>} className="text-secondary" color="secondary">刷新实例</DropdownItem>
+              <DropdownItem key="refresTunnel" startContent={<FontAwesomeIcon icon={faSync}/>} className="text-secondary" color="secondary">同步实例</DropdownItem>
               <DropdownItem key="rename" startContent={<FontAwesomeIcon icon={faPen} />} className="text-warning" color="warning">重命名</DropdownItem>
               <DropdownItem key="copy" startContent={<FontAwesomeIcon icon={faCopy}/>} className="text-success" color="success">复制配置</DropdownItem>
               <DropdownItem 

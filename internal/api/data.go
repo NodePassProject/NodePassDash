@@ -3,7 +3,6 @@ package api
 import (
 	"database/sql"
 	"encoding/json"
-	"fmt"
 	"net/http"
 	"time"
 
@@ -21,36 +20,13 @@ func NewDataHandler(db *sql.DB, mgr *sse.Manager) *DataHandler {
 	return &DataHandler{db: db, sseManager: mgr}
 }
 
-// EndpointExport 导出端点结构
+// EndpointExport 导出端点结构（简化版，仅包含基本配置信息）
 type EndpointExport struct {
-	Name    string         `json:"name"`
-	URL     string         `json:"url"`
-	APIPath string         `json:"apiPath"`
-	APIKey  string         `json:"apiKey"`
-	Status  string         `json:"status"`
-	Color   string         `json:"color,omitempty"`
-	Tunnels []TunnelExport `json:"tunnels,omitempty"`
-}
-
-// TunnelExport 导出隧道结构
-type TunnelExport struct {
-	Name          string `json:"name"`
-	Mode          string `json:"mode"`
-	Status        string `json:"status"`
-	TunnelAddress string `json:"tunnelAddress"`
-	TunnelPort    string `json:"tunnelPort"`
-	TargetAddress string `json:"targetAddress"`
-	TargetPort    string `json:"targetPort"`
-	TLSMode       string `json:"tlsMode"`
-	CertPath      string `json:"certPath,omitempty"`
-	KeyPath       string `json:"keyPath,omitempty"`
-	LogLevel      string `json:"logLevel"`
-	CommandLine   string `json:"commandLine"`
-	InstanceID    string `json:"instanceId,omitempty"`
-	TCPRx         string `json:"tcpRx,omitempty"`
-	TCPTx         string `json:"tcpTx,omitempty"`
-	UDPRx         string `json:"udpRx,omitempty"`
-	UDPTx         string `json:"udpTx,omitempty"`
+	Name    string `json:"name"`
+	URL     string `json:"url"`
+	APIPath string `json:"apiPath"`
+	APIKey  string `json:"apiKey"`
+	Color   string `json:"color,omitempty"`
 }
 
 // ---------- 导出 ----------
@@ -60,8 +36,8 @@ func (h *DataHandler) HandleExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 查询端点
-	rows, err := h.db.Query(`SELECT id, name, url, apiPath, apiKey, status, color FROM "Endpoint" ORDER BY id`)
+	// 查询端点（仅导出基本配置信息，不包括状态和隧道信息）
+	rows, err := h.db.Query(`SELECT name, url, apiPath, apiKey, COALESCE(color, '') as color FROM "Endpoint" ORDER BY id`)
 	if err != nil {
 		log.Errorf("export query endpoints: %v", err)
 		http.Error(w, "export failed", http.StatusInternalServerError)
@@ -71,51 +47,15 @@ func (h *DataHandler) HandleExport(w http.ResponseWriter, r *http.Request) {
 
 	var endpoints []EndpointExport
 	for rows.Next() {
-		var epID int64
 		var ep EndpointExport
-		if err := rows.Scan(&epID, &ep.Name, &ep.URL, &ep.APIPath, &ep.APIKey, &ep.Status, &ep.Color); err != nil {
+		if err := rows.Scan(&ep.Name, &ep.URL, &ep.APIPath, &ep.APIKey, &ep.Color); err != nil {
 			continue
-		}
-		// 查询该端点隧道
-		tRows, err := h.db.Query(`SELECT name, mode, status, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode, certPath, keyPath, logLevel, commandLine, instanceId, tcpRx, tcpTx, udpRx, udpTx FROM "Tunnel" WHERE endpointId = ?`, epID)
-		if err == nil {
-			for tRows.Next() {
-				var t TunnelExport
-				var tcpRx, tcpTx, udpRx, udpTx sql.NullInt64
-				var instanceNS sql.NullString
-				var certNS, keyNS sql.NullString
-				if err := tRows.Scan(&t.Name, &t.Mode, &t.Status, &t.TunnelAddress, &t.TunnelPort, &t.TargetAddress, &t.TargetPort, &t.TLSMode, &certNS, &keyNS, &t.LogLevel, &t.CommandLine, &instanceNS, &tcpRx, &tcpTx, &udpRx, &udpTx); err == nil {
-					if certNS.Valid {
-						t.CertPath = certNS.String
-					}
-					if keyNS.Valid {
-						t.KeyPath = keyNS.String
-					}
-					if instanceNS.Valid {
-						t.InstanceID = instanceNS.String
-					}
-					if tcpRx.Valid {
-						t.TCPRx = fmt.Sprintf("%d", tcpRx.Int64)
-					}
-					if tcpTx.Valid {
-						t.TCPTx = fmt.Sprintf("%d", tcpTx.Int64)
-					}
-					if udpRx.Valid {
-						t.UDPRx = fmt.Sprintf("%d", udpRx.Int64)
-					}
-					if udpTx.Valid {
-						t.UDPTx = fmt.Sprintf("%d", udpTx.Int64)
-					}
-					ep.Tunnels = append(ep.Tunnels, t)
-				}
-			}
-			tRows.Close()
 		}
 		endpoints = append(endpoints, ep)
 	}
 
 	payload := map[string]interface{}{
-		"version":   "1.0",
+		"version":   "2.0", // 更新版本号以表示新的简化格式
 		"timestamp": time.Now().Format(time.RFC3339),
 		"data": map[string]interface{}{
 			"endpoints": endpoints,
@@ -123,7 +63,7 @@ func (h *DataHandler) HandleExport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	w.Header().Set("Content-Disposition", "attachment; filename=nodepass-data.json")
+	w.Header().Set("Content-Disposition", "attachment; filename=nodepass-endpoints.json")
 	json.NewEncoder(w).Encode(payload)
 }
 
@@ -147,13 +87,23 @@ func (h *DataHandler) HandleImport(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var skippedEndpoints int
-	var importedTunnels int
+	var importedEndpoints int
 
 	tx, err := h.db.Begin()
 	if err != nil {
 		http.Error(w, "db error", http.StatusInternalServerError)
 		return
 	}
+	defer tx.Rollback()
+
+	// 存储新创建的端点信息，用于后续启动SSE
+	var newEndpoints []struct {
+		ID      int64
+		URL     string
+		APIPath string
+		APIKey  string
+	}
+
 	for _, ep := range importData.Data.Endpoints {
 		var exists bool
 		if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM "Endpoint" WHERE url = ? AND apiPath = ?)`, ep.URL, ep.APIPath).Scan(&exists); err != nil {
@@ -163,29 +113,59 @@ func (h *DataHandler) HandleImport(w http.ResponseWriter, r *http.Request) {
 			skippedEndpoints++
 			continue
 		}
-		res, err := tx.Exec(`INSERT INTO "Endpoint" (name, url, apiPath, apiKey, status, color, tunnelCount, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`, ep.Name, ep.URL, ep.APIPath, ep.APIKey, ep.Status, ep.Color)
+
+		// 插入端点，设置默认状态为 OFFLINE
+		result, err := tx.Exec(`INSERT INTO "Endpoint" (name, url, apiPath, apiKey, status, color, tunnelCount, createdAt, updatedAt) VALUES (?, ?, ?, ?, 'OFFLINE', ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
+			ep.Name, ep.URL, ep.APIPath, ep.APIKey, ep.Color)
 		if err != nil {
+			log.Errorf("insert endpoint failed: %v", err)
 			continue
 		}
-		epID, _ := res.LastInsertId()
-		for _, t := range ep.Tunnels {
-			_, _ = tx.Exec(`INSERT INTO "Tunnel" (name, mode, status, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode, certPath, keyPath, logLevel, commandLine, instanceId, tcpRx, tcpTx, udpRx, udpTx, endpointId, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-				t.Name, t.Mode, t.Status, t.TunnelAddress, t.TunnelPort, t.TargetAddress, t.TargetPort, t.TLSMode, t.CertPath, t.KeyPath, t.LogLevel, t.CommandLine, t.InstanceID, t.TCPRx, t.TCPTx, t.UDPRx, t.UDPTx, epID)
-			importedTunnels++
-		}
-	}
-	tx.Commit()
 
-	// 重置 SSE
+		// 获取新创建的端点ID
+		endpointID, err := result.LastInsertId()
+		if err != nil {
+			log.Errorf("get last insert id failed: %v", err)
+			continue
+		}
+
+		// 保存端点信息用于后续启动SSE
+		newEndpoints = append(newEndpoints, struct {
+			ID      int64
+			URL     string
+			APIPath string
+			APIKey  string
+		}{
+			ID:      endpointID,
+			URL:     ep.URL,
+			APIPath: ep.APIPath,
+			APIKey:  ep.APIKey,
+		})
+
+		importedEndpoints++
+	}
+
+	if err := tx.Commit(); err != nil {
+		http.Error(w, "commit failed", http.StatusInternalServerError)
+		return
+	}
+
+	// 为每个新导入的端点启动SSE监听（学习HandleCreateEndpoint的逻辑）
 	if h.sseManager != nil {
-		h.sseManager.Close()
-		h.sseManager.InitializeSystem()
+		for _, ep := range newEndpoints {
+			go func(endpointID int64, url, apiPath, apiKey string) {
+				log.Infof("[Master-%v] 导入成功，准备启动 SSE 监听", endpointID)
+				if err := h.sseManager.ConnectEndpoint(endpointID, url, apiPath, apiKey); err != nil {
+					log.Errorf("[Master-%v] 启动 SSE 监听失败: %v", endpointID, err)
+				}
+			}(ep.ID, ep.URL, ep.APIPath, ep.APIKey)
+		}
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":          true,
-		"message":          "数据导入成功",
-		"skippedEndpoints": skippedEndpoints,
-		"tunnels":          importedTunnels,
+		"success":           true,
+		"message":           "端点配置导入成功",
+		"importedEndpoints": importedEndpoints,
+		"skippedEndpoints":  skippedEndpoints,
 	})
 }

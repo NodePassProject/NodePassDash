@@ -5,6 +5,7 @@ import (
 	"log"
 	"os"
 	"path/filepath"
+	"regexp"
 	"sync"
 	"time"
 
@@ -152,6 +153,16 @@ func initSchema(db *sql.DB) error {
 		return err
 	}
 
+	// --------  为 Tunnel 表添加重启字段 --------
+	if err := ensureColumn(db, "Tunnel", "restart", "BOOLEAN DEFAULT FALSE"); err != nil {
+		return err
+	}
+
+	// --------  移除 Tunnel 表 name 字段的唯一约束 --------
+	if err := removeTunnelNameUniqueConstraint(db); err != nil {
+		return err
+	}
+
 	// --------  为 TunnelRecycle 表添加密码字段 --------
 	if err := ensureColumn(db, "TunnelRecycle", "password", "TEXT DEFAULT ''"); err != nil {
 		return err
@@ -212,4 +223,239 @@ func ensureColumn(db *sql.DB, table, column, typ string) error {
 		return err
 	}
 	return nil
+}
+
+// removeTunnelNameUniqueConstraint 移除 Tunnel 表 name 字段的唯一约束
+func removeTunnelNameUniqueConstraint(db *sql.DB) error {
+	// 检查 Tunnel 表是否存在
+	var tableExists bool
+	err := db.QueryRow(`SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='Tunnel'`).Scan(&tableExists)
+	if err != nil {
+		return err
+	}
+
+	if !tableExists {
+		log.Printf("Tunnel 表不存在，跳过唯一约束移除迁移")
+		return nil
+	}
+
+	// 检查是否需要执行迁移：查看 name 字段是否有 UNIQUE 约束
+	hasUnique, err := hasUniqueConstraintOnNameField(db)
+	if err != nil {
+		log.Printf("检查 UNIQUE 约束时出错: %v", err)
+		return err
+	}
+
+	if !hasUnique {
+		log.Printf("Tunnel 表 name 字段已经没有 UNIQUE 约束，跳过迁移")
+		return nil
+	}
+
+	log.Printf("检测到 Tunnel 表 name 字段存在 UNIQUE 约束，开始执行移除迁移...")
+
+	// 开始事务执行迁移
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 1. 创建新的隧道表（移除name字段的UNIQUE约束）
+	log.Printf("步骤 1/5: 创建新的 Tunnel 表结构...")
+	_, err = tx.Exec(`
+		CREATE TABLE tunnels_new (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL,
+			endpointId INTEGER NOT NULL,
+			mode TEXT NOT NULL,
+			status TEXT NOT NULL DEFAULT 'stopped',
+			tunnelAddress TEXT NOT NULL,
+			tunnelPort TEXT NOT NULL,
+			targetAddress TEXT NOT NULL,
+			targetPort TEXT NOT NULL,
+			tlsMode TEXT NOT NULL,
+			certPath TEXT,
+			keyPath TEXT,
+			logLevel TEXT NOT NULL DEFAULT 'info',
+			commandLine TEXT NOT NULL,
+			restart BOOLEAN DEFAULT FALSE,
+			instanceId TEXT,
+			password TEXT DEFAULT '',
+			tcpRx INTEGER DEFAULT 0,
+			tcpTx INTEGER DEFAULT 0,
+			udpRx INTEGER DEFAULT 0,
+			udpTx INTEGER DEFAULT 0,
+			min INTEGER,
+			max INTEGER,
+			createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			lastEventTime DATETIME
+		)
+	`)
+	if err != nil {
+		log.Printf("创建新表失败: %v", err)
+		return err
+	}
+
+	// 2. 复制数据（字段名映射：旧表 snake_case -> 新表 camelCase）
+	log.Printf("步骤 2/5: 复制现有数据到新表...")
+	_, err = tx.Exec(`
+		INSERT INTO tunnels_new (
+			id, name, endpointId, mode, status, tunnelAddress, tunnelPort,
+			targetAddress, targetPort, tlsMode, certPath, keyPath, logLevel,
+			commandLine, restart, instanceId, password, tcpRx, tcpTx, udpRx, udpTx,
+			min, max, createdAt, updatedAt
+		)
+		SELECT 
+			id, name, endpointId, mode, status, tunnelAddress, tunnelPort,
+			targetAddress, targetPort, 
+			COALESCE(tlsMode, 'mode0') as tlsMode, 
+			certPath, keyPath, 
+			COALESCE(logLevel, 'info') as logLevel,
+			commandLine,
+			COALESCE(restart, 0) as restart,
+			instanceId,
+			COALESCE(password, '') as password, 
+			COALESCE(tcpRx, 0) as tcpRx,
+			COALESCE(tcpTx, 0) as tcpTx,
+			COALESCE(udpRx, 0) as udpRx,
+			COALESCE(udpTx, 0) as udpTx,
+			min, max, 
+			createdAt, updatedAt
+		FROM Tunnel
+	`)
+	if err != nil {
+		log.Printf("数据复制失败: %v", err)
+		return err
+	}
+
+	// 3. 删除旧表
+	log.Printf("步骤 3/5: 删除旧表...")
+	_, err = tx.Exec(`DROP TABLE Tunnel`)
+	if err != nil {
+		log.Printf("删除旧表失败: %v", err)
+		return err
+	}
+
+	// 4. 重命名新表
+	log.Printf("步骤 4/5: 重命名新表为 Tunnel...")
+	_, err = tx.Exec(`ALTER TABLE tunnels_new RENAME TO Tunnel`)
+	if err != nil {
+		log.Printf("重命名表失败: %v", err)
+		return err
+	}
+
+	// 5. 重新创建索引
+	log.Printf("步骤 5/5: 重新创建索引...")
+	indexes := []string{
+		`CREATE INDEX IF NOT EXISTS idx_tunnels_instance_id ON Tunnel(instanceId)`,
+		`CREATE INDEX IF NOT EXISTS idx_tunnels_name ON Tunnel(name)`,
+		`CREATE INDEX IF NOT EXISTS idx_tunnels_endpoint_id ON Tunnel(endpointId)`,
+		`CREATE INDEX IF NOT EXISTS idx_tunnels_status ON Tunnel(status)`,
+		`CREATE INDEX IF NOT EXISTS idx_tunnels_created_at ON Tunnel(createdAt)`,
+	}
+
+	for i, indexSQL := range indexes {
+		_, err = tx.Exec(indexSQL)
+		if err != nil {
+			log.Printf("创建索引 %d/%d 失败: %v", i+1, len(indexes), err)
+			return err
+		}
+	}
+
+	// 提交事务
+	if err = tx.Commit(); err != nil {
+		log.Printf("事务提交失败: %v", err)
+		return err
+	}
+
+	log.Printf("✅ Tunnel 表 name 字段唯一约束移除迁移完成！现在可以创建同名的隧道实例了")
+	return nil
+}
+
+// hasUniqueConstraintOnNameField 检查 Tunnel 表的 name 字段是否有 UNIQUE 约束
+func hasUniqueConstraintOnNameField(db *sql.DB) (bool, error) {
+	// 方法1: 检查索引列表，查找 name 字段的唯一索引
+	rows, err := db.Query(`PRAGMA index_list(Tunnel)`)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+
+	for rows.Next() {
+		var seq int
+		var name string
+		var unique int
+		var origin string
+		var partial int
+
+		if err := rows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
+			continue
+		}
+
+		// 如果是唯一索引，检查是否是 name 字段的索引
+		if unique == 1 {
+			isNameIndex, err := isIndexOnNameField(db, name)
+			if err != nil {
+				continue
+			}
+			if isNameIndex {
+				log.Printf("发现 name 字段的唯一索引: %s", name)
+				return true, nil
+			}
+		}
+	}
+
+	// 方法2: 检查表定义中的内联 UNIQUE 约束
+	var schema string
+	err = db.QueryRow(`SELECT sql FROM sqlite_master WHERE type='table' AND name='Tunnel'`).Scan(&schema)
+	if err != nil {
+		return false, err
+	}
+
+	// 检查 CREATE TABLE 语句中是否有 name 字段的 UNIQUE 约束
+	hasInlineUnique := regexp.MustCompile(`name\s+[^,\)]*\bUNIQUE\b`).MatchString(schema)
+	if hasInlineUnique {
+		log.Printf("发现 name 字段的内联 UNIQUE 约束")
+		return true, nil
+	}
+
+	// 检查表级 UNIQUE 约束
+	hasTableUnique := regexp.MustCompile(`UNIQUE\s*\(\s*name\s*\)`).MatchString(schema)
+	if hasTableUnique {
+		log.Printf("发现 name 字段的表级 UNIQUE 约束")
+		return true, nil
+	}
+
+	return false, nil
+}
+
+// isIndexOnNameField 检查指定索引是否只包含 name 字段
+func isIndexOnNameField(db *sql.DB, indexName string) (bool, error) {
+	rows, err := db.Query(`PRAGMA index_info(` + indexName + `)`)
+	if err != nil {
+		return false, err
+	}
+	defer rows.Close()
+
+	var columnCount int
+	var hasNameField bool
+
+	for rows.Next() {
+		var seqno int
+		var cid int
+		var name string
+
+		if err := rows.Scan(&seqno, &cid, &name); err != nil {
+			continue
+		}
+
+		columnCount++
+		if name == "name" {
+			hasNameField = true
+		}
+	}
+
+	// 索引只有一个列且是 name 字段
+	return columnCount == 1 && hasNameField, nil
 }
