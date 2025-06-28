@@ -1,6 +1,6 @@
 {
   "name": "NodePassDash",
-  "version": "2.1.0-beta3",
+  "version": "2.1.0-beta4",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -23,7 +23,8 @@
     "dev:all": "node scripts/dev.js",
     "dev:front": "next dev -p 8080",
     "dev:back": "go run ./cmd/server/main.go",
-    "dev:resetpwd": "go run ./cmd/server/main.go --resetpwd"
+    "dev:resetpwd": "go run ./cmd/server/main.go --resetpwd",
+    "dev:version": "go run ./cmd/server/main.go --version"
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.7.2",
