@@ -324,15 +324,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		return nil, err
 	}
 
-	// 检查隧道名称是否重复
-	var exists bool
-	err = s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Tunnel\" WHERE name = ?)", req.Name).Scan(&exists)
-	if err != nil {
-		return nil, err
-	}
-	if exists {
-		return nil, errors.New("隧道名称已存在")
-	}
+	// 移除隧道名称唯一性检查 - 允许重复名称
 
 	// 构建命令行
 	var commandLine string
@@ -1093,15 +1085,7 @@ func (s *Service) PatchTunnel(id int64, updates map[string]interface{}) error {
 			return errors.New("alias 不能为空")
 		}
 
-		// 检查名称是否重复
-		var exists bool
-		err = s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Tunnel\" WHERE name = ? AND id != ?)", aliasStr, id).Scan(&exists)
-		if err != nil {
-			return err
-		}
-		if exists {
-			return errors.New("隧道名称已存在")
-		}
+		// 移除名称重复检查 - 允许重复名称
 
 		localUpdates["name"] = aliasStr
 		remoteUpdates["alias"] = aliasStr
@@ -1201,14 +1185,7 @@ func (s *Service) SetTunnelAlias(tunnelID int64, alias string) error {
 func (s *Service) RenameTunnel(id int64, newName string) error {
 	log.Infof("[API] 重命名隧道: %v", newName)
 
-	// 检查名称重复
-	var exists bool
-	if err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM "Tunnel" WHERE name = ?)`, newName).Scan(&exists); err != nil {
-		return err
-	}
-	if exists {
-		return errors.New("隧道名称已存在")
-	}
+	// 移除名称重复检查 - 允许重复名称
 
 	// 获取隧道和端点信息
 	var tunnel struct {
@@ -1370,7 +1347,7 @@ func (s *Service) BatchCreateTunnels(req BatchCreateTunnelRequest) (*BatchCreate
 			continue
 		}
 
-		// 生成隧道名称（使用时间戳避免重复）
+		// 生成隧道名称
 		tunnelName := fmt.Sprintf("批量实例-%d", item.InboundsPort)
 
 		// 如果用户提供了自定义名称，则使用自定义名称
@@ -1378,29 +1355,7 @@ func (s *Service) BatchCreateTunnels(req BatchCreateTunnelRequest) (*BatchCreate
 			tunnelName = item.Name
 		}
 
-		// 检查隧道名称是否重复，如果重复则添加后缀
-		var nameExists bool
-		originalName := tunnelName
-		suffix := 1
-		for {
-			err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Tunnel\" WHERE name = ?)", tunnelName).Scan(&nameExists)
-			if err != nil {
-				result.Success = false
-				result.Error = "检查隧道名称失败: " + err.Error()
-				break
-			}
-			if !nameExists {
-				break
-			}
-			tunnelName = fmt.Sprintf("%s-%d", originalName, suffix)
-			suffix++
-		}
-
-		if !result.Success {
-			results[i] = result
-			failCount++
-			continue
-		}
+		// 移除隧道名称重复检查 - 允许重复名称
 
 		// 构建创建请求
 		createReq := CreateTunnelRequest{
@@ -1648,37 +1603,9 @@ func (s *Service) NewBatchCreateTunnels(req NewBatchCreateRequest) (*NewBatchCre
 		}
 		log.Infof("[API] 新批量创建第 %d 项：端点 %d 检查通过", i+1, item.EndpointID)
 
-		// 检查隧道名称是否重复
-		log.Infof("[API] 新批量创建第 %d 项：检查隧道名称 '%s' 是否重复", i+1, item.Name)
-		var nameExists bool
+		// 直接使用提供的隧道名称 - 移除重复检查
 		tunnelName := item.Name
-		originalName := tunnelName
-		suffix := 1
-		for {
-			log.Infof("[API] 新批量创建第 %d 项：检查名称 '%s'", i+1, tunnelName)
-			err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Tunnel\" WHERE name = ?)", tunnelName).Scan(&nameExists)
-			if err != nil {
-				log.Errorf("[API] 新批量创建第 %d 项：检查隧道名称失败: %v", i+1, err)
-				result.Success = false
-				result.Error = "检查隧道名称失败: " + err.Error()
-				break
-			}
-			if !nameExists {
-				log.Infof("[API] 新批量创建第 %d 项：名称 '%s' 可用", i+1, tunnelName)
-				break
-			}
-			log.Infof("[API] 新批量创建第 %d 项：名称 '%s' 已存在，尝试 '%s-%d'", i+1, tunnelName, originalName, suffix)
-			tunnelName = fmt.Sprintf("%s-%d", originalName, suffix)
-			suffix++
-		}
-
-		if !result.Success {
-			log.Errorf("[API] 新批量创建第 %d 项：名称检查失败，跳过", i+1)
-			results[i] = result
-			failCount++
-			continue
-		}
-		log.Infof("[API] 新批量创建第 %d 项：最终使用名称 '%s'", i+1, tunnelName)
+		log.Infof("[API] 新批量创建第 %d 项：使用隧道名称 '%s'", i+1, tunnelName)
 
 		// 构建创建请求
 		var logLevel LogLevel
