@@ -1240,6 +1240,86 @@ func (h *TunnelHandler) HandleQuickCreateTunnel(w http.ResponseWriter, r *http.R
 	})
 }
 
+// HandleQuickBatchCreateTunnel 批量快速创建隧道
+func (h *TunnelHandler) HandleQuickBatchCreateTunnel(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	var req struct {
+		Rules []struct {
+			EndpointID int64  `json:"endpointId"`
+			URL        string `json:"url"`
+			Name       string `json:"name"`
+		} `json:"rules"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "无效的请求数据",
+		})
+		return
+	}
+
+	if len(req.Rules) == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "请至少提供一条隧道规则",
+		})
+		return
+	}
+
+	// 验证所有规则
+	for i, rule := range req.Rules {
+		if rule.EndpointID == 0 || rule.URL == "" || strings.TrimSpace(rule.Name) == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   fmt.Sprintf("第 %d 条规则：endpointId、url、name 均不能为空", i+1),
+			})
+			return
+		}
+	}
+
+	// 批量创建隧道
+	var successCount, failCount int
+	var errorMessages []string
+
+	for i, rule := range req.Rules {
+		if err := h.tunnelService.QuickCreateTunnel(rule.EndpointID, rule.URL, rule.Name); err != nil {
+			failCount++
+			errorMessages = append(errorMessages, fmt.Sprintf("第 %d 条规则失败：%s", i+1, err.Error()))
+			log.Errorf("[API] 批量创建隧道失败 - 规则 %d: %v", i+1, err)
+		} else {
+			successCount++
+			log.Infof("[API] 批量创建隧道成功 - 规则 %d: %s", i+1, rule.Name)
+		}
+	}
+
+	// 返回结果
+	if failCount == 0 {
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: true,
+			Message: fmt.Sprintf("成功创建 %d 个隧道", successCount),
+		})
+	} else if successCount == 0 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   fmt.Sprintf("所有隧道创建失败：%s", strings.Join(errorMessages, "; ")),
+		})
+	} else {
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: true,
+			Message: fmt.Sprintf("部分成功：成功创建 %d 个隧道，失败 %d 个。失败原因：%s",
+				successCount, failCount, strings.Join(errorMessages, "; ")),
+		})
+	}
+}
+
 // HandleTemplateCreate 处理模板创建请求
 func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
