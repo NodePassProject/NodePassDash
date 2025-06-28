@@ -110,6 +110,10 @@ func (s *Service) RemoveClient(clientID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
+	// 安全地移除客户端，将Writer设为nil防止后续误用
+	if client, exists := s.clients[clientID]; exists {
+		client.Writer = nil
+	}
 	delete(s.clients, clientID)
 
 	// 记录日志
@@ -117,6 +121,9 @@ func (s *Service) RemoveClient(clientID string) {
 
 	// 清理隧道订阅
 	for tunnelID, subs := range s.tunnelSubs {
+		if client, exists := subs[clientID]; exists {
+			client.Writer = nil
+		}
 		delete(subs, clientID)
 		if len(subs) == 0 {
 			delete(s.tunnelSubs, tunnelID)
@@ -347,6 +354,9 @@ func (s *Service) broadcastEvent(event models.EndpointSSE) {
 
 	// 发送到所有全局客户端
 	for _, client := range s.clients {
+		if client.Writer == nil {
+			continue
+		}
 		fmt.Fprint(client.Writer, message)
 		if f, ok := client.Writer.(http.Flusher); ok {
 			f.Flush()
@@ -357,6 +367,9 @@ func (s *Service) broadcastEvent(event models.EndpointSSE) {
 	if event.InstanceID != "" {
 		if subs, exists := s.tunnelSubs[event.InstanceID]; exists {
 			for _, client := range subs {
+				if client.Writer == nil {
+					continue
+				}
 				fmt.Fprint(client.Writer, message)
 				if f, ok := client.Writer.(http.Flusher); ok {
 					f.Flush()
@@ -437,6 +450,10 @@ func (s *Service) sendTunnelUpdateByInstanceId(instanceID string, data interface
 	sent := 0
 
 	for id, client := range subs {
+		if client.Writer == nil {
+			failedIDs = append(failedIDs, id)
+			continue
+		}
 		if _, err := fmt.Fprint(client.Writer, message); err == nil {
 			if f, ok := client.Writer.(http.Flusher); ok {
 				f.Flush()
@@ -483,6 +500,10 @@ func (s *Service) sendGlobalUpdate(data interface{}) {
 	sent := 0
 
 	for id, client := range clientsCopy {
+		if client.Writer == nil {
+			failedIDs = append(failedIDs, id)
+			continue
+		}
 		if _, err := fmt.Fprint(client.Writer, message); err == nil {
 			if f, ok := client.Writer.(http.Flusher); ok {
 				f.Flush()
@@ -1195,4 +1216,50 @@ func (s *Service) fetchAndUpdateEndpointInfo(endpointID int64) {
 			log.Infof("[Master-%d] 系统信息已更新: OS=%s, Arch=%s, Ver=%s", endpointID, info.OS, info.Arch, info.Ver)
 		}
 	}
+}
+
+// BroadcastToAll 广播事件到所有客户端（用于系统更新等全局消息）
+func (s *Service) BroadcastToAll(event Event) {
+	payload, err := json.Marshal(event)
+	if err != nil {
+		log.Warnf("序列化广播事件失败,err=%v", err)
+		return
+	}
+
+	message := fmt.Sprintf("data: %s\n\n", payload)
+
+	s.mu.RLock()
+	clientsCopy := make(map[string]*Client, len(s.clients))
+	for id, cl := range s.clients {
+		clientsCopy[id] = cl
+	}
+	s.mu.RUnlock()
+
+	failedIDs := make([]string, 0)
+	sent := 0
+
+	for id, client := range clientsCopy {
+		if client.Writer == nil {
+			failedIDs = append(failedIDs, id)
+			continue
+		}
+		if _, err := fmt.Fprint(client.Writer, message); err == nil {
+			if f, ok := client.Writer.(http.Flusher); ok {
+				f.Flush()
+			}
+			sent++
+		} else {
+			failedIDs = append(failedIDs, id)
+		}
+	}
+
+	if len(failedIDs) > 0 {
+		s.mu.Lock()
+		for _, fid := range failedIDs {
+			delete(s.clients, fid)
+		}
+		s.mu.Unlock()
+	}
+
+	log.Debugf("全局广播已推送,type=%s sent=%d", event.Type, sent)
 }

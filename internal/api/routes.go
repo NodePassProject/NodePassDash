@@ -25,6 +25,7 @@ type Router struct {
 	sseHandler       *SSEHandler
 	dashboardHandler *DashboardHandler
 	dataHandler      *DataHandler
+	versionHandler   *VersionHandler
 }
 
 // NewRouter 创建路由器实例
@@ -56,6 +57,7 @@ func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Ro
 	sseHandler := NewSSEHandler(sseService, sseManager)
 	dataHandler := NewDataHandler(db, sseManager)
 	dashboardHandler := NewDashboardHandler(dashboardService)
+	versionHandler := NewVersionHandler(sseService)
 
 	r := &Router{
 		router:           router,
@@ -66,6 +68,7 @@ func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Ro
 		sseHandler:       sseHandler,
 		dashboardHandler: dashboardHandler,
 		dataHandler:      dataHandler,
+		versionHandler:   versionHandler,
 	}
 
 	// 注册路由
@@ -166,6 +169,14 @@ func (r *Router) registerRoutes() {
 	// 数据导入导出
 	r.router.HandleFunc("/api/data/export", r.dataHandler.HandleExport).Methods("GET")
 	r.router.HandleFunc("/api/data/import", r.dataHandler.HandleImport).Methods("POST")
+
+	// 版本相关路由
+	r.router.HandleFunc("/api/version/current", r.versionHandler.HandleGetCurrentVersion).Methods("GET")
+	r.router.HandleFunc("/api/version/check-update", r.versionHandler.HandleCheckUpdate).Methods("GET")
+	r.router.HandleFunc("/api/version/update-info", r.versionHandler.HandleGetUpdateInfo).Methods("GET")
+	r.router.HandleFunc("/api/version/history", r.versionHandler.HandleGetReleaseHistory).Methods("GET")
+	r.router.HandleFunc("/api/version/deployment-info", r.versionHandler.HandleGetDeploymentInfo).Methods("GET")
+	r.router.HandleFunc("/api/version/auto-update", r.versionHandler.HandleAutoUpdate).Methods("POST")
 }
 
 // corsMiddleware 允许跨域请求（开发阶段 8080 → 3000）

@@ -14,9 +14,10 @@ import SystemSettings from "@/app/settings/components/system-settings";
 import SecuritySettings from "@/app/settings/components/security-settings";
 import ProfileSettings from "@/app/settings/components/profile-settings";
 import NotificationSettings from "@/app/settings/components/notification-settings";
+import VersionSettings from "@/app/settings/components/version-settings";
 
 export default function SettingsPage() {
-  const [selected, setSelected] = React.useState("system");
+  const [selected, setSelected] = React.useState("security");
 
   // 保存所有更改
   const handleSaveAll = async () => {
@@ -62,7 +63,7 @@ export default function SettingsPage() {
             panel: "pt-6"
           }}
         >
-          <Tab
+          {/* <Tab
             key="system"
             title={
               <div className="flex items-center gap-2">
@@ -72,7 +73,7 @@ export default function SettingsPage() {
             }
           >
             <SystemSettings />
-          </Tab>
+          </Tab> */}
           <Tab
             key="security"
             title={
@@ -84,7 +85,7 @@ export default function SettingsPage() {
           >
             <SecuritySettings />
           </Tab>
-          <Tab
+          {/* <Tab
             key="profile"
             title={
               <div className="flex items-center gap-2">
@@ -105,6 +106,17 @@ export default function SettingsPage() {
             }
           >
             <NotificationSettings />
+          </Tab> */}
+          <Tab
+            key="version"
+            title={
+              <div className="flex items-center gap-2">
+                <Icon icon="solar:refresh-circle-bold" className="text-lg" />
+                <span>版本更新</span>
+              </div>
+            }
+          >
+            <VersionSettings />
           </Tab>
         </Tabs>
       </div>

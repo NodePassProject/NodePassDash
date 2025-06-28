@@ -19,6 +19,7 @@ import { Icon } from "@iconify/react";
 import { useAuth } from "@/app/components/auth-provider";
 import { useState, useRef } from "react";
 import { addToast } from "@heroui/toast";
+import { useRouter } from "next/navigation";
 
 /**
  * 导航栏用户组件
@@ -26,6 +27,7 @@ import { addToast } from "@heroui/toast";
  */
 export const NavbarUser = () => {
   const { user, logout } = useAuth();
+  const router = useRouter();
   const { isOpen: isPasswordOpen, onOpen: onPasswordOpen, onOpenChange: onPasswordOpenChange } = useDisclosure();
   const { isOpen: isUsernameOpen, onOpen: onUsernameOpen, onOpenChange: onUsernameOpenChange } = useDisclosure();
   const { isOpen: isImportOpen, onOpen: onImportOpen, onOpenChange: onImportOpenChange } = useDisclosure();
@@ -329,6 +331,8 @@ export const NavbarUser = () => {
               handleExportData();
             } else if (key === 'import-data') {
               onImportOpen();
+            } else if (key === 'system-settings') {
+              router.push('/settings');
             }
           }}
         >
@@ -370,6 +374,14 @@ export const NavbarUser = () => {
             isDisabled={isSubmitting}
           >
             导入数据
+          </DropdownItem>
+
+          {/* 系统设置 */}
+          <DropdownItem
+            key="system-settings"
+            startContent={<Icon icon="solar:settings-linear" width={18} />}
+          >
+            系统设置
           </DropdownItem>
           
           {/* 退出登录 */}
