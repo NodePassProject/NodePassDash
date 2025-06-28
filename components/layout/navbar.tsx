@@ -23,8 +23,10 @@ import { NavbarMobileMenu } from "./navbar-mobile";
 export const Navbar = () => {
   return (
     <HeroUINavbar maxWidth="xl" isBordered>
-      {/* 左侧Logo部分 */}
+      {/* 左侧内容 - 移动端汉堡菜单 + Logo */}
       <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
+        {/* 移动端汉堡菜单 */}
+        <NavbarMenuToggle className="sm:hidden" />
         <NavbarLogo />
       </NavbarContent>
 
@@ -57,7 +59,6 @@ export const Navbar = () => {
         <LocaleSwitch />
         <ThemeSwitch />
         <NavbarUser />
-        <NavbarMenuToggle />
       </NavbarContent>
 
       {/* 移动端展开菜单 */}
