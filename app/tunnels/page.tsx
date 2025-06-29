@@ -1276,7 +1276,10 @@ export default function TunnelsPage() {
                   className="min-w-full"
                   classNames={{
                     th: "text-xs md:text-sm",
-                    td: "py-3"
+                    td: "py-3",
+                    // 调整checkbox列宽度
+                    thead: "[&>tr>th:first-child]:w-12 [&>tr>th:first-child]:min-w-12",
+                    tbody: "[&>tr>td:first-child]:w-12 [&>tr>td:first-child]:min-w-12"
                   }}
                 >
                   <TableHeader columns={columns}>
@@ -1368,7 +1371,7 @@ export default function TunnelsPage() {
                         </TableCell>
                         
                         {/* 流量列 */}
-                        <TableCell>
+                        <TableCell className="text-xs md:text-sm text-default-600 font-mono truncate min-w-[150px]">
                           <TrafficInfo traffic={tunnel.traffic} />
                         </TableCell>
                         

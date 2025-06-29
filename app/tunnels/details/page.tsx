@@ -1213,11 +1213,11 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                       <>
                         <CellValue
                           label="最小值 (min)"
-                          value={tunnelInfo.config.min !== undefined && tunnelInfo.config.min !== null ? tunnelInfo.config.min.toString() : ' - '}
+                          value={tunnelInfo.config.min !== undefined && tunnelInfo.config.min !== null ? tunnelInfo.config.min.toString() : '64(默认值)'}
                         />
                         <CellValue
                           label="最大值 (max)"
-                          value={tunnelInfo.config.max !== undefined && tunnelInfo.config.max !== null ? tunnelInfo.config.max.toString() : ' - '}
+                          value={tunnelInfo.config.max !== undefined && tunnelInfo.config.max !== null ? tunnelInfo.config.max.toString() : '8192(默认值)'}
                         />
                       </>
                     )}
