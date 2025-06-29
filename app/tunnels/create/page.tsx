@@ -371,20 +371,20 @@ export default function CreateTunnelPage() {
                       key={endpoint.id}
                       isPressable
                       isHoverable
-                      className={`min-w-[280px] flex-shrink-0 shadow-none border-2 ${formData.apiEndpoint === endpoint.id ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+                      className={`w-[230px] flex-shrink-0 shadow-none border-2 ${formData.apiEndpoint === endpoint.id ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
                       onClick={() => handleInputChange("apiEndpoint", endpoint.id)}
                     >
                       <CardBody className="space-y-2 p-4">
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center gap-2 min-w-0">
                           <span 
                             className={cn(
-                              "w-2 h-2 rounded-full inline-block",
+                              "w-2 h-2 rounded-full inline-block flex-shrink-0",
                               endpoint.status === 'ONLINE' ? "bg-success" : "bg-danger"
                             )}
                           />
-                          <h3 className="font-semibold text-sm">{endpoint.name}</h3>
+                          <h3 className="font-semibold text-sm truncate">{endpoint.name}</h3>
                         </div>
-                        <p className="text-small text-default-500 truncate">{endpoint.url}</p>
+                        <p className="text-small text-default-500 truncate" title={endpoint.url}>{endpoint.url}</p>
                         <div className="flex items-center gap-2">
                           <p className="text-tiny text-default-400">{endpoint.tunnelCount || 0} 个实例</p>
                         </div>
