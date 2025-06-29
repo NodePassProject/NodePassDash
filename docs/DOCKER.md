@@ -134,7 +134,7 @@ docker run -d \
 #### 管理命令
 ```bash
 # 重置管理员密码
-docker exec -it nodepassdash ./nodepassdash --reset-pwd
+docker exec -it nodepassdash ./nodepassdash --resetpwd
 
 # 查看容器日志
 docker logs -f nodepassdash
@@ -263,11 +263,11 @@ docker exec -it nodepassdash ps aux | grep nodepassdash
 #### 4. 忘记管理员密码
 ```bash
 # 方法一：在运行中的容器内重置
-docker exec -it nodepassdash ./nodepassdash --reset-pwd
+docker exec -it nodepassdash ./nodepassdash --resetpwd
 
 # 方法二：停止容器后重置（推荐）
 docker stop nodepassdash
-docker run --rm -v ./public:/app/public ghcr.io/nodepassproject/nodepassdash:latest ./nodepassdash --reset-pwd
+docker run --rm -v ./public:/app/public ghcr.io/nodepassproject/nodepassdash:latest ./nodepassdash --resetpwd
 docker start nodepassdash
 ```
 
