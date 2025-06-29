@@ -57,7 +57,7 @@ func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Ro
 	sseHandler := NewSSEHandler(sseService, sseManager)
 	dataHandler := NewDataHandler(db, sseManager)
 	dashboardHandler := NewDashboardHandler(dashboardService)
-	versionHandler := NewVersionHandler(sseService)
+	versionHandler := NewVersionHandler()
 
 	r := &Router{
 		router:           router,

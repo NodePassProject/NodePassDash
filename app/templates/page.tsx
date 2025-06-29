@@ -1235,7 +1235,7 @@ export default function TemplatesPage() {
                       {formData.tlsLevel === '2' && (
                         <>
                           <div>
-                            <label className="block text-xs text-default-700 dark:text-white mb-1">证书路径</label>
+                            <label className="block text-xs text-default-700 dark:text-white mb-1">服务端证书路径</label>
                             <input
                               type="text"
                               value={formData.certPath}
@@ -1245,7 +1245,7 @@ export default function TemplatesPage() {
                             />
                           </div>
                           <div>
-                            <label className="block text-xs text-default-700 dark:text-white mb-1">密钥路径</label>
+                            <label className="block text-xs text-default-700 dark:text-white mb-1">服务端密钥路径</label>
                             <input
                               type="text"
                               value={formData.keyPath}
