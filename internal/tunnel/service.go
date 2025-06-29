@@ -562,7 +562,12 @@ func (s *Service) DeleteTunnel(instanceID string) error {
 	// 调用 NodePass API 删除隧道实例
 	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
 	if err := npClient.DeleteInstance(instanceID); err != nil {
-		fmt.Printf("警告: %v，继续删除本地记录\n", err)
+		// 如果收到401或404错误，说明NodePass核心已经没有这个实例了
+		if strings.Contains(err.Error(), "NodePass API 返回错误: 401") || strings.Contains(err.Error(), "NodePass API 返回错误: 404") {
+			log.Warnf("[API] NodePass API 返回401/404错误，实例 %s 可能已不存在，继续删除本地记录", instanceID)
+		} else {
+			log.Warnf("[API] NodePass API 删除失败: %v，继续删除本地记录", err)
+		}
 	}
 
 	// 删除隧道记录
@@ -1035,9 +1040,9 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 	// 调用 NodePass API 删除实例
 	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
 	if err := npClient.DeleteInstance(instanceID); err != nil {
-		// 如果收到401错误，说明NodePass核心已经没有这个实例了，按删除成功处理
-		if strings.Contains(err.Error(), "NodePass API 返回错误: 401") {
-			log.Warnf("[API] NodePass API 返回401错误，实例 %s 可能已不存在，继续删除本地记录", instanceID)
+		// 如果收到401或404错误，说明NodePass核心已经没有这个实例了，按删除成功处理
+		if strings.Contains(err.Error(), "NodePass API 返回错误: 401") || strings.Contains(err.Error(), "NodePass API 返回错误: 404") {
+			log.Warnf("[API] NodePass API 返回401/404错误，实例 %s 可能已不存在，继续删除本地记录", instanceID)
 		} else {
 			return err
 		}
