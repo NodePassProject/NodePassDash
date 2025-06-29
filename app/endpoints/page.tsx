@@ -67,6 +67,7 @@ import EditApiKeyModal from "./components/edit-apikey-modal";
 import { buildApiUrl } from '@/lib/utils';
 import { copyToClipboard } from '@/lib/utils/clipboard';
 import ManualCopyModal from '@/components/ui/manual-copy-modal';
+import { useGlobalVisibility } from '@/lib/hooks/use-global-visibility';
 // 本地定义 EndpointStatus 枚举，后端通过 API 返回字符串
 type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL' | 'DISCONNECT';
 // 后端返回的 Endpoint 基础结构
@@ -112,8 +113,9 @@ export default function EndpointsPage() {
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [deleteModalEndpoint, setDeleteModalEndpoint] = useState<FormattedEndpoint | null>(null);
   const [showApiKey, setShowApiKey] = useState<{[key: string]: boolean}>({});
-  const [showApiKeyAll, setShowApiKeyAll] = useState(false);
-  const [showUrlAll, setShowUrlAll] = useState(false);
+  
+  // 使用全局可见性Hook
+  const globalVisibility = useGlobalVisibility();
   const {isOpen: isAddOpen, onOpen: onAddOpen, onOpenChange: onAddOpenChange} = useDisclosure();
   const {isOpen: isDeleteOpen, onOpen: onDeleteOpen, onOpenChange: onDeleteOpenChange} = useDisclosure();
   const {isOpen: isRenameOpen, onOpen: onRenameOpen, onOpenChange: onRenameOpenChange} = useDisclosure();
@@ -973,9 +975,9 @@ export default function EndpointsPage() {
               <div className="flex items-center gap-1">
                 <span>URL</span>
                 <FontAwesomeIcon 
-                  icon={showUrlAll ? faEyeSlash : faEye}
+                  icon={globalVisibility.endpoints.showUrlAll ? faEyeSlash : faEye}
                   className="text-xs cursor-pointer hover:text-primary" 
-                  onClick={()=>setShowUrlAll(prev=>!prev)}
+                  onClick={globalVisibility.endpoints.toggleShowUrlAll}
                 />
               </div>
             </TableColumn>
@@ -983,9 +985,9 @@ export default function EndpointsPage() {
               <div className="flex items-center gap-1">
                 <span>API Key</span>
                 <FontAwesomeIcon 
-                  icon={showApiKeyAll ? faEyeSlash : faEye}
+                  icon={globalVisibility.endpoints.showApiKeyAll ? faEyeSlash : faEye}
                   className="text-xs cursor-pointer hover:text-primary" 
-                  onClick={()=>setShowApiKeyAll(prev=>!prev)}
+                  onClick={globalVisibility.endpoints.toggleShowApiKeyAll}
                 />
               </div>
             </TableColumn>
@@ -1034,7 +1036,9 @@ export default function EndpointsPage() {
                           }`
                         } />
                       </Tooltip>
-                      {ep.name}&nbsp;
+                      <span className="text-xs md:text-sm truncate max-w-[120px] md:max-w-none">
+                        {ep.name}&nbsp;
+                      </span>
                       <span className="text-default-400 text-small">[{realTimeData.tunnelCount}实例]</span> 
                       <Tooltip content="修改名称" size="sm">
                         <FontAwesomeIcon 
@@ -1049,11 +1053,11 @@ export default function EndpointsPage() {
                       {ep.ver ?ep.ver:"unknown"}
                       </Chip> 
                     </TableCell>
-                    <TableCell className="truncate min-w-[200px]">{showUrlAll ? `${ep.url}${ep.apiPath}` : '••••••••••••••••••••••••••'}
+                    <TableCell className="truncate min-w-[200px]">{globalVisibility.endpoints.showUrlAll ? `${ep.url}${ep.apiPath}` : '••••••••••••••••••••••••••'}
                     </TableCell>
                     <TableCell>
                       <span className="font-mono truncate">
-                        {showApiKeyAll ? ep.apiKey : '•••••••••••••••••••••••••••••••••'}
+                        {globalVisibility.endpoints.showApiKeyAll ? ep.apiKey : '•••••••••••••••••••••••••••••••••'}
                       </span>
                     </TableCell>
                     <TableCell className="w-52">

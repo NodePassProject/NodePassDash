@@ -63,6 +63,7 @@ import ManualCopyModal from '@/components/ui/manual-copy-modal';
 import QuickCreateTunnelModal from "./components/quick-create-tunnel-modal";
 import BatchCreateModal from "./components/batch-create-modal";
 import ManualCreateTunnelModal from "./components/manual-create-tunnel-modal";
+import { useGlobalVisibility } from '@/lib/hooks/use-global-visibility';
 
 // 定义实例类型
 interface Tunnel {
@@ -115,8 +116,8 @@ export default function TunnelsPage() {
   const [exportModalOpen, setExportModalOpen] = useState(false);
   const [exportConfig, setExportConfig] = useState("");
 
-  // 地址脱敏状态
-  const [showFullAddress, setShowFullAddress] = useState(true);
+  // 使用全局可见性Hook
+  const globalVisibility = useGlobalVisibility();
 
   // 使用共用的实例操作 hook
   const { toggleStatus, restart, deleteTunnel } = useTunnelActions();
@@ -644,7 +645,7 @@ export default function TunnelsPage() {
   // 格式化地址显示（处理脱敏逻辑）
   const formatAddress = (address: string, port: string) => {
     // 如果显示完整地址，直接返回
-    if (showFullAddress) {
+    if (globalVisibility.tunnels.showFullAddress) {
       return `${address}:${port}`;
     }
     
@@ -710,11 +711,11 @@ export default function TunnelsPage() {
       label: (
         <div className="flex items-center gap-1">
           <span>隧道地址</span>
-          <Tooltip content={showFullAddress ? "点击隐藏IP地址" : "点击显示完整IP地址"} size="sm">
+          <Tooltip content={globalVisibility.tunnels.showFullAddress ? "点击隐藏IP地址" : "点击显示完整IP地址"} size="sm">
             <FontAwesomeIcon 
-              icon={showFullAddress ? faEye: faEyeSlash }
+              icon={globalVisibility.tunnels.showFullAddress ? faEyeSlash : faEye }
               className="text-xs cursor-pointer hover:text-primary" 
-              onClick={() => setShowFullAddress(!showFullAddress)}
+              onClick={globalVisibility.tunnels.toggleShowFullAddress}
             />
           </Tooltip>
         </div>
@@ -725,11 +726,11 @@ export default function TunnelsPage() {
       label: (
         <div className="flex items-center gap-1">
           <span>目标地址</span>
-          <Tooltip content={showFullAddress ? "点击隐藏IP地址" : "点击显示完整IP地址"} size="sm">
+          <Tooltip content={globalVisibility.tunnels.showFullAddress ? "点击隐藏IP地址" : "点击显示完整IP地址"} size="sm">
             <FontAwesomeIcon 
-              icon={showFullAddress ? faEye : faEyeSlash}
+              icon={globalVisibility.tunnels.showFullAddress ? faEyeSlash : faEye}
               className="text-xs cursor-pointer hover:text-primary" 
-              onClick={() => setShowFullAddress(!showFullAddress)}
+              onClick={globalVisibility.tunnels.toggleShowFullAddress}
             />
           </Tooltip>
         </div>

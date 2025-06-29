@@ -6,13 +6,12 @@ services:
       dockerfile: Dockerfile
     container_name: nodepassdash
     ports:
-      - "3000:3000"
+      - "4000:3000"
     volumes:
       # 挂载配置和日志
       - ./config:/app/config:ro
       # SQLite 数据库文件
       - ./public:/app/public
-#      - /var/run/docker.sock:/var/run/docker.sock
     restart: unless-stopped
     # 健康检查
     healthcheck:
