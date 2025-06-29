@@ -25,8 +25,8 @@ export const Navbar = () => {
     <HeroUINavbar maxWidth="xl" isBordered>
       {/* 左侧内容 - 移动端汉堡菜单 + Logo */}
       <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
-        {/* 移动端汉堡菜单 */}
-        <NavbarMenuToggle className="sm:hidden" />
+        {/* 移动端汉堡菜单 - 在lg断点以下显示，包括平板 */}
+        <NavbarMenuToggle className="lg:hidden" />
         <NavbarLogo />
       </NavbarContent>
 
