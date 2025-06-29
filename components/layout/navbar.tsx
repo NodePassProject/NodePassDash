@@ -40,13 +40,13 @@ export const Navbar = () => {
         <NavbarItem className="hidden sm:flex items-center gap-1">
           {/* 操作按钮 */}
           <NavbarActions />
-          <Divider orientation="vertical" className="h-6" />
+          {/* <Divider orientation="vertical" className="h-6" /> */}
           
           {/* 社交链接 */}
           <NavbarSocial />
           
           {/* 语言切换 */}
-          <LocaleSwitch />
+          {/* <LocaleSwitch /> */}
           
           {/* 主题切换 */}
           <ThemeSwitch />

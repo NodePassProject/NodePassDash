@@ -153,7 +153,8 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 
 	log.Infof("[Master-%v] 创建隧道请求: %v", req.EndpointID, req.Name)
 
-	newTunnel, err := h.tunnelService.CreateTunnel(req)
+	// 使用等待模式创建隧道，超时时间为 3 秒
+	newTunnel, err := h.tunnelService.CreateTunnelAndWait(req, 3*time.Second)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
@@ -163,12 +164,7 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 主动创建的隧道需要调用 NodePass API 设置别名
-	if err := h.tunnelService.SetTunnelAlias(newTunnel.ID, newTunnel.Name); err != nil {
-		// 别名设置失败不影响隧道创建成功的返回，只记录警告
-		log.Warnf("[API] 设置隧道别名失败，隧道已创建成功: tunnelID=%d, name=%s, err=%v",
-			newTunnel.ID, newTunnel.Name, err)
-	}
+	// CreateTunnelAndWait 已经包含了设置别名的逻辑，这里不需要再调用
 
 	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 		Success: true,
@@ -512,7 +508,8 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 			Max:           maxVal,
 		}
 
-		newTunnel, err := h.tunnelService.CreateTunnel(createReq)
+		// 使用等待模式创建新隧道，超时时间为 3 秒
+		newTunnel, err := h.tunnelService.CreateTunnelAndWait(createReq, 3*time.Second)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，无法创建新实例: " + err.Error()})
@@ -1225,7 +1222,8 @@ func (h *TunnelHandler) HandleQuickCreateTunnel(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	if err := h.tunnelService.QuickCreateTunnel(req.EndpointID, req.URL, req.Name); err != nil {
+	// 使用等待模式快速创建隧道，超时时间为 3 秒
+	if err := h.tunnelService.QuickCreateTunnelAndWait(req.EndpointID, req.URL, req.Name, 3*time.Second); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success: false,
@@ -1289,7 +1287,8 @@ func (h *TunnelHandler) HandleQuickBatchCreateTunnel(w http.ResponseWriter, r *h
 	var errorMessages []string
 
 	for i, rule := range req.Rules {
-		if err := h.tunnelService.QuickCreateTunnel(rule.EndpointID, rule.URL, rule.Name); err != nil {
+		// 使用等待模式批量创建隧道，超时时间为 3 秒
+		if err := h.tunnelService.QuickCreateTunnelAndWait(rule.EndpointID, rule.URL, rule.Name, 3*time.Second); err != nil {
 			failCount++
 			errorMessages = append(errorMessages, fmt.Sprintf("第 %d 条规则失败：%s", i+1, err.Error()))
 			log.Errorf("[API] 批量创建隧道失败 - 规则 %d: %v", i+1, err)
@@ -1414,8 +1413,8 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		// 生成隧道名称 - 单端模式使用主控名-single-时间戳
 		tunnelName := fmt.Sprintf("%s-single-%d", endpointName, time.Now().Unix())
 
-		// 使用QuickCreateTunnel创建隧道
-		if err := h.tunnelService.QuickCreateTunnel(req.Inbounds.MasterID, tunnelURL, tunnelName); err != nil {
+		// 使用等待模式创建隧道，超时时间为 3 秒
+		if err := h.tunnelService.QuickCreateTunnelAndWait(req.Inbounds.MasterID, tunnelURL, tunnelName, 3*time.Second); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 				Success: false,
@@ -1551,9 +1550,9 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 
 		log.Infof("[API] 开始创建双端隧道 - 先创建server端，再创建client端")
 
-		// 第一步：创建server端隧道
+		// 第一步：创建server端隧道（使用等待模式）
 		log.Infof("[API] 步骤1: 在endpoint %d 创建server隧道 %s", serverConfig.MasterID, serverTunnelName)
-		if err := h.tunnelService.QuickCreateTunnel(serverConfig.MasterID, serverURL, serverTunnelName); err != nil {
+		if err := h.tunnelService.QuickCreateTunnelAndWait(serverConfig.MasterID, serverURL, serverTunnelName, 3*time.Second); err != nil {
 			log.Errorf("[API] 创建server端隧道失败: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
@@ -1564,9 +1563,9 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		}
 		log.Infof("[API] 步骤1完成: server端隧道创建成功")
 
-		// 第二步：创建client端隧道
+		// 第二步：创建client端隧道（使用等待模式）
 		log.Infof("[API] 步骤2: 在endpoint %d 创建client隧道 %s", clientConfig.MasterID, clientTunnelName)
-		if err := h.tunnelService.QuickCreateTunnel(clientConfig.MasterID, clientURL, clientTunnelName); err != nil {
+		if err := h.tunnelService.QuickCreateTunnelAndWait(clientConfig.MasterID, clientURL, clientTunnelName, 3*time.Second); err != nil {
 			log.Errorf("[API] 创建client端隧道失败: %v", err)
 			// 如果client端创建失败，可以考虑回滚server端，但这里先简单处理
 			w.WriteHeader(http.StatusBadRequest)
@@ -1706,9 +1705,9 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 
 		log.Infof("[API] 开始创建内网穿透隧道 - 先创建server端，再创建client端")
 
-		// 第一步：创建server端隧道
+		// 第一步：创建server端隧道（使用等待模式）
 		log.Infof("[API] 步骤1: 在endpoint %d 创建server隧道 %s", serverConfig.MasterID, serverTunnelName)
-		if err := h.tunnelService.QuickCreateTunnel(serverConfig.MasterID, serverURL, serverTunnelName); err != nil {
+		if err := h.tunnelService.QuickCreateTunnelAndWait(serverConfig.MasterID, serverURL, serverTunnelName, 3*time.Second); err != nil {
 			log.Errorf("[API] 创建server端隧道失败: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
@@ -1719,9 +1718,9 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		}
 		log.Infof("[API] 步骤1完成: server端隧道创建成功")
 
-		// 第二步：创建client端隧道
+		// 第二步：创建client端隧道（使用等待模式）
 		log.Infof("[API] 步骤2: 在endpoint %d 创建client隧道 %s", clientConfig.MasterID, clientTunnelName)
-		if err := h.tunnelService.QuickCreateTunnel(clientConfig.MasterID, clientURL, clientTunnelName); err != nil {
+		if err := h.tunnelService.QuickCreateTunnelAndWait(clientConfig.MasterID, clientURL, clientTunnelName, 3*time.Second); err != nil {
 			log.Errorf("[API] 创建client端隧道失败: %v", err)
 			// 如果client端创建失败，可以考虑回滚server端，但这里先简单处理
 			w.WriteHeader(http.StatusBadRequest)

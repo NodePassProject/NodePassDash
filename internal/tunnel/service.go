@@ -1098,6 +1098,279 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 	return nil
 }
 
+// CreateTunnelAndWait 先调用 NodePass API 创建隧道，等待 SSE 通知数据库记录后更新名称
+// 如果等待超时，则回退到原来的手动创建逻辑
+func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Duration) (*Tunnel, error) {
+	log.Infof("[API] 创建隧道（等待模式）: %v", req.Name)
+
+	// 检查端点是否存在
+	var endpointURL, endpointAPIPath, endpointAPIKey string
+	err := s.db.QueryRow(
+		"SELECT url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
+		req.EndpointID,
+	).Scan(&endpointURL, &endpointAPIPath, &endpointAPIKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return nil, errors.New("指定的端点不存在")
+		}
+		return nil, err
+	}
+
+	// 构建命令行（复用原有逻辑）
+	var commandLine string
+	if req.Password != "" {
+		commandLine = fmt.Sprintf("%s://%s@%s:%d/%s:%d",
+			req.Mode,
+			req.Password,
+			req.TunnelAddress,
+			req.TunnelPort,
+			req.TargetAddress,
+			req.TargetPort,
+		)
+	} else {
+		commandLine = fmt.Sprintf("%s://%s:%d/%s:%d",
+			req.Mode,
+			req.TunnelAddress,
+			req.TunnelPort,
+			req.TargetAddress,
+			req.TargetPort,
+		)
+	}
+
+	// 添加查询参数
+	var queryParams []string
+	if req.LogLevel != LogLevelInherit {
+		queryParams = append(queryParams, fmt.Sprintf("log=%s", req.LogLevel))
+	}
+	if req.Mode == "server" && req.TLSMode != TLSModeInherit {
+		var tlsModeNum string
+		switch req.TLSMode {
+		case TLSMode0:
+			tlsModeNum = "0"
+		case TLSMode1:
+			tlsModeNum = "1"
+		case TLSMode2:
+			tlsModeNum = "2"
+		}
+		queryParams = append(queryParams, fmt.Sprintf("tls=%s", tlsModeNum))
+
+		if req.TLSMode == TLSMode2 && req.CertPath != "" && req.KeyPath != "" {
+			queryParams = append(queryParams,
+				fmt.Sprintf("crt=%s", req.CertPath),
+				fmt.Sprintf("key=%s", req.KeyPath),
+			)
+		}
+	}
+	if req.Mode == "client" {
+		if req.Min > 0 {
+			queryParams = append(queryParams, fmt.Sprintf("min=%d", req.Min))
+		}
+		if req.Max > 0 {
+			queryParams = append(queryParams, fmt.Sprintf("max=%d", req.Max))
+		}
+	}
+	if len(queryParams) > 0 {
+		commandLine += "?" + strings.Join(queryParams, "&")
+	}
+
+	log.Infof("[API] 构建的命令行: %s", commandLine)
+
+	// 1. 使用 NodePass 客户端创建实例
+	npClient := nodepass.NewClient(endpointURL, endpointAPIPath, endpointAPIKey, nil)
+	instanceID, remoteStatus, err := npClient.CreateInstance(commandLine)
+	if err != nil {
+		log.Errorf("[NodePass] 创建实例失败 endpoint=%d cmd=%s err=%v", req.EndpointID, commandLine, err)
+		return nil, err
+	}
+
+	log.Infof("[API] NodePass API 创建成功，instanceID=%s，开始等待SSE通知", instanceID)
+
+	// 2. 轮询等待数据库中存在该 endpointId+instanceId 记录（通过 SSE 通知）
+	deadline := time.Now().Add(timeout)
+	var tunnelID int64
+	waitSuccess := false
+
+	for time.Now().Before(deadline) {
+		err := s.db.QueryRow(`SELECT id FROM "Tunnel" WHERE endpointId = ? AND instanceId = ?`,
+			req.EndpointID, instanceID).Scan(&tunnelID)
+		if err == nil {
+			log.Infof("[API] 检测到SSE已创建隧道记录，tunnelID=%d, instanceID=%s", tunnelID, instanceID)
+			waitSuccess = true
+			break
+		}
+		if err != sql.ErrNoRows {
+			log.Warnf("[API] 查询隧道记录时出错: %v", err)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	now := time.Now()
+
+	if waitSuccess {
+		log.Infof("[API] 等待SSE成功，更新隧道名称为: %s", req.Name)
+
+		// 3. 更新隧道名称为指定的名称
+		_, err = s.db.Exec(`UPDATE "Tunnel" SET name = ?, updatedAt = ? WHERE id = ?`,
+			req.Name, now, tunnelID)
+		if err != nil {
+			log.Warnf("[API] 更新隧道名称失败: %v", err)
+		}
+
+		// 记录操作日志
+		_, _ = s.db.Exec(`INSERT INTO "TunnelOperationLog" (
+			tunnelId, tunnelName, action, status, message
+		) VALUES (?, ?, ?, ?, ?)`,
+			tunnelID, req.Name, "create", "success", "隧道创建成功（等待模式）")
+
+		// 更新端点隧道计数
+		_, err = s.db.Exec(`UPDATE "Endpoint" SET tunnelCount = (
+			SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
+		) WHERE id = ?`, req.EndpointID, req.EndpointID)
+		if err != nil {
+			log.Errorf("[API] 更新端点隧道计数失败: %v", err)
+		}
+
+		// 设置隧道别名
+		if err := s.SetTunnelAlias(tunnelID, req.Name); err != nil {
+			log.Warnf("[API] 设置隧道别名失败，但不影响创建: %v", err)
+		}
+
+		// 构建返回的隧道对象
+		tunnel := &Tunnel{
+			ID:            tunnelID,
+			InstanceID:    instanceID,
+			Name:          req.Name,
+			EndpointID:    req.EndpointID,
+			Mode:          TunnelMode(req.Mode),
+			Status:        TunnelStatus(remoteStatus),
+			TunnelAddress: req.TunnelAddress,
+			TunnelPort:    req.TunnelPort,
+			TargetAddress: req.TargetAddress,
+			TargetPort:    req.TargetPort,
+			TLSMode:       req.TLSMode,
+			CertPath:      req.CertPath,
+			KeyPath:       req.KeyPath,
+			LogLevel:      req.LogLevel,
+			CommandLine:   commandLine,
+			Password:      req.Password,
+			Min:           req.Min,
+			Max:           req.Max,
+			Restart:       req.Restart,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+
+		log.Infof("[API] 隧道创建成功（等待模式）: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, tunnel.InstanceID)
+		return tunnel, nil
+	}
+
+	// 4. 等待超时，执行原来的手动创建逻辑
+	log.Warnf("[API] 等待SSE超时，回退到手动创建模式: %s", instanceID)
+
+	// 尝试查询是否已存在相同 endpointId+instanceId 的记录（可能由 SSE 先行创建）
+	var existingID int64
+	err = s.db.QueryRow(`SELECT id FROM "Tunnel" WHERE endpointId = ? AND instanceId = ?`, req.EndpointID, instanceID).Scan(&existingID)
+	if err != nil && err != sql.ErrNoRows {
+		return nil, err
+	}
+
+	if existingID == 0 {
+		// 创建新记录
+		result, err := s.db.Exec(`
+			INSERT INTO "Tunnel" (
+				instanceId, name, endpointId, mode,
+				tunnelAddress, tunnelPort, targetAddress, targetPort,
+				tlsMode, certPath, keyPath, logLevel, commandLine,
+				password, min, max, restart,
+				status, createdAt, updatedAt
+			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		`,
+			instanceID, req.Name, req.EndpointID, req.Mode,
+			req.TunnelAddress, req.TunnelPort, req.TargetAddress, req.TargetPort,
+			req.TLSMode, req.CertPath, req.KeyPath, req.LogLevel, commandLine,
+			req.Password,
+			func() interface{} {
+				if req.Min > 0 {
+					return req.Min
+				}
+				return nil
+			}(),
+			func() interface{} {
+				if req.Max > 0 {
+					return req.Max
+				}
+				return nil
+			}(),
+			req.Restart, "running", now, now,
+		)
+		if err != nil {
+			return nil, err
+		}
+
+		existingID, err = result.LastInsertId()
+		if err != nil {
+			return nil, err
+		}
+	} else {
+		// 已存在，仅更新名称
+		_, err := s.db.Exec(`UPDATE "Tunnel" SET name = ?, updatedAt = ? WHERE id = ?`,
+			req.Name, now, existingID)
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// 记录操作日志
+	_, err = s.db.Exec(`INSERT INTO "TunnelOperationLog" (
+		tunnelId, tunnelName, action, status, message
+	) VALUES (?, ?, ?, ?, ?)`,
+		existingID, req.Name, "create", "success", "隧道创建成功（超时回退模式）")
+	if err != nil {
+		return nil, err
+	}
+
+	// 更新端点隧道计数
+	_, err = s.db.Exec(`UPDATE "Endpoint" SET tunnelCount = (
+		SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
+	) WHERE id = ?`, req.EndpointID, req.EndpointID)
+	if err != nil {
+		log.Errorf("[API] 更新端点隧道计数失败: %v", err)
+	}
+
+	// 设置隧道别名
+	if err := s.SetTunnelAlias(existingID, req.Name); err != nil {
+		log.Warnf("[API] 设置隧道别名失败，但不影响创建: %v", err)
+	}
+
+	// 构建返回的隧道对象
+	tunnel := &Tunnel{
+		ID:            existingID,
+		InstanceID:    instanceID,
+		Name:          req.Name,
+		EndpointID:    req.EndpointID,
+		Mode:          TunnelMode(req.Mode),
+		Status:        TunnelStatus(remoteStatus),
+		TunnelAddress: req.TunnelAddress,
+		TunnelPort:    req.TunnelPort,
+		TargetAddress: req.TargetAddress,
+		TargetPort:    req.TargetPort,
+		TLSMode:       req.TLSMode,
+		CertPath:      req.CertPath,
+		KeyPath:       req.KeyPath,
+		LogLevel:      req.LogLevel,
+		CommandLine:   commandLine,
+		Password:      req.Password,
+		Min:           req.Min,
+		Max:           req.Max,
+		Restart:       req.Restart,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+
+	log.Infof("[API] 隧道创建成功（超时回退模式）: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, tunnel.InstanceID)
+	return tunnel, nil
+}
+
 // PatchTunnel 更新隧道别名或重启策略
 func (s *Service) PatchTunnel(id int64, updates map[string]interface{}) error {
 	log.Infof("[API] 修补隧道: %v, 更新: %+v", id, updates)
@@ -1334,7 +1607,45 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string
 		Min:           func() int { v, _ := strconv.Atoi(cfg.Min); return v }(),
 		Max:           func() int { v, _ := strconv.Atoi(cfg.Max); return v }(),
 	}
-	_, err := s.CreateTunnel(req)
+	_, err := s.CreateTunnelAndWait(req, 3*time.Second)
+	return err
+}
+
+// QuickCreateTunnelAndWait 根据完整 URL 快速创建隧道实例，使用等待模式
+func (s *Service) QuickCreateTunnelAndWait(endpointID int64, rawURL string, name string, timeout time.Duration) error {
+	// 粗解析协议
+	idx := strings.Index(rawURL, "://")
+	if idx == -1 {
+		return errors.New("无效的隧道URL")
+	}
+	mode := rawURL[:idx]
+	cfg := parseInstanceURL(rawURL, mode) // 复用 sse 里的同名私有函数，此处复制实现
+
+	// 端口转换
+	tp, _ := strconv.Atoi(cfg.TunnelPort)
+	sp, _ := strconv.Atoi(cfg.TargetPort)
+
+	finalName := name
+	if strings.TrimSpace(finalName) == "" {
+		finalName = fmt.Sprintf("auto-%d-%d", endpointID, time.Now().Unix())
+	}
+	req := CreateTunnelRequest{
+		Name:          finalName,
+		EndpointID:    endpointID,
+		Mode:          mode,
+		TunnelAddress: cfg.TunnelAddress,
+		TunnelPort:    tp,
+		TargetAddress: cfg.TargetAddress,
+		TargetPort:    sp,
+		TLSMode:       TLSMode(cfg.TLSMode),
+		CertPath:      cfg.CertPath,
+		KeyPath:       cfg.KeyPath,
+		LogLevel:      LogLevel(cfg.LogLevel),
+		Password:      cfg.Password,
+		Min:           func() int { v, _ := strconv.Atoi(cfg.Min); return v }(),
+		Max:           func() int { v, _ := strconv.Atoi(cfg.Max); return v }(),
+	}
+	_, err := s.CreateTunnelAndWait(req, timeout)
 	return err
 }
 
@@ -1425,18 +1736,15 @@ func (s *Service) BatchCreateTunnels(req BatchCreateTunnelRequest) (*BatchCreate
 			LogLevel:      LogLevelInfo,   // 使用Info日志级别
 		}
 
-		// 调用单个创建方法
-		tunnel, err := s.CreateTunnel(createReq)
+		// 调用等待模式创建方法
+		tunnel, err := s.CreateTunnelAndWait(createReq, 3*time.Second)
 		if err != nil {
 			log.Errorf("[API] 批量创建第 %d 项失败: %v", i+1, err)
 			result.Success = false
 			result.Error = err.Error()
 			failCount++
 		} else {
-			// 设置隧道别名（批量创建时已经在 CreateTunnel 中调用过了，这里注释掉避免重复）
-			// if err := s.SetTunnelAlias(tunnel.ID, tunnel.Name); err != nil {
-			//	log.Warnf("[API] 批量创建第 %d 项设置别名失败: %v", i+1, err)
-			// }
+			// CreateTunnelAndWait 已经包含了设置别名的逻辑
 
 			log.Infof("[API] 批量创建第 %d 项成功: %s (ID: %d)", i+1, tunnel.Name, tunnel.ID)
 			result.Success = true
@@ -1691,11 +1999,11 @@ func (s *Service) NewBatchCreateTunnels(req NewBatchCreateRequest) (*NewBatchCre
 			LogLevel:      logLevel,
 		}
 
-		// 调用单个创建方法
+		// 调用等待模式创建方法
 		log.Infof("[API] 新批量创建第 %d 项详细信息: Name=%s, EndpointID=%d, Mode=%s, TunnelPort=%d, TargetAddress=%s, TargetPort=%d",
 			i+1, createReq.Name, createReq.EndpointID, createReq.Mode, createReq.TunnelPort, createReq.TargetAddress, createReq.TargetPort)
 
-		tunnel, err := s.CreateTunnel(createReq)
+		tunnel, err := s.CreateTunnelAndWait(createReq, 3*time.Second)
 		if err != nil {
 			log.Errorf("[API] 新批量创建第 %d 项失败: %v", i+1, err)
 			log.Errorf("[API] 失败的创建请求详情: %+v", createReq)
