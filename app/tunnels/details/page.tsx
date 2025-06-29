@@ -827,7 +827,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   </Chip>} 
                 />
                 <CellValue 
-                  label="实例地址" 
+                  label="隧道地址" 
                   value={<span className="font-mono text-sm">{tunnelInfo.tunnelAddress}:{tunnelInfo.config.listenPort}</span>} 
                 />
                 <CellValue 
