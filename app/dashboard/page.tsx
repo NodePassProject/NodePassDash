@@ -137,6 +137,52 @@ export default function DashboardPage() {
   const [operationLogs, setOperationLogs] = useState<OperationLog[]>([]);
   const [trafficTrend, setTrafficTrend] = useState<TrafficTrendData[]>([]);
   const [trafficLoading, setTrafficLoading] = useState(true);
+  const [visibleUrls, setVisibleUrls] = useState<Set<number>>(new Set());
+  // 处理IP地址隐藏的函数
+  const maskIpAddress = (url: string): string => {
+    try {
+      // IPv4 正则表达式：匹配 x.x.x.x 格式
+      const ipv4Regex = /(\d{1,3}\.\d{1,3}\.)(\d{1,3}\.\d{1,3})/g;
+      
+      // IPv6 正则表达式：匹配方括号内的IPv6地址
+      const ipv6Regex = /(\[)([0-9a-fA-F:]+)(\])/g;
+      
+      let maskedUrl = url;
+      
+      // 处理IPv4地址 - 隐藏后两段
+      maskedUrl = maskedUrl.replace(ipv4Regex, '$1***.***');
+      
+      // 处理IPv6地址 - 隐藏最后几段
+      maskedUrl = maskedUrl.replace(ipv6Regex, (match, start, ipv6, end) => {
+        const segments = ipv6.split(':');
+        if (segments.length >= 4) {
+          // 保留前面几段，隐藏后面的段
+          const visibleSegments = segments.slice(0, Math.max(2, segments.length - 2));
+          const hiddenCount = segments.length - visibleSegments.length;
+          return `${start}${visibleSegments.join(':')}${hiddenCount > 0 ? ':***' : ''}${end}`;
+        }
+        return match;
+      });
+      
+      return maskedUrl;
+    } catch (error) {
+      // 如果处理失败，返回原始URL
+      return url;
+    }
+  };
+
+  // 切换URL显示状态
+  const toggleUrlVisibility = (endpointId: number) => {
+    setVisibleUrls(prev => {
+      const newSet = new Set(prev);
+      if (newSet.has(endpointId)) {
+        newSet.delete(endpointId);
+      } else {
+        newSet.add(endpointId);
+      }
+      return newSet;
+    });
+  };
 
   const columns = [
     { key: "time", label: "时间" },
@@ -352,10 +398,9 @@ export default function DashboardPage() {
       {/* 中间内容区域 - 响应式布局 */}
       <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 md:gap-6">
         {/* 流量概览 - 在移动端占满宽度，桌面端占2列 */}
-        <Card className="p-2 lg:col-span-2 min-h-[350px] lg:h-[400px]">
-          <CardHeader className="font-bold text-sm md:text-base">流量趋势</CardHeader>
-          <Divider />
-          <CardBody className="h-full">
+        <Card className="lg:col-span-2 min-h-[350px] lg:h-[400px]">
+          <CardHeader className="font-bold text-sm md:text-base px-4 md:px-6 pb-3">流量趋势</CardHeader>
+          <CardBody className="h-full px-4 md:px-6 pb-4 md:pb-6">
             <div className="h-[280px] lg:h-[300px]">
               {trafficLoading ? (
                 <div className="flex items-center justify-center h-full">
@@ -433,24 +478,23 @@ export default function DashboardPage() {
         </Card>
 
         {/* API 主控列表 - 在移动端独占一行，桌面端占1列 */}
-        <Card className="p-2 min-h-[300px] lg:h-[400px]">
-          <CardHeader className="font-bold text-sm md:text-base">API 主控</CardHeader>
-          <Divider />
-          <CardBody className="p-0">
-            <div className="h-full max-h-[250px] lg:max-h-none overflow-y-auto p-3 md:p-4 space-y-2">
+        <Card className="min-h-[300px] lg:h-[400px]">
+          <CardHeader className="font-bold text-sm md:text-base px-4 md:px-6 pb-3">API 主控</CardHeader>
+          <CardBody className="pt-0 px-4 md:px-6 pb-4 md:pb-6">
+            <div className="h-full max-h-[240px] lg:max-h-[320px] overflow-y-auto space-y-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               {loading ? (
-                <div className="space-y-2">
+                <div className="space-y-3">
                   {[1, 2, 3].map((i) => (
-                    <Card key={i} className="p-2 shadow-sm">
-                      <div className="space-y-1">
+                    <div key={i} className="p-3 rounded-lg border border-default-200 bg-default-50/50">
+                      <div className="space-y-2">
                         <div className="flex items-center gap-2">
                           <div className="w-2 h-2 rounded-full bg-default-300 animate-pulse" />
-                          <div className="h-3 bg-default-300 rounded animate-pulse flex-1" />
+                          <div className="h-4 bg-default-300 rounded animate-pulse flex-1" />
                         </div>
-                        <div className="h-2 bg-default-200 rounded animate-pulse w-3/4" />
-                        <div className="h-2 bg-default-200 rounded animate-pulse w-1/2" />
+                        <div className="h-3 bg-default-200 rounded animate-pulse w-3/4" />
+                        <div className="h-3 bg-default-200 rounded animate-pulse w-1/2" />
                       </div>
-                    </Card>
+                    </div>
                   ))}
                 </div>
               ) : endpoints.length === 0 ? (
@@ -459,27 +503,62 @@ export default function DashboardPage() {
                 </div>
               ) : (
                 endpoints.map((endpoint) => (
-                  <Card key={endpoint.id} className="p-2 shadow-sm">
-                    <div className="space-y-1">
-                      <div className="flex items-center gap-2">
+                  <div 
+                    key={endpoint.id} 
+                    className="p-3 rounded-lg border border-default-200 bg-gradient-to-r from-default-50/50 to-default-100/30 hover:from-default-100/70 hover:to-default-200/50 transition-all duration-200 hover:shadow-sm"
+                  >
+                    <div className="space-y-2">
+                      {/* 状态和名称行 */}
+                      <div className="flex items-center gap-2 min-w-0">
                         <span 
                           className={cn(
                             "w-2 h-2 rounded-full inline-block flex-shrink-0",
-                            endpoint.status === 'ONLINE' ? "bg-green-500" : "bg-rose-500"
+                            endpoint.status === 'ONLINE' ? "bg-success-500" : "bg-danger-500"
                           )}
                         />
-                        <h4 className="font-medium text-xs md:text-sm truncate">{endpoint.name}</h4>
+                        <h4 className="font-normal text-xs md:text-sm truncate flex-1">{endpoint.name}</h4>
+                        <Badge 
+                          content={endpoint.tunnelCount} 
+                          color="default" 
+                          size="sm"
+                          classNames={{
+                            badge: "text-[10px] min-w-4 h-4 px-1"
+                          }}
+                        >
+                          <Icon icon="solar:server-2-bold" className="w-3.5 h-3.5 text-default-400" />
+                        </Badge>
                       </div>
-                      <div className="flex items-center space-x-2">
-                        <span className="text-xs text-default-500 truncate">
-                          {endpoint.url}
-                        </span>
-                      </div>
-                      <div className="text-xs text-default-400">
-                        {endpoint.tunnelCount} 个实例
+                      
+                      {/* URL地址行 - 仿HTML效果 */}
+                      <div className="flex items-center gap-2">
+                        <div 
+                          className={cn(
+                            "text-xs text-default-600 font-mono cursor-pointer transition-all duration-300 flex-1 truncate",
+                            !visibleUrls.has(endpoint.id) && "blur-[4px] hover:blur-none",
+                            "hover:text-primary"
+                          )}
+                          onClick={() => toggleUrlVisibility(endpoint.id)}
+                          title="点击切换显示完整地址"
+                        >
+                          {visibleUrls.has(endpoint.id) ? endpoint.url : maskIpAddress(endpoint.url)}
+                        </div>
+                        
+                        {/* 眼睛按钮 */}
+                        <Button
+                          isIconOnly
+                          size="sm"
+                          variant="light"
+                          className="min-w-6 w-6 h-6 text-default-400 hover:text-primary"
+                          onClick={() => toggleUrlVisibility(endpoint.id)}
+                        >
+                          <Icon 
+                            icon={visibleUrls.has(endpoint.id) ? "solar:eye-bold" : "solar:eye-closed-bold"} 
+                            className="w-3 h-3" 
+                          />
+                        </Button>
                       </div>
                     </div>
-                  </Card>
+                  </div>
                 ))
               )}
             </div>
@@ -492,7 +571,7 @@ export default function DashboardPage() {
         <CardHeader className="font-bold px-4 md:px-6 text-sm md:text-base">最近活动</CardHeader>
         <Divider />
         <CardBody className="p-0 overflow-hidden">
-          <div className="h-[240px] lg:h-[320px] overflow-y-auto px-4 md:px-6">
+          <div className="h-[240px] lg:h-[320px] overflow-y-auto px-4 md:px-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
             <Table 
               aria-label="最近活动列表"
               removeWrapper
