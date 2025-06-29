@@ -135,10 +135,17 @@ func main() {
 	resetPwdCmd := flag.Bool("resetpwd", false, "重置管理员密码")
 	portFlag := flag.String("port", "", "HTTP 服务端口 (优先级高于环境变量 PORT)，默认 3000")
 	versionFlag := flag.Bool("version", false, "显示版本信息")
+	vFlag := flag.Bool("v", false, "显示版本信息")
+	logLevelFlag := flag.String("log-level", "DEBUG", "设置日志级别 (DEBUG, INFO, WARN, ERROR)")
 	flag.Parse()
 
+	// 设置日志级别
+	if err := log.SetLogLevel(*logLevelFlag); err != nil {
+		log.Errorf("设置日志级别失败: %v", err)
+	}
+
 	// 如果指定了版本参数，显示版本信息后退出
-	if *versionFlag {
+	if *versionFlag || *vFlag {
 		fmt.Printf("NodePassDash %s\n", Version)
 		fmt.Printf("Go version: %s\n", runtime.Version())
 		fmt.Printf("OS/Arch: %s/%s\n", runtime.GOOS, runtime.GOARCH)

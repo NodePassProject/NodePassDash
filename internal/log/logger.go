@@ -1,6 +1,8 @@
 package log
 
 import (
+	"strings"
+
 	log "github.com/sirupsen/logrus"
 )
 
@@ -11,6 +13,28 @@ import (
 // 例：
 //     log.Info("启动服务", "port", 8080)
 //     log.Error("数据库查询失败", "err", err)
+
+// SetLogLevel 设置日志级别
+func SetLogLevel(level string) error {
+	level = strings.ToUpper(level)
+	switch level {
+	case "DEBUG":
+		log.SetLevel(log.DebugLevel)
+	case "INFO":
+		log.SetLevel(log.InfoLevel)
+	case "WARN", "WARNING":
+		log.SetLevel(log.WarnLevel)
+	case "ERROR":
+		log.SetLevel(log.ErrorLevel)
+	case "FATAL":
+		log.SetLevel(log.FatalLevel)
+	case "PANIC":
+		log.SetLevel(log.PanicLevel)
+	default:
+		log.SetLevel(log.InfoLevel) // 默认为 INFO 级别
+	}
+	return nil
+}
 
 // parseFields 将可变参数转换为 logrus.Fields。
 func parseFields(args []interface{}) log.Fields {
