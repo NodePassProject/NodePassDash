@@ -8,15 +8,17 @@ import {
   CardHeader,
   Badge,
   Chip,
-  Divider
+  Divider,
+  Skeleton
 } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faRotateRight, faTrash, faMagnifyingGlass, faServer, faKey, faGlobe, faDesktop, faCode, faLock, faCertificate } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faRotateRight, faTrash,faWifi, faServer, faKey, faGlobe, faDesktop, faCode, faLock, faCertificate, faLayerGroup, faFileLines, faHardDrive, faArrowUp, faArrowDown } from "@fortawesome/free-solid-svg-icons";
 import { useRouter, useSearchParams } from "next/navigation";
 import { addToast } from "@heroui/toast";
 import { buildApiUrl } from "@/lib/utils";
 import { LogViewer, LogEntry } from "@/components/ui/log-viewer";
 import { OSIcon } from "@/components/ui/os-icon";
+import { useNodePassSSE } from "@/lib/hooks/use-nodepass-sse";
 
 // 主控详情接口定义
 interface EndpointDetail {
@@ -39,17 +41,30 @@ interface EndpointDetail {
   updatedAt: string;
 }
 
+// 端点统计信息接口定义
+interface EndpointStats {
+  tunnelCount: number;
+  fileLogCount: number;
+  fileLogSize: number;
+  totalTrafficIn: number;
+  totalTrafficOut: number;
+  tcpTrafficIn: number;
+  tcpTrafficOut: number;
+  udpTrafficIn: number;
+  udpTrafficOut: number;
+}
+
 export default function EndpointDetailPage() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const endpointId = searchParams.get("id");
 
-  const [loading, setLoading] = useState(true);
   const [detailLoading, setDetailLoading] = useState(true);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [refreshLoading, setRefreshLoading] = useState(false);
   const [recycleCount, setRecycleCount] = useState<number>(0);
   const [endpointDetail, setEndpointDetail] = useState<EndpointDetail | null>(null);
+  const [endpointStats, setEndpointStats] = useState<EndpointStats | null>(null);
+  const [statsLoading, setStatsLoading] = useState(true);
 
   const logCounterRef = useRef(0);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -73,6 +88,24 @@ export default function EndpointDetailPage() {
       case '2': return '自定义证书';
       default: return tls;
     }
+  };
+
+  // 格式化文件大小
+  const formatFileSize = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // 格式化流量数据
+  const formatTraffic = (bytes: number) => {
+    if (bytes === 0) return '0 B';
+    const k = 1024;
+    const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
   };
 
   const scrollToBottom = useCallback(() => {
@@ -106,35 +139,16 @@ export default function EndpointDetailPage() {
     }
   }, [endpointId]);
 
-  // 获取日志数据
-  const fetchLogs = useCallback(async () => {
-    if (!endpointId) return;
-
-    try {
-      setLoading(true);
-      const res = await fetch(buildApiUrl(`/api/endpoints/${endpointId}/logs?limit=1000`));
-      if (!res.ok) throw new Error("获取日志失败");
-      const data = await res.json();
-
-      const list: LogEntry[] = (data.logs || data.data?.logs || []).map((item: any, idx: number) => ({
-        id: idx + 1,
-        message: item.message ?? "",
-        isHtml: true,
-        timestamp: item.timestamp ? new Date(item.timestamp) : null,
-      }));
-
-      logCounterRef.current = list.length;
-      setLogs(list);
-
-      // 页面更新后滚动底部
-      setTimeout(scrollToBottom, 100);
-    } catch (err) {
-      console.error(err);
-      addToast({ title: "加载失败", description: err instanceof Error ? err.message : "未知错误", color: "danger" });
-    } finally {
-      setLoading(false);
-    }
-  }, [endpointId, scrollToBottom]);
+  // 初始化清空日志（仅用于SSE实时日志）
+  const initializeLogs = useCallback(() => {
+    setLogs([]);
+    logCounterRef.current = 0;
+    addToast({ 
+      title: "日志已清空", 
+      description: "等待NodePass实时日志...", 
+      color: "primary" 
+    });
+  }, []);
 
   // 获取回收站数量
   const fetchRecycleCount = useCallback(async()=>{
@@ -147,17 +161,113 @@ export default function EndpointDetailPage() {
     }catch(e){ console.error(e); }
   },[endpointId]);
 
+  // 获取端点统计信息
+  const fetchEndpointStats = useCallback(async () => {
+    if (!endpointId) return;
+    
+    try {
+      setStatsLoading(true);
+      const res = await fetch(buildApiUrl(`/api/endpoints/${endpointId}/stats`));
+      if (!res.ok) throw new Error("获取统计信息失败");
+      const data = await res.json();
+      
+      if (data.success && data.data) {
+        setEndpointStats(data.data);
+      }
+    } catch (err) {
+      console.error('获取统计信息失败:', err);
+      addToast({ 
+        title: "获取统计信息失败", 
+        description: err instanceof Error ? err.message : "未知错误", 
+        color: "warning" 
+      });
+    } finally {
+      setStatsLoading(false);
+    }
+  }, [endpointId]);
+
+  // NodePass SSE监听
+  const { isConnected, isConnecting, error, reconnect } = useNodePassSSE(
+    endpointDetail ? {
+      url: endpointDetail.url,
+      apiPath: endpointDetail.apiPath,
+      apiKey: endpointDetail.apiKey
+    } : null,
+    {
+      onConnected: () => {
+        console.log('[Endpoint SSE] 连接到NodePass成功');
+        addToast({
+          title: "实时连接已建立",
+          description: "正在监听NodePass实时日志",
+          color: "success",
+        });
+      },
+      onMessage: (data) => {
+        console.log('[Endpoint SSE] 收到消息:', data);
+        
+        // NodePass SSE原始数据格式解析
+        let logMessage = '';
+        
+        // 尝试多种数据格式解析
+        if (typeof data === 'string') {
+          logMessage = data;
+        } else if (data.message) {
+          logMessage = data.message;
+        } else if (data.data) {
+          logMessage = data.data;
+        } else if (data.type === 'log' || data.log) {
+          logMessage = data.log || data.content || JSON.stringify(data);
+        } else {
+          // 如果都不是，可能是NodePass的原始日志格式
+          logMessage = JSON.stringify(data);
+        }
+        
+        // 如果有有效的日志消息，添加到日志列表
+        if (logMessage && logMessage.trim()) {
+          const newLogEntry: LogEntry = {
+            id: ++logCounterRef.current,
+            message: logMessage,
+            isHtml: true
+          };
+          
+          setLogs(prevLogs => {
+            const updatedLogs = [...prevLogs, newLogEntry];
+            // 保持日志数量在1000条以内
+            if (updatedLogs.length > 1000) {
+              return updatedLogs.slice(-1000);
+            }
+            return updatedLogs;
+          });
+          
+          // 自动滚动到底部
+          setTimeout(scrollToBottom, 50);
+        }
+      },
+      onError: (error) => {
+        console.error('[Endpoint SSE] 连接错误:', error);
+        addToast({
+          title: "实时连接失败",
+          description: "无法连接到NodePass，请检查主控状态",
+          color: "danger",
+        });
+      },
+      onDisconnected: () => {
+        console.log('[Endpoint SSE] 连接已断开');
+      }
+    }
+  );
+
   useEffect(() => {
     fetchEndpointDetail();
   }, [fetchEndpointDetail]);
 
   useEffect(() => {
-    fetchLogs();
-  }, [fetchLogs]);
-
-  useEffect(() => {
     fetchRecycleCount();
   }, [fetchRecycleCount]);
+
+  useEffect(() => {
+    fetchEndpointStats();
+  }, [fetchEndpointStats]);
 
   // 滚动效果
   useEffect(() => {
@@ -165,14 +275,6 @@ export default function EndpointDetailPage() {
       setTimeout(scrollToBottom, 50);
     }
   }, [logs, scrollToBottom]);
-
-  // 手动刷新
-  const handleRefresh = useCallback(async () => {
-    if (refreshLoading) return;
-    setRefreshLoading(true);
-    await fetchLogs();
-    setRefreshLoading(false);
-  }, [refreshLoading, fetchLogs]);
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -210,6 +312,79 @@ export default function EndpointDetailPage() {
         <div className="flex items-center gap-2"> 
         </div>
       </div>
+
+      {/* 统计信息卡片 */}
+      {/* 统计信息卡片 */}
+      <Card className="p-2">
+        <CardHeader>
+          <div className="flex flex-col flex-1">
+            <p className="text-lg font-semibold">主控统计</p>
+            <p className="text-sm text-default-500">当前主控的数据统计概览</p>
+          </div>
+        </CardHeader>
+        <CardBody>
+          {statsLoading ? (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }, (_, index) => (
+                <div key={index} className="flex items-center gap-3 p-4 bg-default/10 rounded-lg">
+                  <Skeleton className="w-6 h-6 rounded" />
+                  <div className="flex-1">
+                    <Skeleton className="h-3 w-16 mb-1" />
+                    <Skeleton className="h-5 w-12 mb-1" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
+              ))}
+            </div>
+          ) : endpointStats ? (
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* 隧道数量 */}
+              <div className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg">
+                <FontAwesomeIcon icon={faLayerGroup} className="text-primary text-xl" />
+                <div>
+                  <p className="text-xs text-default-600">隧道数量</p>
+                  <p className="text-xl font-bold text-primary">{endpointStats.tunnelCount}</p>
+                  <p className="text-xs text-default-500">活跃实例</p>
+                </div>
+              </div>
+
+              {/* 日志文件数 */}
+              <div className="flex items-center gap-3 p-4 bg-secondary/10 rounded-lg">
+                <FontAwesomeIcon icon={faFileLines} className="text-secondary text-xl" />
+                <div>
+                  <p className="text-xs text-default-600">日志文件数</p>
+                  <p className="text-xl font-bold text-secondary">{endpointStats.fileLogCount}</p>
+                  <p className="text-xs text-default-500">日志文件</p>
+                </div>
+              </div>
+
+              {/* 日志文件大小 */}
+              <div className="flex items-center gap-3 p-4 bg-warning/10 rounded-lg">
+                <FontAwesomeIcon icon={faHardDrive} className="text-warning text-xl" />
+                <div>
+                  <p className="text-xs text-default-600">日志文件大小</p>
+                  <p className="text-xl font-bold text-warning">{formatFileSize(endpointStats.fileLogSize)}</p>
+                  <p className="text-xs text-default-500">磁盘占用</p>
+                </div>
+              </div>
+
+              {/* 总流量 */}
+              <div className="flex items-center gap-3 p-4 bg-success/10 rounded-lg">
+                <FontAwesomeIcon icon={faWifi} className="text-success text-xl" />
+                <div>
+                  <p className="text-xs text-default-600">总流量</p>
+                  <p className="text-lg font-bold text-success">↑{formatTraffic(endpointStats.totalTrafficOut)}</p>
+                  <p className="text-sm font-bold text-danger">↓{formatTraffic(endpointStats.totalTrafficIn)}</p>
+                </div>
+              </div>
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-default-500">无法获取统计数据</p>
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
       {/* 主控详情信息 */}
       {endpointDetail && (
@@ -353,37 +528,41 @@ export default function EndpointDetailPage() {
       {/* 日志区域 */}
       <Card className="p-2">
         <CardHeader className="flex items-center justify-between">
-          <h3 className="text-lg font-semibold">日志输出</h3>
+          <div className="flex items-center gap-3">
+            <h3 className="text-lg font-semibold">实时日志</h3>
+            <div className="flex items-center gap-2">
+              <div className={`w-2 h-2 rounded-full ${
+                isConnected ? 'bg-green-500' : 
+                isConnecting ? 'bg-yellow-500 animate-pulse' : 
+                'bg-red-500'
+              }`}></div>
+              <span className="text-sm text-default-500">
+                {isConnected ? '已连接' : 
+                 isConnecting ? '连接中...' : 
+                 error ? '连接失败' : '未连接'}
+              </span>
+            </div>
+          </div>
           <div className="flex items-center gap-2">
-            <Button 
-              size="sm"
-              isDisabled={refreshLoading}
-              className="bg-default-100 hover:bg-default-200"
-              startContent={
-                <FontAwesomeIcon 
-                  icon={faRotateRight} 
-                  className={refreshLoading ? "animate-spin" : ""}
-                />
-              }
-              onPress={handleRefresh}
-            >
-              {refreshLoading ? "刷新中..." : "刷新"}
-            </Button>
-            {/* 日志查询按钮 */}
-            <Button
-              size="sm"
-              color="primary"
-              onPress={()=>router.push(`/endpoints/log?id=${endpointId}`)}
-              startContent={
-                <FontAwesomeIcon icon={faMagnifyingGlass} />
-              }
-            >
-              查询
-            </Button>
+            {/* 重连按钮 */}
+            {!isConnected && !isConnecting && (
+              <Button
+                size="sm"
+                color="secondary"
+                variant="ghost"
+                isDisabled={!endpointDetail}
+                onPress={reconnect}
+                startContent={
+                  <FontAwesomeIcon icon={faRotateRight} />
+                }
+              >
+                重连
+              </Button>
+            )}
           </div>
         </CardHeader>
         <CardBody>
-          <LogViewer logs={logs} loading={loading} heightClass="h-[550px] md:h-[900px]" containerRef={logContainerRef} />
+          <LogViewer logs={logs} loading={false} heightClass="h-[550px] md:h-[900px]" containerRef={logContainerRef} />
         </CardBody>
       </Card>
     </div>

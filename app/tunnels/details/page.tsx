@@ -20,21 +20,25 @@ import {
   AccordionItem,
   Snippet,
   Switch, 
-  cn
+  cn,
+  Select,
+  SelectItem,
+  Popover,
+  PopoverTrigger,
+  PopoverContent
 } from "@heroui/react";
 import React, { useEffect } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh,faStop, faQuestionCircle, faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh,faStop, faQuestionCircle, faEye, faEyeSlash, faArrowDown } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
 import CellValue from "./cell-value";
-import { useTunnelSSE } from '@/lib/hooks/use-sse';
-import { useGlobalSSE } from '@/lib/hooks/use-sse';
 import { FlowTrafficChart } from "@/components/ui/flow-traffic-chart";
 import { useSearchParams } from 'next/navigation';
-import { processAnsiColors } from "@/lib/utils/ansi";
+import { FileLogViewer } from "@/components/ui/file-log-viewer";
+import { useTunnelSSE } from "@/lib/hooks/use-sse";
 
 interface TunnelInfo {
   id: string;
@@ -78,18 +82,7 @@ interface PageParams {
   id: string;
 }
 
-interface LogEntry {
-  id: number;
-  message: string;
-  isHtml: boolean;
-  traffic: {
-    tcpRx: number;
-    tcpTx: number;
-    udpRx: number;
-    udpTx: number;
-  };
-  timestamp: Date;
-}
+// 移除LogEntry接口，使用FileLogViewer内部的类型
 
 interface RawTrafficData {
   timestamp: Date;
@@ -190,11 +183,9 @@ interface TrafficHistory {
 export default function TunnelDetailPage({ params }: { params: Promise<PageParams> }) {
   // const resolvedParams = React.use(params);
   const router = useRouter();
-  const [selectedTab, setSelectedTab] = React.useState<string>("日志");
   const {isOpen, onOpen, onOpenChange} = useDisclosure();
   const [tunnelInfo, setTunnelInfo] = React.useState<TunnelInfo | null>(null);
   const [loading, setLoading] = React.useState(true);
-  const [logs, setLogs] = React.useState<LogEntry[]>([]);
   const [trafficData, setTrafficData] = React.useState<FlowTrafficData[]>([]);
   const [trafficTrend, setTrafficTrend] = React.useState<TrafficTrendData[]>([]);
   const [initialDataLoaded, setInitialDataLoaded] = React.useState(false);
@@ -211,31 +202,15 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   // 自动重启开关状态更新
   const [isUpdatingRestart, setIsUpdatingRestart] = React.useState(false);
 
-  // 日志计数器，确保每个日志都有唯一的ID
-  const logCounterRef = React.useRef(0);
+  // 文件日志相关状态
+  const [logDays, setLogDays] = React.useState<string>("1");
+  const [logLoading, setLogLoading] = React.useState(false);
+  const [logClearing, setLogClearing] = React.useState(false);
+  const [logCount, setLogCount] = React.useState(0);
+  const [logRefreshTrigger, setLogRefreshTrigger] = React.useState(0);
+  const [clearPopoverOpen, setClearPopoverOpen] = React.useState(false);
 
-  // 添加日志容器的引用
-  const logContainerRef = React.useRef<HTMLDivElement>(null);
 
-  // 添加延迟更新的引用，避免频繁调用API
-  const updateTimeoutRef = React.useRef<NodeJS.Timeout | null>(null);
-
-  // 滚动到日志底部的函数
-  const scrollToBottom = React.useCallback(() => {
-    if (logContainerRef.current) {
-      logContainerRef.current.scrollTop = logContainerRef.current.scrollHeight;
-    }
-  }, []);
-
-  // 处理Tab切换时的滚动
-  const handleTabChange = React.useCallback((key: React.Key) => {
-    const keyStr = key.toString();
-    setSelectedTab(keyStr);
-    // 如果切换到日志Tab，延迟滚动到底部确保DOM更新完成
-    if (keyStr === "日志") {
-      setTimeout(scrollToBottom, 100);
-    }
-  }, [scrollToBottom]);
 
   // 根据时间范围过滤数据
   const filterDataByTimeRange = React.useCallback((data: TrafficTrendData[], timeRange: "1h" | "6h" | "12h" | "24h") => {
@@ -276,58 +251,19 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     return filteredData;
   }, []);
 
-  // 延迟更新页面数据的函数
-  const scheduleDataUpdate = React.useCallback(() => {
-    // 清除之前的定时器
-    if (updateTimeoutRef.current) {
-      clearTimeout(updateTimeoutRef.current);
-    }
-    
-    // 设置2秒后更新数据
-    updateTimeoutRef.current = setTimeout(async () => {
-      
-      setRefreshLoading(true);
-      
-      try {
-        // 获取基本信息
-        const detailsResponse = await fetch(`/api/tunnels/${resolvedId}/details`);
-        if (!detailsResponse.ok) {
-          throw new Error('获取实例详情失败');
-        }
-        
-        const detailsData = await detailsResponse.json();
-        
-        // 更新实例信息
-        if (detailsData.tunnelInfo) {
-          setTunnelInfo(detailsData.tunnelInfo);
-        }
+  // 文件日志控制函数
+  const handleLogRefresh = React.useCallback(() => {
+    setLogRefreshTrigger(prev => prev + 1);
+  }, []);
 
-        // 获取流量趋势数据
-        const trafficResponse = await fetch(`/api/tunnels/${resolvedId}/traffic-trend`);
-        if (trafficResponse.ok) {
-          const trafficData = await trafficResponse.json();
-          if (trafficData.trafficTrend && Array.isArray(trafficData.trafficTrend)) {
-            setTrafficTrend(trafficData.trafficTrend);
-          }
-        }
-        
-
-      } catch (error) {
-        console.error('[前端SSE] 延迟更新数据失败:', error);
-      } finally {
-        setRefreshLoading(false);
-      }
-      
-      updateTimeoutRef.current = null;
-    }, 2000);
-    
-    
-  }, [resolvedId]);
+  const handleLogClear = React.useCallback(() => {
+    // 清空完成后的回调
+    console.log('文件日志已清空');
+  }, []);
 
   // 手动刷新页面数据的函数
   const handleRefresh = React.useCallback(async () => {
     if (refreshLoading) return; // 防抖：如果正在loading则直接返回
-    
     
     setRefreshLoading(true);
     
@@ -353,7 +289,9 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           setTrafficTrend(trafficData.trafficTrend);
         }
       }
-      
+
+      // 刷新文件日志 - 直接更新trigger而不依赖handleLogRefresh
+      setLogRefreshTrigger(prev => prev + 1);
 
     } catch (error) {
       console.error('[前端手动刷新] 刷新数据失败:', error);
@@ -386,12 +324,12 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     udp_out_rates: []
   });
 
-  // 获取实例详情（不包含流量趋势）
+  // 获取实例详情（不包含流量趋势和日志）
   const fetchTunnelDetails = React.useCallback(async () => {
     try {
       setLoading(true);
       
-      // 获取实例基本信息和历史数据
+      // 获取实例基本信息
       const response = await fetch(`/api/tunnels/${resolvedId}/details`);
       if (!response.ok) {
         throw new Error('获取实例详情失败');
@@ -401,43 +339,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       
       // 设置基本信息
       setTunnelInfo(data.tunnelInfo);
-      
-
-      
-      // 设置历史日志 - 处理带时间信息的日志对象
-      if (data.logs && Array.isArray(data.logs)) {
-        // 初始化计数器为历史日志的数量，确保新日志ID不会与历史日志冲突
-        logCounterRef.current = data.logs.length;
-        
-        // 检查日志数据格式
-        if (data.logs.length > 0 && typeof data.logs[0] === 'object') {
-          // 新格式：对象数组，包含时间信息 - 需要处理ANSI颜色
-          const processedLogs = data.logs.map((log: any) => ({
-            ...log,
-            message: processAnsiColors(log.message), // 应用ANSI颜色处理
-            isHtml: true // 启用HTML渲染
-          }));
-          setLogs(processedLogs);
-        } else {
-          // 旧格式：字符串数组，需要转换
-          const formattedLogs = data.logs.map((message: string, index: number) => ({
-            id: index + 1,
-            message: processAnsiColors(message), // 应用ANSI颜色处理
-            isHtml: true, // 启用HTML渲染
-            traffic: {
-              tcpRx: 0,
-              tcpTx: 0,
-              udpRx: 0,
-              udpTx: 0
-            },
-            timestamp: new Date() // 使用当前时间作为占位符
-          }));
-          setLogs(formattedLogs);
-        }
-        
-        // 稍微延迟滚动，确保DOM更新完成
-        setTimeout(scrollToBottom, 100);
-      }
 
       setInitialDataLoaded(true);
     } catch (error) {
@@ -493,67 +394,60 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     fetchTrafficTrend();
   }, [fetchTunnelDetails, fetchTrafficTrend]);
 
-  // 监听日志变化，自动滚动到底部
-  React.useEffect(() => {
-    if (logs.length > 0 && selectedTab === "日志") {
-      // 延迟滚动，确保DOM更新完成
-      setTimeout(scrollToBottom, 50);
-    }
-  }, [logs, selectedTab, scrollToBottom]);
-
-  // 使用全局SSE监听页面刷新事件
-  // useGlobalSSE({
-  //   onMessage: (data) => {
-  //     if (data.type === 'refresh' && data.route === `/tunnels/${resolvedId}`) {
-  //       router.refresh();
-  //     }
-  //   }
-  // });
-  
-  // 使用实例SSE监听更新 - 使用统一的SSE hook
-  
-  useTunnelSSE(tunnelInfo?.instanceId || '', {
+  // SSE监听逻辑
+  useTunnelSSE(tunnelInfo?.instanceId || "", {
     onMessage: (data) => {
-      try {
-        // 处理log类型的事件
-        if (data.eventType === 'log' && data.logs) {
-          
-          // 使用递增计数器确保唯一ID
-          logCounterRef.current += 1;
-          const newLog = {
-            id: logCounterRef.current,
-            message: processAnsiColors(data.logs), // 恢复ANSI颜色处理
-            isHtml: true, // 启用HTML渲染
-            traffic: {
-              tcpRx: data.instance?.tcprx || 0,
-              tcpTx: data.instance?.tcptx || 0,
-              udpRx: data.instance?.udprx || 0,
-              udpTx: data.instance?.udptx || 0
-            },
-            timestamp: new Date(data.eventTime || Date.now())
-          };
-          
-
-          
-          // 将新日志追加到控制台
-          setLogs(prev => {
-            const newLogs = [newLog, ...prev].slice(0, 100);
-            return newLogs;
-          });
-          
-          // 滚动到底部显示最新日志
-          setTimeout(scrollToBottom, 50);
-          
+      console.log('[隧道详情] 收到SSE事件:', data);
+      
+      // 处理log事件 - 拼接到日志末尾
+      if (data.eventType === 'log' && data.logs) {
+        console.log('[隧道详情] 收到日志事件，追加到日志末尾:', data.logs);
+        // 通过window对象调用FileLogViewer的方法追加日志
+        if ((window as any).fileLogViewerRef && (window as any).fileLogViewerRef.appendLog) {
+          (window as any).fileLogViewerRef.appendLog(data.logs);
+        } else {
+          console.warn('[隧道详情] FileLogViewer引用不存在，无法追加日志');
         }
-      } catch (error) {
-        console.error('💥 [前端SSE] 处理消息时发生错误:', error);
+      }
+      
+      // 处理update事件 - 刷新页面数据
+      if (data.eventType === 'update') {
+        console.log('[隧道详情] 收到update事件，刷新数据');
+        // 刷新隧道详情
+        fetchTunnelDetails();
+        // 刷新流量趋势
+        fetchTrafficTrend();
+        // 刷新日志（通过触发器）
+        setLogRefreshTrigger(prev => prev + 1);
+        
+        // 如果数据中包含状态更新，立即更新本地状态
+        if (data.status && tunnelInfo) {
+          setTunnelInfo(prev => prev ? {
+            ...prev,
+            status: {
+              type: data.status === "running" ? "success" : "danger",
+              text: data.status === "running" ? "运行中" : "已停止"
+            }
+          } : null);
+        }
+        
+        // 如果数据中包含流量更新，立即更新本地状态
+        if (data.tcpRx !== undefined && data.tcpTx !== undefined && 
+            data.udpRx !== undefined && data.udpTx !== undefined && tunnelInfo) {
+          setTunnelInfo(prev => prev ? {
+            ...prev,
+            traffic: {
+              tcpRx: data.tcpRx,
+              tcpTx: data.tcpTx,
+              udpRx: data.udpRx,
+              udpTx: data.udpTx
+            }
+          } : null);
+        }
       }
     },
     onError: (error) => {
-      console.error('💥 [前端SSE] SSE连接错误:', error);
-    },
-    onConnected: () => {
-      // SSE连接成功
+      console.error('[隧道详情] SSE连接错误:', error);
     }
   });
 
@@ -1116,148 +1010,224 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         </CardBody>
       </Card>
 
-      {/* 详细信息 - Tab 内容响应式优化 */}
+            {/* 日志 - 独立Card */}
       <Card className="p-2">
-        <CardBody>
-          <Tabs 
-            selectedKey={selectedTab}
-            onSelectionChange={handleTabChange}
-            size="sm"
-            classNames={{
-              tabList: "gap-2 md:gap-4",
-              tab: "text-xs md:text-sm",
-              tabContent: "text-xs md:text-sm"
-            }}
-          >
-            <Tab key="日志" title="日志">
-              <div 
-                ref={logContainerRef}
-                className="h-[300px] md:h-[400px] bg-zinc-900 rounded-lg p-3 md:p-4 font-mono text-xs md:text-sm overflow-auto scrollbar-thin"
-              >
-                {loading ? (
-                  <div className="animate-pulse">
-                    <span className="text-blue-400 ml-2">INFO:</span> 
-                    <span className="text-gray-300 ml-1">加载日志中...</span>
-                  </div>
-                ) : logs.length === 0 ? (
-                  <div className="text-gray-400 animate-pulse">
-                    等待日志输出...
-                  </div>
-                ) : (
-                  <div className="space-y-1">
-                    {/* 反转数组顺序，让最新的日志显示在底部 */}
-                    {logs.slice().reverse().map((log) => (
-                      <div key={log.id.toString()} className="text-gray-300 leading-5">
-                        {log.isHtml ? (
-                          <span 
-                            className="ml-2" 
-                            dangerouslySetInnerHTML={{ __html: log.message }}
-                          />
-                        ) : (
-                          <span className="ml-2 break-all">{log.message}</span>
-                        )}
-                      </div>
-                    ))}
-                  </div>
-                )}
-              </div>
-            </Tab>
+        <CardHeader className="font-bold text-sm md:text-base justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              日志
+              <Chip variant="flat" color="primary" size="sm">
+                {logCount} 条记录
+              </Chip>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+            {/* 天数选择 */}
+            <Select
+              size="sm"
+              placeholder="选择天数"
+              selectedKeys={[logDays]}
+              onSelectionChange={(keys) => {
+                const selected = Array.from(keys)[0] as string;
+                if (selected) setLogDays(selected);
+              }}
+              className="w-20"
+              classNames={{
+                trigger: "min-h-unit-8 h-8",
+                value: "text-xs"
+              }}
+            >
+              <SelectItem key="1">1天</SelectItem>
+              <SelectItem key="3">3天</SelectItem>
+              <SelectItem key="7">7天</SelectItem>
+            </Select>
             
-            <Tab key="配置" title="配置">
-              <div className="space-y-4">
-                <div>
-                  <h4 className="font-semibold mb-3 text-sm md:text-base">实例配置</h4>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                    <CellValue 
-                      label="TLS 设置" 
-                      value={
-                        <div className="flex items-center gap-2">
-                          {tunnelInfo.type === '客户端' ? (
-                            <span className="text-default-500">-</span>
-                          ) : (
-                            <Chip 
-                              variant="flat" 
-                              color={tunnelInfo.config.tlsMode === 'inherit' ? "primary" : 
-                                    tunnelInfo.config.tlsMode === 'mode0' ? "default" : "success"} 
-                              size="sm"
-                            >
-                              {tunnelInfo.config.tlsMode === 'inherit' ? 
-                                (tunnelInfo.config.endpointTLS ? `继承主控 [${getTLSModeText(tunnelInfo.config.endpointTLS)}]` : '继承主控设置') :
-                               tunnelInfo.config.tlsMode === 'mode0' ? '无 TLS 加密' :
-                               tunnelInfo.config.tlsMode === 'mode1' ? '自签名证书' : '自定义证书'}
-                            </Chip>
-                          )}
-                        </div>
-                      }
-                    />
-                  
-                    <CellValue 
-                      label="日志级别" 
-                      value={
-                        <div className="flex items-center gap-2">
-                          <Chip 
-                            variant="flat" 
-                            color={tunnelInfo.config.logLevel === 'inherit' ? "primary" : "default"} 
-                            size="sm"
-                          >
-                            {tunnelInfo.config.logLevel === 'inherit' ? 
-                              (tunnelInfo.config.endpointLog ? `继承主控 [${tunnelInfo.config.endpointLog.toUpperCase()}]` : '继承主控设置') : 
-                              tunnelInfo.config.logLevel.toUpperCase()}
-                          </Chip>
-                        </div>
-                      } 
-                    />
+            {/* 刷新按钮 */}
+            <Button
+              size="sm"
+              variant="flat"
+              isIconOnly
+              onPress={handleLogRefresh}
+              isLoading={logLoading}
+              className="h-8 w-8 min-w-0"
+            >
+              <FontAwesomeIcon icon={faRefresh} className="text-xs" />
+            </Button>
 
-                    {/* 仅客户端模式下显示 min/max */}
-                    {tunnelInfo.type === '客户端' && (
-                      <>
-                        <CellValue
-                          label="最小值 (min)"
-                          value={tunnelInfo.config.min !== undefined && tunnelInfo.config.min !== null ? tunnelInfo.config.min.toString() : '64(默认值)'}
-                        />
-                        <CellValue
-                          label="最大值 (max)"
-                          value={tunnelInfo.config.max !== undefined && tunnelInfo.config.max !== null ? tunnelInfo.config.max.toString() : '8192(默认值)'}
-                        />
-                      </>
-                    )}
-
-                    {/* 自动重启配置 */}
-                    {tunnelInfo.endpointVersion && 
-                      <CellValue 
-                        label="自动重启" 
-                        value={
-                            <Switch
-                              size="sm"
-                              isSelected={tunnelInfo.config.restart}
-                              onValueChange={handleRestartToggle}
-                              isDisabled={isUpdatingRestart}
-                              endContent={<span className="text-xs text-default-600">禁用</span>}
-                              startContent={<span className="text-xs text-default-600">启用</span>}
-                              classNames={{
-                                base: cn(
-                                  "inline-flex flex-row-reverse w-full max-w-md  items-center",
-                                  "justify-between "
-                                ),
-                                wrapper: "p-0 h-6 w-14 overflow-visible",
-                                thumb: cn(
-                                  "w-6 h-6 border-2 shadow-lg",
-                                  "group-data-[hover=true]:border-primary",
-                                  //selected
-                                  "group-data-[selected=true]:ms-8",
-                                  // pressed
-                                  "group-data-[pressed=true]:w-16",
-                                  "group-data-[selected]:group-data-[pressed]:ms-4",
-                                ),
-                              }}
-                            />
-                        } 
-                    />}
+            {/* 滚动到底部按钮 */}
+            <Button
+              size="sm"
+              variant="flat"
+              isIconOnly
+              onPress={() => {
+                if ((window as any).fileLogViewerRef) {
+                  (window as any).fileLogViewerRef.scrollToBottom();
+                }
+              }}
+              className="h-8 w-8 min-w-0"
+            >
+              <FontAwesomeIcon icon={faArrowDown} className="text-xs" />
+            </Button>
+            
+            {/* 清空按钮 */}
+            <Popover placement="bottom" isOpen={clearPopoverOpen} onOpenChange={setClearPopoverOpen}>
+              <PopoverTrigger>
+                <Button
+                  size="sm"
+                  variant="flat"
+                  color="danger"
+                  isIconOnly
+                  isLoading={logClearing}
+                  isDisabled={logCount === 0}
+                  className="h-8 w-8 min-w-0"
+                >
+                  <FontAwesomeIcon icon={faTrash} className="text-xs" />
+                </Button>
+              </PopoverTrigger>
+              <PopoverContent className="p-3">
+                <div className="space-y-3">
+                  <p className="text-sm font-medium">确认清空日志</p>
+                  <p className="text-xs text-default-500">
+                    此操作将清空页面显示和所有已保存的日志文件，且不可撤销。
+                  </p>
+                  <div className="flex gap-2">
+                    <Button
+                      size="sm"
+                      color="danger"
+                      onPress={() => {
+                        if ((window as any).fileLogViewerRef) {
+                          (window as any).fileLogViewerRef.clear();
+                        }
+                        setClearPopoverOpen(false); // 关闭Popover
+                      }}
+                      className="flex-1"
+                    >
+                      确认清空
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      onPress={() => setClearPopoverOpen(false)} // 关闭Popover
+                      className="flex-1"
+                    >
+                      取消
+                    </Button>
                   </div>
                 </div>
+              </PopoverContent>
+            </Popover>
+          </div>
+        </CardHeader>
+        <CardBody>
+          <FileLogViewer 
+            endpointId={tunnelInfo?.endpointId || ""}
+            instanceId={tunnelInfo?.instanceId || ""}
+            days={logDays}
+            onDaysChange={setLogDays}
+            onLogsChange={(logs) => setLogCount(logs.length)}
+            onLoadingChange={setLogLoading}
+            onClearingChange={setLogClearing}
+            triggerRefresh={logRefreshTrigger}
+            onClearLogs={handleLogClear}
+          />
+        </CardBody>
+      </Card>
+
+      {/* 配置信息 - Tab 内容响应式优化 */}
+      <Card className="p-2">
+        <CardHeader className="font-bold text-sm md:text-base">配置信息</CardHeader>
+        <CardBody>
+          <div className="space-y-4">
+            <div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+                {/* 仅客户端模式下显示 min/max */}
+                {tunnelInfo.type === '客户端' && (
+                  <>
+                    <CellValue
+                      label="连接池最小值"
+                      value={tunnelInfo.config.min !== undefined && tunnelInfo.config.min !== null ? tunnelInfo.config.min.toString() : '64(默认值)'}
+                    />
+                    <CellValue
+                      label="连接池最大值"
+                      value={tunnelInfo.config.max !== undefined && tunnelInfo.config.max !== null ? tunnelInfo.config.max.toString() : '8192(默认值)'}
+                    />
+                  </>
+                )}
+                {/* 仅服务端模式显示TLS设置 */}
+                {tunnelInfo.type === '服务端' && (
+                  <CellValue 
+                    label="TLS 设置" 
+                    value={
+                      <div className="flex items-center gap-2">
+                        <Chip 
+                          variant="flat" 
+                          color={tunnelInfo.config.tlsMode === 'inherit' ? "primary" : 
+                                tunnelInfo.config.tlsMode === 'mode0' ? "default" : "success"} 
+                          size="sm"
+                        >
+                          {tunnelInfo.config.tlsMode === 'inherit' ? 
+                            (tunnelInfo.config.endpointTLS ? `继承主控 [${getTLSModeText(tunnelInfo.config.endpointTLS)}]` : '继承主控设置') :
+                           tunnelInfo.config.tlsMode === 'mode0' ? '无 TLS 加密' :
+                           tunnelInfo.config.tlsMode === 'mode1' ? '自签名证书' : '自定义证书'}
+                        </Chip>
+                      </div>
+                    }
+                  />
+                )}
+              
+                <CellValue 
+                  label="日志级别" 
+                  value={
+                    <div className="flex items-center gap-2">
+                      <Chip 
+                        variant="flat" 
+                        color={tunnelInfo.config.logLevel === 'inherit' ? "primary" : "default"} 
+                        size="sm"
+                      >
+                        {tunnelInfo.config.logLevel === 'inherit' ? 
+                          (tunnelInfo.config.endpointLog ? `继承主控 [${tunnelInfo.config.endpointLog.toUpperCase()}]` : '继承主控设置') : 
+                          tunnelInfo.config.logLevel.toUpperCase()}
+                      </Chip>
+                    </div>
+                  } 
+                />
+
+
+
+                {/* 自动重启配置 */}
+                {tunnelInfo.endpointVersion && 
+                  <CellValue 
+                    label="自动重启" 
+                    value={
+                        <Switch
+                          size="sm"
+                          isSelected={tunnelInfo.config.restart}
+                          onValueChange={handleRestartToggle}
+                          isDisabled={isUpdatingRestart}
+                          endContent={<span className="text-xs text-default-600">禁用</span>}
+                          startContent={<span className="text-xs text-default-600">启用</span>}
+                          classNames={{
+                            base: cn(
+                              "inline-flex flex-row-reverse w-full max-w-md  items-center",
+                              "justify-between "
+                            ),
+                            wrapper: "p-0 h-6 w-14 overflow-visible",
+                            thumb: cn(
+                              "w-6 h-6 border-2 shadow-lg",
+                              "group-data-[hover=true]:border-primary",
+                              //selected
+                              "group-data-[selected=true]:ms-8",
+                              // pressed
+                              "group-data-[pressed=true]:w-16",
+                              "group-data-[selected]:group-data-[pressed]:ms-4",
+                            ),
+                          }}
+                        />
+                    } 
+                />}
               </div>
-            </Tab>
-          </Tabs>
+            </div>
+          </div>
         </CardBody>
       </Card>
     </div>

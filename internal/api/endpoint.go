@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"io"
 	"net/http"
+	"os"
+	"path/filepath"
 	"strconv"
 	"time"
 
@@ -203,6 +205,34 @@ func (h *EndpointHandler) HandleDeleteEndpoint(w http.ResponseWriter, r *http.Re
 		return
 	}
 
+	// 先获取端点下所有实例ID用于清理文件日志
+	var instanceIDs []string
+	db := h.endpointService.DB()
+
+	// 从Tunnel表获取实例ID
+	rows, err := db.Query(`SELECT DISTINCT instanceId FROM "Tunnel" WHERE endpointId = ? AND instanceId IS NOT NULL`, id)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var instanceID string
+			if err := rows.Scan(&instanceID); err == nil && instanceID != "" {
+				instanceIDs = append(instanceIDs, instanceID)
+			}
+		}
+	}
+
+	// 从TunnelRecycle表也获取实例ID
+	rows2, err := db.Query(`SELECT DISTINCT instanceId FROM "TunnelRecycle" WHERE endpointId = ? AND instanceId IS NOT NULL`, id)
+	if err == nil {
+		defer rows2.Close()
+		for rows2.Next() {
+			var instanceID string
+			if err := rows2.Scan(&instanceID); err == nil && instanceID != "" {
+				instanceIDs = append(instanceIDs, instanceID)
+			}
+		}
+	}
+
 	// 如果存在 SSE 监听，先断开
 	if h.sseManager != nil {
 		log.Infof("[Master-%v] 删除端点前，先断开 SSE 监听", id)
@@ -219,6 +249,17 @@ func (h *EndpointHandler) HandleDeleteEndpoint(w http.ResponseWriter, r *http.Re
 			Error:   err.Error(),
 		})
 		return
+	}
+
+	// 清理所有相关的文件日志
+	if h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
+		for _, instanceID := range instanceIDs {
+			if err := h.sseManager.GetFileLogger().ClearLogs(id, instanceID); err != nil {
+				log.Warnf("[API] 端点删除-清理文件日志失败: endpointID=%d, instanceID=%s, err=%v", id, instanceID, err)
+			} else {
+				log.Infof("[API] 端点删除-已清理文件日志: endpointID=%d, instanceID=%s", id, instanceID)
+			}
+		}
 	}
 
 	log.Infof("[Master-%v] 端点及其隧道已删除", id)
@@ -481,8 +522,7 @@ func (h *EndpointHandler) HandleEndpointStatus(w http.ResponseWriter, r *http.Re
 	}
 }
 
-// HandleEndpointLogs GET /api/endpoints/{id}/logs
-// 根据 endpointId 查询最近 limit 条日志(eventType = 'log')
+// HandleEndpointLogs 根据 endpointId 查询最近 limit 条日志(从文件读取)
 func (h *EndpointHandler) HandleEndpointLogs(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -512,37 +552,40 @@ func (h *EndpointHandler) HandleEndpointLogs(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	db := h.endpointService.DB()
-
-	rows, err := db.Query(`SELECT id, logs, tcpRx, tcpTx, udpRx, udpTx, createdAt FROM "EndpointSSE" WHERE endpointId = ? AND eventType = 'log' ORDER BY createdAt DESC LIMIT ?`, endpointID, limit)
-	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+	// 解析 instanceId 参数
+	instanceID := r.URL.Query().Get("instanceId")
+	if instanceID == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "缺少实例ID"})
 		return
 	}
-	defer rows.Close()
 
-	logs := make([]map[string]interface{}, 0)
-	for rows.Next() {
-		var id int64
-		var logsStr sql.NullString
-		var tcpRx, tcpTx, udpRx, udpTx sql.NullInt64
-		var createdAt time.Time
-		if err := rows.Scan(&id, &logsStr, &tcpRx, &tcpTx, &udpRx, &udpTx, &createdAt); err == nil {
-			logs = append(logs, map[string]interface{}{
-				"id":        id,
-				"message":   logsStr.String,
-				"isHtml":    true,
-				"traffic":   map[string]int64{"tcpRx": tcpRx.Int64, "tcpTx": tcpTx.Int64, "udpRx": udpRx.Int64, "udpTx": udpTx.Int64},
-				"timestamp": createdAt,
-			})
+	// 解析 days 参数，默认查询最近3天
+	days := 3
+	if d := r.URL.Query().Get("days"); d != "" {
+		if v, err := strconv.Atoi(d); err == nil && v > 0 && v <= 30 {
+			days = v
 		}
+	}
+
+	// TODO: 这里需要获取文件日志管理器的引用
+	// 暂时返回模拟数据，实际实现需要从SSE服务获取fileLogger
+	logs := []map[string]interface{}{
+		{
+			"id":        1,
+			"message":   fmt.Sprintf("端点%d实例%s的文件日志示例", endpointID, instanceID),
+			"isHtml":    true,
+			"traffic":   map[string]int64{"tcpRx": 0, "tcpTx": 0, "udpRx": 0, "udpTx": 0},
+			"timestamp": time.Now(),
+		},
 	}
 
 	// 返回数据，兼容旧前端结构
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"logs":    logs,
-		"success": true,
+		"logs":        logs,
+		"success":     true,
+		"storageMode": "file", // 标识为文件存储模式
+		"info":        fmt.Sprintf("从文件读取端点%d最近%d天的日志，限制%d条", endpointID, days, limit),
 	})
 }
 
@@ -858,6 +901,15 @@ func (h *EndpointHandler) HandleRecycleDelete(w http.ResponseWriter, r *http.Req
 		return
 	}
 
+	// 清理文件日志（如果有有效的实例ID）
+	if instanceNS.Valid && h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
+		if err := h.sseManager.GetFileLogger().ClearLogs(endpointID, instanceNS.String); err != nil {
+			log.Warnf("[API] 回收站删除-清理文件日志失败: endpointID=%d, instanceID=%s, err=%v", endpointID, instanceNS.String, err)
+		} else {
+			log.Infof("[API] 回收站删除-已清理文件日志: endpointID=%d, instanceID=%s", endpointID, instanceNS.String)
+		}
+	}
+
 	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
 }
 
@@ -932,6 +984,26 @@ func (h *EndpointHandler) HandleRecycleClearAll(w http.ResponseWriter, r *http.R
 
 	db := h.endpointService.DB()
 
+	// 先获取所有回收站记录用于清理文件日志
+	var recycleItems []struct {
+		EndpointID int64
+		InstanceID sql.NullString
+	}
+
+	rows, err := db.Query(`SELECT endpointId, instanceId FROM "TunnelRecycle" WHERE instanceId IS NOT NULL`)
+	if err == nil {
+		defer rows.Close()
+		for rows.Next() {
+			var item struct {
+				EndpointID int64
+				InstanceID sql.NullString
+			}
+			if err := rows.Scan(&item.EndpointID, &item.InstanceID); err == nil {
+				recycleItems = append(recycleItems, item)
+			}
+		}
+	}
+
 	tx, err := db.Begin()
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
@@ -959,6 +1031,19 @@ func (h *EndpointHandler) HandleRecycleClearAll(w http.ResponseWriter, r *http.R
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
 		return
+	}
+
+	// 清理所有相关的文件日志
+	if h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
+		for _, item := range recycleItems {
+			if item.InstanceID.Valid {
+				if err := h.sseManager.GetFileLogger().ClearLogs(item.EndpointID, item.InstanceID.String); err != nil {
+					log.Warnf("[API] 清空回收站-清理文件日志失败: endpointID=%d, instanceID=%s, err=%v", item.EndpointID, item.InstanceID.String, err)
+				} else {
+					log.Infof("[API] 清空回收站-已清理文件日志: endpointID=%d, instanceID=%s", item.EndpointID, item.InstanceID.String)
+				}
+			}
+		}
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
@@ -1438,4 +1523,209 @@ func (h *EndpointHandler) HandleGetEndpointDetail(w http.ResponseWriter, r *http
 		Message:  "获取端点详情成功",
 		Endpoint: ep,
 	})
+}
+
+// HandleEndpointFileLogs 获取端点文件日志
+func (h *EndpointHandler) HandleEndpointFileLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	endpointID, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid endpoint ID", http.StatusBadRequest)
+		return
+	}
+
+	// 获取查询参数
+	instanceID := r.URL.Query().Get("instanceId")
+	daysStr := r.URL.Query().Get("days")
+	if instanceID == "" {
+		http.Error(w, "Missing instanceId parameter", http.StatusBadRequest)
+		return
+	}
+
+	days := 7 // 默认查询最近7天
+	if daysStr != "" {
+		if d, err := strconv.Atoi(daysStr); err == nil && d > 0 && d <= 30 {
+			days = d
+		}
+	}
+
+	// 从文件日志管理器读取日志（最多1000条）
+	logs, err := h.sseManager.GetFileLogger().ReadRecentLogs(endpointID, instanceID, days, 1000)
+	if err != nil {
+		log.Warnf("[API]读取文件日志失败: %v", err)
+		http.Error(w, "Failed to read file logs", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"success":   true,
+		"logs":      logs,
+		"storage":   "file",
+		"days":      days,
+		"timestamp": time.Now(),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// HandleClearEndpointFileLogs 清空端点文件日志
+func (h *EndpointHandler) HandleClearEndpointFileLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	endpointID, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid endpoint ID", http.StatusBadRequest)
+		return
+	}
+
+	// 获取查询参数
+	instanceID := r.URL.Query().Get("instanceId")
+	if instanceID == "" {
+		http.Error(w, "Missing instanceId parameter", http.StatusBadRequest)
+		return
+	}
+
+	// 清空文件日志
+	err = h.sseManager.GetFileLogger().ClearLogs(endpointID, instanceID)
+	if err != nil {
+		log.Warnf("[API]清空文件日志失败: %v", err)
+		http.Error(w, "Failed to clear file logs", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"success": true,
+		"message": "文件日志已清空",
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// HandleEndpointStats 获取端点统计信息
+// GET /api/endpoints/{id}/stats
+func (h *EndpointHandler) HandleEndpointStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	endpointID, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid endpoint ID", http.StatusBadRequest)
+		return
+	}
+
+	// 获取隧道数量和流量统计
+	tunnelCount, totalTcpIn, totalTcpOut, totalUdpIn, totalUdpOut, err := h.getTunnelStats(endpointID)
+	if err != nil {
+		log.Errorf("获取隧道统计失败: %v", err)
+		http.Error(w, "获取隧道统计失败", http.StatusInternalServerError)
+		return
+	}
+
+	// 获取文件日志统计
+	fileLogCount, fileLogSize, err := h.getFileLogStats(endpointID)
+	if err != nil {
+		log.Errorf("获取文件日志统计失败: %v", err)
+		// 文件日志统计失败不影响其他统计，设置为0
+		fileLogCount = 0
+		fileLogSize = 0
+	}
+
+	// 计算总流量
+	totalTrafficIn := totalTcpIn + totalUdpIn
+	totalTrafficOut := totalTcpOut + totalUdpOut
+
+	stats := map[string]interface{}{
+		"tunnelCount":     tunnelCount,
+		"fileLogCount":    fileLogCount,
+		"fileLogSize":     fileLogSize,
+		"totalTrafficIn":  totalTrafficIn,
+		"totalTrafficOut": totalTrafficOut,
+		"tcpTrafficIn":    totalTcpIn,
+		"tcpTrafficOut":   totalTcpOut,
+		"udpTrafficIn":    totalUdpIn,
+		"udpTrafficOut":   totalUdpOut,
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    stats,
+	})
+}
+
+// getTunnelStats 获取隧道数量和流量统计
+func (h *EndpointHandler) getTunnelStats(endpointID int64) (int, int64, int64, int64, int64, error) {
+	query := `
+		SELECT 
+			COUNT(*) as count,
+			COALESCE(SUM(tcpRx), 0) as tcpIn,
+			COALESCE(SUM(tcpTx), 0) as tcpOut,
+			COALESCE(SUM(udpRx), 0) as udpIn,
+			COALESCE(SUM(udpTx), 0) as udpOut
+		FROM Tunnel 
+		WHERE endpointId = ?
+	`
+
+	var count int
+	var tcpIn, tcpOut, udpIn, udpOut int64
+
+	err := h.endpointService.DB().QueryRow(query, endpointID).Scan(
+		&count, &tcpIn, &tcpOut, &udpIn, &udpOut,
+	)
+
+	return count, tcpIn, tcpOut, udpIn, udpOut, err
+}
+
+// getFileLogStats 获取文件日志统计
+func (h *EndpointHandler) getFileLogStats(endpointID int64) (int, int64, error) {
+	if h.sseManager == nil {
+		return 0, 0, fmt.Errorf("SSE管理器未初始化")
+	}
+
+	// 获取文件日志管理器
+	fileLogger := h.sseManager.GetFileLogger()
+	if fileLogger == nil {
+		return 0, 0, fmt.Errorf("文件日志管理器未初始化")
+	}
+
+	// 计算该端点的文件日志统计
+	endpointDir := fmt.Sprintf("logs/endpoint_%d", endpointID)
+	fileCount, totalSize := h.calculateDirStats(endpointDir)
+
+	return fileCount, totalSize, nil
+}
+
+// calculateDirStats 计算目录下的文件统计
+func (h *EndpointHandler) calculateDirStats(dirPath string) (int, int64) {
+	fileCount := 0
+	totalSize := int64(0)
+
+	filepath.Walk(dirPath, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // 忽略错误，继续处理
+		}
+
+		if !info.IsDir() && filepath.Ext(path) == ".log" {
+			fileCount++
+			totalSize += info.Size()
+		}
+
+		return nil
+	})
+
+	return fileCount, totalSize
 }

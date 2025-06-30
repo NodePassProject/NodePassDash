@@ -224,7 +224,7 @@ func main() {
 	// 初始化处理器
 	authHandler := api.NewAuthHandler(authService)
 	endpointHandler := api.NewEndpointHandler(endpointService, sseManager)
-	tunnelHandler := api.NewTunnelHandler(tunnelService)
+	tunnelHandler := api.NewTunnelHandler(tunnelService, sseManager)
 	dashboardHandler := api.NewDashboardHandler(dashboardService)
 
 	// 设置版本号到 API 包

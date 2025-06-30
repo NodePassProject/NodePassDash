@@ -596,6 +596,14 @@ func (m *Manager) processPayload(endpointID int64, payload string) {
 	}
 }
 
+// GetFileLogger 获取文件日志管理器
+func (m *Manager) GetFileLogger() *log.FileLogger {
+	if m.service != nil {
+		return m.service.GetFileLogger()
+	}
+	return nil
+}
+
 // NotifyEndpointStatusChanged 通知端点状态变化
 func (m *Manager) NotifyEndpointStatusChanged(endpointID int64, status string) {
 	m.mu.Lock()

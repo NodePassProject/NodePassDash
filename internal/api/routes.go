@@ -53,7 +53,7 @@ func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Ro
 	authHandler := NewAuthHandler(authService)
 	endpointHandler := NewEndpointHandler(endpointService, sseManager)
 	instanceHandler := NewInstanceHandler(db, instanceService)
-	tunnelHandler := NewTunnelHandler(tunnelService)
+	tunnelHandler := NewTunnelHandler(tunnelService, sseManager)
 	sseHandler := NewSSEHandler(sseService, sseManager)
 	dataHandler := NewDataHandler(db, sseManager)
 	dashboardHandler := NewDashboardHandler(dashboardService)
@@ -110,6 +110,9 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/endpoints/{id}/info", r.endpointHandler.HandleGetEndpointInfo).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{id}/logs", r.endpointHandler.HandleEndpointLogs).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{id}/logs/search", r.endpointHandler.HandleSearchEndpointLogs).Methods("GET")
+	r.router.HandleFunc("/api/endpoints/{id}/file-logs", r.endpointHandler.HandleEndpointFileLogs).Methods("GET")
+	r.router.HandleFunc("/api/endpoints/{id}/file-logs/clear", r.endpointHandler.HandleClearEndpointFileLogs).Methods("DELETE")
+	r.router.HandleFunc("/api/endpoints/{id}/stats", r.endpointHandler.HandleEndpointStats).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{id}/recycle", r.endpointHandler.HandleRecycleList).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{id}/recycle/count", r.endpointHandler.HandleRecycleCount).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{endpointId}/recycle/{recycleId}", r.endpointHandler.HandleRecycleDelete).Methods("DELETE")
@@ -126,8 +129,19 @@ func (r *Router) registerRoutes() {
 	// SSE 相关路由
 	r.router.HandleFunc("/api/sse/global", r.sseHandler.HandleGlobalSSE).Methods("GET")
 	r.router.HandleFunc("/api/sse/tunnel/{tunnelId}", r.sseHandler.HandleTunnelSSE).Methods("GET")
+	r.router.HandleFunc("/api/sse/nodepass-proxy", r.sseHandler.HandleNodePassSSEProxy).Methods("GET")
 	r.router.HandleFunc("/api/sse/test", r.sseHandler.HandleTestSSEEndpoint).Methods("POST")
 	r.router.HandleFunc("/api/sse/status", r.sseHandler.HandleSSEStatus).Methods("GET")
+
+	// 日志清理相关路由
+	r.router.HandleFunc("/api/sse/log-cleanup/stats", r.sseHandler.HandleLogCleanupStats).Methods("GET")
+	r.router.HandleFunc("/api/sse/log-cleanup/config", r.sseHandler.HandleLogCleanupConfig).Methods("GET", "POST")
+	r.router.HandleFunc("/api/sse/log-cleanup/trigger", r.sseHandler.HandleTriggerLogCleanup).Methods("POST")
+	r.router.HandleFunc("/api/sse/log-cleanup/history", r.sseHandler.HandleLogCleanupHistory).Methods("GET")
+
+	// EndpointSSE统计和管理
+	r.router.HandleFunc("/api/sse/endpoint-stats", r.sseHandler.HandleEndpointSSEStats).Methods("GET")
+	r.router.HandleFunc("/api/sse/endpoint-clear", r.sseHandler.HandleClearEndpointSSE).Methods("DELETE")
 
 	// 隧道相关路由
 	r.router.HandleFunc("/api/tunnels", r.tunnelHandler.HandleGetTunnels).Methods("GET")

@@ -15,6 +15,7 @@ import SecuritySettings from "@/app/settings/components/security-settings";
 import ProfileSettings from "@/app/settings/components/profile-settings";
 import NotificationSettings from "@/app/settings/components/notification-settings";
 import VersionSettings from "@/app/settings/components/version-settings";
+import LogCleanupSettings from "@/app/settings/components/log-cleanup-settings";
 
 export default function SettingsPage() {
   const [selected, setSelected] = React.useState("security");
@@ -107,6 +108,17 @@ export default function SettingsPage() {
           >
             <NotificationSettings />
           </Tab> */}
+          <Tab
+            key="logs"
+            title={
+              <div className="flex items-center gap-2">
+                <Icon icon="solar:database-bold" className="text-lg" />
+                <span>日志管理</span>
+              </div>
+            }
+          >
+            <LogCleanupSettings />
+          </Tab>
           <Tab
             key="version"
             title={

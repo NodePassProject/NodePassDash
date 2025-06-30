@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"path/filepath"
 	"strconv"
 	"strings"
 	"sync"
@@ -52,6 +53,15 @@ type Service struct {
 	lastEventTime       map[int64]time.Time
 	lastEventMu         sync.RWMutex
 
+	// 日志清理配置（仅针对数据库中的非日志事件）
+	logRetentionDays    int           // 日志保留天数
+	logCleanupInterval  time.Duration // 清理间隔
+	maxLogRecordsPerDay int           // 每天最大日志记录数
+	enableLogCleanup    bool          // 是否启用日志清理
+
+	// 文件日志管理器
+	fileLogger *log.FileLogger // 文件日志管理器
+
 	// 上下文控制
 	ctx    context.Context
 	cancel context.CancelFunc
@@ -60,6 +70,10 @@ type Service struct {
 // NewService 创建SSE服务实例
 func NewService(db *sql.DB, endpointService *endpoint.Service) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
+
+	// 创建日志目录路径
+	logDir := filepath.Join("logs")
+
 	s := &Service{
 		clients:             make(map[string]*Client),
 		tunnelSubs:          make(map[string]map[string]*Client),
@@ -73,8 +87,15 @@ func NewService(db *sql.DB, endpointService *endpoint.Service) *Service {
 		maxCacheEvents:      100,
 		healthCheckInterval: 30 * time.Second,
 		lastEventTime:       make(map[int64]time.Time),
-		ctx:                 ctx,
-		cancel:              cancel,
+		// 日志清理配置 - 默认保留7天日志，每24小时清理一次，每天最多10000条日志
+		logRetentionDays:    7,
+		logCleanupInterval:  24 * time.Hour,
+		maxLogRecordsPerDay: 10000,
+		enableLogCleanup:    true,
+		// 初始化文件日志管理器
+		fileLogger: log.NewFileLogger(logDir),
+		ctx:        ctx,
+		cancel:     cancel,
 	}
 
 	// 启动异步持久化 worker，默认 1 条，可在外部自行调用 StartStoreWorkers 增加并发
@@ -82,6 +103,11 @@ func NewService(db *sql.DB, endpointService *endpoint.Service) *Service {
 
 	// 启动批处理 worker
 	go s.startBatchProcessor()
+
+	// 启动日志清理守护协程
+	if s.enableLogCleanup {
+		go s.startLogCleanupDaemon()
+	}
 
 	return s
 }
@@ -281,7 +307,25 @@ func (s *Service) storeWorkerLoop() {
 
 // storeEvent 存储SSE事件
 func (s *Service) storeEvent(event models.EndpointSSE) error {
-	// 插入数据库
+	// 对于日志类型事件，写入文件而不是数据库
+	if event.EventType == models.SSEEventTypeLog {
+		// 写入文件日志
+		logContent := ""
+		if event.Logs != nil {
+			logContent = *event.Logs
+		}
+
+		if err := s.fileLogger.WriteLog(event.EndpointID, event.InstanceID, logContent); err != nil {
+			log.Warnf("[Master-%d]写入文件日志失败: %v", event.EndpointID, err)
+			return err
+		}
+
+		// 更新事件缓存（仍然保留在内存中供实时推送）
+		s.updateEventCache(event)
+		return nil
+	}
+
+	// 非日志事件继续存储到数据库
 	_, err := s.db.Exec(`
 		INSERT INTO "EndpointSSE" (
 			eventType, pushType, eventTime, endpointId,
@@ -386,6 +430,16 @@ func (s *Service) updateLastEventTime(endpointID int64) {
 	s.lastEventTime[endpointID] = time.Now()
 }
 
+// GetFileLogger 获取文件日志管理器
+func (s *Service) GetFileLogger() *log.FileLogger {
+	return s.fileLogger
+}
+
+// GetDB 获取数据库连接
+func (s *Service) GetDB() *sql.DB {
+	return s.db
+}
+
 // Close 关闭SSE服务
 func (s *Service) Close() {
 	s.cancel()
@@ -397,6 +451,11 @@ func (s *Service) Close() {
 
 	// 关闭持久化队列，等待 worker 退出
 	close(s.storeJobCh)
+
+	// 关闭文件日志管理器
+	if s.fileLogger != nil {
+		s.fileLogger.Close()
+	}
 
 	// 清理所有客户端连接
 	s.mu.Lock()
@@ -1220,46 +1279,206 @@ func (s *Service) fetchAndUpdateEndpointInfo(endpointID int64) {
 
 // BroadcastToAll 广播事件到所有客户端（用于系统更新等全局消息）
 func (s *Service) BroadcastToAll(event Event) {
-	payload, err := json.Marshal(event)
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+
+	eventJSON, err := json.Marshal(event)
 	if err != nil {
-		log.Warnf("序列化广播事件失败,err=%v", err)
+		log.Warn("序列化事件失败", "err", err)
 		return
 	}
 
-	message := fmt.Sprintf("data: %s\n\n", payload)
+	message := fmt.Sprintf("data: %s\n\n", eventJSON)
 
-	s.mu.RLock()
-	clientsCopy := make(map[string]*Client, len(s.clients))
-	for id, cl := range s.clients {
-		clientsCopy[id] = cl
-	}
-	s.mu.RUnlock()
-
-	failedIDs := make([]string, 0)
-	sent := 0
-
-	for id, client := range clientsCopy {
+	for _, client := range s.clients {
 		if client.Writer == nil {
-			failedIDs = append(failedIDs, id)
 			continue
 		}
-		if _, err := fmt.Fprint(client.Writer, message); err == nil {
-			if f, ok := client.Writer.(http.Flusher); ok {
-				f.Flush()
-			}
-			sent++
+		fmt.Fprint(client.Writer, message)
+		if f, ok := client.Writer.(http.Flusher); ok {
+			f.Flush()
+		}
+	}
+}
+
+// ==================== 日志清理相关方法 ====================
+
+// startLogCleanupDaemon 启动日志清理守护协程
+func (s *Service) startLogCleanupDaemon() {
+	log.Infof("启动日志清理守护协程，保留%d天日志，每%v清理一次", s.logRetentionDays, s.logCleanupInterval)
+
+	ticker := time.NewTicker(s.logCleanupInterval)
+	defer ticker.Stop()
+
+	// 立即执行一次清理
+	s.cleanupOldLogs()
+
+	for {
+		select {
+		case <-s.ctx.Done():
+			log.Info("日志清理守护协程已停止")
+			return
+		case <-ticker.C:
+			s.cleanupOldLogs()
+		}
+	}
+}
+
+// cleanupOldLogs 清理过期日志
+func (s *Service) cleanupOldLogs() {
+	startTime := time.Now()
+
+	// 计算保留截止时间
+	cutoffTime := time.Now().AddDate(0, 0, -s.logRetentionDays)
+
+	// 1. 清理数据库中的非日志事件（基于时间）
+	deletedRows, err := s.cleanupNonLogEventsByTime(cutoffTime)
+	if err != nil {
+		log.Errorf("按时间清理数据库事件失败: %v", err)
+		return
+	}
+
+	// 2. 如果设置了每日最大记录数，则进行数量限制清理（仅针对数据库事件）
+	if s.maxLogRecordsPerDay > 0 {
+		limitDeletedRows, err := s.cleanupNonLogEventsByCount()
+		if err != nil {
+			log.Errorf("按数量清理数据库事件失败: %v", err)
 		} else {
-			failedIDs = append(failedIDs, id)
+			deletedRows += limitDeletedRows
 		}
 	}
 
-	if len(failedIDs) > 0 {
-		s.mu.Lock()
-		for _, fid := range failedIDs {
-			delete(s.clients, fid)
-		}
-		s.mu.Unlock()
+	// 3. 文件日志由fileLogger自动管理，这里不需要额外处理
+
+	// 4. 执行VACUUM以回收空间
+	s.vacuumDatabase()
+
+	duration := time.Since(startTime)
+	if deletedRows > 0 {
+		log.Infof("数据库事件清理完成，删除了%d条记录，耗时%v", deletedRows, duration)
+		log.Infof("文件日志由文件日志管理器自动管理")
+	} else {
+		log.Debugf("数据库事件清理完成，无记录需要删除，耗时%v", duration)
+	}
+}
+
+// cleanupNonLogEventsByTime 按时间清理数据库中的非日志事件
+func (s *Service) cleanupNonLogEventsByTime(cutoffTime time.Time) (int64, error) {
+	result, err := s.db.Exec(`
+		DELETE FROM "EndpointSSE" 
+		WHERE eventType != 'log' AND createdAt < ?
+	`, cutoffTime)
+
+	if err != nil {
+		return 0, err
 	}
 
-	log.Debugf("全局广播已推送,type=%s sent=%d", event.Type, sent)
+	return result.RowsAffected()
+}
+
+// cleanupNonLogEventsByCount 按数量清理数据库中的非日志事件（保留每个端点最多N条事件）
+func (s *Service) cleanupNonLogEventsByCount() (int64, error) {
+	// 获取所有端点ID
+	rows, err := s.db.Query(`SELECT DISTINCT endpointId FROM "EndpointSSE" WHERE eventType != 'log'`)
+	if err != nil {
+		return 0, err
+	}
+	defer rows.Close()
+
+	var totalDeleted int64
+
+	for rows.Next() {
+		var endpointID int64
+		if err := rows.Scan(&endpointID); err != nil {
+			continue
+		}
+
+		// 为每个端点清理超出限制的非日志事件
+		deleted, err := s.cleanupNonLogEventsByCountForEndpoint(endpointID)
+		if err != nil {
+			log.Warnf("清理端点%d的非日志事件失败: %v", endpointID, err)
+			continue
+		}
+		totalDeleted += deleted
+	}
+
+	return totalDeleted, nil
+}
+
+// cleanupNonLogEventsByCountForEndpoint 为特定端点清理超出数量限制的非日志事件
+func (s *Service) cleanupNonLogEventsByCountForEndpoint(endpointID int64) (int64, error) {
+	// 删除超出每天最大记录数的非日志事件（保留最新的）
+	result, err := s.db.Exec(`
+		DELETE FROM "EndpointSSE" 
+		WHERE eventType != 'log' 
+		AND endpointId = ? 
+		AND id NOT IN (
+			SELECT id FROM "EndpointSSE" 
+			WHERE eventType != 'log' AND endpointId = ? 
+			ORDER BY createdAt DESC 
+			LIMIT ?
+		)
+	`, endpointID, endpointID, s.maxLogRecordsPerDay)
+
+	if err != nil {
+		return 0, err
+	}
+
+	return result.RowsAffected()
+}
+
+// vacuumDatabase 执行数据库VACUUM操作回收空间
+func (s *Service) vacuumDatabase() {
+	startTime := time.Now()
+	if _, err := s.db.Exec("VACUUM"); err != nil {
+		log.Warnf("执行VACUUM失败: %v", err)
+	} else {
+		log.Debugf("VACUUM完成，耗时%v", time.Since(startTime))
+	}
+}
+
+// SetLogCleanupConfig 设置日志清理配置
+func (s *Service) SetLogCleanupConfig(retentionDays int, cleanupInterval time.Duration, maxRecordsPerDay int, enabled bool) {
+	s.logRetentionDays = retentionDays
+	s.logCleanupInterval = cleanupInterval
+	s.maxLogRecordsPerDay = maxRecordsPerDay
+	s.enableLogCleanup = enabled
+
+	log.Infof("日志清理配置已更新: 保留%d天, 清理间隔%v, 每天最大%d条, 启用状态%t",
+		retentionDays, cleanupInterval, maxRecordsPerDay, enabled)
+}
+
+// TriggerLogCleanup 手动触发日志清理（公共方法）
+func (s *Service) TriggerLogCleanup() {
+	log.Info("手动触发日志清理")
+	s.cleanupOldLogs()
+}
+
+// GetLogCleanupStats 获取日志清理统计信息
+func (s *Service) GetLogCleanupStats() map[string]interface{} {
+	// 获取数据库中非日志事件的统计
+	var totalDbEvents int64
+	s.db.QueryRow(`SELECT COUNT(*) FROM "EndpointSSE" WHERE eventType != 'log'`).Scan(&totalDbEvents)
+
+	// 获取文件日志统计
+	fileLogStats := s.fileLogger.GetLogStats()
+
+	stats := map[string]interface{}{
+		"totalLogRecords":  totalDbEvents, // 数据库中的非日志事件数量
+		"retentionDays":    s.logRetentionDays,
+		"cleanupInterval":  s.logCleanupInterval.String(),
+		"maxRecordsPerDay": s.maxLogRecordsPerDay,
+		"cleanupEnabled":   s.enableLogCleanup,
+		// 文件日志统计
+		"fileLogStats":   fileLogStats,
+		"logStorageMode": "hybrid", // 混合模式：事件存数据库，日志存文件
+	}
+
+	// 获取最老的数据库事件时间
+	var oldestDbEvent time.Time
+	if err := s.db.QueryRow(`SELECT MIN(createdAt) FROM "EndpointSSE" WHERE eventType != 'log'`).Scan(&oldestDbEvent); err == nil {
+		stats["oldestDbEventAge"] = time.Since(oldestDbEvent).String()
+	}
+
+	return stats
 }
