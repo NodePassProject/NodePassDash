@@ -2,7 +2,11 @@ package api
 
 import (
 	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
+	"net/url"
+	"strings"
 
 	"NodePassDash/internal/auth"
 )
@@ -306,4 +310,438 @@ func (h *AuthHandler) HandleChangeUsername(w http.ResponseWriter, r *http.Reques
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "message": msg})
+}
+
+// HandleOAuth2Callback 处理第三方 OAuth2 回调
+//
+// 目前仅作为占位实现，记录回调信息并返回成功响应。
+// 后续将根据 provider（github、cloudflare 等）交换 access token 并创建用户会话。
+func (h *AuthHandler) HandleOAuth2Callback(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/oauth2/callback/"), "/")
+	provider := vars[0]
+	code := r.URL.Query().Get("code")
+	state := r.URL.Query().Get("state")
+
+	// state 校验，防止 CSRF
+	if !h.authService.ValidateOAuthState(state) {
+		http.Error(w, "invalid state", http.StatusBadRequest)
+		return
+	}
+
+	if provider == "" || code == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "缺少 provider 或 code 参数",
+		})
+		return
+	}
+
+	// 打印回调日志，便于调试
+	fmt.Printf("📢 收到 OAuth2 回调 → provider=%s, code=%s, state=%s\n", provider, code, state)
+
+	switch provider {
+	case "github":
+		h.handleGitHubOAuth(w, r, code)
+	case "cloudflare":
+		h.handleCloudflareOAuth(w, r, code)
+	default:
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "未知 provider",
+		})
+	}
+}
+
+// handleGitHubOAuth 处理 GitHub OAuth2 回调
+func (h *AuthHandler) handleGitHubOAuth(w http.ResponseWriter, r *http.Request, code string) {
+	// 读取配置
+	cfgStr, err := h.authService.GetSystemConfig("github_oauth2")
+	if err != nil || cfgStr == "" {
+		http.Error(w, "GitHub OAuth2 未配置", http.StatusBadRequest)
+		return
+	}
+
+	type ghCfg struct {
+		ClientID     string `json:"clientId"`
+		ClientSecret string `json:"clientSecret"`
+		TokenURL     string `json:"tokenUrl"`
+		UserInfoURL  string `json:"userInfoUrl"`
+	}
+	var cfg ghCfg
+	_ = json.Unmarshal([]byte(cfgStr), &cfg)
+
+	if cfg.ClientID == "" || cfg.ClientSecret == "" {
+		http.Error(w, "GitHub OAuth2 配置不完整", http.StatusBadRequest)
+		return
+	}
+
+	// 交换 access token
+	form := url.Values{}
+	form.Set("client_id", cfg.ClientID)
+	form.Set("client_secret", cfg.ClientSecret)
+	form.Set("code", code)
+	form.Set("grant_type", "authorization_code")
+
+	// GitHub 如果在 App 设置中配置了回调地址，需要在交换 token 时附带同样的 redirect_uri
+	baseURL := fmt.Sprintf("%s://%s", "http", r.Host)
+	redirectURI := baseURL + "/api/oauth2/callback/" + "github"
+	form.Set("redirect_uri", redirectURI)
+
+	tokenReq, _ := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
+	tokenReq.Header.Set("Accept", "application/json")
+	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(tokenReq)
+	if err != nil {
+		http.Error(w, "请求 GitHub Token 失败", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		bodyBytes, _ := ioutil.ReadAll(resp.Body)
+		fmt.Printf("❌ GitHub Token 错误 %d: %s\n", resp.StatusCode, string(bodyBytes))
+		http.Error(w, "GitHub Token 接口返回错误", http.StatusBadGateway)
+		return
+	}
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	fmt.Printf("🔑 GitHub Token 响应: %s\n", string(body))
+
+	var tokenRes struct {
+		AccessToken string `json:"access_token"`
+		Scope       string `json:"scope"`
+		TokenType   string `json:"token_type"`
+	}
+	_ = json.Unmarshal(body, &tokenRes)
+	if tokenRes.AccessToken == "" {
+		http.Error(w, "获取 AccessToken 失败", http.StatusBadGateway)
+		return
+	}
+
+	// 获取用户信息
+	userReq, _ := http.NewRequest("GET", cfg.UserInfoURL, nil)
+	userReq.Header.Set("Authorization", "token "+tokenRes.AccessToken)
+	userReq.Header.Set("Accept", "application/json")
+
+	userResp, err := http.DefaultClient.Do(userReq)
+	if err != nil {
+		http.Error(w, "获取用户信息失败", http.StatusBadGateway)
+		return
+	}
+	defer userResp.Body.Close()
+	userBody, _ := ioutil.ReadAll(userResp.Body)
+	fmt.Printf("👤 GitHub 用户信息: %s\n", string(userBody))
+
+	var userData map[string]interface{}
+	_ = json.Unmarshal(userBody, &userData)
+	providerID := fmt.Sprintf("%v", userData["id"])
+	login := fmt.Sprintf("%v", userData["login"])
+
+	username := "github:" + login
+
+	// 保存用户信息
+	dataJSON, _ := json.Marshal(userData)
+	_ = h.authService.SaveOAuthUser("github", providerID, username, string(dataJSON))
+
+	// 创建会话
+	sessionID, err := h.authService.CreateUserSession(username)
+	if err != nil {
+		http.Error(w, "创建会话失败", http.StatusInternalServerError)
+		return
+	}
+
+	// 设置 cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session",
+		Value:    sessionID,
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   24 * 60 * 60,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	// 如果请求携带 redirect 参数或 Accept text/html，则执行页面跳转；否则返回 JSON
+	redirectURL := r.URL.Query().Get("redirect")
+	if redirectURL == "" {
+		redirectURL = "http://localhost:3000/dashboard" // 默认跳转前端仪表盘
+	}
+
+	accept := r.Header.Get("Accept")
+	if strings.Contains(accept, "text/html") || strings.Contains(accept, "application/xhtml+xml") || redirectURL != "" {
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":  true,
+		"provider": "github",
+		"username": username,
+		"message":  "登录成功",
+	})
+}
+
+// handleCloudflareOAuth 处理 Cloudflare OAuth2 回调
+func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Request, code string) {
+	// 读取配置
+	cfgStr, err := h.authService.GetSystemConfig("cloudflare_oauth2")
+	if err != nil || cfgStr == "" {
+		http.Error(w, "Cloudflare OAuth2 未配置", http.StatusBadRequest)
+		return
+	}
+
+	type cfCfg struct {
+		ClientID     string `json:"clientId"`
+		ClientSecret string `json:"clientSecret"`
+		TokenURL     string `json:"tokenUrl"`
+		UserInfoURL  string `json:"userInfoUrl"`
+	}
+	var cfg cfCfg
+	_ = json.Unmarshal([]byte(cfgStr), &cfg)
+
+	if cfg.ClientID == "" || cfg.ClientSecret == "" {
+		http.Error(w, "Cloudflare OAuth2 配置不完整", http.StatusBadRequest)
+		return
+	}
+
+	// 交换 access token
+	form := url.Values{}
+	form.Set("client_id", cfg.ClientID)
+	form.Set("client_secret", cfg.ClientSecret)
+	form.Set("code", code)
+	form.Set("grant_type", "authorization_code")
+
+	// Cloudflare 如果在 App 设置中配置了回调地址，需要在交换 token 时附带同样的 redirect_uri
+	baseURL := fmt.Sprintf("%s://%s", "http", r.Host)
+	redirectURI := baseURL + "/api/oauth2/callback/" + "cloudflare"
+	form.Set("redirect_uri", redirectURI)
+
+	tokenReq, _ := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
+	tokenReq.Header.Set("Accept", "application/json")
+	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	resp, err := http.DefaultClient.Do(tokenReq)
+	if err != nil {
+		http.Error(w, "请求 Cloudflare Token 失败", http.StatusBadGateway)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		bodyBytes, _ := ioutil.ReadAll(resp.Body)
+		fmt.Printf("❌ Cloudflare Token 错误 %d: %s\n", resp.StatusCode, string(bodyBytes))
+		http.Error(w, "Cloudflare Token 接口返回错误", http.StatusBadGateway)
+		return
+	}
+
+	body, _ := ioutil.ReadAll(resp.Body)
+	fmt.Printf("🔑 Cloudflare Token 响应: %s\n", string(body))
+
+	var tokenRes struct {
+		AccessToken string `json:"access_token"`
+		Scope       string `json:"scope"`
+		TokenType   string `json:"token_type"`
+	}
+	_ = json.Unmarshal(body, &tokenRes)
+	if tokenRes.AccessToken == "" {
+		http.Error(w, "获取 AccessToken 失败", http.StatusBadGateway)
+		return
+	}
+
+	// 获取用户信息
+	userReq, _ := http.NewRequest("GET", cfg.UserInfoURL, nil)
+	userReq.Header.Set("Authorization", "token "+tokenRes.AccessToken)
+	userReq.Header.Set("Accept", "application/json")
+
+	userResp, err := http.DefaultClient.Do(userReq)
+	if err != nil {
+		http.Error(w, "获取用户信息失败", http.StatusBadGateway)
+		return
+	}
+	defer userResp.Body.Close()
+	userBody, _ := ioutil.ReadAll(userResp.Body)
+	fmt.Printf("👤 Cloudflare 用户信息: %s\n", string(userBody))
+
+	var userData map[string]interface{}
+	_ = json.Unmarshal(userBody, &userData)
+	providerID := fmt.Sprintf("%v", userData["id"])
+	login := fmt.Sprintf("%v", userData["login"])
+
+	username := "cloudflare:" + login
+
+	// 保存用户信息
+	dataJSON, _ := json.Marshal(userData)
+	_ = h.authService.SaveOAuthUser("cloudflare", providerID, username, string(dataJSON))
+
+	// 创建会话
+	sessionID, err := h.authService.CreateUserSession(username)
+	if err != nil {
+		http.Error(w, "创建会话失败", http.StatusInternalServerError)
+		return
+	}
+
+	// 设置 cookie
+	http.SetCookie(w, &http.Cookie{
+		Name:     "session",
+		Value:    sessionID,
+		Path:     "/",
+		HttpOnly: true,
+		MaxAge:   24 * 60 * 60,
+		SameSite: http.SameSiteLaxMode,
+	})
+
+	// 如果请求携带 redirect 参数或 Accept text/html，则执行页面跳转；否则返回 JSON
+	redirectURL := r.URL.Query().Get("redirect")
+	if redirectURL == "" {
+		redirectURL = "http://localhost:3000/dashboard" // 默认跳转前端仪表盘
+	}
+
+	accept := r.Header.Get("Accept")
+	if strings.Contains(accept, "text/html") || strings.Contains(accept, "application/xhtml+xml") || redirectURL != "" {
+		http.Redirect(w, r, redirectURL, http.StatusFound)
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":  true,
+		"provider": "cloudflare",
+		"username": username,
+		"message":  "登录成功",
+	})
+}
+
+// OAuth2Config 请求体
+type OAuth2ConfigRequest struct {
+	Provider string                 `json:"provider"`
+	Config   map[string]interface{} `json:"config"`
+	Enable   bool                   `json:"enable"`
+}
+
+// HandleOAuth2Config 读取或保存 OAuth2 配置
+// GET  参数: ?provider=github|cloudflare
+// POST Body: {provider, config, enable}
+func (h *AuthHandler) HandleOAuth2Config(w http.ResponseWriter, r *http.Request) {
+	switch r.Method {
+	case http.MethodGet:
+		provider := r.URL.Query().Get("provider")
+		if provider == "" {
+			http.Error(w, "missing provider", http.StatusBadRequest)
+			return
+		}
+
+		cfgKey := provider + "_oauth2"
+		enableKey := provider + "_oauth2_enable"
+
+		cfgStr, _ := h.authService.GetSystemConfig(cfgKey)
+		enableStr, _ := h.authService.GetSystemConfig(enableKey)
+
+		var cfg map[string]interface{}
+		if cfgStr != "" {
+			_ = json.Unmarshal([]byte(cfgStr), &cfg)
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+			"enable":  enableStr == "true",
+			"config":  cfg,
+		})
+
+	case http.MethodPost:
+		var req OAuth2ConfigRequest
+		if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+			http.Error(w, "invalid body", http.StatusBadRequest)
+			return
+		}
+
+		if req.Provider == "" {
+			http.Error(w, "missing provider", http.StatusBadRequest)
+			return
+		}
+
+		cfgBytes, _ := json.Marshal(req.Config)
+		if err := h.authService.SetSystemConfig(req.Provider+"_oauth2", string(cfgBytes), "OAuth2 配置"); err != nil {
+			http.Error(w, "save config failed", http.StatusInternalServerError)
+			return
+		}
+		enableVal := "false"
+		if req.Enable {
+			enableVal = "true"
+		}
+		if err := h.authService.SetSystemConfig(req.Provider+"_oauth2_enable", enableVal, "OAuth2 启用"); err != nil {
+			http.Error(w, "save enable failed", http.StatusInternalServerError)
+			return
+		}
+
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": true,
+		})
+
+	default:
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+	}
+}
+
+// HandleOAuth2Login 生成 state 并重定向到第三方授权页
+func (h *AuthHandler) HandleOAuth2Login(w http.ResponseWriter, r *http.Request) {
+	provider := r.URL.Query().Get("provider")
+	if provider == "" {
+		http.Error(w, "missing provider", http.StatusBadRequest)
+		return
+	}
+
+	cfgKey := provider + "_oauth2"
+	cfgStr, err := h.authService.GetSystemConfig(cfgKey)
+	if err != nil || cfgStr == "" {
+		http.Error(w, "oauth2 not configured", http.StatusBadRequest)
+		return
+	}
+
+	// 通用字段
+	var cfg map[string]interface{}
+	_ = json.Unmarshal([]byte(cfgStr), &cfg)
+
+	clientId := fmt.Sprintf("%v", cfg["clientId"])
+	authUrl := fmt.Sprintf("%v", cfg["authUrl"])
+	scopes := ""
+	if v, ok := cfg["scopes"].([]interface{}); ok {
+		var s []string
+		for _, itm := range v {
+			s = append(s, fmt.Sprintf("%v", itm))
+		}
+		scopes = strings.Join(s, " ")
+	}
+
+	if clientId == "" || authUrl == "" {
+		http.Error(w, "oauth2 config incomplete", http.StatusBadRequest)
+		return
+	}
+
+	state := h.authService.GenerateOAuthState()
+
+	baseURL := fmt.Sprintf("%s://%s", "http", r.Host)
+	redirectURI := baseURL + "/api/oauth2/callback/" + provider
+
+	// 拼接查询参数
+	q := url.Values{}
+	q.Set("client_id", clientId)
+	q.Set("redirect_uri", redirectURI)
+	q.Set("state", state)
+	if scopes != "" {
+		q.Set("scope", scopes)
+	}
+
+	if provider == "cloudflare" {
+		q.Set("response_type", "code")
+	}
+
+	// GitHub 需要允许重复 scope param encode
+	loginURL := authUrl + "?" + q.Encode()
+
+	http.Redirect(w, r, loginURL, http.StatusFound)
 }

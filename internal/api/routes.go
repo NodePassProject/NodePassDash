@@ -96,6 +96,12 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/auth/change-password", r.authHandler.HandleChangePassword).Methods("POST")
 	r.router.HandleFunc("/api/auth/change-username", r.authHandler.HandleChangeUsername).Methods("POST")
 
+	// OAuth2 回调（/api/oauth2/callback/{provider}）
+	r.router.HandleFunc("/api/oauth2/callback/{provider}", r.authHandler.HandleOAuth2Callback).Methods("GET")
+	r.router.HandleFunc("/api/oauth2/login", r.authHandler.HandleOAuth2Login).Methods("GET")
+	// OAuth2 配置读写
+	r.router.HandleFunc("/api/oauth2/config", r.authHandler.HandleOAuth2Config).Methods("GET", "POST")
+
 	// 端点相关路由
 	r.router.HandleFunc("/api/endpoints", r.endpointHandler.HandleGetEndpoints).Methods("GET")
 	r.router.HandleFunc("/api/endpoints", r.endpointHandler.HandleCreateEndpoint).Methods("POST")

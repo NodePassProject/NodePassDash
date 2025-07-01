@@ -5,9 +5,10 @@ import {
   Card,
   CardBody,
   CardHeader,
-  Input
+  Input,
+  Divider
 } from "@heroui/react";
-import { useState } from 'react';
+import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 
 import { motion } from 'framer-motion';
@@ -29,6 +30,26 @@ export default function LoginPage() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState('');
   const [showPassword, setShowPassword] = useState(false);
+
+  // OAuth2 配置状态
+  const [oauthProviders, setOauthProviders] = useState<{github?: any; cloudflare?: any}>({});
+
+  useEffect(() => {
+    const loadProvider = async (provider: string) => {
+      try {
+        const res = await fetch(`/api/oauth2/config?provider=${provider}`);
+        const data = await res.json();
+        if (data.success && data.enable) {
+          setOauthProviders(prev => ({ ...prev, [provider]: data.config }));
+        }
+      } catch (e) {
+        console.error('获取 OAuth2 配置失败', provider, e);
+      }
+    };
+
+    loadProvider('github');
+    loadProvider('cloudflare');
+  }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -173,6 +194,40 @@ export default function LoginPage() {
                 {isLoading ? '登录中...' : '登录'}
               </Button>
             </form>
+
+            {/* OAuth2 登录选项 */}
+            {Object.keys(oauthProviders).length > 0 && (
+              <div className="mt-6 space-y-3">
+                <Divider />
+                <p className="text-center text-sm text-default-500">或使用以下方式登录</p>
+                <div className="flex flex-col gap-3">
+                  {oauthProviders.github && (
+                    <Button
+                      variant="bordered"
+                      color="default"
+                      startContent={<Icon icon="simple-icons:github" width={20} />}
+                      onPress={() => {
+                        window.location.href = '/api/oauth2/login?provider=github';
+                      }}
+                    >
+                      使用 GitHub 登录
+                    </Button>
+                  )}
+                  {oauthProviders.cloudflare && (
+                    <Button
+                      variant="bordered"
+                      color="default"
+                      startContent={<Icon icon="simple-icons:cloudflare" width={20} />}
+                      onPress={() => {
+                        window.location.href = '/api/oauth2/login?provider=cloudflare';
+                      }}
+                    >
+                      使用 Cloudflare 登录
+                    </Button>
+                  )}
+                </div>
+              </div>
+            )}
           </CardBody>
         </Card>
       </motion.div>

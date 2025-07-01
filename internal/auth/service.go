@@ -19,6 +19,8 @@ var (
 	sessionCache = sync.Map{}
 	// 内存中的系统配置存储
 	configCache = sync.Map{}
+	// OAuth2 state 缓存，防止 CSRF
+	oauthStateCache = sync.Map{} // key:string state, value:int64 timestamp
 )
 
 // Service 认证服务
@@ -384,4 +386,53 @@ func (s *Service) invalidateAllSessions() {
 		sessionCache.Delete(key)
 		return true
 	})
+}
+
+// SaveOAuthUser 保存或更新 OAuth 用户信息
+// provider: github / cloudflare 等
+// providerID: 第三方平台返回的用户唯一 ID
+// username: 映射到本系统的用户名（可带前缀）
+// dataJSON: 原始用户信息 JSON 字符串
+func (s *Service) SaveOAuthUser(provider, providerID, username, dataJSON string) error {
+	// 创建表（若不存在）
+	createSQL := `CREATE TABLE IF NOT EXISTS "OAuthUser" (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		provider TEXT NOT NULL,
+		providerId TEXT NOT NULL,
+		username TEXT NOT NULL,
+		data TEXT,
+		createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+		updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
+		UNIQUE(provider, providerId)
+	);`
+	if _, err := s.db.Exec(createSQL); err != nil {
+		return err
+	}
+
+	// 插入或更新
+	_, err := s.db.Exec(`INSERT INTO "OAuthUser" (provider, providerId, username, data, createdAt, updatedAt)
+		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
+		ON CONFLICT(provider, providerId) DO UPDATE SET username = excluded.username, data = excluded.data, updatedAt = CURRENT_TIMESTAMP;`,
+		provider, providerID, username, dataJSON)
+	return err
+}
+
+// GenerateOAuthState 生成并缓存 state 值（10 分钟有效）
+func (s *Service) GenerateOAuthState() string {
+	state := uuid.NewString()
+	oauthStateCache.Store(state, time.Now().Unix())
+	return state
+}
+
+// ValidateOAuthState 校验 state 并清除，返回是否有效
+func (s *Service) ValidateOAuthState(state string) bool {
+	if v, ok := oauthStateCache.Load(state); ok {
+		ts := v.(int64)
+		if time.Now().Unix()-ts < 600 { // 10 分钟
+			oauthStateCache.Delete(state)
+			return true
+		}
+		oauthStateCache.Delete(state)
+	}
+	return false
 }
