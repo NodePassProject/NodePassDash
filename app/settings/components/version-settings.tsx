@@ -165,20 +165,22 @@ export default function VersionSettings() {
           </div>
         </CardHeader>
         <Divider />
-        <CardBody className="gap-6 px-4 py-5">
-          {/* 当前版本信息 */}
-          <div className="space-y-4">
-            <div className="flex items-center justify-between">
-              <div className="space-y-2">
+        <CardBody className="p-0">
+          <div className="divide-y divide-default-200">
+            {/* 当前版本行 */}
+            <div className="flex items-center justify-between px-4 py-3">
+              {/* 左侧：标题 + 版本标签 + 环境信息 */}
+              <div className="space-y-1">
                 <div className="flex items-center gap-3">
-                  <span className="text-sm text-default-700">当前版本</span>
-                  <Chip variant="flat" color="primary">
-                    {updateInfo?.current.current || 'unknown'}
+                  <h3 className="text-base font-medium whitespace-nowrap">版本信息</h3>
+                  <Chip variant="flat" color="primary" size="sm">
+                    当前: {updateInfo?.current.current || 'unknown'}
                   </Chip>
                   {updateInfo?.hasUpdate && updateInfo.latest && (
                     <Chip 
                       variant="flat" 
                       color="success"
+                      size="sm"
                       className="cursor-pointer hover:opacity-80"
                       onClick={onOpen}
                     >
@@ -186,14 +188,12 @@ export default function VersionSettings() {
                     </Chip>
                   )}
                 </div>
-                
-                {/* 环境信息 */}
                 <div className="flex items-center gap-4 text-sm text-default-500">
                   <span>系统: {updateInfo?.current.os}/{updateInfo?.current.arch}</span>
-                  <span>Go: {updateInfo?.current.goVersion}</span>
                 </div>
               </div>
 
+              {/* 右侧按钮 */}
               <Button
                 variant="bordered"
                 size="sm"
@@ -204,24 +204,22 @@ export default function VersionSettings() {
                 检查更新
               </Button>
             </div>
-          </div>
 
-          <Divider />
-
-          {/* 部署方式和更新 */}
-          {deploymentInfo && (
-            <div className="space-y-4">
-              <h3 className="text-lg font-medium">部署环境</h3>
-              <div className="flex items-center justify-between">
+            {/* 部署环境行 */}
+            {deploymentInfo && (
+              <div className="flex items-center justify-between px-4 py-3">
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
-                    <FontAwesomeIcon 
-                      icon={deploymentInfo.method === 'docker' ? faBox : faDesktop} 
-                      className="text-default-600"
-                    />
-                    <span className="font-medium">
-                      {deploymentInfo.method === 'docker' ? 'Docker 部署' : '二进制部署'}
-                    </span>
+                    <h3 className="text-base font-medium whitespace-nowrap">部署环境</h3>
+                    <Chip variant="flat" size="sm" color="default">
+                      <FontAwesomeIcon 
+                        icon={deploymentInfo.method === 'docker' ? faBox : faDesktop} 
+                        className="text-default-600"
+                      />&nbsp;
+                      <span className="font-medium">
+                        {deploymentInfo.method === 'docker' ? 'Docker 部署' : '二进制部署'}
+                      </span>
+                    </Chip>
                   </div>
                   <p className="text-sm text-default-500">{deploymentInfo.details}</p>
                 </div>
@@ -247,36 +245,36 @@ export default function VersionSettings() {
                   </Button>
                 )}
               </div>
+            )}
+          </div>
 
-              {/* 手动更新说明 */}
-              {!deploymentInfo.canUpdate && (
-                <div className="mt-4 p-3 bg-default-100 rounded-lg">
-                  <h4 className="text-sm font-medium mb-2">手动更新说明：</h4>
-                  <div className="text-sm text-default-600 space-y-1">
-                    {deploymentInfo.method === 'docker' ? (
-                      <>
-                        <p>在Docker宿主机上执行以下命令：</p>
-                        <div className="mt-2 p-2 bg-black text-green-400 rounded font-mono text-xs overflow-x-auto">
-                          <div># 拉取最新镜像</div>
-                          <div>docker pull ghcr.io/nodepassproject/nodepassdash:latest</div>
-                          <div className="mt-1"># 重启容器</div>
-                          <div>docker-compose down && docker-compose up -d</div>
-                        </div>
-                      </>
-                    ) : (
-                      <>
-                        <p>手动下载和安装：</p>
-                        <div className="mt-2 space-y-1 text-xs">
-                          <p>1. 从 GitHub Releases 下载对应平台的二进制文件</p>
-                          <p>2. 停止当前程序</p>
-                          <p>3. 替换二进制文件</p>
-                          <p>4. 重新启动程序</p>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
+          {/* 手动更新说明，保持原有块级展示 */}
+          {deploymentInfo && !deploymentInfo.canUpdate && (
+            <div className="px-4 py-5 bg-default-100 rounded-b-lg">
+              <h4 className="text-sm font-medium mb-2">手动更新说明：</h4>
+              <div className="text-sm text-default-600 space-y-1">
+                {deploymentInfo.method === 'docker' ? (
+                  <>
+                    <p>在 Docker 宿主机上执行以下命令：</p>
+                    <div className="mt-2 p-2 bg-black text-green-400 rounded font-mono text-xs overflow-x-auto">
+                      <div># 拉取最新镜像</div>
+                      <div>docker pull ghcr.io/nodepassproject/nodepassdash:latest</div>
+                      <div className="mt-1"># 重启容器</div>
+                      <div>docker-compose down && docker-compose up -d</div>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <p>手动下载和安装：</p>
+                    <div className="mt-2 space-y-1 text-xs">
+                      <p>1. 从 GitHub Releases 下载对应平台的二进制文件</p>
+                      <p>2. 停止当前程序</p>
+                      <p>3. 替换二进制文件</p>
+                      <p>4. 重新启动程序</p>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
           )}
         </CardBody>

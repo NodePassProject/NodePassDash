@@ -411,10 +411,11 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   <p className="text-sm text-default-500">更改您的登录用户名</p>
                 </div>
                 <Button 
+                  size="sm"
                   color="primary" 
-                  variant="flat"
                   onPress={onUsernameOpen}
-                  startContent={<Icon icon="solar:user-linear" width={18} />}>
+                  startContent={<Icon icon="solar:user-bold" width={18} />}
+                   >
                   修改用户名
                 </Button>
               </div>
@@ -425,10 +426,10 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   <p className="text-sm text-default-500">定期更新密码以提高账户安全性</p>
                 </div>
                 <Button 
+                  size="sm"
                   color="primary" 
-                  variant="flat"
                   onPress={onPasswordOpen}
-                  startContent={<Icon icon="solar:key-linear" width={18} />}
+                  startContent={<Icon icon="solar:key-bold" width={18} />}
                 >
                   修改密码
                 </Button>
@@ -466,7 +467,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     variant="bordered"
                     value={passwordForm.currentPassword}
                     onChange={(e) => handlePasswordFormChange('currentPassword', e.target.value)}
-                    startContent={<Icon icon="solar:lock-password-linear" width={18} />}
+                    startContent={<Icon icon="solar:lock-password-bold" width={18} />}
                   />
                   
                   <Input
@@ -476,7 +477,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     variant="bordered"
                     value={passwordForm.newPassword}
                     onChange={(e) => handlePasswordFormChange('newPassword', e.target.value)}
-                    startContent={<Icon icon="solar:key-linear" width={18} />}
+                    startContent={<Icon icon="solar:key-bold" width={18} />}
                   />
                   
                   <Input
@@ -486,7 +487,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     variant="bordered"
                     value={passwordForm.confirmPassword}
                     onChange={(e) => handlePasswordFormChange('confirmPassword', e.target.value)}
-                    startContent={<Icon icon="solar:key-linear" width={18} />}
+                    startContent={<Icon icon="solar:key-bold" width={18} />}
                   />
                   
                   <div className="text-small text-default-500">
@@ -508,7 +509,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   color="primary" 
                   onPress={handlePasswordChange}
                   isLoading={isSubmitting}
-                  startContent={!isSubmitting ? <Icon icon="solar:check-circle-linear" width={18} /> : null}
+                  startContent={!isSubmitting ? <Icon icon="solar:check-circle-bold" width={18} /> : null}
                 >
                   {isSubmitting ? "修改中..." : "确认修改"}
                 </Button>
@@ -544,7 +545,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   variant="bordered"
                   value={newUsername}
                   onChange={(e) => setNewUsername(e.target.value)}
-                  startContent={<Icon icon="solar:user-linear" width={18} />}
+                  startContent={<Icon icon="solar:user-bold" width={18} />}
                 />
               </ModalBody>
               <ModalFooter>
@@ -560,7 +561,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   color="primary" 
                   onPress={handleUsernameChange}
                   isLoading={isSubmitting}
-                  startContent={!isSubmitting ? <Icon icon="solar:check-circle-linear" width={18} /> : null}
+                  startContent={!isSubmitting ? <Icon icon="solar:check-circle-bold" width={18} /> : null}
                 >
                   {isSubmitting ? "修改中..." : "确认修改"}
                 </Button>
@@ -615,22 +616,24 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
               <div className="flex gap-2">
                 <Button
                   color="primary"
-                  variant="flat"
+                  size="sm"
+
                   onPress={() => {
                     // 打开对应配置模态框
                     if (isGitHubConfigured) onGitHubOpen();
                     else if (isCloudflareConfigured) onCloudflareOpen();
                   }}
-                  startContent={<Icon icon="solar:settings-linear" width={18} />}
+                  startContent={<Icon icon="solar:settings-bold" width={18} />}
                 >
                   配置
                 </Button>
                 <Button
                   color="danger"
-                  variant="ghost"
+                  size="sm"
+
                   onPress={() => handleUnbindProvider(isGitHubConfigured ? "github" : "cloudflare")}
                   isLoading={isSubmitting}
-                  startContent={<Icon icon="solar:unlink-linear" width={18} />}
+                  startContent={<Icon icon="solar:lock-keyhole-unlocked-bold" width={18} />}
                 >
                   解绑
                 </Button>
@@ -641,9 +644,11 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
             <div className="flex items-center justify-between">
               <p className="text-default-500">尚未绑定任何 OAuth2 登录方式</p>
               <Button
+                size="sm"
                 color="primary"
+                className="text-white"
                 onPress={onSelectOpen}
-                startContent={<Icon icon="solar:add-circle-linear" width={18} />}
+                startContent={<Icon icon="solar:add-circle-bold" width={18} />}
               >
                 绑定 OAuth2 认证
               </Button>

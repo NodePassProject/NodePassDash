@@ -124,7 +124,7 @@ export default function SettingsPage() {
             title={
               <div className="flex items-center gap-2">
                 <Icon icon="solar:refresh-circle-bold" className="text-lg" />
-                <span>版本更新</span>
+                <span>版本检查</span>
               </div>
             }
           >
