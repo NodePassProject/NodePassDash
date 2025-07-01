@@ -372,13 +372,13 @@ export default function LogCleanupSettings() {
           {stats ? (
             <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
               <div className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg">
-                <FontAwesomeIcon icon={faDatabase} className="text-primary text-xl" />
+                <FontAwesomeIcon icon={faBroadcastTower} className="text-primary text-xl" />
                 <div>
-                  <p className="text-xs text-default-600">数据库事件记录</p>
+                  <p className="text-xs text-default-600">推送事件总数</p>
                   <p className="text-xl font-bold text-primary">
-                    {formatNumber(stats.totalLogRecords || 0)}
+                    {endpointSSEStats ? formatNumber(endpointSSEStats.totalEvents) : formatNumber(stats.totalLogRecords || 0)}
                   </p>
-                  <p className="text-xs text-default-500">非日志事件</p>
+                  <p className="text-xs text-default-500">SSE记录</p>
                 </div>
               </div>
               
@@ -432,76 +432,7 @@ export default function LogCleanupSettings() {
         </CardBody>
       </Card>
 
-      {/* EndpointSSE统计卡片 */}
-      <Card className="p-2">
-        <CardHeader className="flex gap-3">
-          <div className="flex flex-col flex-1">
-            <p className="text-lg font-semibold">SSE事件统计</p>
-            <p className="text-sm text-default-500">当前数据库中的EndpointSSE推送事件数量</p>
-          </div>
-          <Button
-            color="danger"
-            variant="ghost"
-            size="sm"
-            isLoading={clearingSSE}
-            startContent={<FontAwesomeIcon icon={faTrash} />}
-            onPress={onClearSSEOpen}
-          >
-            清空EndpointSSE
-          </Button>
-        </CardHeader>
-        <Divider />
-        <CardBody>
-          {endpointSSEStats ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              <div className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg">
-                <FontAwesomeIcon icon={faBroadcastTower} className="text-primary text-xl" />
-                <div>
-                  <p className="text-xs text-default-600">推送事件总数</p>
-                  <p className="text-xl font-bold text-primary">
-                    {formatNumber(endpointSSEStats.totalEvents)}
-                  </p>
-                  <p className="text-xs text-default-500">EndpointSSE记录</p>
-                </div>
-              </div>
-              
-              {endpointSSEStats.oldestEvent && (
-                <div className="flex items-center gap-3 p-4 bg-secondary/10 rounded-lg">
-                  <FontAwesomeIcon icon={faChartLine} className="text-secondary text-xl" />
-                  <div>
-                    <p className="text-xs text-default-600">最早事件</p>
-                    <p className="text-sm font-bold text-secondary">
-                      {new Date(endpointSSEStats.oldestEvent).toLocaleDateString('zh-CN')}
-                    </p>
-                    <p className="text-xs text-default-500">
-                      {new Date(endpointSSEStats.oldestEvent).toLocaleTimeString('zh-CN')}
-                    </p>
-                  </div>
-                </div>
-              )}
 
-              {endpointSSEStats.newestEvent && (
-                <div className="flex items-center gap-3 p-4 bg-success/10 rounded-lg">
-                  <FontAwesomeIcon icon={faCheck} className="text-success text-xl" />
-                  <div>
-                    <p className="text-xs text-default-600">最新事件</p>
-                    <p className="text-sm font-bold text-success">
-                      {new Date(endpointSSEStats.newestEvent).toLocaleDateString('zh-CN')}
-                    </p>
-                    <p className="text-xs text-default-500">
-                      {new Date(endpointSSEStats.newestEvent).toLocaleTimeString('zh-CN')}
-                    </p>
-                  </div>
-                </div>
-              )}
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-default-500">无法获取EndpointSSE统计数据</p>
-            </div>
-          )}
-        </CardBody>
-      </Card>
 
       {/* 配置信息卡片 */}
       <Card className="p-2">
@@ -520,13 +451,23 @@ export default function LogCleanupSettings() {
               配置清理规则
             </Button>
             <Button
+              color="danger"
+              variant="ghost"
+              isLoading={clearingSSE}
+              startContent={<FontAwesomeIcon icon={faTrash} />}
+              onPress={onClearSSEOpen}
+            >
+              清空SSE记录
+            </Button>
+            <Button
               color="secondary"
               isLoading={triggering}
               startContent={<FontAwesomeIcon icon={faPlay} />}
               onPress={handleTriggerCleanup}
             >
-              立即清理
+              清理日志
             </Button>
+
           </div>
         </CardHeader>
         <Divider />

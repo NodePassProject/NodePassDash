@@ -1348,18 +1348,17 @@ func (s *Service) cleanupOldLogs() {
 		}
 	}
 
-	// 3. 文件日志由fileLogger自动管理，这里不需要额外处理
-
-	// 4. 执行VACUUM以回收空间
+	// 3. 执行VACUUM以回收空间
 	s.vacuumDatabase()
 
 	duration := time.Since(startTime)
 	if deletedRows > 0 {
-		log.Infof("数据库事件清理完成，删除了%d条记录，耗时%v", deletedRows, duration)
-		log.Infof("文件日志由文件日志管理器自动管理")
+		log.Infof("数据库事件清理完成，删除了%d条非日志记录，耗时%v", deletedRows, duration)
 	} else {
 		log.Debugf("数据库事件清理完成，无记录需要删除，耗时%v", duration)
 	}
+
+	// 注意：文件日志清理需通过手动触发或由fileLogger自动管理
 }
 
 // cleanupNonLogEventsByTime 按时间清理数据库中的非日志事件
@@ -1451,7 +1450,14 @@ func (s *Service) SetLogCleanupConfig(retentionDays int, cleanupInterval time.Du
 // TriggerLogCleanup 手动触发日志清理（公共方法）
 func (s *Service) TriggerLogCleanup() {
 	log.Info("手动触发日志清理")
+
+	// 1. 清理数据库中的非日志事件
 	s.cleanupOldLogs()
+
+	// 2. 手动触发文件日志清理
+	if s.fileLogger != nil {
+		s.fileLogger.TriggerCleanup()
+	}
 }
 
 // GetLogCleanupStats 获取日志清理统计信息

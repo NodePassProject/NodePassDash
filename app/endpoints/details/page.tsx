@@ -203,32 +203,33 @@ export default function EndpointDetailPage() {
         });
       },
       onMessage: (data) => {
-        console.log('[Endpoint SSE] 收到消息:', data);
+        console.log('🔥🔥🔥 [Endpoint SSE] 收到消息 - 类型:', typeof data, '数据:', data);
+        console.log('🔥🔥🔥 [Endpoint SSE] onMessage 回调被调用了！');
         
-        // NodePass SSE原始数据格式解析
+        // 将收到的数据直接格式化为日志消息
         let logMessage = '';
         
-        // 尝试多种数据格式解析
         if (typeof data === 'string') {
           logMessage = data;
-        } else if (data.message) {
-          logMessage = data.message;
-        } else if (data.data) {
-          logMessage = data.data;
-        } else if (data.type === 'log' || data.log) {
-          logMessage = data.log || data.content || JSON.stringify(data);
+          console.log('[Endpoint SSE] 处理为字符串:', logMessage);
+        } else if (data && typeof data === 'object') {
+          // 将对象格式化为JSON字符串显示
+          logMessage = JSON.stringify(data, null, 2);
+          console.log('[Endpoint SSE] 处理为JSON对象:', logMessage);
         } else {
-          // 如果都不是，可能是NodePass的原始日志格式
-          logMessage = JSON.stringify(data);
+          logMessage = String(data);
+          console.log('[Endpoint SSE] 转换为字符串:', logMessage);
         }
         
-        // 如果有有效的日志消息，添加到日志列表
-        if (logMessage && logMessage.trim()) {
+        // 添加到日志列表
+        if (logMessage) {
           const newLogEntry: LogEntry = {
             id: ++logCounterRef.current,
             message: logMessage,
             isHtml: true
           };
+          
+          console.log('[Endpoint SSE] 添加日志条目:', newLogEntry);
           
           setLogs(prevLogs => {
             const updatedLogs = [...prevLogs, newLogEntry];
@@ -236,11 +237,14 @@ export default function EndpointDetailPage() {
             if (updatedLogs.length > 1000) {
               return updatedLogs.slice(-1000);
             }
+            console.log('[Endpoint SSE] 更新日志列表，新长度:', updatedLogs.length);
             return updatedLogs;
           });
           
           // 自动滚动到底部
           setTimeout(scrollToBottom, 50);
+        } else {
+          console.log('[Endpoint SSE] 空消息，跳过');
         }
       },
       onError: (error) => {
@@ -529,7 +533,7 @@ export default function EndpointDetailPage() {
       <Card className="p-2">
         <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <h3 className="text-lg font-semibold">实时日志</h3>
+            <h3 className="text-lg font-semibold">实时SSE推送</h3>
             <div className="flex items-center gap-2">
               <div className={`w-2 h-2 rounded-full ${
                 isConnected ? 'bg-green-500' : 
@@ -544,6 +548,21 @@ export default function EndpointDetailPage() {
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* 清空日志按钮 */}
+            <Button
+              size="sm"
+              color="warning"
+              variant="ghost"
+              onPress={() => {
+                setLogs([]);
+                logCounterRef.current = 0;
+              }}
+              startContent={
+                <FontAwesomeIcon icon={faTrash} />
+              }
+            >
+              清空日志
+            </Button>
             {/* 重连按钮 */}
             {!isConnected && !isConnecting && (
               <Button
@@ -559,10 +578,20 @@ export default function EndpointDetailPage() {
                 重连
               </Button>
             )}
+            {/* 滚动到底部按钮 */}
+            <Button
+              size="sm"
+              color="primary"
+              variant="ghost"
+              onPress={scrollToBottom}
+              startContent={<FontAwesomeIcon icon={faArrowDown} />}
+            >
+              底部
+            </Button>
           </div>
         </CardHeader>
         <CardBody>
-          <LogViewer logs={logs} loading={false} heightClass="h-[550px] md:h-[900px]" containerRef={logContainerRef} />
+          <LogViewer logs={logs} loading={false} heightClass="h-[550px] md:h-[500px]" containerRef={logContainerRef} />
         </CardBody>
       </Card>
     </div>

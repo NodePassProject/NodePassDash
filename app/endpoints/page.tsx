@@ -767,13 +767,6 @@ export default function EndpointsPage() {
         <div className="flex flex-wrap items-center gap-2 md:gap-4 mt-2 md:mt-0">
           <Button 
             variant="flat"
-            startContent={<FontAwesomeIcon icon={faLayerGroup} />}
-            onPress={() => router.push('/templates')}
-          >
-            创建场景
-          </Button>
-          <Button 
-            variant="flat"
             startContent={<FontAwesomeIcon icon={faCopy} />}
             onPress={handleCopyInstallScript}
           >

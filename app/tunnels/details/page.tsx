@@ -289,7 +289,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           setTrafficTrend(trafficData.trafficTrend);
         }
       }
-
+      
       // 刷新文件日志 - 直接更新trigger而不依赖handleLogRefresh
       setLogRefreshTrigger(prev => prev + 1);
 
@@ -400,7 +400,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       console.log('[隧道详情] 收到SSE事件:', data);
       
       // 处理log事件 - 拼接到日志末尾
-      if (data.eventType === 'log' && data.logs) {
+        if (data.eventType === 'log' && data.logs) {
         console.log('[隧道详情] 收到日志事件，追加到日志末尾:', data.logs);
         // 通过window对象调用FileLogViewer的方法追加日志
         if ((window as any).fileLogViewerRef && (window as any).fileLogViewerRef.appendLog) {
@@ -441,7 +441,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
               tcpTx: data.tcpTx,
               udpRx: data.udpRx,
               udpTx: data.udpTx
-            }
+        }
           } : null);
         }
       }
@@ -1024,7 +1024,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           <div className="flex items-center gap-2">
             {/* 天数选择 */}
             <Select
-              size="sm"
+            size="sm"
               placeholder="选择天数"
               selectedKeys={[logDays]}
               onSelectionChange={(keys) => {
@@ -1032,7 +1032,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                 if (selected) setLogDays(selected);
               }}
               className="w-20"
-              classNames={{
+            classNames={{
                 trigger: "min-h-unit-8 h-8",
                 value: "text-xs"
               }}
@@ -1080,7 +1080,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   isLoading={logClearing}
                   isDisabled={logCount === 0}
                   className="h-8 w-8 min-w-0"
-                >
+              >
                   <FontAwesomeIcon icon={faTrash} className="text-xs" />
                 </Button>
               </PopoverTrigger>
@@ -1113,10 +1113,10 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                       取消
                     </Button>
                   </div>
-                </div>
+                  </div>
               </PopoverContent>
             </Popover>
-          </div>
+                      </div>
         </CardHeader>
         <CardBody>
           <FileLogViewer 
@@ -1132,14 +1132,14 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           />
         </CardBody>
       </Card>
-
+            
       {/* 配置信息 - Tab 内容响应式优化 */}
       <Card className="p-2">
         <CardHeader className="font-bold text-sm md:text-base">配置信息</CardHeader>
         <CardBody>
-          <div className="space-y-4">
-            <div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+              <div className="space-y-4">
+                <div>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
                 {/* 仅客户端模式下显示 min/max */}
                 {tunnelInfo.type === '客户端' && (
                   <>
@@ -1155,79 +1155,79 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                 )}
                 {/* 仅服务端模式显示TLS设置 */}
                 {tunnelInfo.type === '服务端' && (
-                  <CellValue 
-                    label="TLS 设置" 
-                    value={
-                      <div className="flex items-center gap-2">
-                        <Chip 
-                          variant="flat" 
-                          color={tunnelInfo.config.tlsMode === 'inherit' ? "primary" : 
-                                tunnelInfo.config.tlsMode === 'mode0' ? "default" : "success"} 
-                          size="sm"
-                        >
-                          {tunnelInfo.config.tlsMode === 'inherit' ? 
-                            (tunnelInfo.config.endpointTLS ? `继承主控 [${getTLSModeText(tunnelInfo.config.endpointTLS)}]` : '继承主控设置') :
-                           tunnelInfo.config.tlsMode === 'mode0' ? '无 TLS 加密' :
-                           tunnelInfo.config.tlsMode === 'mode1' ? '自签名证书' : '自定义证书'}
-                        </Chip>
-                      </div>
-                    }
-                  />
+                    <CellValue 
+                      label="TLS 设置" 
+                      value={
+                        <div className="flex items-center gap-2">
+                            <Chip 
+                              variant="flat" 
+                              color={tunnelInfo.config.tlsMode === 'inherit' ? "primary" : 
+                                    tunnelInfo.config.tlsMode === 'mode0' ? "default" : "success"} 
+                              size="sm"
+                            >
+                              {tunnelInfo.config.tlsMode === 'inherit' ? 
+                                (tunnelInfo.config.endpointTLS ? `继承主控 [${getTLSModeText(tunnelInfo.config.endpointTLS)}]` : '继承主控设置') :
+                               tunnelInfo.config.tlsMode === 'mode0' ? '无 TLS 加密' :
+                               tunnelInfo.config.tlsMode === 'mode1' ? '自签名证书' : '自定义证书'}
+                            </Chip>
+                        </div>
+                      }
+                    />
                 )}
-              
-                <CellValue 
-                  label="日志级别" 
-                  value={
-                    <div className="flex items-center gap-2">
-                      <Chip 
-                        variant="flat" 
-                        color={tunnelInfo.config.logLevel === 'inherit' ? "primary" : "default"} 
-                        size="sm"
-                      >
-                        {tunnelInfo.config.logLevel === 'inherit' ? 
-                          (tunnelInfo.config.endpointLog ? `继承主控 [${tunnelInfo.config.endpointLog.toUpperCase()}]` : '继承主控设置') : 
-                          tunnelInfo.config.logLevel.toUpperCase()}
-                      </Chip>
-                    </div>
-                  } 
-                />
+                  
+                    <CellValue 
+                      label="日志级别" 
+                      value={
+                        <div className="flex items-center gap-2">
+                          <Chip 
+                            variant="flat" 
+                            color={tunnelInfo.config.logLevel === 'inherit' ? "primary" : "default"} 
+                            size="sm"
+                          >
+                            {tunnelInfo.config.logLevel === 'inherit' ? 
+                              (tunnelInfo.config.endpointLog ? `继承主控 [${tunnelInfo.config.endpointLog.toUpperCase()}]` : '继承主控设置') : 
+                              tunnelInfo.config.logLevel.toUpperCase()}
+                          </Chip>
+                        </div>
+                      } 
+                    />
 
 
 
-                {/* 自动重启配置 */}
-                {tunnelInfo.endpointVersion && 
-                  <CellValue 
-                    label="自动重启" 
-                    value={
-                        <Switch
-                          size="sm"
-                          isSelected={tunnelInfo.config.restart}
-                          onValueChange={handleRestartToggle}
-                          isDisabled={isUpdatingRestart}
-                          endContent={<span className="text-xs text-default-600">禁用</span>}
-                          startContent={<span className="text-xs text-default-600">启用</span>}
-                          classNames={{
-                            base: cn(
-                              "inline-flex flex-row-reverse w-full max-w-md  items-center",
-                              "justify-between "
-                            ),
-                            wrapper: "p-0 h-6 w-14 overflow-visible",
-                            thumb: cn(
-                              "w-6 h-6 border-2 shadow-lg",
-                              "group-data-[hover=true]:border-primary",
-                              //selected
-                              "group-data-[selected=true]:ms-8",
-                              // pressed
-                              "group-data-[pressed=true]:w-16",
-                              "group-data-[selected]:group-data-[pressed]:ms-4",
-                            ),
-                          }}
-                        />
-                    } 
-                />}
+                    {/* 自动重启配置 */}
+                    {tunnelInfo.endpointVersion && 
+                      <CellValue 
+                        label="自动重启" 
+                        value={
+                            <Switch
+                              size="sm"
+                              isSelected={tunnelInfo.config.restart}
+                              onValueChange={handleRestartToggle}
+                              isDisabled={isUpdatingRestart}
+                              endContent={<span className="text-xs text-default-600">禁用</span>}
+                              startContent={<span className="text-xs text-default-600">启用</span>}
+                              classNames={{
+                                base: cn(
+                                  "inline-flex flex-row-reverse w-full max-w-md  items-center",
+                                  "justify-between "
+                                ),
+                                wrapper: "p-0 h-6 w-14 overflow-visible",
+                                thumb: cn(
+                                  "w-6 h-6 border-2 shadow-lg",
+                                  "group-data-[hover=true]:border-primary",
+                                  //selected
+                                  "group-data-[selected=true]:ms-8",
+                                  // pressed
+                                  "group-data-[pressed=true]:w-16",
+                                  "group-data-[selected]:group-data-[pressed]:ms-4",
+                                ),
+                              }}
+                            />
+                        } 
+                    />}
+                  </div>
+                </div>
               </div>
-            </div>
-          </div>
         </CardBody>
       </Card>
     </div>

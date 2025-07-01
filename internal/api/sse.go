@@ -579,11 +579,13 @@ func (h *SSEHandler) HandleNodePassSSEProxy(w http.ResponseWriter, r *http.Reque
 			f.Flush()
 		}
 
-		// 如果是空行（SSE事件分隔符），记录调试信息
+		// 记录所有接收到的行
 		if line == "" {
-			log.Debugf("[NodePass SSE Proxy] 事件分隔符")
+			log.Debugf("[NodePass SSE Proxy] 收到空行（事件分隔符）")
 		} else if strings.HasPrefix(line, "data: ") {
-			log.Debugf("[NodePass SSE Proxy] 转发数据: %s", line[6:]) // 去掉"data: "前缀
+			log.Infof("[NodePass SSE Proxy] 收到并转发数据: %s", line[6:]) // 去掉"data: "前缀显示
+		} else {
+			log.Debugf("[NodePass SSE Proxy] 收到其他行: %s", line)
 		}
 	}
 

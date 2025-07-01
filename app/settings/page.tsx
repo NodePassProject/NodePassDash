@@ -133,7 +133,7 @@ export default function SettingsPage() {
         </Tabs>
       </div>
 
-      <div className="flex justify-end gap-2">
+      {/* <div className="flex justify-end gap-2">
         <Button 
           color="default" 
           variant="flat"
@@ -147,7 +147,7 @@ export default function SettingsPage() {
         >
           保存更改
         </Button>
-      </div>
+      </div> */}
     </div>
   );
 } 

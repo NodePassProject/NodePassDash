@@ -1196,7 +1196,7 @@ export default function TunnelsPage() {
                           isIconOnly
                           variant="light"
                           size="sm"
-                          color="primary"
+                          color="secondary"
                           onClick={() => handleRestart(tunnel)}
                           isDisabled={tunnel.status.type !== "success"}
                           startContent={<FontAwesomeIcon icon={faRotateRight} className="text-xs" />}
@@ -1404,7 +1404,7 @@ export default function TunnelsPage() {
                                 isIconOnly
                                 variant="light"
                                 size="sm"
-                                color="primary"
+                                color="secondary"
                                 onClick={() => handleRestart(tunnel)}
                                 isDisabled={tunnel.status.type !== "success"}
                                 startContent={<FontAwesomeIcon icon={faRotateRight} className="text-xs" />}

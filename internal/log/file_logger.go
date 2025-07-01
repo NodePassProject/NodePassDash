@@ -377,6 +377,12 @@ func (fl *FileLogger) SetRetentionDays(days int) {
 	Infof("更新日志保留天数为: %d", days)
 }
 
+// TriggerCleanup 手动触发日志文件清理（公开方法）
+func (fl *FileLogger) TriggerCleanup() {
+	Infof("手动触发文件日志清理")
+	fl.cleanupOldLogs()
+}
+
 // GetLogStats 获取日志统计信息
 func (fl *FileLogger) GetLogStats() map[string]interface{} {
 	totalFiles := 0
