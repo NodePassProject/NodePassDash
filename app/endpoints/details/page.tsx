@@ -9,7 +9,14 @@ import {
   Badge,
   Chip,
   Divider,
-  Skeleton
+  Skeleton,
+  Code,
+  Modal,
+  ModalContent,
+  ModalBody,
+  ModalHeader,
+  ModalFooter,
+  Textarea,
 } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faArrowLeft, faRotateRight, faTrash,faWifi, faServer, faKey, faGlobe, faDesktop, faCode, faLock, faCertificate, faLayerGroup, faFileLines, faHardDrive, faArrowUp, faArrowDown } from "@fortawesome/free-solid-svg-icons";
@@ -65,6 +72,10 @@ export default function EndpointDetailPage() {
   const [endpointDetail, setEndpointDetail] = useState<EndpointDetail | null>(null);
   const [endpointStats, setEndpointStats] = useState<EndpointStats | null>(null);
   const [statsLoading, setStatsLoading] = useState(true);
+  const [instances, setInstances] = useState<Array<{instanceId: string; commandLine: string; type: string;}>>([]);
+  const [instancesLoading, setInstancesLoading] = useState(false);
+  const [extractOpen, setExtractOpen] = useState(false);
+  const [importOpen, setImportOpen] = useState(false);
 
   const logCounterRef = useRef(0);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -186,6 +197,39 @@ export default function EndpointDetailPage() {
     }
   }, [endpointId]);
 
+  // 获取实例列表
+  const fetchInstances = useCallback(async () => {
+    if (!endpointId) return;
+    try {
+      setInstancesLoading(true);
+      const res = await fetch(buildApiUrl(`/api/endpoints/${endpointId}/instances`));
+      if (!res.ok) throw new Error('获取实例列表失败');
+      const data = await res.json();
+      if (Array.isArray(data)) {
+        const list = data
+          .map((item: any) => {
+            const cmd = item.commandLine || item.url || '';
+            let ty = item.type || item.mode || '';
+            if (!ty && typeof cmd === 'string') {
+              ty = cmd.includes('client://') ? 'client' : 'server';
+            }
+            return {
+              instanceId: item.id || item.instanceId || '',
+              commandLine: cmd,
+              type: ty,
+            };
+          })
+          .filter((x) => x.type && x.instanceId && x.instanceId !== '********');
+        setInstances(list);
+      }
+    } catch (e) {
+      console.error(e);
+      addToast({ title: '获取实例失败', description: e instanceof Error ? e.message : '未知错误', color: 'danger' });
+    } finally {
+      setInstancesLoading(false);
+    }
+  }, [endpointId]);
+
   // NodePass SSE监听
   const { isConnected, isConnecting, error, reconnect } = useNodePassSSE(
     endpointDetail ? {
@@ -273,6 +317,10 @@ export default function EndpointDetailPage() {
     fetchEndpointStats();
   }, [fetchEndpointStats]);
 
+  useEffect(() => {
+    fetchInstances();
+  }, [fetchInstances]);
+
   // 滚动效果
   useEffect(() => {
     if (logs.length > 0) {
@@ -313,11 +361,10 @@ export default function EndpointDetailPage() {
             <h1 className="text-lg md:text-2xl font-bold truncate">主控详情</h1>
           )}
         </div>
-        <div className="flex items-center gap-2"> 
+        <div className="flex items-center gap-4">
         </div>
       </div>
 
-      {/* 统计信息卡片 */}
       {/* 统计信息卡片 */}
       <Card className="p-2">
         <CardHeader>
@@ -346,7 +393,7 @@ export default function EndpointDetailPage() {
               <div className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg">
                 <FontAwesomeIcon icon={faLayerGroup} className="text-primary text-xl" />
                 <div>
-                  <p className="text-xs text-default-600">隧道数量</p>
+                  <p className="text-xs text-default-600">隧道总数量</p>
                   <p className="text-xl font-bold text-primary">{endpointStats.tunnelCount}</p>
                   <p className="text-xs text-default-500">活跃实例</p>
                 </div>
@@ -529,6 +576,46 @@ export default function EndpointDetailPage() {
         </Card>
       )}
 
+      {/* 实例列表 */}
+      <Card className="p-2">
+        <CardHeader className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h3 className="text-lg font-semibold">主控实例</h3>
+             {/* 类型提示圆点 */}
+              {/* <div className="flex items-center gap-1 text-tiny text-default-500">
+                <span className="w-2 h-2 rounded-full bg-primary inline-block"></span> 服务端
+              </div>
+              <div className="flex items-center gap-1 text-tiny text-default-500">
+                <span className="w-2 h-2 rounded-full bg-secondary inline-block"></span> 客户端
+              </div> */}
+          </div>
+          <div className="flex items-center gap-4">
+            {/* <Button size="sm" color="primary" variant="flat" onPress={() => setExtractOpen(true)}>提取</Button>
+            <Button size="sm" color="secondary" variant="flat" onPress={() => setImportOpen(true)}>导入</Button> */}
+          </div>
+        </CardHeader>
+        <CardBody>
+          {instancesLoading ? (
+            <div className="text-default-500 text-sm">加载中...</div>
+          ) : instances.length === 0 ? (
+            <div className="text-default-500 text-sm">暂无实例数据</div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              {instances.map((ins) => (
+                <div key={ins.instanceId} className="flex gap-1 text-xs">
+                  <Chip radius="sm" variant="flat" className="max-w-full truncate">
+                    {ins.instanceId}
+                  </Chip>
+                  <Code color={ins.type === 'server' ? 'primary' : 'secondary'} className="whitespace-pre-wrap break-all w-full">
+                    {ins.commandLine}
+                  </Code>
+                </div>
+              ))}
+            </div>
+          )}
+        </CardBody>
+      </Card>
+
       {/* 日志区域 */}
       <Card className="p-2">
         <CardHeader className="flex items-center justify-between">
@@ -552,7 +639,7 @@ export default function EndpointDetailPage() {
             <Button
               size="sm"
               color="warning"
-              variant="ghost"
+              variant="flat"
               onPress={() => {
                 setLogs([]);
                 logCounterRef.current = 0;
@@ -568,7 +655,7 @@ export default function EndpointDetailPage() {
               <Button
                 size="sm"
                 color="secondary"
-                variant="ghost"
+                variant="flat"
                 isDisabled={!endpointDetail}
                 onPress={reconnect}
                 startContent={
@@ -582,7 +669,7 @@ export default function EndpointDetailPage() {
             <Button
               size="sm"
               color="primary"
-              variant="ghost"
+              variant="flat"
               onPress={scrollToBottom}
               startContent={<FontAwesomeIcon icon={faArrowDown} />}
             >
@@ -594,6 +681,42 @@ export default function EndpointDetailPage() {
           <LogViewer logs={logs} loading={false} heightClass="h-[550px] md:h-[500px]" containerRef={logContainerRef} />
         </CardBody>
       </Card>
+
+      {/* 提取模态框 */}
+      <Modal isOpen={extractOpen} onClose={() => setExtractOpen(false)} size="lg">
+        <ModalContent>
+          {() => (
+            <>
+              <ModalHeader>实例URL提取</ModalHeader>
+              <ModalBody>
+                <Textarea readOnly minRows={10} value={instances.map(i => i.commandLine).join("\n")} />
+              </ModalBody>
+              <ModalFooter>
+                <Button color="primary" onPress={() => {navigator.clipboard.writeText(instances.map(i=>i.commandLine).join("\n")); addToast({title:'已复制',color:'success'});}}>复制全部</Button>
+                <Button onPress={() => setExtractOpen(false)}>关闭</Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* 导入模态框 */}
+      <Modal isOpen={importOpen} onClose={() => setImportOpen(false)} size="lg">
+        <ModalContent>
+          {() => (
+            <>
+              <ModalHeader>导入URL</ModalHeader>
+              <ModalBody>
+                <Textarea placeholder="在此粘贴 URL，每行一个..." minRows={10} />
+              </ModalBody>
+              <ModalFooter>
+                <Button color="secondary" onPress={() => setImportOpen(false)}>确定</Button>
+                <Button onPress={() => setImportOpen(false)}>取消</Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </div>
   );
 } 

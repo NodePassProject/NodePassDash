@@ -33,6 +33,15 @@ func (h *InstanceHandler) HandleGetInstances(w http.ResponseWriter, r *http.Requ
 	// 从URL中获取端点ID
 	endpointID := r.URL.Query().Get("endpointId")
 	if endpointID == "" {
+		// 尝试从路径 /api/endpoints/{endpointId}/instances 提取
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		// 期望格式: api, endpoints, {endpointId}, instances
+		if len(parts) >= 4 {
+			endpointID = parts[2]
+		}
+	}
+
+	if endpointID == "" {
 		http.Error(w, "Missing endpointId parameter", http.StatusBadRequest)
 		return
 	}
