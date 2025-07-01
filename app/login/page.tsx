@@ -10,6 +10,9 @@ import {
 } from "@heroui/react";
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
+import Image from 'next/image';
+import { useTheme } from 'next-themes';
+import { useIsSSR } from '@react-aria/ssr';
 
 import { motion } from 'framer-motion';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
@@ -32,23 +35,34 @@ export default function LoginPage() {
   const [showPassword, setShowPassword] = useState(false);
 
   // OAuth2 配置状态
-  const [oauthProviders, setOauthProviders] = useState<{github?: any; cloudflare?: any}>({});
+  const [oauthProviders, setOauthProviders] = useState<{provider?: "github" | "cloudflare"; config?: any}>({});
+
+  const { theme } = useTheme();
+  const isSSR = useIsSSR();
+  // 判断当前是否为暗色主题
+  const isDark = !isSSR && theme === 'dark';
+  // 根据主题选择对应的 Logo
+  const logoSrc = isDark ? '/nodepass-logo-3.svg' : '/nodepass-logo-1.svg';
 
   useEffect(() => {
-    const loadProvider = async (provider: string) => {
+    /**
+     * 先获取系统当前绑定的 provider，再读取其配置
+     */
+    const fetchCurrentProvider = async () => {
       try {
-        const res = await fetch(`/api/oauth2/config?provider=${provider}`);
+        const res = await fetch('/api/auth/oauth2'); // 仅返回 provider
         const data = await res.json();
-        if (data.success && data.enable) {
-          setOauthProviders(prev => ({ ...prev, [provider]: data.config }));
+        if (data.success && data.provider) {
+          const cur = data.provider as "github" | "cloudflare";
+          // 只需 provider 即可
+          setOauthProviders({ provider: cur });
         }
       } catch (e) {
-        console.error('获取 OAuth2 配置失败', provider, e);
+        console.error('获取 OAuth2 当前绑定失败', e);
       }
     };
 
-    loadProvider('github');
-    loadProvider('cloudflare');
+    fetchCurrentProvider();
   }, []);
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -123,9 +137,16 @@ export default function LoginPage() {
               initial={{ scale: 0 }}
               animate={{ scale: 1 }}
               transition={{ delay: 0.2, type: "spring" }}
-              className="w-16 h-16 bg-primary rounded-full flex items-center justify-center mb-4"
+              className="w-16 h-16 flex items-center justify-center mb-4"
             >
-              <FontAwesomeIcon icon={faLock} className="text-primary-foreground text-2xl" />
+              {/* 根据主题动态渲染 Logo */}
+              <Image
+                src={logoSrc}
+                alt="NodePassDash Logo"
+                width={64}
+                height={64}
+                priority
+              />
             </motion.div>
             <h1 className="text-2xl font-bold text-foreground">NodePassDash</h1>
             <p className="text-small text-default-500">请输入您的登录凭据</p>
@@ -196,30 +217,30 @@ export default function LoginPage() {
             </form>
 
             {/* OAuth2 登录选项 */}
-            {Object.keys(oauthProviders).length > 0 && (
+            {oauthProviders.provider && (
               <div className="mt-6 space-y-3">
                 <Divider />
                 <p className="text-center text-sm text-default-500">或使用以下方式登录</p>
                 <div className="flex flex-col gap-3">
-                  {oauthProviders.github && (
+                  {oauthProviders.provider === 'github' && (
                     <Button
                       variant="bordered"
                       color="default"
                       startContent={<Icon icon="simple-icons:github" width={20} />}
                       onPress={() => {
-                        window.location.href = '/api/oauth2/login?provider=github';
+                        window.location.href = '/api/oauth2/login';
                       }}
                     >
                       使用 GitHub 登录
                     </Button>
                   )}
-                  {oauthProviders.cloudflare && (
+                  {oauthProviders.provider === 'cloudflare' && (
                     <Button
                       variant="bordered"
                       color="default"
                       startContent={<Icon icon="simple-icons:cloudflare" width={20} />}
                       onPress={() => {
-                        window.location.href = '/api/oauth2/login?provider=cloudflare';
+                        window.location.href = '/api/oauth2/login';
                       }}
                     >
                       使用 Cloudflare 登录

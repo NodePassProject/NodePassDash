@@ -13,7 +13,8 @@ import {
   ModalBody,
   ModalFooter,
   useDisclosure,
-  Divider
+  Divider,
+  CardHeader
 } from '@heroui/react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import { 
@@ -157,10 +158,16 @@ export default function VersionSettings() {
   return (
     <>
       <Card className="mt-5 p-2">
-        <CardBody className="gap-6">
+        <CardHeader className="flex gap-3">
+          <div className="flex flex-col flex-1">
+            <p className="text-lg font-semibold">版本更新</p>
+            <p className="text-sm text-default-500">检查并管理系统版本</p>
+          </div>
+        </CardHeader>
+        <Divider />
+        <CardBody className="gap-6 px-4 py-5">
           {/* 当前版本信息 */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">版本信息</h3>
             <div className="flex items-center justify-between">
               <div className="space-y-2">
                 <div className="flex items-center gap-3">

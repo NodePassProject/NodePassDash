@@ -1,6 +1,7 @@
 package api
 
 import (
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -322,8 +323,7 @@ func (h *AuthHandler) HandleOAuth2Callback(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	vars := strings.Split(strings.TrimPrefix(r.URL.Path, "/api/oauth2/callback/"), "/")
-	provider := vars[0]
+	provider, _ := h.authService.GetSystemConfig("oauth2_provider")
 	code := r.URL.Query().Get("code")
 	state := r.URL.Query().Get("state")
 
@@ -361,7 +361,7 @@ func (h *AuthHandler) HandleOAuth2Callback(w http.ResponseWriter, r *http.Reques
 // handleGitHubOAuth 处理 GitHub OAuth2 回调
 func (h *AuthHandler) handleGitHubOAuth(w http.ResponseWriter, r *http.Request, code string) {
 	// 读取配置
-	cfgStr, err := h.authService.GetSystemConfig("github_oauth2")
+	cfgStr, err := h.authService.GetSystemConfig("oauth2_config")
 	if err != nil || cfgStr == "" {
 		http.Error(w, "GitHub OAuth2 未配置", http.StatusBadRequest)
 		return
@@ -390,7 +390,7 @@ func (h *AuthHandler) handleGitHubOAuth(w http.ResponseWriter, r *http.Request, 
 
 	// GitHub 如果在 App 设置中配置了回调地址，需要在交换 token 时附带同样的 redirect_uri
 	baseURL := fmt.Sprintf("%s://%s", "http", r.Host)
-	redirectURI := baseURL + "/api/oauth2/callback/" + "github"
+	redirectURI := baseURL + "/api/oauth2/callback"
 	form.Set("redirect_uri", redirectURI)
 
 	tokenReq, _ := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
@@ -490,7 +490,7 @@ func (h *AuthHandler) handleGitHubOAuth(w http.ResponseWriter, r *http.Request, 
 // handleCloudflareOAuth 处理 Cloudflare OAuth2 回调
 func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Request, code string) {
 	// 读取配置
-	cfgStr, err := h.authService.GetSystemConfig("cloudflare_oauth2")
+	cfgStr, err := h.authService.GetSystemConfig("oauth2_config")
 	if err != nil || cfgStr == "" {
 		http.Error(w, "Cloudflare OAuth2 未配置", http.StatusBadRequest)
 		return
@@ -516,10 +516,11 @@ func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Reque
 	form.Set("client_secret", cfg.ClientSecret)
 	form.Set("code", code)
 	form.Set("grant_type", "authorization_code")
+	form.Set("state", r.URL.Query().Get("state"))
 
 	// Cloudflare 如果在 App 设置中配置了回调地址，需要在交换 token 时附带同样的 redirect_uri
 	baseURL := fmt.Sprintf("%s://%s", "http", r.Host)
-	redirectURI := baseURL + "/api/oauth2/callback/" + "cloudflare"
+	redirectURI := baseURL + "/api/oauth2/callback"
 	form.Set("redirect_uri", redirectURI)
 
 	tokenReq, _ := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
@@ -545,6 +546,7 @@ func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Reque
 
 	var tokenRes struct {
 		AccessToken string `json:"access_token"`
+		IdToken     string `json:"id_token"`
 		Scope       string `json:"scope"`
 		TokenType   string `json:"token_type"`
 	}
@@ -554,22 +556,38 @@ func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// 获取用户信息
-	userReq, _ := http.NewRequest("GET", cfg.UserInfoURL, nil)
-	userReq.Header.Set("Authorization", "token "+tokenRes.AccessToken)
-	userReq.Header.Set("Accept", "application/json")
+	var userData map[string]interface{}
 
-	userResp, err := http.DefaultClient.Do(userReq)
-	if err != nil {
-		http.Error(w, "获取用户信息失败", http.StatusBadGateway)
+	if cfg.UserInfoURL != "" {
+		// 调用用户信息端点
+		userReq, _ := http.NewRequest("GET", cfg.UserInfoURL, nil)
+		userReq.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
+		userReq.Header.Set("Accept", "application/json")
+
+		userResp, err := http.DefaultClient.Do(userReq)
+		if err == nil {
+			defer userResp.Body.Close()
+			bodyBytes, _ := ioutil.ReadAll(userResp.Body)
+			_ = json.Unmarshal(bodyBytes, &userData)
+			fmt.Printf("👤 Cloudflare 用户信息: %s\n", string(bodyBytes))
+		}
+	}
+
+	// 若未获取到用户信息且 id_token 存在，则解析 id_token
+	if len(userData) == 0 && tokenRes.IdToken != "" {
+		parts := strings.Split(tokenRes.IdToken, ".")
+		if len(parts) >= 2 {
+			payload, _ := base64.RawURLEncoding.DecodeString(parts[1])
+			_ = json.Unmarshal(payload, &userData)
+			fmt.Printf("👤 Cloudflare id_token payload: %s\n", string(payload))
+		}
+	}
+
+	if len(userData) == 0 {
+		http.Error(w, "无法获取 Cloudflare 用户信息", http.StatusBadGateway)
 		return
 	}
-	defer userResp.Body.Close()
-	userBody, _ := ioutil.ReadAll(userResp.Body)
-	fmt.Printf("👤 Cloudflare 用户信息: %s\n", string(userBody))
 
-	var userData map[string]interface{}
-	_ = json.Unmarshal(userBody, &userData)
 	providerID := fmt.Sprintf("%v", userData["id"])
 	login := fmt.Sprintf("%v", userData["login"])
 
@@ -620,37 +638,47 @@ func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Reque
 type OAuth2ConfigRequest struct {
 	Provider string                 `json:"provider"`
 	Config   map[string]interface{} `json:"config"`
-	Enable   bool                   `json:"enable"`
 }
 
 // HandleOAuth2Config 读取或保存 OAuth2 配置
 // GET  参数: ?provider=github|cloudflare
-// POST Body: {provider, config, enable}
+// POST Body: {provider, config}
 func (h *AuthHandler) HandleOAuth2Config(w http.ResponseWriter, r *http.Request) {
 	switch r.Method {
 	case http.MethodGet:
-		provider := r.URL.Query().Get("provider")
-		if provider == "" {
-			http.Error(w, "missing provider", http.StatusBadRequest)
+		// 若请求携带有效 session，则返回完整配置；否则只返回 provider
+		includeCfg := false
+		if cookie, err := r.Cookie("session"); err == nil {
+			if h.authService.ValidateSession(cookie.Value) {
+				includeCfg = true
+			}
+		}
+
+		curProvider, _ := h.authService.GetSystemConfig("oauth2_provider")
+
+		// 若 query ?provider=xxx 且与当前不一致，则视为未绑定
+		if q := r.URL.Query().Get("provider"); q != "" && q != curProvider {
+			json.NewEncoder(w).Encode(map[string]interface{}{
+				"success": false,
+				"message": "provider not configured",
+			})
 			return
 		}
 
-		cfgKey := provider + "_oauth2"
-		enableKey := provider + "_oauth2_enable"
-
-		cfgStr, _ := h.authService.GetSystemConfig(cfgKey)
-		enableStr, _ := h.authService.GetSystemConfig(enableKey)
-
-		var cfg map[string]interface{}
-		if cfgStr != "" {
-			_ = json.Unmarshal([]byte(cfgStr), &cfg)
+		resp := map[string]interface{}{
+			"success":  true,
+			"provider": curProvider,
+		}
+		if includeCfg {
+			cfgStr, _ := h.authService.GetSystemConfig("oauth2_config")
+			var cfg map[string]interface{}
+			if cfgStr != "" {
+				_ = json.Unmarshal([]byte(cfgStr), &cfg)
+			}
+			resp["config"] = cfg
 		}
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": true,
-			"enable":  enableStr == "true",
-			"config":  cfg,
-		})
+		json.NewEncoder(w).Encode(resp)
 
 	case http.MethodPost:
 		var req OAuth2ConfigRequest
@@ -658,29 +686,26 @@ func (h *AuthHandler) HandleOAuth2Config(w http.ResponseWriter, r *http.Request)
 			http.Error(w, "invalid body", http.StatusBadRequest)
 			return
 		}
-
 		if req.Provider == "" {
 			http.Error(w, "missing provider", http.StatusBadRequest)
 			return
 		}
 
 		cfgBytes, _ := json.Marshal(req.Config)
-		if err := h.authService.SetSystemConfig(req.Provider+"_oauth2", string(cfgBytes), "OAuth2 配置"); err != nil {
+		if err := h.authService.SetSystemConfig("oauth2_config", string(cfgBytes), "OAuth2 配置"); err != nil {
 			http.Error(w, "save config failed", http.StatusInternalServerError)
 			return
 		}
-		enableVal := "false"
-		if req.Enable {
-			enableVal = "true"
-		}
-		if err := h.authService.SetSystemConfig(req.Provider+"_oauth2_enable", enableVal, "OAuth2 启用"); err != nil {
-			http.Error(w, "save enable failed", http.StatusInternalServerError)
-			return
-		}
+		_ = h.authService.SetSystemConfig("oauth2_provider", req.Provider, "当前 OAuth2 提供者")
 
-		json.NewEncoder(w).Encode(map[string]interface{}{
-			"success": true,
-		})
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+
+	case http.MethodDelete:
+		// 解绑：统一清空
+		_ = h.authService.SetSystemConfig("oauth2_config", "", "清空 OAuth2 配置")
+		_ = h.authService.SetSystemConfig("oauth2_provider", "", "解绑 OAuth2")
+
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
 
 	default:
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
@@ -691,12 +716,16 @@ func (h *AuthHandler) HandleOAuth2Config(w http.ResponseWriter, r *http.Request)
 func (h *AuthHandler) HandleOAuth2Login(w http.ResponseWriter, r *http.Request) {
 	provider := r.URL.Query().Get("provider")
 	if provider == "" {
-		http.Error(w, "missing provider", http.StatusBadRequest)
-		return
+		var err error
+		provider, err = h.authService.GetSystemConfig("oauth2_provider")
+		if err != nil || provider == "" {
+			http.Error(w, "oauth2 not configured", http.StatusBadRequest)
+			return
+		}
 	}
 
-	cfgKey := provider + "_oauth2"
-	cfgStr, err := h.authService.GetSystemConfig(cfgKey)
+	// 统一配置存储在 oauth2_config
+	cfgStr, err := h.authService.GetSystemConfig("oauth2_config")
 	if err != nil || cfgStr == "" {
 		http.Error(w, "oauth2 not configured", http.StatusBadRequest)
 		return
@@ -725,7 +754,7 @@ func (h *AuthHandler) HandleOAuth2Login(w http.ResponseWriter, r *http.Request) 
 	state := h.authService.GenerateOAuthState()
 
 	baseURL := fmt.Sprintf("%s://%s", "http", r.Host)
-	redirectURI := baseURL + "/api/oauth2/callback/" + provider
+	redirectURI := baseURL + "/api/oauth2/callback"
 
 	// 拼接查询参数
 	q := url.Values{}
@@ -744,4 +773,18 @@ func (h *AuthHandler) HandleOAuth2Login(w http.ResponseWriter, r *http.Request) 
 	loginURL := authUrl + "?" + q.Encode()
 
 	http.Redirect(w, r, loginURL, http.StatusFound)
+}
+
+// HandleOAuth2Provider 仅返回当前绑定的 OAuth2 provider（用于登录页）
+func (h *AuthHandler) HandleOAuth2Provider(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	provider, _ := h.authService.GetSystemConfig("oauth2_provider")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":  true,
+		"provider": provider,
+	})
 }
