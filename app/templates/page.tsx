@@ -466,7 +466,6 @@ export default function TemplatesPage() {
             variant="flat"
             startContent={<FontAwesomeIcon icon={faArrowLeft} />}
             onClick={() => router.back()}
-            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
           >
             返回
           </Button>
@@ -476,7 +475,6 @@ export default function TemplatesPage() {
                 variant="flat"
                 startContent={<FontAwesomeIcon icon={faRotateLeft} />}
                 onClick={resetFormData}
-                className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
               >
                 重置
               </Button>

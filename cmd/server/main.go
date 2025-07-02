@@ -137,6 +137,9 @@ func main() {
 	versionFlag := flag.Bool("version", false, "显示版本信息")
 	vFlag := flag.Bool("v", false, "显示版本信息")
 	logLevelFlag := flag.String("log-level", "DEBUG", "设置日志级别 (DEBUG, INFO, WARN, ERROR)")
+	// TLS 证书相关参数
+	tlsCertFlag := flag.String("cert", "", "TLS 证书文件路径")
+	tlsKeyFlag := flag.String("key", "", "TLS 私钥文件路径")
 	flag.Parse()
 
 	// 设置日志级别
@@ -268,6 +271,18 @@ func main() {
 	if *portFlag != "" {
 		port = *portFlag
 	}
+
+	// ------------------- 处理 TLS 证书 -------------------
+	certFile := *tlsCertFlag
+	keyFile := *tlsKeyFlag
+	if certFile == "" {
+		certFile = os.Getenv("TLS_CERT")
+	}
+	if keyFile == "" {
+		keyFile = os.Getenv("TLS_KEY")
+	}
+
+	// 组合监听地址
 	addr := fmt.Sprintf(":%s", port)
 
 	// 创建上下文和取消函数
@@ -290,11 +305,19 @@ func main() {
 		Handler: rootRouter,
 	}
 
-	// 启动HTTP服务器
+	// 启动HTTP/HTTPS服务器
 	go func() {
-		log.Infof("NodePassDash[%s]启动在 http://localhost:%s", Version, port)
+		if certFile != "" && keyFile != "" {
+			log.Infof("NodePassDash[%s] 启动在 https://localhost:%s (TLS)", Version, port)
+			if err := server.ListenAndServeTLS(certFile, keyFile); err != http.ErrServerClosed {
+				log.Errorf("HTTPS 服务器错误: %v", err)
+			}
+			return
+		}
+
+		log.Infof("NodePassDash[%s] 启动在 http://localhost:%s", Version, port)
 		if err := server.ListenAndServe(); err != http.ErrServerClosed {
-			log.Errorf("HTTP服务器错误: %v", err)
+			log.Errorf("HTTP 服务器错误: %v", err)
 		}
 	}()
 

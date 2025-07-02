@@ -23,6 +23,7 @@
     "dev:all": "node scripts/dev.js",
     "dev:front": "next dev -p 8080",
     "dev:back": "go run ./cmd/server/main.go",
+    "dev:back-tls": "go run ./cmd/server/main.go --cert=certs/iop.cool.pem --key=certs/iop.cool.key",
     "dev:resetpwd": "go run ./cmd/server/main.go --resetpwd",
     "dev:version": "go run ./cmd/server/main.go --version"
   },

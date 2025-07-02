@@ -12,34 +12,18 @@ export function cn(...inputs: ClassValue[]) {
  * @returns 完整的 API URL
  */
 export function buildApiUrl(path: string): string {
-  const envBase =
-    (typeof process !== 'undefined' && process.env.NEXT_PUBLIC_API_BASE) ||
-    (typeof process !== 'undefined' && process.env.API_BASE);
-
-  // ---------- 浏览器环境 ----------
+  // ---------- 浏览器端 ----------
   if (typeof window !== 'undefined') {
     if (process.env.NODE_ENV === 'development') {
-      // 开发模式统一返回相对路径，交由 next.config.js rewrites 代理
-      return path;
+      return path;                      // 开发环境由 next.config.js 代理
     }
-
-    // 生产模式：如果配置了环境变量，使用绝对地址，否则同源
-    if (envBase) {
-      const normalizedBase = envBase.replace(/\/+$/, '');
-      return `${normalizedBase}${path}`;
-    }
-
-    return `${window.location.origin}${path}`;
+    return `${window.location.origin}${path}`; // 生产环境同源
   }
 
-  // ---------- Node.js / Server 端 ----------
-  if (envBase) {
-    const normalizedBase = envBase.replace(/\/+$/, '');
-    return `${normalizedBase}${path}`;
-  }
-
-  // 在静态导出或服务器端渲染阶段保持原样
+  // ---------- 服务器端 ----------
+  // SSR/SSG 阶段返回原样（或按需拼同源）
   return path;
+
 }
 
 // 实例缓存
