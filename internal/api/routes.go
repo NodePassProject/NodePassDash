@@ -175,6 +175,7 @@ func (r *Router) registerRoutes() {
 
 	// 隧道日志相关路由
 	r.router.HandleFunc("/api/dashboard/logs", r.tunnelHandler.HandleGetTunnelLogs).Methods("GET")
+	r.router.HandleFunc("/api/dashboard/logs", r.tunnelHandler.HandleClearTunnelLogs).Methods("DELETE")
 
 	// 健康检查
 	r.router.HandleFunc("/api/health", func(w http.ResponseWriter, r *http.Request) {

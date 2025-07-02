@@ -2116,3 +2116,18 @@ func (s *Service) SetTunnelRestart(tunnelID int64, restart bool) error {
 	log.Infof("[API] 隧道重启策略设置成功: tunnelID=%d, restart=%t", tunnelID, restart)
 	return nil
 }
+
+// ClearOperationLogs 删除所有隧道操作日志，返回删除的行数
+func (s *Service) ClearOperationLogs() (int64, error) {
+	// 执行删除操作
+	result, err := s.db.Exec(`DELETE FROM "TunnelOperationLog"`)
+	if err != nil {
+		return 0, err
+	}
+
+	rows, err := result.RowsAffected()
+	if err != nil {
+		return 0, err
+	}
+	return rows, nil
+}

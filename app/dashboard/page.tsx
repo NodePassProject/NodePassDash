@@ -21,6 +21,12 @@ import {
   TableHeader,
   TableRow,
   Tabs,
+  Modal,
+  ModalBody,
+  ModalContent,
+  ModalFooter,
+  ModalHeader,
+  useDisclosure,
   cn
 } from "@heroui/react";
 import React, { useState, useEffect } from "react";
@@ -32,6 +38,7 @@ import { useGlobalSSE } from '@/lib/hooks/use-sse';
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { buildApiUrl } from '@/lib/utils';
+import { addToast } from "@heroui/toast";
 
 // Prisma 已移除，定义本地 EndpointStatus 枚举
 type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL';
@@ -138,6 +145,48 @@ export default function DashboardPage() {
   const [trafficTrend, setTrafficTrend] = useState<TrafficTrendData[]>([]);
   const [trafficLoading, setTrafficLoading] = useState(true);
   const [visibleUrls, setVisibleUrls] = useState<Set<number>>(new Set());
+
+  // 清空日志确认模态框控制
+  const { isOpen: isClearOpen, onOpen: onClearOpen, onClose: onClearClose } = useDisclosure();
+  const [clearingLogs, setClearingLogs] = useState(false);
+
+  // 确认清空日志
+  const confirmClearLogs = async () => {
+    if (operationLogs.length === 0) return;
+    setClearingLogs(true);
+    try {
+      const response = await fetch(buildApiUrl('/api/dashboard/logs'), {
+        method: 'DELETE',
+      });
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setOperationLogs([]);
+        addToast({
+          title: '清空成功',
+          description: `已清空 ${data.deletedCount ?? 0} 条记录`,
+          color: 'success',
+        });
+        onClearClose();
+      } else {
+        addToast({
+          title: '清空失败',
+          description: data.error || '无法清空日志',
+          color: 'danger',
+        });
+      }
+    } catch (error) {
+      console.error('清空操作日志失败:', error);
+      addToast({
+        title: '清空失败',
+        description: '网络错误，请稍后重试',
+        color: 'danger',
+      });
+    } finally {
+      setClearingLogs(false);
+    }
+  };
+
   // 处理IP地址隐藏的函数
   const maskIpAddress = (url: string): string => {
     try {
@@ -568,7 +617,21 @@ export default function DashboardPage() {
 
       {/* 最近活动 - 响应式高度和滚动 */}
       <Card className="min-h-[300px] lg:h-[400px]">
-        <CardHeader className="font-bold px-4 md:px-6 text-sm md:text-base">最近活动</CardHeader>
+        <CardHeader className="flex items-center justify-between gap-2 px-4 md:px-6">
+          <span className="font-bold text-sm md:text-base">最近活动</span>
+          {operationLogs.length > 0 && (
+            <Button
+              isIconOnly
+              size="sm"
+              variant="light"
+              className="text-default-400 hover:text-danger"
+              onPress={onClearOpen}
+              title="清空最近活动"
+            >
+              <Icon icon="solar:trash-bin-minimalistic-bold" className="w-4 h-4" />
+            </Button>
+          )}
+        </CardHeader>
         <Divider />
         <CardBody className="p-0 overflow-hidden">
           <div className="h-[240px] lg:h-[320px] overflow-y-auto px-4 md:px-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -639,6 +702,20 @@ export default function DashboardPage() {
           </div>
         </CardBody>
       </Card>
+
+      {/* 清空操作日志确认模态框 */}
+      <Modal isOpen={isClearOpen} onClose={onClearClose}>
+        <ModalContent>
+          <ModalHeader className="flex flex-col gap-1">确认清空最近活动</ModalHeader>
+          <ModalBody>
+            <p className="text-sm">此操作将删除所有最近活动记录，且不可撤销。确定要继续吗？</p>
+          </ModalBody>
+          <ModalFooter>
+            <Button variant="light" onPress={onClearClose}>取消</Button>
+            <Button color="danger" onPress={confirmClearLogs} isLoading={clearingLogs}>确认清空</Button>
+          </ModalFooter>
+        </ModalContent>
+      </Modal>
     </div>
   );
 } 

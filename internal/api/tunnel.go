@@ -599,6 +599,30 @@ func (h *TunnelHandler) HandleGetTunnelLogs(w http.ResponseWriter, r *http.Reque
 	json.NewEncoder(w).Encode(resp)
 }
 
+// HandleClearTunnelLogs DELETE /api/dashboard/logs
+// 清空隧道操作日志
+func (h *TunnelHandler) HandleClearTunnelLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodDelete {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	deleted, err := h.tunnelService.ClearOperationLogs()
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":      true,
+		"deletedCount": deleted,
+	})
+}
+
 // HandlePatchTunnels 处理 PATCH /api/tunnels 请求 (启动/停止/重启/重命名)
 // 该接口兼容旧版前端：
 // 1. action 为 start/stop/restart 时，根据 instanceId 操作隧道状态
