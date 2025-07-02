@@ -6,9 +6,17 @@ services:
     # network_mode: "host" # 如需要ipv6，可考虑使用host模式
     ports:
       - "3000:3000"  # 整合的Next.js应用
+    # enenvironment:
+    #   - PORT=3000
+    #   - LOG-LEVEL=INFO
+    #   - TLS_CERT=/path/to/cert.pem
+    #   - TLS_KEY=/path/to/key.pem
     volumes:
-      # 挂载配置和日志
-      - ./config:/app/config:ro
+      # TLS证书
+      # - /path/to/cert.pem:/path/to/cert.pem
+      # - /path/to/key.pem:/path/to/key.pem
+      # 挂载日志
+      - ./log:/app/log:ro
       # SQLite 数据库文件
       - ./public:/app/public
     restart: unless-stopped

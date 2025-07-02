@@ -279,6 +279,12 @@ install_binary() {
     if [[ -f "$INSTALL_DIR/bin/$BINARY_NAME" ]]; then
         cp "$INSTALL_DIR/bin/$BINARY_NAME" "$INSTALL_DIR/bin/${BINARY_NAME}.backup.$(date +%Y%m%d%H%M%S)"
         log_info "已备份旧版本"
+        
+        # 删除前端资源目录，强制重新释放
+        if [[ -d "$INSTALL_DIR/dist" ]]; then
+            log_info "删除旧的前端资源..."
+            rm -rf "$INSTALL_DIR/dist"
+        fi
     fi
     
     # 安装新版本

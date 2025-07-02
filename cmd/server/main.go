@@ -136,14 +136,21 @@ func main() {
 	portFlag := flag.String("port", "", "HTTP 服务端口 (优先级高于环境变量 PORT)，默认 3000")
 	versionFlag := flag.Bool("version", false, "显示版本信息")
 	vFlag := flag.Bool("v", false, "显示版本信息")
-	logLevelFlag := flag.String("log-level", "DEBUG", "设置日志级别 (DEBUG, INFO, WARN, ERROR)")
+	logLevelFlag := flag.String("log-level", "", "设置日志级别 (DEBUG, INFO, WARN, ERROR)")
 	// TLS 证书相关参数
 	tlsCertFlag := flag.String("cert", "", "TLS 证书文件路径")
 	tlsKeyFlag := flag.String("key", "", "TLS 私钥文件路径")
 	flag.Parse()
 
 	// 设置日志级别
-	if err := log.SetLogLevel(*logLevelFlag); err != nil {
+	logLevel := *logLevelFlag
+	if logLevel == "" {
+		logLevel = os.Getenv("LOG-LEVEL")
+	}
+	if logLevel == "" {
+		logLevel = "debug"
+	}
+	if err := log.SetLogLevel(logLevel); err != nil {
 		log.Errorf("设置日志级别失败: %v", err)
 	}
 

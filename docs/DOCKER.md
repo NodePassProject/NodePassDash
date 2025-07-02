@@ -198,7 +198,7 @@ docker run -d \
 
 | 服务 | 容器端口 | 主机端口 | 说明 |
 |------|----------|----------|------|
-| Next.js + SSE | 3000 | 3000 | 整合的Web应用 |
+| Next.js + go后端 | 3000 | 3000 | 整合的Web应用 |
 
 ### Docker Compose 配置
 
@@ -223,6 +223,13 @@ services:
     image: ghcr.io/nodepassproject/nodepassdash:latest
     environment:
       - PORT=3000                    # 自定义端口
+      - LOG-LEVEL=INFO               # 日志等级
+      - TLS_CERT=/path/to/cert.pem   # TLS证书
+      - TLS_KEY=/path/to/key.pem     # TLS密钥
+    volumes:
+      # TLS证书
+      - /path/to/cert.pem:/path/to/cert.pem
+      - /path/to/key.pem:/path/to/key.pem
     command: ["./nodepassdash", "--port", "3000"]
 ```
 

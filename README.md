@@ -82,10 +82,12 @@ NodePassDash v2.0.0 提供了命令行参数来管理和配置应用：
 ```bash
 # 指定端口启动（默认 3000）
 ./nodepassdash --port 8080
-
+# 配置证书以启动https访问
+./nodepassdash --cert /path/to/cert.pem --key /path/to/cert.key
+# 启动时指定日志等级
+./nodepassdash --log-level debug
 # 显示帮助信息
 ./nodepassdash --help
-
 # 显示版本信息
 ./nodepassdash --version
 ```
@@ -96,10 +98,8 @@ NodePassDash v2.0.0 提供了命令行参数来管理和配置应用：
 # 重置管理员密码
 ./nodepassdash --resetpwd
 # 系统会提示输入新的用户名和密码
-
 # 数据库维护（检查和修复）
 ./nodepassdash --db-check
-
 # 清理日志文件（保留最近30天）
 ./nodepassdash --clean-logs
 ```

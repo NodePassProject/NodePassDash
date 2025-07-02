@@ -5,9 +5,17 @@ services:
     container_name: nodepassdash
     ports:
       - "3000:3000"  # 整合的Next.js应用
+    # enenvironment:
+    #   - PORT=3000
+    #   - LOG-LEVEL=INFO
+    #   - TLS_CERT=/path/to/cert.pem
+    #   - TLS_KEY=/path/to/key.pem
     volumes:
-      # 挂载配置和日志
-      - ./config:/app/config:ro
+      # TLS证书
+      # - /path/to/cert.pem:/path/to/cert.pem
+      # - /path/to/key.pem:/path/to/key.pem
+      # 挂载日志
+      - ./log:/app/log:ro
       # SQLite 数据库文件
       - ./public:/app/public
       # 日志和数据目录,如需挂载，请先赋予文件夹权限```chmod 777 logs```，否则可能会导致容器启动失败

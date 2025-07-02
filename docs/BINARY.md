@@ -116,10 +116,12 @@ NodePassDash 支持以下环境变量进行配置：
 ```bash
 # 指定端口启动
 /opt/nodepassdash/bin/nodepassdash --port 8080
-
+# 配置证书以启动https访问
+/opt/nodepassdash/bin/nodepassdash --cert /path/to/cert.pem --key /path/to/cert.key
+# 启动时指定日志等级
+/opt/nodepassdash/bin/nodepassdash --log-level debug
 # 查看帮助信息
 /opt/nodepassdash/bin/nodepassdash --help
-
 # 查看版本信息
 /opt/nodepassdash/bin/nodepassdash --version
 ```
@@ -213,6 +215,15 @@ sudo journalctl -u nodepassdash -f
 sudo systemctl disable nodepassdash
 ```
 
+### 4. 版本更新说明
+
+⚠️ **重要提醒**: 更新 NodePassDash 时会自动删除 `dist` 目录，这是因为：
+- `dist` 目录包含前端静态资源
+- 每个版本的前端资源可能不同
+- 删除后程序会自动重新释放最新的前端资源
+
+此操作不会影响您的数据，所有配置和数据都存储在 `data` 目录中。
+
 ## 🛠️ 管理脚本
 
 ### 创建管理脚本
@@ -249,7 +260,7 @@ case "$1" in
     reset-password)
         echo "重置管理员密码..."
         sudo systemctl stop $SERVICE_NAME
-        sudo -u nodepass $BINARY_PATH --reset-pwd
+        sudo -u nodepass $BINARY_PATH --resetpwd
         sudo systemctl start $SERVICE_NAME
         ;;
     update)
@@ -258,6 +269,12 @@ case "$1" in
         
         # 备份当前版本
         sudo cp $BINARY_PATH $BINARY_PATH.backup.$(date +%Y%m%d%H%M%S)
+        
+        # 删除前端资源目录，强制重新释放
+        if [ -d "/opt/nodepassdash/dist" ]; then
+            echo "删除旧的前端资源..."
+            sudo rm -rf /opt/nodepassdash/dist
+        fi
         
         # 检测架构并下载最新版本
         ARCH=$(uname -m)
