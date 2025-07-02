@@ -2,10 +2,9 @@ package instance
 
 import (
 	"database/sql"
-	"encoding/json"
 	"fmt"
-	"net/http"
-	"strings"
+
+	"NodePassDash/internal/nodepass"
 )
 
 // Instance 实例信息
@@ -32,35 +31,26 @@ func NewService(db *sql.DB) *Service {
 
 // GetInstances 获取指定端点的所有实例
 func (s *Service) GetInstances(endpointURL, endpointAPIPath, endpointAPIKey string) ([]Instance, error) {
-	// 构建API URL
-	apiURL := fmt.Sprintf("%s%s/instances", endpointURL, endpointAPIPath)
+	// 使用 nodepass client
+	client := nodepass.NewClient(endpointURL, endpointAPIPath, endpointAPIKey, nil)
 
-	// 创建请求
-	req, err := http.NewRequest("GET", apiURL, nil)
-	if err != nil {
-		return nil, err
-	}
-
-	// 设置API Key
-	req.Header.Set("X-API-Key", endpointAPIKey)
-
-	// 发送请求
-	client := &http.Client{}
-	resp, err := client.Do(req)
+	nodepassInstances, err := client.GetInstances()
 	if err != nil {
 		return nil, fmt.Errorf("调用NodePass API失败: %v", err)
 	}
-	defer resp.Body.Close()
 
-	// 检查响应状态
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("NodePass API返回错误状态码: %d", resp.StatusCode)
-	}
-
-	// 解析响应
-	var instances []Instance
-	if err := json.NewDecoder(resp.Body).Decode(&instances); err != nil {
-		return nil, fmt.Errorf("解析NodePass API响应失败: %v", err)
+	// 转换 nodepass.Instance 到 instance.Instance
+	instances := make([]Instance, len(nodepassInstances))
+	for i, npInstance := range nodepassInstances {
+		instances[i] = Instance{
+			ID:     npInstance.ID,
+			URL:    npInstance.URL,
+			Status: npInstance.Status,
+			TcpRx:  npInstance.TCPRx,
+			TcpTx:  npInstance.TCPTx,
+			UdpRx:  npInstance.UDPRx,
+			UdpTx:  npInstance.UDPTx,
+		}
 	}
 
 	return instances, nil
@@ -68,79 +58,31 @@ func (s *Service) GetInstances(endpointURL, endpointAPIPath, endpointAPIKey stri
 
 // GetInstance 获取单个实例信息
 func (s *Service) GetInstance(endpointURL, endpointAPIPath, endpointAPIKey, instanceID string) (*Instance, error) {
-	// 构建API URL
-	apiURL := fmt.Sprintf("%s%s/instances/%s", endpointURL, endpointAPIPath, instanceID)
-
-	// 创建请求
-	req, err := http.NewRequest("GET", apiURL, nil)
+	// 使用 nodepass client 获取所有实例，然后筛选指定 ID
+	// 注意：nodepass client 目前没有单独的 GetInstance 方法，所以我们先获取所有实例
+	instances, err := s.GetInstances(endpointURL, endpointAPIPath, endpointAPIKey)
 	if err != nil {
 		return nil, err
 	}
 
-	// 设置API Key
-	req.Header.Set("X-API-Key", endpointAPIKey)
-
-	// 发送请求
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return nil, fmt.Errorf("调用NodePass API失败: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// 检查响应状态
-	if resp.StatusCode != http.StatusOK {
-		return nil, fmt.Errorf("NodePass API返回错误状态码: %d", resp.StatusCode)
+	// 查找指定 ID 的实例
+	for _, instance := range instances {
+		if instance.ID == instanceID {
+			return &instance, nil
+		}
 	}
 
-	// 解析响应
-	var instance Instance
-	if err := json.NewDecoder(resp.Body).Decode(&instance); err != nil {
-		return nil, fmt.Errorf("解析NodePass API响应失败: %v", err)
-	}
-
-	return &instance, nil
+	return nil, fmt.Errorf("未找到 ID 为 %s 的实例", instanceID)
 }
 
 // ControlInstance 控制实例状态（启动/停止/重启）
 func (s *Service) ControlInstance(endpointURL, endpointAPIPath, endpointAPIKey, instanceID, action string) error {
-	// 构建API URL
-	apiURL := fmt.Sprintf("%s%s/instances/%s", endpointURL, endpointAPIPath, instanceID)
+	// 使用 nodepass client
+	client := nodepass.NewClient(endpointURL, endpointAPIPath, endpointAPIKey, nil)
 
-	// 构建请求体
-	reqBody := struct {
-		Action string `json:"action"`
-	}{
-		Action: action,
-	}
-
-	// 序列化请求体
-	jsonData, err := json.Marshal(reqBody)
+	_, err := client.ControlInstance(instanceID, action)
 	if err != nil {
-		return err
-	}
-
-	// 创建请求
-	req, err := http.NewRequest("PATCH", apiURL, strings.NewReader(string(jsonData)))
-	if err != nil {
-		return err
-	}
-
-	// 设置请求头
-	req.Header.Set("Content-Type", "application/json")
-	req.Header.Set("X-API-Key", endpointAPIKey)
-
-	// 发送请求
-	client := &http.Client{}
-	resp, err := client.Do(req)
-	if err != nil {
-		return fmt.Errorf("调用NodePass API失败: %v", err)
-	}
-	defer resp.Body.Close()
-
-	// 检查响应状态
-	if resp.StatusCode != http.StatusOK {
-		return fmt.Errorf("NodePass API返回错误状态码: %d", resp.StatusCode)
+		return fmt.Errorf("控制实例失败: %v", err)
 	}
 
 	return nil
