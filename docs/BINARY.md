@@ -124,6 +124,8 @@ NodePassDash 支持以下环境变量进行配置：
 /opt/nodepassdash/bin/nodepassdash --help
 # 查看版本信息
 /opt/nodepassdash/bin/nodepassdash --version
+# 禁用用户名密码登录
+/opt/nodepassdash/bin/nodepassdash --disable-login
 ```
 
 ## 🔧 SystemD 服务配置

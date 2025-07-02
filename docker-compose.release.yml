@@ -11,6 +11,7 @@ services:
     #   - LOG-LEVEL=INFO
     #   - TLS_CERT=/path/to/cert.pem
     #   - TLS_KEY=/path/to/key.pem
+    #   - DISABLE_LOGIN=true
     volumes:
       # TLS证书
       # - /path/to/cert.pem:/path/to/cert.pem

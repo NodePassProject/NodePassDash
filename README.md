@@ -1,6 +1,6 @@
 # 🚀 NodePassDash
 
-![Version](https://img.shields.io/badge/version-2.1.2--beta2-blue.svg)
+![Version](https://img.shields.io/badge/version-2.1.2--beta3-blue.svg)
 ![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)
 
 NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + Next.js 14、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
@@ -90,6 +90,8 @@ NodePassDash v2.0.0 提供了命令行参数来管理和配置应用：
 ./nodepassdash --help
 # 显示版本信息
 ./nodepassdash --version
+# 禁用用户名密码登录
+./nodepassdash --disable-login
 ```
 
 ### 管理工具

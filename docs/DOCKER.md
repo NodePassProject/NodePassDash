@@ -226,6 +226,7 @@ services:
       - LOG-LEVEL=INFO               # 日志等级
       - TLS_CERT=/path/to/cert.pem   # TLS证书
       - TLS_KEY=/path/to/key.pem     # TLS密钥
+      - DISABLE_LOGIN=true           # 禁用用户名密码登录
     volumes:
       # TLS证书
       - /path/to/cert.pem:/path/to/cert.pem
