@@ -3,7 +3,6 @@ package dashboard
 import (
 	"database/sql"
 	"fmt"
-	"sort"
 	"time"
 )
 
@@ -263,65 +262,127 @@ func (s *Service) GetTrafficTrend(hours int) ([]TrafficTrendItem, error) {
 		hours = 24
 	}
 
-	// 查询最近 hours 小时的 EndpointSSE 记录 (initial、update)
+	// 查询最近 hours+1 小时的数据，按实例ID分组获取每个小时内每个实例的最新累计值
 	rows, err := s.db.Query(`
-		SELECT eventTime, tcpRx, tcpTx, udpRx, udpTx
-		FROM "EndpointSSE"
-		WHERE pushType IN ('initial','update')
-		  AND eventTime >= datetime('now', ?||' hours')
-		  AND (tcpRx IS NOT NULL OR tcpTx IS NOT NULL OR udpRx IS NOT NULL OR udpTx IS NOT NULL)
-		ORDER BY eventTime DESC
-		LIMIT 500`, -hours)
+		WITH hourly_latest AS (
+			SELECT 
+				instanceId,
+				strftime('%Y-%m-%d %H:00:00', eventTime) as hour_key,
+				eventTime,
+				tcpRx, tcpTx, udpRx, udpTx,
+				ROW_NUMBER() OVER (
+					PARTITION BY instanceId, strftime('%Y-%m-%d %H:00:00', eventTime) 
+					ORDER BY eventTime DESC
+				) as rn
+			FROM "EndpointSSE"
+			WHERE pushType IN ('initial','update')
+			  AND eventTime >= datetime('now', ?||' hours')
+			  AND (tcpRx IS NOT NULL OR tcpTx IS NOT NULL OR udpRx IS NOT NULL OR udpTx IS NOT NULL)
+		)
+		SELECT instanceId, hour_key, eventTime, tcpRx, tcpTx, udpRx, udpTx
+		FROM hourly_latest 
+		WHERE rn = 1
+		ORDER BY instanceId, hour_key ASC
+		`, -(hours + 1))
 	if err != nil {
 		return nil, err
 	}
 	defer rows.Close()
 
-	type rec struct {
-		t                          time.Time
+	type instanceHourlyData struct {
+		instanceId                 string
+		hourKey                    string
+		eventTime                  time.Time
 		tcpRx, tcpTx, udpRx, udpTx sql.NullInt64
 	}
 
-	hourly := make(map[string]*TrafficTrendItem)
-
+	var records []instanceHourlyData
 	for rows.Next() {
-		var r rec
-		if err := rows.Scan(&r.t, &r.tcpRx, &r.tcpTx, &r.udpRx, &r.udpTx); err != nil {
+		var h instanceHourlyData
+		if err := rows.Scan(&h.instanceId, &h.hourKey, &h.eventTime, &h.tcpRx, &h.tcpTx, &h.udpRx, &h.udpTx); err != nil {
 			return nil, err
 		}
+		records = append(records, h)
+	}
 
-		hourKey := r.t.Format("2006-01-02 15:00:00")
-		if _, ok := hourly[hourKey]; !ok {
-			hourly[hourKey] = &TrafficTrendItem{
-				HourTime:    hourKey,
-				HourDisplay: r.t.Format("15:00"),
+	// 按实例ID分组数据
+	instanceData := make(map[string][]instanceHourlyData)
+	for _, record := range records {
+		instanceData[record.instanceId] = append(instanceData[record.instanceId], record)
+	}
+
+	// 计算每个实例每小时的流量增量，然后按小时汇总
+	hourlyTraffic := make(map[string]*TrafficTrendItem)
+
+	for _, hourlyRecords := range instanceData {
+		// 为每个实例计算小时间的流量差值
+		for i := 1; i < len(hourlyRecords); i++ {
+			current := hourlyRecords[i]
+			previous := hourlyRecords[i-1]
+
+			// 解析小时时间
+			hourTime, err := time.Parse("2006-01-02 15:00:00", current.hourKey)
+			if err != nil {
+				continue
+			}
+
+			// 初始化该小时的数据结构
+			if _, exists := hourlyTraffic[current.hourKey]; !exists {
+				hourlyTraffic[current.hourKey] = &TrafficTrendItem{
+					HourTime:    current.hourKey,
+					HourDisplay: hourTime.Format("15:04"),
+					RecordCount: 0,
+				}
+			}
+
+			item := hourlyTraffic[current.hourKey]
+
+			// 计算该实例在这个小时的流量增量
+			if current.tcpRx.Valid && previous.tcpRx.Valid {
+				diff := current.tcpRx.Int64 - previous.tcpRx.Int64
+				if diff >= 0 {
+					item.TCPRx += diff
+				}
+			}
+			if current.tcpTx.Valid && previous.tcpTx.Valid {
+				diff := current.tcpTx.Int64 - previous.tcpTx.Int64
+				if diff >= 0 {
+					item.TCPTx += diff
+				}
+			}
+			if current.udpRx.Valid && previous.udpRx.Valid {
+				diff := current.udpRx.Int64 - previous.udpRx.Int64
+				if diff >= 0 {
+					item.UDPRx += diff
+				}
+			}
+			if current.udpTx.Valid && previous.udpTx.Valid {
+				diff := current.udpTx.Int64 - previous.udpTx.Int64
+				if diff >= 0 {
+					item.UDPTx += diff
+				}
+			}
+
+			item.RecordCount++
+		}
+	}
+
+	// 转换为切片并排序
+	var list []TrafficTrendItem
+	for _, item := range hourlyTraffic {
+		list = append(list, *item)
+	}
+
+	// 按时间排序
+	for i := 0; i < len(list); i++ {
+		for j := i + 1; j < len(list); j++ {
+			if list[i].HourTime > list[j].HourTime {
+				list[i], list[j] = list[j], list[i]
 			}
 		}
-		item := hourly[hourKey]
-		if r.tcpRx.Valid {
-			item.TCPRx += r.tcpRx.Int64
-		}
-		if r.tcpTx.Valid {
-			item.TCPTx += r.tcpTx.Int64
-		}
-		if r.udpRx.Valid {
-			item.UDPRx += r.udpRx.Int64
-		}
-		if r.udpTx.Valid {
-			item.UDPTx += r.udpTx.Int64
-		}
-		item.RecordCount++
 	}
 
-	// 转为 slice 并排序
-	var list []TrafficTrendItem
-	for _, v := range hourly {
-		list = append(list, *v)
-	}
-	// sort by HourTime asc
-	sort.Slice(list, func(i, j int) bool { return list[i].HourTime < list[j].HourTime })
-
-	// 只取最近 hours 条 (可能不足)
+	// 限制返回最近 hours 条记录
 	if len(list) > hours {
 		list = list[len(list)-hours:]
 	}

@@ -448,7 +448,7 @@ export default function DashboardPage() {
       <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 md:gap-6">
         {/* 流量概览 - 在移动端占满宽度，桌面端占2列 */}
         <Card className="lg:col-span-2 min-h-[350px] lg:h-[400px]">
-          <CardHeader className="font-bold text-sm md:text-base px-4 md:px-6 pb-3">流量趋势</CardHeader>
+          <CardHeader className="font-bold text-sm md:text-base px-4 md:px-6 pb-3">流量总耗</CardHeader>
           <CardBody className="h-full px-4 md:px-6 pb-4 md:pb-6">
             <div className="h-[280px] lg:h-[300px]">
               {trafficLoading ? (
