@@ -372,6 +372,7 @@ func (h *AuthHandler) handleGitHubOAuth(w http.ResponseWriter, r *http.Request, 
 		ClientSecret string `json:"clientSecret"`
 		TokenURL     string `json:"tokenUrl"`
 		UserInfoURL  string `json:"userInfoUrl"`
+		RedirectURI  string `json:"redirectUri"`
 	}
 	var cfg ghCfg
 	_ = json.Unmarshal([]byte(cfgStr), &cfg)

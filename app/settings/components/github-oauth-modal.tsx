@@ -1,3 +1,5 @@
+"use client";
+
 import {
   Button,
   Input,
@@ -9,8 +11,9 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import Image from "next/image";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import NextLink from "next/link";
+import { addToast } from "@heroui/toast";
 
 // 与 SecuritySettings 中保持一致的 OAuth2Config 类型定义
 type OAuth2Config = {
@@ -21,6 +24,7 @@ type OAuth2Config = {
   userInfoUrl: string;
   userIdPath: string;
   scopes?: string[];
+  redirectUri?: string;
 };
 
 interface Props {
@@ -45,6 +49,31 @@ const GitHubOAuthModal: React.FC<Props> = ({
   isSubmitting,
   onSave
 }) => {
+  const [callbackUrl, setCallbackUrl] = useState<string>("");
+
+  useEffect(() => {
+    if (typeof window !== "undefined") {
+      setCallbackUrl(`${window.location.origin}/api/oauth2/callback`);
+    }
+  }, []);
+
+  const handleCopyCallback = async () => {
+    try {
+      await navigator.clipboard.writeText(callbackUrl);
+      addToast({
+        title: "已复制",
+        description: "回调地址已复制到剪贴板",
+        color: "success",
+      });
+    } catch (e) {
+      addToast({
+        title: "复制失败",
+        description: "无法复制回调地址，请手动复制",
+        color: "danger",
+      });
+    }
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -139,6 +168,23 @@ const GitHubOAuthModal: React.FC<Props> = ({
                   <p>• 请确保在 GitHub OAuth App 设置中正确配置回调 URL</p>
                   <p>• Client Secret 将被安全加密存储</p>
                 </div>
+
+                {/* 显示回调地址 */}
+                {callbackUrl && (
+                  <div className="p-3 bg-default-100 rounded-lg">
+                    <div className="flex items-center justify-between mb-2">
+                      <span className="text-sm font-medium text-default-700">回调地址 (Callback URL)</span>
+                      <Icon
+                        icon="solar:copy-bold"
+                        width={16}
+                        className="cursor-pointer text-default-600 hover:text-primary"
+                        onClick={handleCopyCallback}
+                      />
+                    </div>
+                    <p className="text-xs text-default-500 break-all">{callbackUrl}</p>
+                    <p className="text-xs text-warning mt-1">请在 GitHub OAuth App 中将此地址配置为 Authorization callback URL</p>
+                  </div>
+                )}
               </div>
             </ModalBody>
             <ModalFooter>

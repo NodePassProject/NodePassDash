@@ -45,6 +45,10 @@ interface OAuth2Config {
   userInfoUrl: string;
   userIdPath: string;
   scopes?: string[];
+  /**
+   * 回调地址，由前端根据 window.location.origin 生成并与其它配置一同保存
+   */
+  redirectUri?: string;
 }
 
 // 定义组件 ref 类型
@@ -286,9 +290,13 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
     try {
       setIsSubmitting(true);
       
+      const redirectUri = `${window.location.origin}/api/oauth2/callback`;
       const payload = {
         provider: 'github',
-        config: gitHubConfig
+        config: {
+          ...gitHubConfig,
+          redirectUri,
+        }
       };
 
       const res = await fetch('/api/oauth2/config', {
@@ -324,9 +332,13 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
     try {
       setIsSubmitting(true);
       
+      const redirectUri = `${window.location.origin}/api/oauth2/callback`;
       const payload = {
         provider: 'cloudflare',
-        config: cloudflareConfig
+        config: {
+          ...cloudflareConfig,
+          redirectUri,
+        }
       };
 
       const res = await fetch('/api/oauth2/config', {
