@@ -85,3 +85,4 @@ nodepass-release.*
 .ignore
 logs/
 certs/
+gob/

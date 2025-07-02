@@ -377,10 +377,10 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 	}
 
 	if req.Mode == "client" {
-		if req.Min > 0 {
+		if req.Min >= 0 {
 			queryParams = append(queryParams, fmt.Sprintf("min=%d", req.Min))
 		}
-		if req.Max > 0 {
+		if req.Max >= 0 {
 			queryParams = append(queryParams, fmt.Sprintf("max=%d", req.Max))
 		}
 	}
@@ -432,13 +432,13 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 			commandLine,
 			req.Password,
 			func() interface{} {
-				if req.Min > 0 {
+				if req.Min >= 0 {
 					return req.Min
 				}
 				return nil
 			}(),
 			func() interface{} {
-				if req.Max > 0 {
+				if req.Max >= 0 {
 					return req.Max
 				}
 				return nil
@@ -1162,10 +1162,10 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		}
 	}
 	if req.Mode == "client" {
-		if req.Min > 0 {
+		if req.Min >= 0 {
 			queryParams = append(queryParams, fmt.Sprintf("min=%d", req.Min))
 		}
-		if req.Max > 0 {
+		if req.Max >= 0 {
 			queryParams = append(queryParams, fmt.Sprintf("max=%d", req.Max))
 		}
 	}
@@ -1290,13 +1290,13 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 			req.TLSMode, req.CertPath, req.KeyPath, req.LogLevel, commandLine,
 			req.Password,
 			func() interface{} {
-				if req.Min > 0 {
+				if req.Min >= 0 {
 					return req.Min
 				}
 				return nil
 			}(),
 			func() interface{} {
-				if req.Max > 0 {
+				if req.Max >= 0 {
 					return req.Max
 				}
 				return nil
