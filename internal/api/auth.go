@@ -390,9 +390,17 @@ func (h *AuthHandler) handleGitHubOAuth(w http.ResponseWriter, r *http.Request, 
 	form.Set("grant_type", "authorization_code")
 
 	// GitHub 如果在 App 设置中配置了回调地址，需要在交换 token 时附带同样的 redirect_uri
-	baseURL := fmt.Sprintf("%s://%s", "http", r.Host)
-	redirectURI := baseURL + "/api/oauth2/callback"
+	// 优先使用配置中的 redirectUri，如果没有则回退到基于 r.Host 的拼接
+	redirectURI := cfg.RedirectURI
+	if redirectURI == "" {
+		baseURL := fmt.Sprintf("%s://%s", "http", r.Host)
+		redirectURI = baseURL + "/api/oauth2/callback"
+	}
 	form.Set("redirect_uri", redirectURI)
+
+	fmt.Printf("🔍 GitHub Token 请求参数: client_id=%s, redirect_uri=%s, token_url=%s\n",
+		cfg.ClientID, redirectURI, cfg.TokenURL)
+	fmt.Printf("🔍 请求体: %s\n", form.Encode())
 
 	tokenReq, _ := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
 	tokenReq.Header.Set("Accept", "application/json")
@@ -400,6 +408,7 @@ func (h *AuthHandler) handleGitHubOAuth(w http.ResponseWriter, r *http.Request, 
 
 	resp, err := http.DefaultClient.Do(tokenReq)
 	if err != nil {
+		fmt.Printf("❌ GitHub Token 请求错误: %v\n", err)
 		http.Error(w, "请求 GitHub Token 失败", http.StatusBadGateway)
 		return
 	}
@@ -502,6 +511,7 @@ func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Reque
 		ClientSecret string `json:"clientSecret"`
 		TokenURL     string `json:"tokenUrl"`
 		UserInfoURL  string `json:"userInfoUrl"`
+		RedirectURI  string `json:"redirectUri"`
 	}
 	var cfg cfCfg
 	_ = json.Unmarshal([]byte(cfgStr), &cfg)
@@ -520,8 +530,12 @@ func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Reque
 	form.Set("state", r.URL.Query().Get("state"))
 
 	// Cloudflare 如果在 App 设置中配置了回调地址，需要在交换 token 时附带同样的 redirect_uri
-	baseURL := fmt.Sprintf("%s://%s", "http", r.Host)
-	redirectURI := baseURL + "/api/oauth2/callback"
+	// 优先使用配置中的 redirectUri，如果没有则回退到基于 r.Host 的拼接
+	redirectURI := cfg.RedirectURI
+	if redirectURI == "" {
+		baseURL := fmt.Sprintf("%s://%s", "http", r.Host)
+		redirectURI = baseURL + "/api/oauth2/callback"
+	}
 	form.Set("redirect_uri", redirectURI)
 
 	tokenReq, _ := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
@@ -754,8 +768,15 @@ func (h *AuthHandler) HandleOAuth2Login(w http.ResponseWriter, r *http.Request) 
 
 	state := h.authService.GenerateOAuthState()
 
-	baseURL := fmt.Sprintf("%s://%s", "http", r.Host)
-	redirectURI := baseURL + "/api/oauth2/callback"
+	// 优先从配置中读取 redirectUri
+	redirectURI := ""
+	if v, ok := cfg["redirectUri"]; ok {
+		redirectURI = fmt.Sprintf("%v", v)
+	}
+	if redirectURI == "" {
+		baseURL := fmt.Sprintf("%s://%s", "http", r.Host)
+		redirectURI = baseURL + "/api/oauth2/callback"
+	}
 
 	// 拼接查询参数
 	q := url.Values{}
