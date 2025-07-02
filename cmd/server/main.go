@@ -140,6 +140,8 @@ func main() {
 	// TLS 证书相关参数
 	tlsCertFlag := flag.String("cert", "", "TLS 证书文件路径")
 	tlsKeyFlag := flag.String("key", "", "TLS 私钥文件路径")
+	// 禁用用户名密码登录参数
+	disableLoginFlag := flag.Bool("disable-login", false, "禁用用户名密码登录，仅允许 OAuth2 登录")
 	flag.Parse()
 
 	// 设置日志级别
@@ -299,6 +301,29 @@ func main() {
 	// 系统初始化（首次启动输出初始用户名和密码）
 	if _, _, err := authService.InitializeSystem(); err != nil && err.Error() != "系统已初始化" {
 		log.Errorf("系统初始化失败: %v", err)
+	}
+
+	// 设置 disable-login 配置
+	// 优先级：命令行参数 > 环境变量
+	shouldDisableLogin := *disableLoginFlag
+	if !shouldDisableLogin {
+		if env := os.Getenv("DISABLE_LOGIN"); env == "true" || env == "1" {
+			shouldDisableLogin = true
+		}
+	}
+
+	// 始终设置 disable_login 配置以确保状态一致性
+	if shouldDisableLogin {
+		if err := authService.SetSystemConfig("disable_login", "true", "禁用用户名密码登录"); err != nil {
+			log.Errorf("设置 disable-login 配置失败: %v", err)
+		} else {
+			log.Infof("已启用 disable-login 模式，仅允许 OAuth2 登录")
+		}
+	} else {
+		// 如果没有启用 disable-login，确保数据库中的值为 false
+		if err := authService.SetSystemConfig("disable_login", "false", "允许用户名密码登录"); err != nil {
+			log.Errorf("重置 disable-login 配置失败: %v", err)
+		}
 	}
 
 	// 启动SSE系统

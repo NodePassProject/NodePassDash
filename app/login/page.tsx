@@ -36,6 +36,10 @@ export default function LoginPage() {
 
   // OAuth2 配置状态
   const [oauthProviders, setOauthProviders] = useState<{provider?: "github" | "cloudflare"; config?: any}>({});
+  // 是否禁用用户名密码登录
+  const [isLoginDisabled, setIsLoginDisabled] = useState(false);
+  // 系统配置错误状态
+  const [systemError, setSystemError] = useState('');
 
   const { theme } = useTheme();
   const isSSR = useIsSSR();
@@ -50,12 +54,24 @@ export default function LoginPage() {
      */
     const fetchCurrentProvider = async () => {
       try {
-        const res = await fetch('/api/auth/oauth2'); // 仅返回 provider
+        const res = await fetch('/api/auth/oauth2'); // 仅返回 provider 和 disableLogin
         const data = await res.json();
-        if (data.success && data.provider) {
-          const cur = data.provider as "github" | "cloudflare";
-          // 只需 provider 即可
-          setOauthProviders({ provider: cur });
+        if (data.success) {
+          const hasOAuth = !!data.provider;
+          const loginDisabled = data.disableLogin === true;
+          
+          if (data.provider) {
+            const cur = data.provider as "github" | "cloudflare";
+            setOauthProviders({ provider: cur });
+          }
+          
+          // 设置是否禁用用户名密码登录
+          setIsLoginDisabled(loginDisabled);
+          
+          // 检查系统配置错误：禁用了登录但没有配置 OAuth2
+          if (loginDisabled && !hasOAuth) {
+            setSystemError('系统配置错误：已禁用用户名密码登录但未配置 OAuth2 登录方式，请联系管理员');
+          }
         }
       } catch (e) {
         console.error('获取 OAuth2 当前绑定失败', e);
@@ -153,74 +169,104 @@ export default function LoginPage() {
           </CardHeader>
           
           <CardBody className="px-8 pb-8">
-            <form onSubmit={handleSubmit} className="space-y-6">
-              {error && (
-                <motion.div
-                  initial={{ opacity: 0, x: -10 }}
-                  animate={{ opacity: 1, x: 0 }}
-                  className="p-3 bg-danger-50 border border-danger-200 rounded-lg"
-                >
-                  <p className="text-danger text-small">{error}</p>
-                </motion.div>
-              )}
-              
-              <div className="space-y-4">
-                <Input
-                  type="text"
-                  label="用户名"
-                  placeholder="请输入用户名"
-                  value={formData.username}
-                  onValueChange={handleInputChange('username')}
-                  startContent={
-                    <FontAwesomeIcon icon={faUser} className="text-default-400" />
-                  }
-                  isRequired
-                  variant="bordered"
-                />
-                
-                <Input
-                  type={showPassword ? "text" : "password"}
-                  label="密码"
-                  placeholder="请输入密码"
-                  value={formData.password}
-                  onValueChange={handleInputChange('password')}
-                  startContent={
-                    <FontAwesomeIcon icon={faLock} className="text-default-400" />
-                  }
-                  endContent={
-                    <button
-                      type="button"
-                      onClick={() => setShowPassword(!showPassword)}
-                      className="focus:outline-none"
-                    >
-                      <FontAwesomeIcon 
-                        icon={showPassword ? faEyeSlash : faEye} 
-                        className="text-default-400 hover:text-default-600 transition-colors"
-                      />
-                    </button>
-                  }
-                  isRequired
-                  variant="bordered"
-                />
-              </div>
-              
-              <Button
-                type="submit"
-                color="primary"
-                size="lg"
-                className="w-full font-semibold"
-                isLoading={isLoading}
-                disabled={!formData.username || !formData.password}
+            {/* 系统配置错误 */}
+            {systemError && (
+              <motion.div
+                initial={{ opacity: 0, y: 10 }}
+                animate={{ opacity: 1, y: 0 }}
+                className="p-4 bg-danger-50 border border-danger-200 rounded-lg text-center"
               >
-                {isLoading ? '登录中...' : '登录'}
-              </Button>
-            </form>
+                <Icon icon="solar:shield-warning-bold" width={24} className="text-danger mx-auto mb-2" />
+                <p className="text-danger text-sm font-medium">系统配置错误</p>
+                <p className="text-danger-600 text-xs mt-1">{systemError}</p>
+              </motion.div>
+            )}
+            
+            {/* 如果禁用了用户名密码登录，显示提示信息 */}
+            {!systemError && isLoginDisabled ? (
+              <div className="space-y-4">
+                <motion.div
+                  initial={{ opacity: 0, y: 10 }}
+                  animate={{ opacity: 1, y: 0 }}
+                  className="p-4 bg-warning-50 border border-warning-200 rounded-lg text-center"
+                >
+                  <Icon icon="solar:info-circle-bold" width={24} className="text-warning mx-auto mb-2" />
+                  <p className="text-warning text-sm font-medium">用户名密码登录已禁用</p>
+                  <p className="text-warning-600 text-xs mt-1">请使用下方的 OAuth2 方式登录</p>
+                </motion.div>
+              </div>
+            ) : (!systemError && (
+              <form onSubmit={handleSubmit} className="space-y-6">
+                {error && (
+                  <motion.div
+                    initial={{ opacity: 0, x: -10 }}
+                    animate={{ opacity: 1, x: 0 }}
+                    className="p-3 bg-danger-50 border border-danger-200 rounded-lg"
+                  >
+                    <p className="text-danger text-small">{error}</p>
+                  </motion.div>
+                )}
+                
+                <div className="space-y-4">
+                  <Input
+                    type="text"
+                    label="用户名"
+                    placeholder="请输入用户名"
+                    value={formData.username}
+                    onValueChange={handleInputChange('username')}
+                    startContent={
+                      <FontAwesomeIcon icon={faUser} className="text-default-400" />
+                    }
+                    isRequired
+                    variant="bordered"
+                  />
+                  
+                  <Input
+                    type={showPassword ? "text" : "password"}
+                    label="密码"
+                    placeholder="请输入密码"
+                    value={formData.password}
+                    onValueChange={handleInputChange('password')}
+                    startContent={
+                      <FontAwesomeIcon icon={faLock} className="text-default-400" />
+                    }
+                    endContent={
+                      <button
+                        type="button"
+                        onClick={() => setShowPassword(!showPassword)}
+                        className="focus:outline-none"
+                      >
+                        <FontAwesomeIcon 
+                          icon={showPassword ? faEyeSlash : faEye} 
+                          className="text-default-400 hover:text-default-600 transition-colors"
+                        />
+                      </button>
+                    }
+                    isRequired
+                    variant="bordered"
+                  />
+                </div>
+                
+                <Button
+                  type="submit"
+                  color="primary"
+                  size="lg"
+                  className="w-full font-semibold"
+                  isLoading={isLoading}
+                  disabled={!formData.username || !formData.password}
+                >
+                  {isLoading ? '登录中...' : '登录'}
+                </Button>
+              </form>
+            ))}
 
             {/* OAuth2 登录选项 */}
-            {oauthProviders.provider && (
+            {!systemError && oauthProviders.provider && (
               <div className="mt-6 space-y-3">
-                <Divider />
-                <p className="text-center text-sm text-default-500">或使用以下方式登录</p>
+                {!isLoginDisabled && <Divider />}
+                <p className="text-center text-sm text-default-500">
+                  {isLoginDisabled ? '请使用以下方式登录' : '或使用以下方式登录'}
+                </p>
                 <div className="flex flex-col gap-3">
                   {oauthProviders.provider === 'github' && (
                     <Button

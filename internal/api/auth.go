@@ -31,6 +31,17 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// 检查是否禁用用户名密码登录
+	disableLogin, _ := h.authService.GetSystemConfig("disable_login")
+	if disableLogin == "true" {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(auth.LoginResponse{
+			Success: false,
+			Error:   "用户名密码登录已禁用，请使用 OAuth2 登录",
+		})
+		return
+	}
+
 	var req auth.LoginRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		http.Error(w, "Invalid request body", http.StatusBadRequest)
@@ -480,7 +491,8 @@ func (h *AuthHandler) handleGitHubOAuth(w http.ResponseWriter, r *http.Request, 
 	// 如果请求携带 redirect 参数或 Accept text/html，则执行页面跳转；否则返回 JSON
 	redirectURL := r.URL.Query().Get("redirect")
 	if redirectURL == "" {
-		redirectURL = "http://localhost:3000/dashboard" // 默认跳转前端仪表盘
+		// 直接使用配置的 redirectUri 替换 /api/oauth2/callback 为 /dashboard
+		redirectURL = strings.Replace(cfg.RedirectURI, "/api/oauth2/callback", "/dashboard", 1)
 	}
 
 	accept := r.Header.Get("Accept")
@@ -632,7 +644,8 @@ func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Reque
 	// 如果请求携带 redirect 参数或 Accept text/html，则执行页面跳转；否则返回 JSON
 	redirectURL := r.URL.Query().Get("redirect")
 	if redirectURL == "" {
-		redirectURL = "http://localhost:3000/dashboard" // 默认跳转前端仪表盘
+		// 直接使用配置的 redirectUri 替换 /api/oauth2/callback 为 /dashboard
+		redirectURL = strings.Replace(cfg.RedirectURI, "/api/oauth2/callback", "/dashboard", 1)
 	}
 
 	accept := r.Header.Get("Accept")
@@ -805,8 +818,11 @@ func (h *AuthHandler) HandleOAuth2Provider(w http.ResponseWriter, r *http.Reques
 	}
 
 	provider, _ := h.authService.GetSystemConfig("oauth2_provider")
+	disableLogin, _ := h.authService.GetSystemConfig("disable_login")
+
 	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":  true,
-		"provider": provider,
+		"success":      true,
+		"provider":     provider,
+		"disableLogin": disableLogin == "true",
 	})
 }
