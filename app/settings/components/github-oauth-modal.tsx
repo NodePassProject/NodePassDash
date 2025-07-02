@@ -8,12 +8,12 @@ import {
   ModalContent,
   ModalFooter,
   ModalHeader,
+  Link
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import Image from "next/image";
 import React, { useEffect, useState } from "react";
-import NextLink from "next/link";
-import { addToast } from "@heroui/toast";
+ import { addToast } from "@heroui/toast";
 
 // 与 SecuritySettings 中保持一致的 OAuth2Config 类型定义
 type OAuth2Config = {
@@ -93,14 +93,14 @@ const GitHubOAuthModal: React.FC<Props> = ({
                 <Image src="/github-icon-svgrepo-com.svg" alt="GitHub" width={24} height={24} className="dark:invert" />
                 配置 GitHub OAuth2
                 {/* 跳转 GitHub 开发者中心 */}
-                <NextLink
+                <Link
                   href="https://github.com/settings/developers"
                   target="_blank"
                   rel="noreferrer"
-                  className="ml-1 text-default-500 hover:text-primary"
+                  showAnchorIcon 
+                  isExternal 
                 >
-                  <Icon icon="solar:external-link-line-duotone" width={18} />
-                </NextLink>
+                </Link>
               </div>
               <p className="text-sm text-default-500">设置 GitHub OAuth2 登录集成参数</p>
             </ModalHeader>

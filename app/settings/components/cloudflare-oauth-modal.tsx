@@ -7,7 +7,8 @@ import {
   ModalBody,
   ModalContent,
   ModalFooter,
-  ModalHeader,
+  ModalHeader,Link
+  
 } from "@heroui/react";
   import { Icon } from "@iconify/react";
   import Image from "next/image";
@@ -93,14 +94,14 @@ const CloudflareOAuthModal: React.FC<Props> = ({
                 <Image src="/cloudflare-svgrepo-com.svg" alt="Cloudflare" width={24} height={24} />
                 配置 Cloudflare OAuth2
                 {/* 跳转 Cloudflare Access 控制台 */}
-                <NextLink
-                  href="https://one.dash.cloudflare.com/"
+                <Link
+                  href="https://one.dash.cloudflare.com"
                   target="_blank"
                   rel="noreferrer"
-                  className="ml-1 text-default-500 hover:text-primary"
+                  showAnchorIcon 
+                  isExternal 
                 >
-                  <Icon icon="solar:external-link-line-duotone" width={18} />
-                </NextLink>
+                </Link>
               </div>
               
               <p className="text-sm text-default-500">设置 Cloudflare Access OAuth2 登录集成参数</p>
