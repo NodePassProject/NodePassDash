@@ -654,8 +654,31 @@ func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
+	// Cloudflare 使用 sub 字段作为用户唯一标识，GitHub 使用 id 字段
 	providerID := fmt.Sprintf("%v", userData["id"])
+	if providerID == "<nil>" || providerID == "" {
+		// 如果 id 字段为空或 nil，则使用 sub 字段
+		providerID = fmt.Sprintf("%v", userData["sub"])
+		fmt.Printf("🔍 Cloudflare 使用 sub 字段作为 providerID: %s\n", providerID)
+	} else {
+		fmt.Printf("🔍 Cloudflare 使用 id 字段作为 providerID: %s\n", providerID)
+	}
+
+	// 最终验证 providerID 是否有效
+	if providerID == "<nil>" || providerID == "" {
+		http.Error(w, "无法获取 Cloudflare 用户唯一标识", http.StatusBadGateway)
+		return
+	}
+
 	login := fmt.Sprintf("%v", userData["login"])
+	if login == "<nil>" || login == "" {
+		// 如果 login 字段为空，则使用 email 或 sub 字段作为登录名
+		if email := fmt.Sprintf("%v", userData["email"]); email != "<nil>" && email != "" {
+			login = email
+		} else {
+			login = providerID // 回退到使用 providerId 作为登录名
+		}
+	}
 
 	username := "cloudflare:" + login
 
