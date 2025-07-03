@@ -165,7 +165,10 @@ export default function LoginPage() {
               />
             </motion.div>
             <h1 className="text-2xl font-bold text-foreground">NodePassDash</h1>
-            <p className="text-small text-default-500">请输入您的登录凭据</p>
+            {/* 仅当允许用户名密码登录时显示提示文案 */}
+            {!isLoginDisabled && (
+              <p className="text-small text-default-500">请输入您的登录凭据</p>
+            )}
           </CardHeader>
           
           <CardBody className="px-8 pb-8">
@@ -182,20 +185,8 @@ export default function LoginPage() {
               </motion.div>
             )}
             
-            {/* 如果禁用了用户名密码登录，显示提示信息 */}
-            {!systemError && isLoginDisabled ? (
-              <div className="space-y-4">
-                <motion.div
-                  initial={{ opacity: 0, y: 10 }}
-                  animate={{ opacity: 1, y: 0 }}
-                  className="p-4 bg-warning-50 border border-warning-200 rounded-lg text-center"
-                >
-                  <Icon icon="solar:info-circle-bold" width={24} className="text-warning mx-auto mb-2" />
-                  <p className="text-warning text-sm font-medium">用户名密码登录已禁用</p>
-                  <p className="text-warning-600 text-xs mt-1">请使用下方的 OAuth2 方式登录</p>
-                </motion.div>
-              </div>
-            ) : (!systemError && (
+            {/* 登录表单：仅当未禁用用户名密码登录且系统配置正常时显示 */}
+            {!systemError && !isLoginDisabled && (
               <form onSubmit={handleSubmit} className="space-y-6">
                 {error && (
                   <motion.div
@@ -258,7 +249,7 @@ export default function LoginPage() {
                   {isLoading ? '登录中...' : '登录'}
                 </Button>
               </form>
-            ))}
+            )}
 
             {/* OAuth2 登录选项 */}
             {!systemError && oauthProviders.provider && (
