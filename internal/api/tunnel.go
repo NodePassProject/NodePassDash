@@ -2555,9 +2555,12 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 	}
 
 	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	log.Infof("[API] 准备调用 UpdateInstanceV1: instanceID=%s, commandLine=%s", instanceID, commandLine)
 	if err := npClient.UpdateInstanceV1(instanceID, commandLine); err != nil {
+		log.Errorf("[API] UpdateInstanceV1 调用失败: %v", err)
 		// 若远端返回 405，则回退旧逻辑（删除+重建）
-		if strings.Contains(err.Error(), "405") {
+		if strings.Contains(err.Error(), "405") || strings.Contains(err.Error(), "404") {
+			log.Infof("[API] 检测到405/404错误，回退到旧逻辑")
 			// 删除旧实例
 			if delErr := h.tunnelService.DeleteTunnelAndWait(instanceID, 3*time.Second, true); delErr != nil {
 				w.WriteHeader(http.StatusBadRequest)

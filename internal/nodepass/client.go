@@ -101,7 +101,7 @@ func (c *Client) UpdateInstance(instanceID, commandLine string) error {
 // 与旧版 UpdateInstance 不同，此方法使用新版接口路径 /v1/instance/{id}
 // 当远端核心升级后，应优先调用本方法。
 func (c *Client) UpdateInstanceV1(instanceID, commandLine string) error {
-	url := fmt.Sprintf("%s%s/v1/instance/%s", c.baseURL, c.apiPath, instanceID)
+	url := fmt.Sprintf("%s%s/instances/%s", c.baseURL, c.apiPath, instanceID)
 	payload := map[string]string{"url": commandLine}
 
 	return c.doRequest(http.MethodPut, url, payload, nil)
