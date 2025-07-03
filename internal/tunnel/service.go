@@ -938,8 +938,15 @@ func (s *Service) UpdateTunnel(req UpdateTunnelRequest) error {
 
 	// 调用 NodePass API 更新隧道实例
 	npClient := nodepass.NewClient(endpointURL, endpointAPIPath, endpointAPIKey, nil)
-	if err := npClient.UpdateInstance(tunnel.InstanceID, commandLine); err != nil {
-		return err
+	if err := npClient.UpdateInstanceV1(tunnel.InstanceID, commandLine); err != nil {
+		// 若远端未实现新版接口(如返回405 Method Not Allowed)，回退旧版接口
+		if strings.Contains(err.Error(), "405") {
+			if err2 := npClient.UpdateInstance(tunnel.InstanceID, commandLine); err2 != nil {
+				return err2
+			}
+		} else {
+			return err
+		}
 	}
 
 	return nil

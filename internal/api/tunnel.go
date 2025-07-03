@@ -14,6 +14,7 @@ import (
 
 	"github.com/gorilla/mux"
 
+	"NodePassDash/internal/nodepass"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
 )
@@ -2424,4 +2425,195 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(w http.ResponseWriter, r *ht
 		"success":      true,
 		"trafficTrend": trafficTrend,
 	})
+}
+
+// HandleUpdateTunnelV2 新版隧道更新逻辑 (PUT /api/tunnels/{id})
+// 特点：
+// 1. 不再删除后重建，而是构建命令行后调用 NodePass PUT /v1/instance/{id}
+// 2. 调用成功后等待 SSE 更新数据库中的 commandLine 字段；超时则直接更新本地数据库。
+// 3. 若远端返回 405 等错误，则回退到旧逻辑 HandleUpdateTunnel。
+func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPut {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	tunnelIDStr := vars["id"]
+	tunnelID, err := strconv.ParseInt(tunnelIDStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "无效的隧道ID"})
+		return
+	}
+
+	// 解析请求体（与创建接口保持一致）
+	var raw struct {
+		Name          string          `json:"name"`
+		EndpointID    int64           `json:"endpointId"`
+		Mode          string          `json:"mode"`
+		TunnelAddress string          `json:"tunnelAddress"`
+		TunnelPort    json.RawMessage `json:"tunnelPort"`
+		TargetAddress string          `json:"targetAddress"`
+		TargetPort    json.RawMessage `json:"targetPort"`
+		TLSMode       string          `json:"tlsMode"`
+		CertPath      string          `json:"certPath"`
+		KeyPath       string          `json:"keyPath"`
+		LogLevel      string          `json:"logLevel"`
+		Password      string          `json:"password"`
+		Min           json.RawMessage `json:"min"`
+		Max           json.RawMessage `json:"max"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "无效的请求数据"})
+		return
+	}
+
+	// 工具函数解析 int 字段
+	parseInt := func(j json.RawMessage) (int, error) {
+		if j == nil {
+			return 0, nil
+		}
+		var i int
+		if err := json.Unmarshal(j, &i); err == nil {
+			return i, nil
+		}
+		var s string
+		if err := json.Unmarshal(j, &s); err == nil {
+			return strconv.Atoi(s)
+		}
+		return 0, strconv.ErrSyntax
+	}
+
+	tunnelPort, err1 := parseInt(raw.TunnelPort)
+	targetPort, err2 := parseInt(raw.TargetPort)
+	if err1 != nil || err2 != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "端口号格式错误，应为数字"})
+		return
+	}
+
+	// 构建命令行
+	var commandLine string
+	if raw.Password != "" {
+		commandLine = fmt.Sprintf("%s://%s@%s:%d/%s:%d", raw.Mode, raw.Password, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort)
+	} else {
+		commandLine = fmt.Sprintf("%s://%s:%d/%s:%d", raw.Mode, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort)
+	}
+
+	var queryParams []string
+	if raw.LogLevel != "" && raw.LogLevel != "inherit" {
+		queryParams = append(queryParams, fmt.Sprintf("log=%s", raw.LogLevel))
+	}
+	if raw.Mode == "server" && raw.TLSMode != "" && raw.TLSMode != "inherit" {
+		var tlsNum string
+		switch raw.TLSMode {
+		case "mode0":
+			tlsNum = "0"
+		case "mode1":
+			tlsNum = "1"
+		case "mode2":
+			tlsNum = "2"
+		}
+		if tlsNum != "" {
+			queryParams = append(queryParams, fmt.Sprintf("tls=%s", tlsNum))
+		}
+		if raw.TLSMode == "mode2" && raw.CertPath != "" && raw.KeyPath != "" {
+			queryParams = append(queryParams, fmt.Sprintf("crt=%s", raw.CertPath), fmt.Sprintf("key=%s", raw.KeyPath))
+		}
+	}
+	if raw.Mode == "client" {
+		// 处理 min/max
+		minVal, _ := parseInt(raw.Min)
+		maxVal, _ := parseInt(raw.Max)
+		if minVal > 0 {
+			queryParams = append(queryParams, fmt.Sprintf("min=%d", minVal))
+		}
+		if maxVal > 0 {
+			queryParams = append(queryParams, fmt.Sprintf("max=%d", maxVal))
+		}
+	}
+	if len(queryParams) > 0 {
+		commandLine += "?" + strings.Join(queryParams, "&")
+	}
+
+	// 获取实例ID
+	instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: err.Error()})
+		return
+	}
+
+	// 获取端点信息
+	var endpoint struct{ URL, APIPath, APIKey string }
+	if err := h.tunnelService.DB().QueryRow(`SELECT url, apiPath, apiKey FROM "Endpoint" e JOIN "Tunnel" t ON e.id = t.endpointId WHERE t.id = ?`, tunnelID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "查询端点信息失败"})
+		return
+	}
+
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	if err := npClient.UpdateInstanceV1(instanceID, commandLine); err != nil {
+		// 若远端返回 405，则回退旧逻辑（删除+重建）
+		if strings.Contains(err.Error(), "405") {
+			// 删除旧实例
+			if delErr := h.tunnelService.DeleteTunnelAndWait(instanceID, 3*time.Second, true); delErr != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，删除旧实例错误: " + delErr.Error()})
+				return
+			}
+
+			// 重新创建
+			createReq := tunnel.CreateTunnelRequest{
+				Name:          raw.Name,
+				EndpointID:    raw.EndpointID,
+				Mode:          raw.Mode,
+				TunnelAddress: raw.TunnelAddress,
+				TunnelPort:    tunnelPort,
+				TargetAddress: raw.TargetAddress,
+				TargetPort:    targetPort,
+				TLSMode:       tunnel.TLSMode(raw.TLSMode),
+				CertPath:      raw.CertPath,
+				KeyPath:       raw.KeyPath,
+				LogLevel:      tunnel.LogLevel(raw.LogLevel),
+				Password:      raw.Password,
+			}
+			newTunnel, crtErr := h.tunnelService.CreateTunnelAndWait(createReq, 3*time.Second)
+			if crtErr != nil {
+				w.WriteHeader(http.StatusBadRequest)
+				json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，创建新实例错误: " + crtErr.Error()})
+				return
+			}
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: true, Message: "编辑实例成功(回退旧逻辑)", Tunnel: newTunnel})
+			return
+		}
+		// 其他错误
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: err.Error()})
+		return
+	}
+
+	// 调用成功后等待数据库同步
+	success := false
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		var dbCmd, dbStatus string
+		if scanErr := h.tunnelService.DB().QueryRow(`SELECT commandLine, status FROM "Tunnel" WHERE instanceId = ?`, instanceID).Scan(&dbCmd, &dbStatus); scanErr == nil {
+			if dbCmd == commandLine && dbStatus == "running" {
+				success = true
+				break
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	if !success {
+		// 超时，直接更新本地数据库
+		_, _ = h.tunnelService.DB().Exec(`UPDATE "Tunnel" SET name = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?, tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, status = ?, updatedAt = ? WHERE id = ?`,
+			raw.Name, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine, "running", time.Now(), tunnelID)
+	}
+
+	json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: true, Message: "编辑实例成功"})
 }

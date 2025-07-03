@@ -24,6 +24,12 @@ USER_NAME="nodepass"
 SERVICE_NAME="nodepassdash"
 DEFAULT_PORT="3000"
 
+# 用户配置变量
+USER_PORT="$DEFAULT_PORT"
+ENABLE_HTTPS="false"
+CERT_PATH=""
+KEY_PATH=""
+
 # GitHub 仓库信息
 GITHUB_REPO="NodePassProject/NodePassDash"
 GITHUB_API="https://api.github.com/repos/${GITHUB_REPO}"
@@ -43,6 +49,188 @@ log_warning() {
 
 log_error() {
     echo -e "${RED}[ERROR]${NC} $1"
+}
+
+# 显示使用帮助
+show_help() {
+    echo "NodePassDash 一键安装/卸载脚本"
+    echo
+    echo "使用方式:"
+    echo "  $0 [install|uninstall] [选项]"
+    echo
+    echo "命令:"
+    echo "  install    安装 NodePassDash (默认)"
+    echo "  uninstall  卸载 NodePassDash"
+    echo
+    echo "安装选项:"
+    echo "  --port PORT           指定端口 (默认: 3000)"
+    echo "  --https               启用 HTTPS"
+    echo "  --cert PATH           HTTPS 证书文件路径"
+    echo "  --key PATH            HTTPS 私钥文件路径"
+    echo "  --non-interactive     非交互式安装"
+    echo "  --help                显示此帮助信息"
+    echo
+    echo "示例:"
+    echo "  $0 install                                    # 默认安装"
+    echo "  $0 install --port 8080                       # 指定端口"
+    echo "  $0 install --https --cert /path/cert.pem --key /path/key.pem  # HTTPS"
+    echo "  $0 uninstall                                  # 卸载"
+}
+
+# 解析命令行参数
+parse_args() {
+    local command="install"
+    local non_interactive=false
+    
+    while [[ $# -gt 0 ]]; do
+        case $1 in
+            install)
+                command="install"
+                shift
+                ;;
+            uninstall)
+                command="uninstall"
+                shift
+                ;;
+            --port)
+                USER_PORT="$2"
+                shift 2
+                ;;
+            --https)
+                ENABLE_HTTPS="true"
+                shift
+                ;;
+            --cert)
+                CERT_PATH="$2"
+                shift 2
+                ;;
+            --key)
+                KEY_PATH="$2"
+                shift 2
+                ;;
+            --non-interactive)
+                non_interactive=true
+                shift
+                ;;
+            --help|-h)
+                show_help
+                exit 0
+                ;;
+            *)
+                log_error "未知参数: $1"
+                show_help
+                exit 1
+                ;;
+        esac
+    done
+    
+    # 如果没有指定命令且传入了 uninstall，则执行卸载
+    if [[ "$1" == "uninstall" ]]; then
+        command="uninstall"
+    fi
+    
+    case $command in
+        install)
+            if ! $non_interactive; then
+                interactive_config
+            fi
+            validate_config
+            main_install
+            ;;
+        uninstall)
+            main_uninstall
+            ;;
+        *)
+            log_error "未知命令: $command"
+            show_help
+            exit 1
+            ;;
+    esac
+}
+
+# 交互式配置
+interactive_config() {
+    echo
+    echo "=========================================="
+    echo "🔧 NodePassDash 配置"
+    echo "=========================================="
+    echo
+    
+    # 端口配置
+    echo -n "请输入监听端口 [默认: $DEFAULT_PORT]: "
+    read input_port
+    if [[ -n "$input_port" ]]; then
+        USER_PORT="$input_port"
+    fi
+    
+    # HTTPS 配置
+    echo -n "是否启用 HTTPS? [y/N]: "
+    read enable_https
+    if [[ "$enable_https" =~ ^[Yy]$ ]]; then
+        ENABLE_HTTPS="true"
+        
+        echo -n "请输入证书文件路径 (.crt/.pem): "
+        read cert_path
+        CERT_PATH="$cert_path"
+        
+        echo -n "请输入私钥文件路径 (.key): "
+        read key_path
+        KEY_PATH="$key_path"
+    fi
+    
+    echo
+    echo "配置总结:"
+    echo "  端口: $USER_PORT"
+    echo "  HTTPS: $ENABLE_HTTPS"
+    if [[ "$ENABLE_HTTPS" == "true" ]]; then
+        echo "  证书: $CERT_PATH"
+        echo "  私钥: $KEY_PATH"
+    fi
+    echo
+    echo -n "确认配置并继续安装? [Y/n]: "
+    read confirm
+    if [[ "$confirm" =~ ^[Nn]$ ]]; then
+        log_info "安装已取消"
+        exit 0
+    fi
+}
+
+# 验证配置
+validate_config() {
+    # 验证端口
+    if ! [[ "$USER_PORT" =~ ^[0-9]+$ ]] || [[ "$USER_PORT" -lt 1 ]] || [[ "$USER_PORT" -gt 65535 ]]; then
+        log_error "无效的端口号: $USER_PORT"
+        exit 1
+    fi
+    
+    # 验证 HTTPS 配置
+    if [[ "$ENABLE_HTTPS" == "true" ]]; then
+        if [[ -z "$CERT_PATH" ]] || [[ -z "$KEY_PATH" ]]; then
+            log_error "启用 HTTPS 时必须指定证书和私钥路径"
+            exit 1
+        fi
+        
+        if [[ ! -f "$CERT_PATH" ]]; then
+            log_error "证书文件不存在: $CERT_PATH"
+            exit 1
+        fi
+        
+        if [[ ! -f "$KEY_PATH" ]]; then
+            log_error "私钥文件不存在: $KEY_PATH"
+            exit 1
+        fi
+        
+        # 检查文件权限
+        if [[ ! -r "$CERT_PATH" ]]; then
+            log_error "无法读取证书文件: $CERT_PATH"
+            exit 1
+        fi
+        
+        if [[ ! -r "$KEY_PATH" ]]; then
+            log_error "无法读取私钥文件: $KEY_PATH"
+            exit 1
+        fi
+    fi
 }
 
 # 检查是否以 root 权限运行
@@ -300,8 +488,46 @@ install_binary() {
 
 # 创建配置文件
 create_config() {
-    log_info "跳过配置文件创建（不需要）..."
-    log_success "配置文件创建完成"
+    log_info "创建配置文件..."
+    
+    local config_file="$INSTALL_DIR/config.env"
+    
+    cat > "$config_file" << EOF
+# NodePassDash 配置文件
+# 此文件由安装脚本自动生成
+
+# 服务端口
+PORT=$USER_PORT
+
+# HTTPS 配置
+ENABLE_HTTPS=$ENABLE_HTTPS
+EOF
+
+    if [[ "$ENABLE_HTTPS" == "true" ]]; then
+        # 复制证书文件到安装目录
+        local cert_dir="$INSTALL_DIR/certs"
+        mkdir -p "$cert_dir"
+        
+        cp "$CERT_PATH" "$cert_dir/server.crt"
+        cp "$KEY_PATH" "$cert_dir/server.key"
+        
+        # 设置证书文件权限
+        chown -R "$USER_NAME:$USER_NAME" "$cert_dir"
+        chmod 600 "$cert_dir/server.key"
+        chmod 644 "$cert_dir/server.crt"
+        
+        cat >> "$config_file" << EOF
+CERT_PATH=$cert_dir/server.crt
+KEY_PATH=$cert_dir/server.key
+EOF
+        
+        log_success "证书文件已复制到 $cert_dir"
+    fi
+    
+    chown "$USER_NAME:$USER_NAME" "$config_file"
+    chmod 640 "$config_file"
+    
+    log_success "配置文件创建完成: $config_file"
 }
 
 # 创建 systemd 服务
@@ -320,6 +546,13 @@ create_systemd_service() {
         exit 1
     fi
     
+    # 构建启动命令
+    local exec_start="$INSTALL_DIR/bin/$BINARY_NAME --port $USER_PORT"
+    
+    if [[ "$ENABLE_HTTPS" == "true" ]]; then
+        exec_start="$exec_start --cert $INSTALL_DIR/certs/server.crt --key $INSTALL_DIR/certs/server.key"
+    fi
+    
     cat > /etc/systemd/system/$SERVICE_NAME.service << EOF
 [Unit]
 Description=NodePassDash - NodePass Management Dashboard
@@ -332,8 +565,11 @@ Type=simple
 User=$USER_NAME
 Group=$USER_NAME
 WorkingDirectory=$INSTALL_DIR
-ExecStart=$INSTALL_DIR/bin/$BINARY_NAME --port $DEFAULT_PORT
+ExecStart=$exec_start
 ExecReload=/bin/kill -HUP \$MAINPID
+
+# 环境变量
+EnvironmentFile=-$INSTALL_DIR/config.env
 
 # 日志输出
 StandardOutput=journal
@@ -376,10 +612,67 @@ create_management_script() {
 #!/bin/bash
 
 # NodePassDash 管理脚本
-# 使用方式: nodepassdash-ctl {start|stop|restart|status|logs|reset-password|update}
+# 使用方式: nodepassdash-ctl {start|stop|restart|status|logs|reset-password|update|config|uninstall}
 
 BINARY_PATH="/opt/nodepassdash/bin/nodepassdash"
 SERVICE_NAME="nodepassdash"
+INSTALL_DIR="/opt/nodepassdash"
+CONFIG_FILE="$INSTALL_DIR/config.env"
+
+show_config() {
+    echo "当前配置:"
+    if [[ -f "$CONFIG_FILE" ]]; then
+        cat "$CONFIG_FILE"
+    else
+        echo "配置文件不存在"
+    fi
+}
+
+uninstall_nodepassdash() {
+    echo "开始卸载 NodePassDash..."
+    
+    # 停止并禁用服务
+    if systemctl is-active --quiet $SERVICE_NAME; then
+        echo "停止服务..."
+        sudo systemctl stop $SERVICE_NAME
+    fi
+    
+    if systemctl is-enabled --quiet $SERVICE_NAME 2>/dev/null; then
+        echo "禁用服务..."
+        sudo systemctl disable $SERVICE_NAME
+    fi
+    
+    # 删除服务文件
+    if [[ -f "/etc/systemd/system/$SERVICE_NAME.service" ]]; then
+        echo "删除服务文件..."
+        sudo rm -f "/etc/systemd/system/$SERVICE_NAME.service"
+        sudo systemctl daemon-reload
+    fi
+    
+    # 删除安装目录
+    if [[ -d "$INSTALL_DIR" ]]; then
+        echo "删除安装目录..."
+        sudo rm -rf "$INSTALL_DIR"
+    fi
+    
+    # 删除用户
+    if id nodepass &>/dev/null; then
+        echo "删除用户..."
+        sudo userdel nodepass 2>/dev/null || true
+    fi
+    
+    # 删除软链接
+    if [[ -L "/usr/local/bin/nodepassdash" ]]; then
+        echo "删除软链接..."
+        sudo rm -f "/usr/local/bin/nodepassdash"
+    fi
+    
+    # 删除管理脚本本身
+    echo "删除管理脚本..."
+    sudo rm -f "/usr/local/bin/nodepassdash-ctl"
+    
+    echo "NodePassDash 卸载完成！"
+}
 
 case "$1" in
     start)
@@ -410,8 +703,20 @@ case "$1" in
         echo "更新 NodePassDash..."
         curl -fsSL https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/scripts/install.sh | sudo bash
         ;;
+    config)
+        show_config
+        ;;
+    uninstall)
+        echo "确认要卸载 NodePassDash 吗？[y/N]"
+        read -r confirm
+        if [[ "$confirm" =~ ^[Yy]$ ]]; then
+            uninstall_nodepassdash
+        else
+            echo "取消卸载"
+        fi
+        ;;
     *)
-        echo "使用方式: $0 {start|stop|restart|status|logs|reset-password|update}"
+        echo "使用方式: $0 {start|stop|restart|status|logs|reset-password|update|config|uninstall}"
         exit 1
         ;;
 esac
@@ -433,8 +738,8 @@ configure_firewall() {
         local ufw_status=$(ufw status 2>/dev/null || echo "inactive")
         if echo "$ufw_status" | grep -q "Status: active"; then
             log_info "检测到 UFW 防火墙已启用，添加端口规则..."
-            if ufw allow $DEFAULT_PORT/tcp &>/dev/null; then
-                log_success "UFW 防火墙规则已添加 (端口 $DEFAULT_PORT)"
+            if ufw allow $USER_PORT/tcp &>/dev/null; then
+                log_success "UFW 防火墙规则已添加 (端口 $USER_PORT)"
                 firewall_configured=true
             else
                 log_warning "UFW 防火墙规则添加失败"
@@ -448,9 +753,9 @@ configure_firewall() {
     if command -v firewall-cmd &> /dev/null && ! $firewall_configured; then
         if systemctl is-active --quiet firewalld 2>/dev/null; then
             log_info "检测到 firewalld 防火墙已启用，添加端口规则..."
-            if firewall-cmd --permanent --add-port=$DEFAULT_PORT/tcp &>/dev/null && \
+            if firewall-cmd --permanent --add-port=$USER_PORT/tcp &>/dev/null && \
                firewall-cmd --reload &>/dev/null; then
-                log_success "firewalld 防火墙规则已添加 (端口 $DEFAULT_PORT)"
+                log_success "firewalld 防火墙规则已添加 (端口 $USER_PORT)"
                 firewall_configured=true
             else
                 log_warning "firewalld 防火墙规则添加失败"
@@ -466,7 +771,7 @@ configure_firewall() {
         local iptables_rules=$(iptables -L INPUT 2>/dev/null | wc -l)
         if [[ $iptables_rules -gt 3 ]]; then
             log_warning "检测到 iptables 规则，但无法自动配置"
-            log_warning "请手动添加规则：iptables -A INPUT -p tcp --dport $DEFAULT_PORT -j ACCEPT"
+            log_warning "请手动添加规则：iptables -A INPUT -p tcp --dport $USER_PORT -j ACCEPT"
         else
             log_info "iptables 存在但无活动规则"
         fi
@@ -474,7 +779,7 @@ configure_firewall() {
     
     if ! $firewall_configured; then
         log_info "未检测到启用的防火墙服务"
-        log_info "如果您的系统启用了防火墙，请手动开放端口 $DEFAULT_PORT"
+        log_info "如果您的系统启用了防火墙，请手动开放端口 $USER_PORT"
     fi
 }
 
@@ -517,6 +822,11 @@ start_service() {
 # 显示安装结果
 show_result() {
     local ip=$(curl -s http://checkip.amazonaws.com/ 2>/dev/null || echo "YOUR_SERVER_IP")
+    local protocol="http"
+    
+    if [[ "$ENABLE_HTTPS" == "true" ]]; then
+        protocol="https"
+    fi
     
     echo
     echo "=========================================="
@@ -524,8 +834,8 @@ show_result() {
     echo "=========================================="
     echo
     echo "📍 访问地址:"
-    echo "   http://$ip:$DEFAULT_PORT"
-    echo "   http://localhost:$DEFAULT_PORT (本地)"
+    echo "   $protocol://$ip:$USER_PORT"
+    echo "   $protocol://localhost:$USER_PORT (本地)"
     echo
     echo "🔧 管理命令:"
     echo "   nodepassdash-ctl start       # 启动服务"
@@ -535,12 +845,25 @@ show_result() {
     echo "   nodepassdash-ctl logs        # 查看日志"
     echo "   nodepassdash-ctl reset-password  # 重置密码"
     echo "   nodepassdash-ctl update      # 更新版本"
+    echo "   nodepassdash-ctl config      # 查看配置"
+    echo "   nodepassdash-ctl uninstall   # 卸载系统"
     echo
     echo "📁 重要路径:"
     echo "   程序目录: $INSTALL_DIR"
     echo "   数据目录: $INSTALL_DIR/data"
     echo "   日志目录: $INSTALL_DIR/logs"
-    echo "   运行时目录: $INSTALL_DIR (dist, public 等)"
+    echo "   配置文件: $INSTALL_DIR/config.env"
+    if [[ "$ENABLE_HTTPS" == "true" ]]; then
+        echo "   证书目录: $INSTALL_DIR/certs"
+    fi
+    echo
+    echo "🔧 当前配置:"
+    echo "   端口: $USER_PORT"
+    echo "   HTTPS: $ENABLE_HTTPS"
+    if [[ "$ENABLE_HTTPS" == "true" ]]; then
+        echo "   证书: $INSTALL_DIR/certs/server.crt"
+        echo "   私钥: $INSTALL_DIR/certs/server.key"
+    fi
     echo
     echo "🔑 初始密码:"
     echo "   系统将在首次运行时自动生成管理员账户"
@@ -557,15 +880,113 @@ show_result() {
     echo "=========================================="
 }
 
-# 清理临时文件
-cleanup() {
-    rm -f /tmp/$BINARY_NAME
-    rm -f /tmp/nodepassdash-*.tar.gz
-    rm -rf /tmp/nodepassdash-extract
+# 卸载功能
+main_uninstall() {
+    echo "=========================================="
+    echo "🗑️  NodePassDash 卸载程序"
+    echo "=========================================="
+    echo
+    
+    check_root
+    
+    log_warning "即将卸载 NodePassDash 及其所有数据"
+    echo -n "确认要继续吗？[y/N]: "
+    read confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        log_info "卸载已取消"
+        exit 0
+    fi
+    
+    # 停止并禁用服务
+    if systemctl is-active --quiet $SERVICE_NAME 2>/dev/null; then
+        log_info "停止服务..."
+        systemctl stop $SERVICE_NAME
+    fi
+    
+    if systemctl is-enabled --quiet $SERVICE_NAME 2>/dev/null; then
+        log_info "禁用服务..."
+        systemctl disable $SERVICE_NAME
+    fi
+    
+    # 删除服务文件
+    if [[ -f "/etc/systemd/system/$SERVICE_NAME.service" ]]; then
+        log_info "删除服务文件..."
+        rm -f "/etc/systemd/system/$SERVICE_NAME.service"
+        systemctl daemon-reload
+    fi
+    
+    # 备份数据（可选）
+    if [[ -d "$INSTALL_DIR/data" ]] && [[ -n "$(ls -A $INSTALL_DIR/data 2>/dev/null)" ]]; then
+        echo -n "是否备份数据到 /tmp/nodepassdash-backup-$(date +%Y%m%d%H%M%S).tar.gz？[Y/n]: "
+        read backup_confirm
+        if [[ ! "$backup_confirm" =~ ^[Nn]$ ]]; then
+            local backup_file="/tmp/nodepassdash-backup-$(date +%Y%m%d%H%M%S).tar.gz"
+            log_info "备份数据到 $backup_file..."
+            tar -czf "$backup_file" -C "$INSTALL_DIR" data logs config.env 2>/dev/null || true
+            log_success "数据已备份到 $backup_file"
+        fi
+    fi
+    
+    # 删除安装目录
+    if [[ -d "$INSTALL_DIR" ]]; then
+        log_info "删除安装目录..."
+        rm -rf "$INSTALL_DIR"
+    fi
+    
+    # 删除用户
+    if id "$USER_NAME" &>/dev/null; then
+        log_info "删除用户..."
+        userdel "$USER_NAME" 2>/dev/null || true
+    fi
+    
+    # 删除软链接
+    if [[ -L "/usr/local/bin/$BINARY_NAME" ]]; then
+        log_info "删除软链接..."
+        rm -f "/usr/local/bin/$BINARY_NAME"
+    fi
+    
+    # 删除管理脚本
+    if [[ -f "/usr/local/bin/nodepassdash-ctl" ]]; then
+        log_info "删除管理脚本..."
+        rm -f "/usr/local/bin/nodepassdash-ctl"
+    fi
+    
+    # 删除防火墙规则（可选）
+    echo -n "是否删除防火墙规则？[y/N]: "
+    read firewall_confirm
+    if [[ "$firewall_confirm" =~ ^[Yy]$ ]]; then
+        # 尝试删除 UFW 规则
+        if command -v ufw &> /dev/null; then
+            ufw delete allow $DEFAULT_PORT/tcp 2>/dev/null || true
+            # 如果用户修改了端口，也尝试删除自定义端口
+            if [[ -f "$INSTALL_DIR/config.env" ]]; then
+                local custom_port=$(grep "^PORT=" "$INSTALL_DIR/config.env" 2>/dev/null | cut -d'=' -f2)
+                if [[ -n "$custom_port" ]] && [[ "$custom_port" != "$DEFAULT_PORT" ]]; then
+                    ufw delete allow $custom_port/tcp 2>/dev/null || true
+                fi
+            fi
+        fi
+        
+        # 尝试删除 firewalld 规则
+        if command -v firewall-cmd &> /dev/null && systemctl is-active --quiet firewalld; then
+            firewall-cmd --permanent --remove-port=$DEFAULT_PORT/tcp 2>/dev/null || true
+            firewall-cmd --reload 2>/dev/null || true
+        fi
+        
+        log_info "防火墙规则清理完成"
+    fi
+    
+    echo
+    echo "=========================================="
+    echo -e "${GREEN}✅ NodePassDash 卸载完成！${NC}"
+    echo "=========================================="
+    echo
+    log_success "NodePassDash 已完全从系统中移除"
+    echo
 }
 
 # 主安装流程
-main() {
+main_install() {
     echo "=========================================="
     echo "🚀 NodePassDash 一键安装脚本"
     echo "=========================================="
@@ -587,8 +1008,21 @@ main() {
     show_result
 }
 
+# 清理临时文件
+cleanup() {
+    rm -f /tmp/$BINARY_NAME
+    rm -f /tmp/nodepassdash-*.tar.gz
+    rm -rf /tmp/nodepassdash-extract
+}
+
 # 错误处理
 trap 'log_error "安装过程中发生错误，请检查上述日志"; cleanup; exit 1' ERR
 
-# 运行主程序
-main "$@" 
+# 运行主程序 - 如果没有参数，默认安装
+if [[ $# -eq 0 ]]; then
+    interactive_config
+    validate_config
+    main_install
+else
+    parse_args "$@"
+fi 

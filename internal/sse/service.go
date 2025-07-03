@@ -1080,18 +1080,47 @@ func (s *Service) tunnelUpdate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 		log.Infof("[Master-%d#SSE]Inst.%s重启策略变化: %t -> %t", e.EndpointID, e.InstanceID, curRestart, newRestart)
 	}
 
-	// 只有状态/流量/别名/重启策略变化且事件时间更新时才更新
-	if !statusChanged && !trafficChanged && !aliasChanged && !restartChanged {
-		return nil
-	}
+	// 避免未使用编译错误
+	_ = statusChanged
+	_ = trafficChanged
+	_ = aliasChanged
+	_ = restartChanged
 
+	// 若事件时间早于已记录时间，跳过更新
 	if curEventTime.Valid && !e.EventTime.After(curEventTime.Time) {
 		log.Infof("[Master-%d#SSE]Inst.%s旧事件时间，跳过更新", e.EndpointID, e.InstanceID)
 		return nil
 	}
 
-	_, err = tx.Exec(`UPDATE "Tunnel" SET status = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, name = ?, restart = ?, lastEventTime = ?, updatedAt = ? WHERE endpointId = ? AND instanceId = ?`,
-		newStatus, e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, newName, newRestart, e.EventTime, time.Now(), e.EndpointID, e.InstanceID)
+	// 写入所有可更新字段
+	minVal := func() interface{} {
+		if cfg.Min != "" {
+			return cfg.Min
+		}
+		return nil
+	}()
+	maxVal := func() interface{} {
+		if cfg.Max != "" {
+			return cfg.Max
+		}
+		return nil
+	}()
+
+	_, err = tx.Exec(`UPDATE "Tunnel" SET 
+		status = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, 
+		name = ?, restart = ?, 
+		tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?, 
+		tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, 
+		password = ?, min = ?, max = ?, 
+		lastEventTime = ?, updatedAt = ? 
+		WHERE endpointId = ? AND instanceId = ?`,
+		newStatus, e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx,
+		newName, newRestart,
+		cfg.TunnelAddress, cfg.TunnelPort, cfg.TargetAddress, cfg.TargetPort,
+		cfg.TLSMode, cfg.CertPath, cfg.KeyPath, cfg.LogLevel, ptrString(e.URL),
+		cfg.Password, minVal, maxVal,
+		e.EventTime, time.Now(),
+		e.EndpointID, e.InstanceID)
 	if err != nil {
 		log.Errorf("[Master-%d#SSE]Inst.%s更新隧道失败,err=%v", e.EndpointID, e.InstanceID, err)
 		return err
