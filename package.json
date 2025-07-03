@@ -1,6 +1,6 @@
 {
   "name": "NodePassDash",
-  "version": "2.1.2-beta5",
+  "version": "2.1.2-beta6",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -23,6 +23,7 @@
     "dev:all": "node scripts/dev.js",
     "dev:front": "next dev -p 8080",
     "dev:back": "go run ./cmd/server/main.go",
+    "dev:back-disable-login": "go run ./cmd/server/main.go --disable-login",
     "dev:resetpwd": "go run ./cmd/server/main.go --resetpwd",
     "dev:version": "go run ./cmd/server/main.go --version",
     "dev:core": "nodepass \"master://:10101?tls=0&log=debug\""
