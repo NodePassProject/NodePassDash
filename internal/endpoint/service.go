@@ -26,7 +26,7 @@ func (s *Service) GetEndpoints() ([]EndpointWithStats, error) {
 	query := `
 		SELECT 
 			e.id, e.name, e.url, e.apiPath, e.apiKey, e.status, e.color,
-			e.os, e.arch, e.ver, e.log, e.tls, e.crt, e.key_path,
+			e.os, e.arch, e.ver, e.log, e.tls, e.crt, e.key_path, e.uptime,
 			e.lastCheck, e.createdAt, e.updatedAt,
 			COUNT(t.id) as tunnel_count,
 			COUNT(CASE WHEN t.status = 'running' THEN 1 END) as active_tunnels
@@ -46,9 +46,10 @@ func (s *Service) GetEndpoints() ([]EndpointWithStats, error) {
 	for rows.Next() {
 		var e EndpointWithStats
 		var statusStr string
+		var uptime sql.NullInt64
 		err := rows.Scan(
 			&e.ID, &e.Name, &e.URL, &e.APIPath, &e.APIKey, &statusStr, &e.Color,
-			&e.OS, &e.Arch, &e.Ver, &e.Log, &e.TLS, &e.Crt, &e.KeyPath,
+			&e.OS, &e.Arch, &e.Ver, &e.Log, &e.TLS, &e.Crt, &e.KeyPath, &uptime,
 			&e.LastCheck, &e.CreatedAt, &e.UpdatedAt,
 			&e.TunnelCount, &e.ActiveTunnels,
 		)
@@ -56,6 +57,10 @@ func (s *Service) GetEndpoints() ([]EndpointWithStats, error) {
 			return nil, err
 		}
 		e.Status = EndpointStatus(statusStr)
+		if uptime.Valid {
+			uptimeVal := uptime.Int64
+			e.Uptime = &uptimeVal
+		}
 		endpoints = append(endpoints, e)
 	}
 
@@ -129,12 +134,13 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 	// 检查端点是否存在
 	var endpoint Endpoint
 	var statusStr string
+	var uptime sql.NullInt64
 	err := s.db.QueryRow(
-		"SELECT id, name, url, apiPath, apiKey, status, color, lastCheck, createdAt, updatedAt FROM \"Endpoint\" WHERE id = ?",
+		"SELECT id, name, url, apiPath, apiKey, status, color, uptime, lastCheck, createdAt, updatedAt FROM \"Endpoint\" WHERE id = ?",
 		req.ID,
 	).Scan(
 		&endpoint.ID, &endpoint.Name, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey,
-		&statusStr, &endpoint.Color, &endpoint.LastCheck, &endpoint.CreatedAt, &endpoint.UpdatedAt,
+		&statusStr, &endpoint.Color, &uptime, &endpoint.LastCheck, &endpoint.CreatedAt, &endpoint.UpdatedAt,
 	)
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -143,6 +149,10 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 		return nil, err
 	}
 	endpoint.Status = EndpointStatus(statusStr)
+	if uptime.Valid {
+		uptimeVal := uptime.Int64
+		endpoint.Uptime = &uptimeVal
+	}
 
 	switch req.Action {
 	case "rename":
@@ -287,8 +297,9 @@ func (s *Service) UpdateEndpointStatus(id int64, status EndpointStatus) error {
 func (s *Service) GetEndpointByID(id int64) (*Endpoint, error) {
 	var e Endpoint
 	var statusStr sql.NullString
-	err := s.db.QueryRow(`SELECT id, name, url, apiPath, apiKey, status, color, os, arch, ver, log, tls, crt, key_path, lastCheck, createdAt, updatedAt FROM "Endpoint" WHERE id = ?`, id).
-		Scan(&e.ID, &e.Name, &e.URL, &e.APIPath, &e.APIKey, &statusStr, &e.Color, &e.OS, &e.Arch, &e.Ver, &e.Log, &e.TLS, &e.Crt, &e.KeyPath, &e.LastCheck, &e.CreatedAt, &e.UpdatedAt)
+	var uptime sql.NullInt64
+	err := s.db.QueryRow(`SELECT id, name, url, apiPath, apiKey, status, color, os, arch, ver, log, tls, crt, key_path, uptime, lastCheck, createdAt, updatedAt FROM "Endpoint" WHERE id = ?`, id).
+		Scan(&e.ID, &e.Name, &e.URL, &e.APIPath, &e.APIKey, &statusStr, &e.Color, &e.OS, &e.Arch, &e.Ver, &e.Log, &e.TLS, &e.Crt, &e.KeyPath, &uptime, &e.LastCheck, &e.CreatedAt, &e.UpdatedAt)
 	if err != nil {
 		if err == sql.ErrNoRows {
 			return nil, errors.New("端点不存在")
@@ -296,6 +307,10 @@ func (s *Service) GetEndpointByID(id int64) (*Endpoint, error) {
 		return nil, err
 	}
 	e.Status = EndpointStatus(statusStr.String)
+	if uptime.Valid {
+		uptimeVal := uptime.Int64
+		e.Uptime = &uptimeVal
+	}
 	return &e, nil
 }
 
@@ -312,11 +327,12 @@ type SimpleEndpoint struct {
 	Log         string         `json:"log"`
 	Crt         string         `json:"crt"`
 	KeyPath     string         `json:"keyPath"`
+	Uptime      *int64         `json:"uptime,omitempty"`
 }
 
 // GetSimpleEndpoints 获取简化端点列表，可排除 FAIL
 func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error) {
-	query := `SELECT e.id, e.name, e.url, e.apiPath, e.status, e.tunnelCount, e.ver, e.tls, e.log, e.crt, e.key_path FROM "Endpoint" e`
+	query := `SELECT e.id, e.name, e.url, e.apiPath, e.status, e.tunnelCount, e.ver, e.tls, e.log, e.crt, e.key_path, e.uptime FROM "Endpoint" e`
 	if excludeFail {
 		query += ` WHERE e.status not in ('FAIL', 'DISCONNECT')`
 	}
@@ -333,7 +349,8 @@ func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error)
 		var e SimpleEndpoint
 		var statusStr string
 		var version, tls, log, crt, keyPath sql.NullString
-		if err := rows.Scan(&e.ID, &e.Name, &e.URL, &e.APIPath, &statusStr, &e.TunnelCount, &version, &tls, &log, &crt, &keyPath); err != nil {
+		var uptime sql.NullInt64
+		if err := rows.Scan(&e.ID, &e.Name, &e.URL, &e.APIPath, &statusStr, &e.TunnelCount, &version, &tls, &log, &crt, &keyPath, &uptime); err != nil {
 			return nil, err
 		}
 		e.Status = EndpointStatus(statusStr)
@@ -352,6 +369,10 @@ func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error)
 		if keyPath.Valid {
 			e.KeyPath = keyPath.String
 		}
+		if uptime.Valid {
+			uptimeVal := uptime.Int64
+			e.Uptime = &uptimeVal
+		}
 		endpoints = append(endpoints, e)
 	}
 	return endpoints, nil
@@ -361,9 +382,17 @@ func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error)
 func (s *Service) UpdateEndpointInfo(id int64, info NodePassInfo) error {
 	query := `
 		UPDATE "Endpoint" 
-		SET os = ?, arch = ?, ver = ?, log = ?, tls = ?, crt = ?, key_path = ?, updatedAt = ?
+		SET os = ?, arch = ?, ver = ?, log = ?, tls = ?, crt = ?, key_path = ?, uptime = ?, updatedAt = ?
 		WHERE id = ?
 	`
+
+	// 处理uptime字段，如果为nil则保持NULL（保持兼容性）
+	var uptimeValue interface{}
+	if info.Uptime != nil {
+		uptimeValue = *info.Uptime
+	} else {
+		uptimeValue = nil
+	}
 
 	_, err := s.db.Exec(query,
 		info.OS,
@@ -373,6 +402,7 @@ func (s *Service) UpdateEndpointInfo(id int64, info NodePassInfo) error {
 		info.TLS,
 		info.Crt,
 		info.Key,
+		uptimeValue,
 		time.Now(),
 		id,
 	)

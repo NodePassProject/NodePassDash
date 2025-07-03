@@ -28,6 +28,7 @@ type Endpoint struct {
 	TLS       string         `json:"tls,omitempty"`
 	Crt       string         `json:"crt,omitempty"`
 	KeyPath   string         `json:"keyPath,omitempty"`
+	Uptime    *int64         `json:"uptime,omitempty"`
 	LastCheck time.Time      `json:"lastCheck"`
 	CreatedAt time.Time      `json:"createdAt"`
 	UpdatedAt time.Time      `json:"updatedAt"`
@@ -69,12 +70,13 @@ type EndpointResponse struct {
 
 // NodePassInfo NodePass实例的系统信息
 type NodePassInfo struct {
-	OS   string `json:"os"`
-	Arch string `json:"arch"`
-	Ver  string `json:"ver"`
-	Name string `json:"name"`
-	Log  string `json:"log"`
-	TLS  string `json:"tls"`
-	Crt  string `json:"crt"`
-	Key  string `json:"key"`
+	OS     string `json:"os"`
+	Arch   string `json:"arch"`
+	Ver    string `json:"ver"`
+	Name   string `json:"name"`
+	Log    string `json:"log"`
+	TLS    string `json:"tls"`
+	Crt    string `json:"crt"`
+	Key    string `json:"key"`
+	Uptime *int64 `json:"uptime,omitempty"` // 使用指针类型，支持低版本兼容
 }

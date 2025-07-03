@@ -191,6 +191,11 @@ func initSchema(db *sql.DB) error {
 		return err
 	}
 
+	// --------  为 Endpoint 表添加运行时间字段 --------
+	if err := ensureColumn(db, "Endpoint", "uptime", "INTEGER DEFAULT NULL"); err != nil {
+		return err
+	}
+
 	return nil
 }
 

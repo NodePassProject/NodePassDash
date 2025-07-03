@@ -8,6 +8,7 @@ import (
 	"net/http"
 	"net/url"
 	"strings"
+	"time"
 
 	"NodePassDash/internal/auth"
 )
@@ -21,6 +22,19 @@ type AuthHandler struct {
 func NewAuthHandler(authService *auth.Service) *AuthHandler {
 	return &AuthHandler{
 		authService: authService,
+	}
+}
+
+// createProxyClient 创建支持系统代理的HTTP客户端
+func (h *AuthHandler) createProxyClient() *http.Client {
+	// 创建Transport，自动检测系统代理设置
+	transport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment, // 自动从环境变量读取代理配置
+	}
+
+	return &http.Client{
+		Transport: transport,
+		Timeout:   30 * time.Second, // 设置30秒超时
 	}
 }
 
@@ -417,7 +431,9 @@ func (h *AuthHandler) handleGitHubOAuth(w http.ResponseWriter, r *http.Request, 
 	tokenReq.Header.Set("Accept", "application/json")
 	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := http.DefaultClient.Do(tokenReq)
+	// 使用支持代理的HTTP客户端
+	proxyClient := h.createProxyClient()
+	resp, err := proxyClient.Do(tokenReq)
 	if err != nil {
 		fmt.Printf("❌ GitHub Token 请求错误: %v\n", err)
 		http.Error(w, "请求 GitHub Token 失败", http.StatusBadGateway)
@@ -451,7 +467,8 @@ func (h *AuthHandler) handleGitHubOAuth(w http.ResponseWriter, r *http.Request, 
 	userReq.Header.Set("Authorization", "token "+tokenRes.AccessToken)
 	userReq.Header.Set("Accept", "application/json")
 
-	userResp, err := http.DefaultClient.Do(userReq)
+	// 使用支持代理的HTTP客户端
+	userResp, err := proxyClient.Do(userReq)
 	if err != nil {
 		http.Error(w, "获取用户信息失败", http.StatusBadGateway)
 		return
@@ -554,7 +571,9 @@ func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Reque
 	tokenReq.Header.Set("Accept", "application/json")
 	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
-	resp, err := http.DefaultClient.Do(tokenReq)
+	// 使用支持代理的HTTP客户端
+	proxyClient := h.createProxyClient()
+	resp, err := proxyClient.Do(tokenReq)
 	if err != nil {
 		http.Error(w, "请求 Cloudflare Token 失败", http.StatusBadGateway)
 		return
@@ -591,7 +610,8 @@ func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Reque
 		userReq.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
 		userReq.Header.Set("Accept", "application/json")
 
-		userResp, err := http.DefaultClient.Do(userReq)
+		// 使用支持代理的HTTP客户端
+		userResp, err := proxyClient.Do(userReq)
 		if err == nil {
 			defer userResp.Body.Close()
 			bodyBytes, _ := ioutil.ReadAll(userResp.Body)

@@ -24,7 +24,8 @@
     "dev:front": "next dev -p 8080",
     "dev:back": "go run ./cmd/server/main.go",
     "dev:resetpwd": "go run ./cmd/server/main.go --resetpwd",
-    "dev:version": "go run ./cmd/server/main.go --version"
+    "dev:version": "go run ./cmd/server/main.go --version",
+    "dev:core": "nodepass \"master://:10101?tls=0&log=debug\""
   },
   "dependencies": {
     "@fortawesome/fontawesome-svg-core": "^6.7.2",

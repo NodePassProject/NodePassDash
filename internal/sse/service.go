@@ -1260,19 +1260,25 @@ func (s *Service) fetchAndUpdateEndpointInfo(endpointID int64) {
 	// 如果成功获取到信息，更新数据库
 	if info != nil && err == nil {
 		epInfo := endpoint.NodePassInfo{
-			OS:   info.OS,
-			Arch: info.Arch,
-			Ver:  info.Ver,
-			Name: info.Name,
-			Log:  info.Log,
-			TLS:  info.TLS,
-			Crt:  info.Crt,
-			Key:  info.Key,
+			OS:     info.OS,
+			Arch:   info.Arch,
+			Ver:    info.Ver,
+			Name:   info.Name,
+			Log:    info.Log,
+			TLS:    info.TLS,
+			Crt:    info.Crt,
+			Key:    info.Key,
+			Uptime: info.Uptime, // 直接传递指针，service层会处理nil情况
 		}
 		if updateErr := s.endpointService.UpdateEndpointInfo(endpointID, epInfo); updateErr != nil {
 			log.Errorf("[Master-%d] 更新系统信息失败: %v", endpointID, updateErr)
 		} else {
-			log.Infof("[Master-%d] 系统信息已更新: OS=%s, Arch=%s, Ver=%s", endpointID, info.OS, info.Arch, info.Ver)
+			// 在日志中显示uptime信息（如果可用）
+			uptimeMsg := "未知"
+			if info.Uptime != nil {
+				uptimeMsg = fmt.Sprintf("%d秒", *info.Uptime)
+			}
+			log.Infof("[Master-%d] 系统信息已更新: OS=%s, Arch=%s, Ver=%s, Uptime=%s", endpointID, info.OS, info.Arch, info.Ver, uptimeMsg)
 		}
 	}
 }

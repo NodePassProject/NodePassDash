@@ -204,14 +204,15 @@ type Instance struct {
 
 // NodePassInfo NodePass实例的系统信息
 type NodePassInfo struct {
-	OS   string `json:"os"`
-	Arch string `json:"arch"`
-	Ver  string `json:"ver"`
-	Name string `json:"name"`
-	Log  string `json:"log"`
-	TLS  string `json:"tls"`
-	Crt  string `json:"crt"`
-	Key  string `json:"key"`
+	OS     string `json:"os"`
+	Arch   string `json:"arch"`
+	Ver    string `json:"ver"`
+	Name   string `json:"name"`
+	Log    string `json:"log"`
+	TLS    string `json:"tls"`
+	Crt    string `json:"crt"`
+	Key    string `json:"key"`
+	Uptime *int64 `json:"uptime,omitempty"` // 使用指针类型，支持低版本兼容
 }
 
 // GetInstances 获取所有隧道实例列表

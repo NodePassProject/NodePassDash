@@ -19,7 +19,7 @@ import {
   Textarea,
 } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faRotateRight, faTrash,faWifi, faServer, faKey, faGlobe, faDesktop, faCode, faLock, faCertificate, faLayerGroup, faFileLines, faHardDrive, faArrowUp, faArrowDown } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faRotateRight, faTrash,faWifi, faServer, faKey, faGlobe, faDesktop, faCode, faLock, faCertificate, faLayerGroup, faFileLines, faHardDrive, faArrowUp, faArrowDown, faClock } from "@fortawesome/free-solid-svg-icons";
 import { useRouter, useSearchParams } from "next/navigation";
 import { addToast } from "@heroui/toast";
 import { buildApiUrl } from "@/lib/utils";
@@ -43,6 +43,7 @@ interface EndpointDetail {
   tls?: string;
   crt?: string;
   keyPath?: string;
+  uptime?: number | null;
   lastCheck: string;
   createdAt: string;
   updatedAt: string;
@@ -117,6 +118,29 @@ export default function EndpointDetailPage() {
     const sizes = ['B', 'KB', 'MB', 'GB', 'TB'];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + ' ' + sizes[i];
+  };
+
+  // 格式化在线时长
+  const formatUptime = (seconds: number | null | undefined) => {
+    if (!seconds || seconds <= 0) return '';
+    
+    const days = Math.floor(seconds / 86400);
+    const hours = Math.floor((seconds % 86400) / 3600);
+    const minutes = Math.floor((seconds % 3600) / 60);
+    const secs = seconds % 60;
+
+    // 如果大于等于1天，只显示天数
+    if (days >= 1) {
+      return `${days}天`;
+    }
+
+    // 小于1天的情况
+    const parts = [];
+    if (hours > 0) parts.push(`${hours}h`);
+    if (minutes > 0) parts.push(`${minutes}m`);
+    if (secs > 0 && parts.length === 0) parts.push(`${secs}s`); // 只有在没有小时和分钟时才显示秒数
+
+    return parts.join('') || '0s';
   };
 
   const scrollToBottom = useCallback(() => {
@@ -362,6 +386,15 @@ export default function EndpointDetailPage() {
           )}
         </div>
         <div className="flex items-center gap-4">
+          <Button
+            variant="flat"
+            color="default"
+            isLoading={detailLoading}
+            onPress={fetchEndpointDetail}
+            startContent={<FontAwesomeIcon icon={faRotateRight} />}
+          >
+            刷新
+          </Button>
         </div>
       </div>
 
@@ -476,6 +509,19 @@ export default function EndpointDetailPage() {
                         <OSIcon os={endpointDetail.os} className="w-3 h-3" />
                         {endpointDetail.os}
                       </div>
+                    </Chip>
+                  </div>
+                )}
+
+                {/* 在线时长 */}
+                {endpointDetail.uptime != null && endpointDetail.uptime > 0 && (
+                  <div className="space-y-2">
+                    <div className="flex items-center gap-2 text-small text-default-500">
+                      <FontAwesomeIcon icon={faClock} />
+                      <span>在线时长</span>
+                    </div>
+                    <Chip size="sm" variant="flat" color="success" className="font-mono">
+                      {formatUptime(endpointDetail.uptime)}
                     </Chip>
                   </div>
                 )}

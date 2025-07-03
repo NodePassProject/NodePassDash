@@ -1447,19 +1447,25 @@ func (h *EndpointHandler) HandleGetEndpointInfo(w http.ResponseWriter, r *http.R
 	// 如果成功获取到信息，更新数据库
 	if info != nil && err == nil {
 		epInfo := endpoint.NodePassInfo{
-			OS:   info.OS,
-			Arch: info.Arch,
-			Ver:  info.Ver,
-			Name: info.Name,
-			Log:  info.Log,
-			TLS:  info.TLS,
-			Crt:  info.Crt,
-			Key:  info.Key,
+			OS:     info.OS,
+			Arch:   info.Arch,
+			Ver:    info.Ver,
+			Name:   info.Name,
+			Log:    info.Log,
+			TLS:    info.TLS,
+			Crt:    info.Crt,
+			Key:    info.Key,
+			Uptime: info.Uptime, // 直接传递指针，service层会处理nil情况
 		}
 		if updateErr := h.endpointService.UpdateEndpointInfo(id, epInfo); updateErr != nil {
 			log.Errorf("[Master-%v] 更新系统信息失败: %v", ep.ID, updateErr)
 		} else {
-			log.Infof("[Master-%v] 系统信息已更新: OS=%s, Arch=%s, Ver=%s", ep.ID, info.OS, info.Arch, info.Ver)
+			// 在日志中显示uptime信息（如果可用）
+			uptimeMsg := "未知"
+			if info.Uptime != nil {
+				uptimeMsg = fmt.Sprintf("%d秒", *info.Uptime)
+			}
+			log.Infof("[Master-%v] 系统信息已更新: OS=%s, Arch=%s, Ver=%s, Uptime=%s", ep.ID, info.OS, info.Arch, info.Ver, uptimeMsg)
 		}
 
 		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
@@ -1469,15 +1475,21 @@ func (h *EndpointHandler) HandleGetEndpointInfo(w http.ResponseWriter, r *http.R
 		})
 	} else {
 		// 返回当前已存储的信息
+		var storedUptime *int64
+		if ep.Uptime != nil && *ep.Uptime > 0 {
+			storedUptime = ep.Uptime
+		}
+
 		infoResponse := endpoint.NodePassInfo{
-			OS:   ep.OS,
-			Arch: ep.Arch,
-			Ver:  ep.Ver,
-			Name: ep.Name,
-			Log:  ep.Log,
-			TLS:  ep.TLS,
-			Crt:  ep.Crt,
-			Key:  ep.KeyPath,
+			OS:     ep.OS,
+			Arch:   ep.Arch,
+			Ver:    ep.Ver,
+			Name:   ep.Name,
+			Log:    ep.Log,
+			TLS:    ep.TLS,
+			Crt:    ep.Crt,
+			Key:    ep.KeyPath,
+			Uptime: storedUptime,
 		}
 
 		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
@@ -1507,8 +1519,63 @@ func (h *EndpointHandler) HandleGetEndpointDetail(w http.ResponseWriter, r *http
 		return
 	}
 
-	// 获取端点详细信息
+	// 先获取端点基本信息（用于连接NodePass API）
 	ep, err := h.endpointService.GetEndpointByID(id)
+	if err != nil {
+		w.WriteHeader(http.StatusNotFound)
+		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// 尝试调用NodePass API获取最新信息并更新数据库
+	func() {
+		defer func() {
+			if r := recover(); r != nil {
+				log.Warnf("[Master-%v] 获取最新系统信息失败(panic): %v", ep.ID, r)
+			}
+		}()
+
+		// 创建NodePass客户端
+		client := nodepass.NewClient(ep.URL, ep.APIPath, ep.APIKey, nil)
+
+		// 尝试获取系统信息
+		info, err := client.GetInfo()
+		if err != nil {
+			log.Warnf("[Master-%v] 调用NodePass API获取系统信息失败: %v", ep.ID, err)
+			return
+		}
+
+		if info != nil {
+			// 更新数据库中的系统信息
+			epInfo := endpoint.NodePassInfo{
+				OS:     info.OS,
+				Arch:   info.Arch,
+				Ver:    info.Ver,
+				Name:   info.Name,
+				Log:    info.Log,
+				TLS:    info.TLS,
+				Crt:    info.Crt,
+				Key:    info.Key,
+				Uptime: info.Uptime,
+			}
+			if updateErr := h.endpointService.UpdateEndpointInfo(id, epInfo); updateErr != nil {
+				log.Errorf("[Master-%v] 更新系统信息到数据库失败: %v", ep.ID, updateErr)
+			} else {
+				// 在日志中显示uptime信息（如果可用）
+				uptimeMsg := "未知"
+				if info.Uptime != nil {
+					uptimeMsg = fmt.Sprintf("%d秒", *info.Uptime)
+				}
+				log.Infof("[Master-%v] 详情页刷新：系统信息已更新: OS=%s, Arch=%s, Ver=%s, Uptime=%s", ep.ID, info.OS, info.Arch, info.Ver, uptimeMsg)
+			}
+		}
+	}()
+
+	// 重新从数据库获取最新的端点详细信息
+	updatedEp, err := h.endpointService.GetEndpointByID(id)
 	if err != nil {
 		w.WriteHeader(http.StatusNotFound)
 		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
@@ -1521,7 +1588,7 @@ func (h *EndpointHandler) HandleGetEndpointDetail(w http.ResponseWriter, r *http
 	json.NewEncoder(w).Encode(endpoint.EndpointResponse{
 		Success:  true,
 		Message:  "获取端点详情成功",
-		Endpoint: ep,
+		Endpoint: updatedEp,
 	})
 }
 
