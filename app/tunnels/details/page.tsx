@@ -30,7 +30,7 @@ import {
 import React, { useEffect } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh,faStop, faQuestionCircle, faEye, faEyeSlash, faArrowDown } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh,faStop, faQuestionCircle, faEye, faEyeSlash, faArrowDown, faDownload } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
@@ -209,6 +209,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   const [logCount, setLogCount] = React.useState(0);
   const [logRefreshTrigger, setLogRefreshTrigger] = React.useState(0);
   const [clearPopoverOpen, setClearPopoverOpen] = React.useState(false);
+  const [exportLoading, setExportLoading] = React.useState(false);
 
 
 
@@ -260,6 +261,57 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     // 清空完成后的回调
     console.log('文件日志已清空');
   }, []);
+
+  // 导出日志和SSE记录的函数
+  const handleExport = React.useCallback(async () => {
+    if (exportLoading || !tunnelInfo) return;
+    
+    setExportLoading(true);
+    
+    try {
+      // 调用后端API获取zip文件
+      const response = await fetch(`/api/tunnels/${tunnelInfo.id}/export-logs`, {
+        method: 'GET',
+        headers: {
+          'Accept': 'application/zip',
+        },
+      });
+
+      if (!response.ok) {
+        throw new Error('导出失败');
+      }
+
+      // 获取文件名，默认使用实例名称
+      const filename = `${tunnelInfo.name}_logs_${new Date().toISOString().split('T')[0]}.zip`;
+      
+      // 创建blob并下载
+      const blob = await response.blob();
+      const url = window.URL.createObjectURL(blob);
+      const a = document.createElement('a');
+      a.style.display = 'none';
+      a.href = url;
+      a.download = filename;
+      document.body.appendChild(a);
+      a.click();
+      window.URL.revokeObjectURL(url);
+      document.body.removeChild(a);
+
+      addToast({
+        title: "导出成功",
+        description: `日志文件已导出为 ${filename}`,
+        color: "success",
+      });
+    } catch (error) {
+      console.error('导出日志失败:', error);
+      addToast({
+        title: "导出失败",
+        description: error instanceof Error ? error.message : "未知错误",
+        color: "danger",
+      });
+    } finally {
+      setExportLoading(false);
+    }
+  }, [exportLoading, tunnelInfo]);
 
   // 手动刷新页面数据的函数
   const handleRefresh = React.useCallback(async () => {
@@ -1043,47 +1095,67 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
             </Select>
             
             {/* 刷新按钮 */}
-            <Button
-              size="sm"
-              variant="flat"
-              isIconOnly
-              onPress={handleLogRefresh}
-              isLoading={logLoading}
-              className="h-8 w-8 min-w-0"
-            >
-              <FontAwesomeIcon icon={faRefresh} className="text-xs" />
-            </Button>
+            <Tooltip content="刷新日志" placement="top">
+              <Button
+                size="sm"
+                variant="flat"
+                isIconOnly
+                onPress={handleLogRefresh}
+                isLoading={logLoading}
+                className="h-8 w-8 min-w-0"
+              >
+                <FontAwesomeIcon icon={faRefresh} className="text-xs" />
+              </Button>
+            </Tooltip>
 
             {/* 滚动到底部按钮 */}
-            <Button
-              size="sm"
-              variant="flat"
-              isIconOnly
-              onPress={() => {
-                if ((window as any).fileLogViewerRef) {
-                  (window as any).fileLogViewerRef.scrollToBottom();
-                }
-              }}
-              className="h-8 w-8 min-w-0"
-            >
-              <FontAwesomeIcon icon={faArrowDown} className="text-xs" />
-            </Button>
+            <Tooltip content="滚动到底部" placement="top">
+              <Button
+                size="sm"
+                variant="flat"
+                isIconOnly
+                onPress={() => {
+                  if ((window as any).fileLogViewerRef) {
+                    (window as any).fileLogViewerRef.scrollToBottom();
+                  }
+                }}
+                className="h-8 w-8 min-w-0"
+              >
+                <FontAwesomeIcon icon={faArrowDown} className="text-xs" />
+              </Button>
+            </Tooltip>
+            
+            {/* 导出按钮 */}
+            <Tooltip content="导出日志文件和SSE记录" placement="top">
+              <Button
+                size="sm"
+                variant="flat"
+                color="primary"
+                isIconOnly
+                onPress={handleExport}
+                isLoading={exportLoading}
+                isDisabled={exportLoading}
+                className="h-8 w-8 min-w-0"
+              >
+                <FontAwesomeIcon icon={faDownload} className="text-xs" />
+              </Button>
+            </Tooltip>
             
             {/* 清空按钮 */}
-            <Popover placement="bottom" isOpen={clearPopoverOpen} onOpenChange={setClearPopoverOpen}>
-              <PopoverTrigger>
-                <Button
-                  size="sm"
-                  variant="flat"
-                  color="danger"
-                  isIconOnly
-                  isLoading={logClearing}
-                  isDisabled={logCount === 0}
-                  className="h-8 w-8 min-w-0"
-              >
-                  <FontAwesomeIcon icon={faTrash} className="text-xs" />
-                </Button>
-              </PopoverTrigger>
+              <Popover placement="bottom" isOpen={clearPopoverOpen} onOpenChange={setClearPopoverOpen}>
+                <PopoverTrigger>
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      color="danger"
+                      isIconOnly
+                      isLoading={logClearing}
+                      isDisabled={logCount === 0}
+                      className="h-8 w-8 min-w-0"
+                  >
+                      <FontAwesomeIcon icon={faTrash} className="text-xs" />
+                    </Button>
+                </PopoverTrigger>
               <PopoverContent className="p-3">
                 <div className="space-y-3">
                   <p className="text-sm font-medium">确认清空日志</p>
@@ -1115,8 +1187,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   </div>
                   </div>
               </PopoverContent>
-            </Popover>
-                      </div>
+              </Popover>
+          </div>
         </CardHeader>
         <CardBody>
           <FileLogViewer 

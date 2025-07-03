@@ -2,10 +2,14 @@ package api
 
 import (
 	log "NodePassDash/internal/log"
+	"archive/zip"
+	"bytes"
 	"database/sql"
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"os"
+	"path/filepath"
 	"regexp"
 	"sort"
 	"strconv"
@@ -2619,4 +2623,331 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 	}
 
 	json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: true, Message: "编辑实例成功"})
+}
+
+// HandleExportTunnelLogs 导出隧道的所有日志文件和EndpointSSE记录
+func (h *TunnelHandler) HandleExportTunnelLogs(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	tunnelIDStr := vars["id"]
+
+	// 解析隧道ID
+	tunnelID, err := strconv.ParseInt(tunnelIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid tunnel ID", http.StatusBadRequest)
+		return
+	}
+
+	// 获取隧道信息
+	db := h.tunnelService.DB()
+	var tunnelName, instanceID string
+	var endpointID int64
+
+	err = db.QueryRow(`
+		SELECT name, endpointId, instanceId 
+		FROM Tunnel 
+		WHERE id = ?
+	`, tunnelID).Scan(&tunnelName, &endpointID, &instanceID)
+
+	if err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Tunnel not found", http.StatusNotFound)
+			return
+		}
+		log.Errorf("[API] 获取隧道信息失败: %v", err)
+		http.Error(w, "Failed to get tunnel info", http.StatusInternalServerError)
+		return
+	}
+
+	// 创建zip缓冲区
+	var zipBuffer bytes.Buffer
+	zipWriter := zip.NewWriter(&zipBuffer)
+
+	// 1. 获取并添加现有的.log文件
+	logFileCount := 0
+	if h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
+		// 直接读取现有的.log文件，使用FileLogger的实际目录结构
+		// 根据FileLogger的实现，目录结构应该是: baseDir/endpoint_{endpointId}/{instanceId}/*.log
+		baseDir := "logs" // 这里可能需要根据实际配置调整
+		logDir := filepath.Join(baseDir, fmt.Sprintf("endpoint_%d", endpointID), instanceID)
+
+		// 检查日志目录是否存在
+		if _, err := os.Stat(logDir); err == nil {
+			// 遍历目录中的所有.log文件
+			err := filepath.Walk(logDir, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return nil // 忽略错误，继续处理
+				}
+
+				// 只处理.log文件
+				if !info.IsDir() && strings.HasSuffix(info.Name(), ".log") {
+					// 读取文件内容
+					fileContent, err := os.ReadFile(path)
+					if err != nil {
+						log.Warnf("[API] 读取日志文件失败: %s, err: %v", path, err)
+						return nil
+					}
+
+					// 使用原始文件名作为zip内的文件名
+					zipFileName := info.Name()
+					writer, err := zipWriter.Create(zipFileName)
+					if err != nil {
+						log.Warnf("[API] 创建zip文件条目失败: %s, err: %v", zipFileName, err)
+						return nil
+					}
+
+					_, err = writer.Write(fileContent)
+					if err != nil {
+						log.Warnf("[API] 写入zip文件失败: %s, err: %v", zipFileName, err)
+					} else {
+						logFileCount++
+						log.Debugf("[API] 成功添加日志文件: %s", zipFileName)
+					}
+				}
+				return nil
+			})
+
+			if err != nil {
+				log.Warnf("[API] 遍历日志目录失败: %v", err)
+			}
+		} else {
+			log.Warnf("[API] 日志目录不存在: %s", logDir)
+		}
+	}
+
+	// 2. 获取并添加EndpointSSE记录
+	sseRecords := []map[string]interface{}{}
+	rows, err := db.Query(`
+		SELECT id, eventType, pushType, eventTime, endpointId, instanceId, 
+		       instanceType, status, url, tcpRx, tcpTx, udpRx, udpTx, 
+		       logs, createdAt, alias, restart
+		FROM "EndpointSSE" 
+		WHERE endpointId = ? AND instanceId = ?
+		ORDER BY createdAt DESC
+	`, endpointID, instanceID)
+
+	if err != nil {
+		log.Warnf("[API] 获取EndpointSSE记录失败: %v", err)
+	} else {
+		defer rows.Close()
+
+		for rows.Next() {
+			var record struct {
+				ID           int64     `json:"id"`
+				EventType    string    `json:"eventType"`
+				PushType     string    `json:"pushType"`
+				EventTime    time.Time `json:"eventTime"`
+				EndpointID   int64     `json:"endpointId"`
+				InstanceID   string    `json:"instanceId"`
+				InstanceType *string   `json:"instanceType"`
+				Status       *string   `json:"status"`
+				URL          *string   `json:"url"`
+				TCPRx        int64     `json:"tcpRx"`
+				TCPTx        int64     `json:"tcpTx"`
+				UDPRx        int64     `json:"udpRx"`
+				UDPTx        int64     `json:"udpTx"`
+				Logs         *string   `json:"logs"`
+				CreatedAt    time.Time `json:"createdAt"`
+				Alias        *string   `json:"alias"`
+				Restart      *bool     `json:"restart"`
+			}
+
+			err := rows.Scan(
+				&record.ID, &record.EventType, &record.PushType, &record.EventTime,
+				&record.EndpointID, &record.InstanceID, &record.InstanceType,
+				&record.Status, &record.URL, &record.TCPRx, &record.TCPTx,
+				&record.UDPRx, &record.UDPTx, &record.Logs, &record.CreatedAt,
+				&record.Alias, &record.Restart,
+			)
+
+			if err != nil {
+				log.Warnf("[API] 扫描EndpointSSE记录失败: %v", err)
+				continue
+			}
+
+			// 转换为map以便JSON序列化
+			recordMap := map[string]interface{}{
+				"id":         record.ID,
+				"eventType":  record.EventType,
+				"pushType":   record.PushType,
+				"eventTime":  record.EventTime.Format(time.RFC3339),
+				"endpointId": record.EndpointID,
+				"instanceId": record.InstanceID,
+				"tcpRx":      record.TCPRx,
+				"tcpTx":      record.TCPTx,
+				"udpRx":      record.UDPRx,
+				"udpTx":      record.UDPTx,
+				"createdAt":  record.CreatedAt.Format(time.RFC3339),
+			}
+
+			// 添加可选字段
+			if record.InstanceType != nil {
+				recordMap["instanceType"] = *record.InstanceType
+			}
+			if record.Status != nil {
+				recordMap["status"] = *record.Status
+			}
+			if record.URL != nil {
+				recordMap["url"] = *record.URL
+			}
+			if record.Logs != nil {
+				recordMap["logs"] = *record.Logs
+			}
+			if record.Alias != nil {
+				recordMap["alias"] = *record.Alias
+			}
+			if record.Restart != nil {
+				recordMap["restart"] = *record.Restart
+			}
+
+			sseRecords = append(sseRecords, recordMap)
+		}
+	}
+
+	// 将SSE记录写入zip作为CSV文件
+	if len(sseRecords) > 0 {
+		writer, err := zipWriter.Create("sse_records.csv")
+		if err == nil {
+			// 写入CSV头部
+			csvHeader := "ID,EventType,PushType,EventTime,EndpointID,InstanceID,InstanceType,Status,URL,TCPRx,TCPTx,UDPRx,UDPTx,Logs,CreatedAt,Alias,Restart\n"
+			writer.Write([]byte(csvHeader))
+
+			// 写入数据行
+			for _, record := range sseRecords {
+				csvLine := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+					getFieldValue(record, "id"),
+					getFieldValue(record, "eventType"),
+					getFieldValue(record, "pushType"),
+					getFieldValue(record, "eventTime"),
+					getFieldValue(record, "endpointId"),
+					getFieldValue(record, "instanceId"),
+					getFieldValue(record, "instanceType"),
+					getFieldValue(record, "status"),
+					getFieldValue(record, "url"),
+					getFieldValue(record, "tcpRx"),
+					getFieldValue(record, "tcpTx"),
+					getFieldValue(record, "udpRx"),
+					getFieldValue(record, "udpTx"),
+					escapeCSVField(fmt.Sprintf("%v", getFieldValue(record, "logs"))),
+					getFieldValue(record, "createdAt"),
+					getFieldValue(record, "alias"),
+					getFieldValue(record, "restart"),
+				)
+				writer.Write([]byte(csvLine))
+			}
+		}
+	}
+
+	// 3. 添加导出信息文件
+	exportInfo := map[string]interface{}{
+		"tunnelId":       tunnelID,
+		"tunnelName":     tunnelName,
+		"instanceId":     instanceID,
+		"endpointId":     endpointID,
+		"exportTime":     time.Now().Format(time.RFC3339),
+		"logFileCount":   logFileCount,
+		"sseRecordCount": len(sseRecords),
+	}
+
+	exportInfoData, err := json.MarshalIndent(exportInfo, "", "  ")
+	if err == nil {
+		writer, err := zipWriter.Create("export_info.json")
+		if err == nil {
+			writer.Write(exportInfoData)
+		}
+	}
+
+	// 4. 获取并添加现有的.log文件
+	if h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
+		// 直接读取现有的.log文件
+		baseDir := "logs" // 根据实际的日志目录结构调整
+		logDir := filepath.Join(baseDir, fmt.Sprintf("endpoint_%d", endpointID), instanceID)
+
+		// 检查日志目录是否存在
+		if _, err := os.Stat(logDir); err == nil {
+			// 遍历目录中的所有.log文件
+			err := filepath.Walk(logDir, func(path string, info os.FileInfo, err error) error {
+				if err != nil {
+					return nil // 忽略错误，继续处理
+				}
+
+				// 只处理.log文件
+				if !info.IsDir() && strings.HasSuffix(info.Name(), ".log") {
+					// 读取文件内容
+					fileContent, err := os.ReadFile(path)
+					if err != nil {
+						log.Warnf("[API] 读取日志文件失败: %s, err: %v", path, err)
+						return nil
+					}
+
+					// 使用相对路径作为zip内的文件名
+					zipFileName := fmt.Sprintf("logs/%s", info.Name())
+					writer, err := zipWriter.Create(zipFileName)
+					if err != nil {
+						log.Warnf("[API] 创建zip文件条目失败: %s, err: %v", zipFileName, err)
+						return nil
+					}
+
+					_, err = writer.Write(fileContent)
+					if err != nil {
+						log.Warnf("[API] 写入zip文件失败: %s, err: %v", zipFileName, err)
+					}
+				}
+				return nil
+			})
+
+			if err != nil {
+				log.Warnf("[API] 遍历日志目录失败: %v", err)
+			}
+		} else {
+			log.Warnf("[API] 日志目录不存在: %s", logDir)
+		}
+	}
+
+	// 关闭zip writer
+	err = zipWriter.Close()
+	if err != nil {
+		log.Errorf("[API] 关闭zip writer失败: %v", err)
+		http.Error(w, "Failed to create zip file", http.StatusInternalServerError)
+		return
+	}
+
+	// 设置响应头
+	filename := fmt.Sprintf("%s_logs_%s.zip", tunnelName, time.Now().Format("2006-01-02"))
+	w.Header().Set("Content-Type", "application/zip")
+	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	w.Header().Set("Content-Length", fmt.Sprintf("%d", zipBuffer.Len()))
+
+	// 发送zip文件
+	_, err = w.Write(zipBuffer.Bytes())
+	if err != nil {
+		log.Errorf("[API] 发送zip文件失败: %v", err)
+		return
+	}
+
+	log.Infof("[API] 成功导出隧道 %s (ID: %d) 的日志文件，包含 %d 个.log文件和 %d 条SSE记录",
+		tunnelName, tunnelID, logFileCount, len(sseRecords))
+}
+
+// getFieldValue 从map中安全获取字段值
+func getFieldValue(record map[string]interface{}, key string) interface{} {
+	if val, exists := record[key]; exists {
+		return val
+	}
+	return ""
+}
+
+// escapeCSVField 转义CSV字段中的特殊字符
+func escapeCSVField(field string) string {
+	// 如果字段包含逗号、引号或换行符，需要用引号包围并转义内部引号
+	if strings.Contains(field, ",") || strings.Contains(field, "\"") || strings.Contains(field, "\n") || strings.Contains(field, "\r") {
+		// 转义内部引号
+		escaped := strings.ReplaceAll(field, "\"", "\"\"")
+		return fmt.Sprintf("\"%s\"", escaped)
+	}
+	return field
 }
