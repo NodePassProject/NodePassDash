@@ -10,13 +10,14 @@ import { Footer } from "@/components/layout/footer";
 
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
-  const isLoginPage = pathname === '/login' || pathname === '/login/';
+  const isSimpleLayout = pathname === '/login' || pathname === '/login/' || 
+                        pathname === '/oauth-error' || pathname === '/oauth-error/';
 
   return (
     <AuthProvider>
       <RouteGuard>
-        {isLoginPage ? (
-          // 登录页面：简洁布局，无导航栏
+        {isSimpleLayout ? (
+          // 登录页面和错误页面：简洁布局，无导航栏
           <div className="min-h-screen bg-background">
             {children}
           </div>

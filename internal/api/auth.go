@@ -486,7 +486,26 @@ func (h *AuthHandler) handleGitHubOAuth(w http.ResponseWriter, r *http.Request, 
 
 	// 保存用户信息
 	dataJSON, _ := json.Marshal(userData)
-	_ = h.authService.SaveOAuthUser("github", providerID, username, string(dataJSON))
+	if err := h.authService.SaveOAuthUser("github", providerID, username, string(dataJSON)); err != nil {
+		fmt.Printf("❌ 保存 GitHub 用户失败: %v\n", err)
+		// 重定向到错误页面而不是返回 HTTP 错误
+		// 使用与配置中相同的 host 进行跳转
+		baseURL := ""
+		if cfg.RedirectURI != "" {
+			baseURL = strings.Replace(cfg.RedirectURI, "/api/oauth2/callback", "", 1)
+		} else {
+			// 回退到基于请求 Host 的拼接
+			scheme := "http"
+			if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+				scheme = "https"
+			}
+			baseURL = fmt.Sprintf("%s://%s", scheme, r.Host)
+		}
+		errorURL := fmt.Sprintf("%s/oauth-error?error=%s&provider=github",
+			baseURL, url.QueryEscape(err.Error()))
+		http.Redirect(w, r, errorURL, http.StatusFound)
+		return
+	}
 
 	// 创建会话
 	sessionID, err := h.authService.CreateUserSession(username)
@@ -642,7 +661,26 @@ func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Reque
 
 	// 保存用户信息
 	dataJSON, _ := json.Marshal(userData)
-	_ = h.authService.SaveOAuthUser("cloudflare", providerID, username, string(dataJSON))
+	if err := h.authService.SaveOAuthUser("cloudflare", providerID, username, string(dataJSON)); err != nil {
+		fmt.Printf("❌ 保存 Cloudflare 用户失败: %v\n", err)
+		// 重定向到错误页面而不是返回 HTTP 错误
+		// 使用与配置中相同的 host 进行跳转
+		baseURL := ""
+		if cfg.RedirectURI != "" {
+			baseURL = strings.Replace(cfg.RedirectURI, "/api/oauth2/callback", "", 1)
+		} else {
+			// 回退到基于请求 Host 的拼接
+			scheme := "http"
+			if r.TLS != nil || r.Header.Get("X-Forwarded-Proto") == "https" {
+				scheme = "https"
+			}
+			baseURL = fmt.Sprintf("%s://%s", scheme, r.Host)
+		}
+		errorURL := fmt.Sprintf("%s/oauth-error?error=%s&provider=cloudflare",
+			baseURL, url.QueryEscape(err.Error()))
+		http.Redirect(w, r, errorURL, http.StatusFound)
+		return
+	}
 
 	// 创建会话
 	sessionID, err := h.authService.CreateUserSession(username)
@@ -749,9 +787,13 @@ func (h *AuthHandler) HandleOAuth2Config(w http.ResponseWriter, r *http.Request)
 		json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
 
 	case http.MethodDelete:
-		// 解绑：统一清空
+		// 解绑：统一清空配置和用户信息
 		_ = h.authService.SetSystemConfig("oauth2_config", "", "清空 OAuth2 配置")
 		_ = h.authService.SetSystemConfig("oauth2_provider", "", "解绑 OAuth2")
+		// 清空所有 OAuth 用户信息
+		if err := h.authService.DeleteAllOAuthUsers(); err != nil {
+			fmt.Printf("⚠️ 清空 OAuth 用户信息失败: %v\n", err)
+		}
 
 		json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
 

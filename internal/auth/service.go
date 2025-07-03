@@ -409,11 +409,42 @@ func (s *Service) SaveOAuthUser(provider, providerID, username, dataJSON string)
 		return err
 	}
 
-	// 插入或更新
-	_, err := s.db.Exec(`INSERT INTO "OAuthUser" (provider, providerId, username, data, createdAt, updatedAt)
+	// 检查是否已存在 OAuth 用户（只允许第一个用户登录）
+	var existingCount int
+	err := s.db.QueryRow(`SELECT COUNT(*) FROM "OAuthUser"`).Scan(&existingCount)
+	if err != nil {
+		return err
+	}
+
+	// 如果已有用户，检查是否是同一个用户
+	if existingCount > 0 {
+		var existingProviderID string
+		err := s.db.QueryRow(`SELECT providerId FROM "OAuthUser" WHERE provider = ?`, provider).Scan(&existingProviderID)
+		if err != nil {
+			if err == sql.ErrNoRows {
+				// 当前 provider 没有用户，但其他 provider 有用户，不允许登录
+				return errors.New("系统已绑定其他 OAuth2 用户，不允许使用不同的 OAuth2 账户登录")
+			}
+			return err
+		}
+
+		// 如果是不同的用户ID，拒绝登录
+		if existingProviderID != providerID {
+			return errors.New("系统已绑定其他 OAuth2 用户，不允许使用不同的账户登录")
+		}
+	}
+
+	// 插入或更新（只有同一用户才能更新）
+	_, err = s.db.Exec(`INSERT INTO "OAuthUser" (provider, providerId, username, data, createdAt, updatedAt)
 		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
 		ON CONFLICT(provider, providerId) DO UPDATE SET username = excluded.username, data = excluded.data, updatedAt = CURRENT_TIMESTAMP;`,
 		provider, providerID, username, dataJSON)
+	return err
+}
+
+// DeleteAllOAuthUsers 删除所有 OAuth 用户信息（解绑时使用）
+func (s *Service) DeleteAllOAuthUsers() error {
+	_, err := s.db.Exec(`DELETE FROM "OAuthUser"`)
 	return err
 }
 

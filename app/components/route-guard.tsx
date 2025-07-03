@@ -15,7 +15,7 @@ interface RouteGuardProps {
 // 公开路由列表（不需要身份验证）
 // 由于 next.config.js 中设置了 `trailingSlash: true`，导出后路径可能变成 `/login/`
 // 为兼容两种情况，统一在比较前去除末尾斜杠，再进行匹配
-const RAW_PUBLIC_ROUTES = ['/login'];
+const RAW_PUBLIC_ROUTES = ['/login', '/oauth-error'];
 
 /**
  * 规范化路径，去除末尾斜杠（根路径 `/` 除外）
