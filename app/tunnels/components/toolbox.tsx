@@ -312,16 +312,16 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
                   }
                 }}
               >
-                <DropdownItem key="normal" startContent={<FontAwesomeIcon icon={faBolt} />}>
+                <DropdownItem key="normal" startContent={<FontAwesomeIcon icon={faBolt} fixedWidth />}>
                   快速创建
                 </DropdownItem>
-                <DropdownItem key="manual" startContent={<FontAwesomeIcon icon={faHammer} />}>
+                <DropdownItem key="manual" startContent={<FontAwesomeIcon icon={faHammer} fixedWidth />}>
                   手搓创建
                 </DropdownItem>
-                <DropdownItem key="batch" startContent={<FontAwesomeIcon icon={faCopy} />}>
+                <DropdownItem key="batch" startContent={<FontAwesomeIcon icon={faCopy} fixedWidth />}>
                   批量创建
                 </DropdownItem>
-                <DropdownItem key="template" startContent={<FontAwesomeIcon icon={faLayerGroup} />}>
+                <DropdownItem key="template" startContent={<FontAwesomeIcon icon={faLayerGroup} fixedWidth />}>
                   场景创建
                 </DropdownItem>
               </DropdownMenu>

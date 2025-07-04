@@ -7,6 +7,7 @@ import { Icon } from "@iconify/react";
 import NextLink from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { useAuth } from "@/app/components/auth-provider";
 
 /**
  * 导航菜单配置
@@ -27,6 +28,11 @@ const navigationItems = [
     label: "主控管理",
     icon: "solar:server-2-bold",
   },
+  {
+    href: "/settings",
+    label: "系统设置",
+    icon: "solar:settings-bold",
+  },
 ];
 
 /**
@@ -34,6 +40,7 @@ const navigationItems = [
  */
 export const NavbarMobileMenu = () => {
   const pathname = usePathname();
+  const { logout } = useAuth();
 
   const isActive = (href: string) => {
     if (href === '/') {
@@ -61,6 +68,16 @@ export const NavbarMobileMenu = () => {
           </NextLink>
         </NavbarMenuItem>
       ))}
+      {/* 退出登录菜单项 */}
+      <NavbarMenuItem>
+        <button
+          className="w-full flex items-center gap-2 px-3 py-2 rounded-lg text-danger-600 hover:bg-danger-100 dark:hover:bg-danger-900/30 transition-all duration-200"
+          onClick={logout}
+        >
+          <Icon icon="solar:logout-2-bold" width={18} />
+          退出登录
+        </button>
+      </NavbarMenuItem>
     </div>
   );
 }; 

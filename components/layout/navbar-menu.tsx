@@ -27,7 +27,12 @@ const navigationItems = [
     href: "/endpoints",
     label: "主控管理",
     icon: "solar:server-2-bold",
-  }
+  },
+  {
+    href: "/settings",
+    label: "系统设置",
+    icon: "solar:settings-bold",
+  },
 ];
 
 /**
