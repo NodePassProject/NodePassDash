@@ -7,6 +7,8 @@ import {
   NavbarMenu,
   NavbarMenuToggle
 } from "@heroui/react";
+import { Icon } from "@iconify/react";
+import { useState } from "react";
 import { ThemeSwitch } from "@/components/theme-switch";
 import { LocaleSwitch } from "@/components/locale-switch";
 import { NavbarLogo } from "./navbar-logo";
@@ -19,12 +21,31 @@ import { NavbarMobileMenu } from "./navbar-mobile";
  * 主导航栏组件
  */
 export const Navbar = () => {
+  // 控制移动端菜单打开状态
+  const [isMenuOpen, setIsMenuOpen] = useState(false);
+
   return (
-    <HeroUINavbar maxWidth="xl" isBordered>
+    <HeroUINavbar
+      maxWidth="xl"
+      isBordered
+      isMenuOpen={isMenuOpen}
+      onMenuOpenChange={setIsMenuOpen}
+    >
       {/* 左侧内容 - 移动端汉堡菜单 + Logo */}
       <NavbarContent className="basis-1/5 sm:basis-full" justify="start">
         {/* 移动端汉堡菜单 - 在lg断点以下显示，包括平板 */}
-        <NavbarMenuToggle className="lg:hidden" />
+        <NavbarMenuToggle
+          className="lg:hidden"
+          onClick={() => setIsMenuOpen(!isMenuOpen)}
+          icon={
+            isMenuOpen ? (
+              <Icon icon="lucide:x" width={24} height={24} />
+            ) : (
+              <Icon icon="lucide:menu" width={24} height={24} />
+            )
+          }
+        >
+        </NavbarMenuToggle>
         <NavbarLogo />
       </NavbarContent>
 
@@ -62,7 +83,7 @@ export const Navbar = () => {
 
       {/* 移动端展开菜单 */}
       <NavbarMenu>
-        <NavbarMobileMenu />
+        <NavbarMobileMenu onSelect={() => setIsMenuOpen(false)} />
       </NavbarMenu>
     </HeroUINavbar>
   );
