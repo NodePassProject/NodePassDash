@@ -161,14 +161,15 @@ release:
       
     ### Feature
     
-    - 支持通过`--cert /path/to/cert`和`--key /path/to/key`指定证书文件启动https
-    - 仪表盘的最近活动增加清除按钮功能
+    - 实例详情页日志增加导出
 
     ### Fix
-    - 修正仪表盘流量趋势统计逻辑
-    - OAuth2回调地址redirect_uri相对应问题
-    - 添加实例时client模式下min和max=0不取值的问题
-    - 优化部分布局
+    - cf oauth2限制用户的问题
+    
+    ### Update
+    - 实例更新放开类型修改
+    - nav 移除头像，新增单独的退出登录按钮
+    - nav 菜单新增系统设置
 
   footer: |
     
