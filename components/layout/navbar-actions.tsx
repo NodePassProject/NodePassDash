@@ -15,7 +15,7 @@ export const NavbarActions = () => {
   return (
     <div className="flex items-center gap-1">
       {/* 退出登录图标按钮 */}
-      <Button isIconOnly variant="light" color="danger" size="sm" onClick={logout}>
+      <Button isIconOnly variant="light" color="danger" onClick={logout}>
         <Icon icon="solar:logout-2-bold" width={18} />
       </Button>
     </div>
