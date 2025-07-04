@@ -28,9 +28,11 @@ import {
   PopoverContent
 } from "@heroui/react";
 import React, { useEffect } from "react";
+// 引入 QuickCreateTunnelModal 组件
+import QuickCreateTunnelModal from "../components/quick-create-tunnel-modal";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh,faStop, faQuestionCircle, faEye, faEyeSlash, faArrowDown, faDownload } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh,faStop, faQuestionCircle, faEye, faEyeSlash, faArrowDown, faDownload, faPen } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
@@ -193,6 +195,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   const [trafficRefreshLoading, setTrafficRefreshLoading] = React.useState(false);
   const [trafficTimeRange, setTrafficTimeRange] = React.useState<"1h" | "6h" | "12h" | "24h">("24h");
   const [isPasswordVisible, setIsPasswordVisible] = React.useState(false);
+  // 编辑实例模态控制
+  const [editModalOpen, setEditModalOpen] = React.useState(false);
   const searchParams = useSearchParams();
   const resolvedId = searchParams.get('id');
 
@@ -634,7 +638,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   }
 
   return (
-    <div className="space-y-4 md:space-y-6 p-4 md:p-0">
+    <>
+      <div className="space-y-4 md:space-y-6 p-4 md:p-0">
       {/* 顶部操作区 - 响应式布局 */}
       <div className="flex flex-col gap-3 md:gap-0 md:flex-row md:justify-between md:items-center">
         <div className="flex items-center gap-3 md:gap-4">
@@ -755,7 +760,19 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
 
       {/* 实例信息 - 响应式网格布局 */}
       <Card className="p-2">
-        <CardHeader className="font-bold text-sm md:text-base">实例信息</CardHeader>
+        <CardHeader className="flex items-center justify-between">
+          <span className="font-bold text-sm md:text-base">实例信息</span>
+          <Tooltip content="编辑实例" placement="top">
+            <Button
+              isIconOnly
+              variant="light"
+              size="sm"
+              color="default"
+              onClick={() => setEditModalOpen(true)}
+              startContent={<FontAwesomeIcon icon={faPen} className="text-xs" />}
+            />
+          </Tooltip>
+        </CardHeader>
         <CardBody>
           <div className="flex flex-col lg:grid lg:grid-cols-2 gap-4 lg:gap-12">
             {/* 左侧：基本信息 */}
@@ -1303,5 +1320,35 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         </CardBody>
       </Card>
     </div>
+
+    {/* 编辑实例模态框 */}
+    {editModalOpen && tunnelInfo && (
+      <QuickCreateTunnelModal
+        isOpen={editModalOpen}
+        onOpenChange={setEditModalOpen}
+        mode="edit"
+        editData={{
+          // QuickCreateTunnelModal 需要的字段整理
+          id: tunnelInfo.id,
+          endpointId: tunnelInfo.endpointId,
+          mode: tunnelInfo.type === '服务端' ? 'server' : 'client',
+          name: tunnelInfo.name,
+          tunnelAddress: tunnelInfo.tunnelAddress,
+          tunnelPort: String(tunnelInfo.config.listenPort),
+          targetAddress: tunnelInfo.targetAddress,
+          targetPort: String(tunnelInfo.config.targetPort),
+          tlsMode: tunnelInfo.config.tlsMode,
+          logLevel: tunnelInfo.config.logLevel,
+          password: tunnelInfo.password,
+          min: tunnelInfo.config.min,
+          max: tunnelInfo.config.max
+        }}
+        onSaved={() => {
+          setEditModalOpen(false);
+          fetchTunnelDetails();
+        }}
+      />
+    )}
+    </>
   );
 } 
