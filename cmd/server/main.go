@@ -404,7 +404,8 @@ func initDatabase(db *sql.DB) error {
 		log TEXT DEFAULT '',
 		tls TEXT DEFAULT '',
 		crt TEXT DEFAULT '',
-		key_path TEXT DEFAULT ''
+		key_path TEXT DEFAULT '',
+		uptime INTEGER DEFAULT NULL
 	);`
 
 	createTunnelTable := `
@@ -573,6 +574,9 @@ func initDatabase(db *sql.DB) error {
 		return err
 	}
 	if err := ensureColumn(db, "Endpoint", "key_path", "TEXT DEFAULT ''"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Endpoint", "uptime", "INTEGER DEFAULT NULL"); err != nil {
 		return err
 	}
 
