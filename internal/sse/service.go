@@ -1046,9 +1046,11 @@ func (s *Service) tunnelUpdate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 	var curEventTime sql.NullTime
 	var curName string
 	var curRestart bool
+	// 记录当前模式(server/client)
+	var curMode string
 
-	err := tx.QueryRow(`SELECT status, tcpRx, tcpTx, udpRx, udpTx, lastEventTime, name, restart FROM "Tunnel" WHERE endpointId = ? AND instanceId = ?`, e.EndpointID, e.InstanceID).
-		Scan(&curStatus, &curTCPRx, &curTCPTx, &curUDPRx, &curUDPTx, &curEventTime, &curName, &curRestart)
+	err := tx.QueryRow(`SELECT status, tcpRx, tcpTx, udpRx, udpTx, lastEventTime, name, restart, mode FROM "Tunnel" WHERE endpointId = ? AND instanceId = ?`, e.EndpointID, e.InstanceID).
+		Scan(&curStatus, &curTCPRx, &curTCPTx, &curUDPRx, &curUDPTx, &curEventTime, &curName, &curRestart, &curMode)
 	if err == sql.ErrNoRows {
 		log.Infof("[Master-%d#SSE]Inst.%s不存在，跳过更新", e.EndpointID, e.InstanceID)
 		return nil // 尚未创建对应记录，等待后续 create/initial
@@ -1080,6 +1082,11 @@ func (s *Service) tunnelUpdate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 		log.Infof("[Master-%d#SSE]Inst.%s重启策略变化: %t -> %t", e.EndpointID, e.InstanceID, curRestart, newRestart)
 	}
 
+	// 计算新的模式
+	newMode := ptrStringDefault(e.InstanceType, curMode)
+	modeChanged := newMode != curMode // 仅用于调试
+	_ = modeChanged
+
 	// 避免未使用编译错误
 	_ = statusChanged
 	_ = trafficChanged
@@ -1108,14 +1115,14 @@ func (s *Service) tunnelUpdate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 
 	_, err = tx.Exec(`UPDATE "Tunnel" SET 
 		status = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, 
-		name = ?, restart = ?, 
+		name = ?, mode = ?, restart = ?, 
 		tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?, 
 		tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, 
 		password = ?, min = ?, max = ?, 
 		lastEventTime = ?, updatedAt = ? 
 		WHERE endpointId = ? AND instanceId = ?`,
 		newStatus, e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx,
-		newName, newRestart,
+		newName, newMode, newRestart,
 		cfg.TunnelAddress, cfg.TunnelPort, cfg.TargetAddress, cfg.TargetPort,
 		cfg.TLSMode, cfg.CertPath, cfg.KeyPath, cfg.LogLevel, ptrString(e.URL),
 		cfg.Password, minVal, maxVal,

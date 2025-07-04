@@ -239,7 +239,7 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                       variant="bordered"
                       selectedKeys={[formData.mode]}
                       onSelectionChange={(keys)=> handleField('mode', Array.from(keys)[0] as string)}
-                      isDisabled={modalMode==='edit'}
+                      // isDisabled={modalMode==='edit'}
                     >
                       <SelectItem key="server">服务端</SelectItem>
                       <SelectItem key="client">客户端</SelectItem>

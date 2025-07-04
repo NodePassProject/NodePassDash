@@ -2618,8 +2618,8 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 
 	if !success {
 		// 超时，直接更新本地数据库
-		_, _ = h.tunnelService.DB().Exec(`UPDATE "Tunnel" SET name = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?, tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, status = ?, updatedAt = ? WHERE id = ?`,
-			raw.Name, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine, "running", time.Now(), tunnelID)
+		_, _ = h.tunnelService.DB().Exec(`UPDATE "Tunnel" SET name = ?, mode = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?, tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, status = ?, updatedAt = ? WHERE id = ?`,
+			raw.Name, raw.Mode, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine, "running", time.Now(), tunnelID)
 	}
 
 	json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: true, Message: "编辑实例成功"})

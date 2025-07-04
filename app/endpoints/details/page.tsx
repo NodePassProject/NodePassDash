@@ -489,13 +489,13 @@ export default function EndpointDetailPage() {
                   <p className="text-small font-mono truncate">{endpointDetail.url}{endpointDetail.apiPath}</p>
                 </div>
 
-                <div className="space-y-2">
+                {(endpointDetail.uptime == null || endpointDetail.uptime == 0) &&(<div className="space-y-2">
                   <div className="flex items-center gap-2 text-small text-default-500">
                     <FontAwesomeIcon icon={faKey} />
                     <span>API Key</span>
                   </div>
                   <p className="text-small font-mono truncate">••••••••••••••••••••••••••••••••</p>
-                </div>
+                </div>)}
 
                 {/* 系统信息 */}
                 {endpointDetail.os && (
