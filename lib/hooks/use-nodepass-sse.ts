@@ -6,6 +6,7 @@ interface NodePassSSEOptions {
   onError?: (error: any) => void;
   onConnected?: () => void;
   onDisconnected?: () => void;
+  autoReconnect?: boolean; // 是否自动重连，默认false
 }
 
 interface NodePassEndpoint {
@@ -19,12 +20,19 @@ export function useNodePassSSE(endpoint: NodePassEndpoint | null, options: NodeP
   const [isConnecting, setIsConnecting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
+  const eventSourceRef = useRef<EventSource | null>(null);
+  const connectionAttemptedRef = useRef(false);
 
   const cleanup = () => {
+    if (eventSourceRef.current) {
+      eventSourceRef.current.close();
+      eventSourceRef.current = null;
+    }
     if (abortControllerRef.current) {
       abortControllerRef.current.abort();
       abortControllerRef.current = null;
     }
+    connectionAttemptedRef.current = false;
   };
 
   const connect = (endpoint: NodePassEndpoint) => {
@@ -32,6 +40,7 @@ export function useNodePassSSE(endpoint: NodePassEndpoint | null, options: NodeP
       cleanup();
       setIsConnecting(true);
       setError(null);
+      connectionAttemptedRef.current = true;
 
       // 使用后端代理接口连接NodePass SSE
       const proxyUrl = buildApiUrl(`/api/sse/nodepass-proxy?endpointId=${btoa(JSON.stringify({
@@ -45,6 +54,7 @@ export function useNodePassSSE(endpoint: NodePassEndpoint | null, options: NodeP
       const eventSource = new EventSource(proxyUrl);
       
       // 存储EventSource引用以便清理
+      eventSourceRef.current = eventSource;
       abortControllerRef.current = { abort: () => eventSource.close() } as AbortController;
 
       eventSource.onopen = () => {
@@ -133,6 +143,15 @@ export function useNodePassSSE(endpoint: NodePassEndpoint | null, options: NodeP
         setIsConnected(false);
         setError('连接失败');
 
+        // 如果不允许自动重连，则彻底关闭连接
+        if (!options.autoReconnect) {
+          console.log('[NodePass SSE] 自动重连已禁用，关闭连接');
+          eventSource.close();
+          if (eventSourceRef.current === eventSource) {
+            eventSourceRef.current = null;
+          }
+        }
+
         if (options.onError) {
           options.onError(error);
         }
@@ -159,6 +178,9 @@ export function useNodePassSSE(endpoint: NodePassEndpoint | null, options: NodeP
   // 手动重连功能
   const reconnect = () => {
     if (endpoint && !isConnecting) {
+      console.log('[NodePass SSE] 手动重连');
+      cleanup(); // 确保清理之前的连接
+      setError(null);
       connect(endpoint);
     }
   };
@@ -171,7 +193,10 @@ export function useNodePassSSE(endpoint: NodePassEndpoint | null, options: NodeP
       return;
     }
 
-    connect(endpoint);
+    // 只在首次或者依赖项变化时连接
+    if (!connectionAttemptedRef.current || !eventSourceRef.current) {
+      connect(endpoint);
+    }
 
     return () => {
       cleanup();

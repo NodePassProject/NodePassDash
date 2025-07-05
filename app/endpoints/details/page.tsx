@@ -262,6 +262,7 @@ export default function EndpointDetailPage() {
       apiKey: endpointDetail.apiKey
     } : null,
     {
+      autoReconnect: false, // 禁用自动重连
       onConnected: () => {
         console.log('[Endpoint SSE] 连接到NodePass成功');
         addToast({
@@ -319,7 +320,7 @@ export default function EndpointDetailPage() {
         console.error('[Endpoint SSE] 连接错误:', error);
         addToast({
           title: "实时连接失败",
-          description: "无法连接到NodePass，请检查主控状态",
+          description: "无法连接到NodePass，请检查主控状态。如需重连请手动点击重连按钮。",
           color: "danger",
         });
       },
@@ -676,7 +677,7 @@ export default function EndpointDetailPage() {
               <span className="text-sm text-default-500">
                 {isConnected ? '已连接' : 
                  isConnecting ? '连接中...' : 
-                 error ? '连接失败' : '未连接'}
+                 error ? '连接失败（需手动重连）' : '未连接'}
               </span>
             </div>
           </div>

@@ -640,20 +640,20 @@ export default function EndpointsPage() {
                     handleDeleteClick(endpoint);
                     break;
                 }}}>
-              <DropdownItem key="addTunnel" startContent={<FontAwesomeIcon icon={faPlus}/>} className="text-primary" color="primary">添加实例</DropdownItem>
-              <DropdownItem key="refresTunnel" startContent={<FontAwesomeIcon icon={faSync}/>} className="text-secondary" color="secondary">同步实例</DropdownItem>
-              <DropdownItem key="rename" startContent={<FontAwesomeIcon icon={faPen} />} className="text-warning" color="warning">重命名</DropdownItem>
-              <DropdownItem key="editApiKey" startContent={<FontAwesomeIcon icon={faKey} />} className="text-warning" color="warning">修改密钥</DropdownItem>
-              <DropdownItem key="copy" startContent={<FontAwesomeIcon icon={faCopy}/>} className="text-success" color="success">复制配置</DropdownItem>
+              <DropdownItem key="addTunnel" startContent={<FontAwesomeIcon icon={faPlus} fixedWidth/>} className="text-primary" color="primary">添加实例</DropdownItem>
+              <DropdownItem key="refresTunnel" startContent={<FontAwesomeIcon icon={faSync} fixedWidth/>} className="text-secondary" color="secondary">同步实例</DropdownItem>
+              <DropdownItem key="rename" startContent={<FontAwesomeIcon icon={faPen} fixedWidth/>} className="text-warning" color="warning">重命名</DropdownItem>
+              <DropdownItem key="editApiKey" startContent={<FontAwesomeIcon icon={faKey} fixedWidth/>} className="text-warning" color="warning">修改密钥</DropdownItem>
+              <DropdownItem key="copy" startContent={<FontAwesomeIcon icon={faCopy} fixedWidth/>} className="text-success" color="success">复制配置</DropdownItem>
               <DropdownItem 
                 key="toggle" 
-                startContent={<FontAwesomeIcon icon={realTimeData.status==='ONLINE'?faPlugCircleXmark:faPlug}/> }
+                startContent={<FontAwesomeIcon icon={realTimeData.status==='ONLINE'?faPlugCircleXmark:faPlug} fixedWidth/> }
                 color={realTimeData.status==='ONLINE' ? 'warning' : 'success'}
                 className={realTimeData.status==='ONLINE' ? 'text-warning' : 'text-success'}
               >
                 {realTimeData.status==='ONLINE'?'断开连接':'连接主控'}
               </DropdownItem>
-              <DropdownItem key="delete" className="text-danger" color="danger" startContent={<FontAwesomeIcon icon={faTrash}/>}>删除主控</DropdownItem>
+              <DropdownItem key="delete" className="text-danger" color="danger" startContent={<FontAwesomeIcon icon={faTrash} fixedWidth/>}>删除主控</DropdownItem>
             </DropdownMenu>
           </Dropdown>
         </div>

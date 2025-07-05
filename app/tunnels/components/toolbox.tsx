@@ -345,19 +345,19 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
               aria-label="批量操作"
               onAction={(key) => onBulkAction?.(key as string)}
             >
-              <DropdownItem key="start" startContent={<FontAwesomeIcon icon={faPlay} />} className="text-success">
+              <DropdownItem key="start" startContent={<FontAwesomeIcon icon={faPlay} fixedWidth/>} className="text-success">
                 批量启动
               </DropdownItem>
-              <DropdownItem key="stop" startContent={<FontAwesomeIcon icon={faStop} />} className="text-warning">
+              <DropdownItem key="stop" startContent={<FontAwesomeIcon icon={faStop} fixedWidth/>} className="text-warning">
                 批量停止
               </DropdownItem>
-              <DropdownItem key="restart" startContent={<FontAwesomeIcon icon={faRotateRight} />} className="text-primary">
+              <DropdownItem key="restart" startContent={<FontAwesomeIcon icon={faRotateRight} fixedWidth/>} className="text-secondary">
                 批量重启
               </DropdownItem>
-              <DropdownItem key="export" startContent={<FontAwesomeIcon icon={faDownload} />}>
+              <DropdownItem key="export" startContent={<FontAwesomeIcon icon={faDownload} fixedWidth/>} className="text-primary">
                 批量导出
               </DropdownItem>
-              <DropdownItem key="delete" startContent={<FontAwesomeIcon icon={faTrash} />} className="text-danger">
+              <DropdownItem key="delete" startContent={<FontAwesomeIcon icon={faTrash} fixedWidth/>} className="text-danger">
                 批量删除
               </DropdownItem>
             </DropdownMenu>

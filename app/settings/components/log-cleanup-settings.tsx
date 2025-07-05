@@ -436,38 +436,46 @@ export default function LogCleanupSettings() {
 
       {/* 配置信息卡片 */}
       <Card className="p-2">
-        <CardHeader className="flex gap-3">
+        <CardHeader className="flex flex-col sm:flex-row gap-3 sm:gap-3">
           <div className="flex flex-col flex-1">
             <p className="text-lg font-semibold">日志清理配置</p>
             <p className="text-sm text-default-500">管理日志自动清理规则</p>
           </div>
-          <div className="flex gap-2">
+          <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Button
               color="primary"
               variant="ghost"
+              size="sm"
+              className="sm:size-md"
               startContent={<FontAwesomeIcon icon={faGears} />}
               onPress={onOpen}
             >
-              配置清理规则
+              <span className="hidden sm:inline">配置清理规则</span>
+              <span className="sm:hidden">配置</span>
             </Button>
             <Button
               color="danger"
               variant="ghost"
+              size="sm"
+              className="sm:size-md"
               isLoading={clearingSSE}
               startContent={<FontAwesomeIcon icon={faTrash} />}
               onPress={onClearSSEOpen}
             >
-              清空SSE记录
+              <span className="hidden sm:inline">清空SSE记录</span>
+              <span className="sm:hidden">清空SSE</span>
             </Button>
             <Button
               color="secondary"
+              size="sm"
+              className="sm:size-md"
               isLoading={triggering}
               startContent={<FontAwesomeIcon icon={faPlay} />}
               onPress={handleTriggerCleanup}
             >
-              清理日志
+              <span className="hidden sm:inline">清理日志</span>
+              <span className="sm:hidden">清理</span>
             </Button>
-
           </div>
         </CardHeader>
         <Divider />
