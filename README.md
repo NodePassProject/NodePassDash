@@ -1,6 +1,6 @@
 # 🚀 NodePassDash
 
-![Version](https://img.shields.io/badge/version-2.1.3-blue.svg)
+![Version](https://img.shields.io/badge/version-2.1.4-blue.svg)
 ![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)
 
 NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + Next.js 14、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
@@ -97,7 +97,7 @@ NodePassDash v2.0.0 提供了命令行参数来管理和配置应用：
 ### 管理工具
 
 ```bash
-# 重置管理员密码
+# 重置管理员密码，注：重置后需要重启服务
 ./nodepassdash --resetpwd
 # 系统会提示输入新的用户名和密码
 # 数据库维护（检查和修复）
@@ -109,7 +109,7 @@ NodePassDash v2.0.0 提供了命令行参数来管理和配置应用：
 ### Docker 环境下使用
 
 ```bash
-# 在运行中的容器内重置密码
+# 在运行中的容器内重置密码，注：重置后需要重启容器
 docker exec -it nodepassdash ./nodepassdash --resetpwd
 
 # 使用自定义端口启动容器

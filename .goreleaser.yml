@@ -160,7 +160,7 @@ release:
     ## NodePassDash {{ .Tag }}
     
     ### Fix
-    - 紧急修复适配1.4.3的主控表迁移和新增字段的问题导致的错误
+    - 修复实例编辑的min和max设置为0无效的问题
 
   footer: |
     

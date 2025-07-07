@@ -163,8 +163,8 @@ NodePassDash 支持以下环境变量进行配置：
 # 禁用用户名密码登录
 /opt/nodepassdash/bin/nodepassdash --disable-login
 
-# 重置管理员密码
-/opt/nodepassdash/bin/nodepassdash --reset-pwd
+# 重置管理员密码，注：重置后需要重启服务
+/opt/nodepassdash/bin/nodepassdash --resetpwd
 ```
 
 **参数说明：**
@@ -173,7 +173,7 @@ NodePassDash 支持以下环境变量进行配置：
 - `--key`: 指定 SSL/TLS 私钥文件路径（启用 HTTPS）
 - `--log-level`: 设置日志级别（debug/info/warn/error，默认：info）
 - `--disable-login`: 禁用登录验证（适用于内网环境）
-- `--reset-pwd`: 重置管理员密码
+- `--resetpwd`: 重置管理员密码
 - `--help`: 显示帮助信息
 - `--version`: 显示版本信息
 
@@ -387,8 +387,8 @@ case "$1" in
     reset-password)
         echo "重置管理员密码..."
         sudo systemctl stop $SERVICE_NAME
-        sudo -u nodepass $BINARY_PATH --reset-pwd
-        sudo systemctl start $SERVICE_NAME
+        sudo -u nodepass $BINARY_PATH --resetpwd
+        sudo systemctl restart $SERVICE_NAME
         ;;
     config)
         show_config

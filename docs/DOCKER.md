@@ -35,13 +35,13 @@ docker logs nodepassdash | grep -A 6 "系统初始化完成"
 
 - **密码修改**: 请在首次登录后立即修改管理员密码
 - **密码保存**: 初始密码仅显示一次，请务必及时保存
-- **密码重置**: 如果忘记密码，可以使用 `--reset-pwd` 命令重置：
+- **密码重置**: 如果忘记密码，可以使用 `--resetpwd` 命令重置(注：重置后需要重启容器)：
   ```bash
-  # Docker 容器中重置密码
-  docker exec -it nodepassdash ./nodepassdash --reset-pwd
+  # Docker 容器中重置密码(注：需要重启容器)
+  docker exec -it nodepassdash ./nodepassdash --resetpwd
   
   # 或停止容器后手动运行
-  docker run --rm -v ./public:/app/public ghcr.io/nodepassproject/nodepassdash:latest ./nodepassdash --reset-pwd
+  docker run --rm -v ./public:/app/public ghcr.io/nodepassproject/nodepassdash:latest ./nodepassdash --resetpwd
   ```
 
 ### 方式一：使用预构建镜像（推荐）
@@ -133,7 +133,7 @@ docker run -d \
 
 #### 管理命令
 ```bash
-# 重置管理员密码
+# 重置管理员密码(注：需要重启容器)
 docker exec -it nodepassdash ./nodepassdash --resetpwd
 
 # 查看容器日志
@@ -270,7 +270,7 @@ docker exec -it nodepassdash ps aux | grep nodepassdash
 
 #### 4. 忘记管理员密码
 ```bash
-# 方法一：在运行中的容器内重置
+# 方法一：在运行中的容器内重置(注：需要重启容器)
 docker exec -it nodepassdash ./nodepassdash --resetpwd
 
 # 方法二：停止容器后重置（推荐）
