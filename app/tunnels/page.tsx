@@ -26,7 +26,8 @@ import {
   Select,
   SelectItem,
   Code,
-  Tooltip
+  Tooltip,
+  SortDescriptor
 } from "@heroui/react";
 import { Selection } from "@react-types/shared";
 import React, { useCallback, useEffect, useMemo, useState } from 'react';
@@ -154,6 +155,20 @@ export default function TunnelsPage() {
 
   // 表格多选
   const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set<string>());
+
+  // 排序状态
+  const [sortDescriptor, setSortDescriptor] = useState({
+    column: undefined as string | undefined,
+    direction: "ascending" as "ascending" | "descending",
+  });
+
+  // 排序处理函数
+  const handleSortChange = (descriptor: any) => {
+    setSortDescriptor({
+      column: String(descriptor.column),
+      direction: descriptor.direction,
+    });
+  };
 
   // 获取实例列表
   const fetchTunnels = async () => {
@@ -706,9 +721,9 @@ export default function TunnelsPage() {
 
 
   const columns = [
-    { key: "type", label: "类型" },
-    { key: "name", label: "名称" },
-    { key: "endpoint", label: "主控" },
+    { key: "type", label: "类型", sortable: false },
+    { key: "name", label: "名称", sortable: true },
+    { key: "endpoint", label: "主控", sortable: false },
     { 
       key: "tunnelAddress", 
       label: (
@@ -722,7 +737,8 @@ export default function TunnelsPage() {
             />
           </Tooltip>
         </div>
-      )
+      ),
+      sortable: false
     },
     { 
       key: "targetAddress", 
@@ -737,9 +753,10 @@ export default function TunnelsPage() {
             />
           </Tooltip>
         </div>
-      )
+      ),
+      sortable: false
     },
-    { key: "status", label: "状态" },
+    { key: "status", label: "状态", sortable: false  },
     { 
       key: "traffic", 
       label: (
@@ -760,9 +777,10 @@ export default function TunnelsPage() {
             />
           </Tooltip>
         </div>
-      )
+      ),
+      sortable: false
     },
-    { key: "actions", label: "操作" },
+    { key: "actions", label: "操作", sortable: false },
   ];
 
   // 更新实例状态的函数
@@ -924,8 +942,32 @@ export default function TunnelsPage() {
       });
     }
 
+    // 添加排序逻辑
+    if (sortDescriptor.column) {
+      filtered.sort((a, b) => {
+        let first: string | number = "";
+        let second: string | number = "";
+
+        // 特殊处理name字段的排序
+        if (sortDescriptor.column === "name") {
+          first = (a.name || "").toLowerCase();
+          second = (b.name || "").toLowerCase();
+        } else {
+          // 其他字段可以在这里扩展
+          const aVal = a[sortDescriptor.column as keyof Tunnel];
+          const bVal = b[sortDescriptor.column as keyof Tunnel];
+          first = String(aVal || "").toLowerCase();
+          second = String(bVal || "").toLowerCase();
+        }
+
+        const cmp = first < second ? -1 : first > second ? 1 : 0;
+
+        return sortDescriptor.direction === "descending" ? -cmp : cmp;
+      });
+    }
+
     return filtered;
-  }, [tunnels, filterValue, statusFilter, endpointFilter]);
+  }, [tunnels, filterValue, statusFilter, endpointFilter, sortDescriptor]);
 
   const pages = Math.ceil(filteredItems.length / rowsPerPage);
   const items = React.useMemo(() => {
@@ -1276,6 +1318,8 @@ export default function TunnelsPage() {
                   selectionMode="multiple"
                   selectedKeys={selectedKeys}
                   onSelectionChange={setSelectedKeys}
+                  sortDescriptor={sortDescriptor}
+                  onSortChange={handleSortChange}
                   aria-label="实例实例表格"
                   className="min-w-full"
                   classNames={{
@@ -1297,6 +1341,7 @@ export default function TunnelsPage() {
                           column.key === "type" ? "w-[80px]" :
                           column.key === "endpoint" ? "w-[120px]" : ""
                         }
+                        allowsSorting={column.sortable}
                       >
                         {column.label}
                       </TableColumn>
