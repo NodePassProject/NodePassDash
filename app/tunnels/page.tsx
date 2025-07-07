@@ -82,6 +82,9 @@ interface Tunnel {
     text: string;
   };
   avatar: string;
+  // 客户端模式的连接池配置
+  min?: number;
+  max?: number;
   // 流量统计信息
   traffic?: {
     tcpRx: number;

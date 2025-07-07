@@ -257,10 +257,12 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 			t.EndpointName = endpointNameNS.String
 		}
 		if minNS.Valid {
-			t.Min = int(minNS.Int64)
+			minVal := int(minNS.Int64)
+			t.Min = &minVal
 		}
 		if maxNS.Valid {
-			t.Max = int(maxNS.Int64)
+			maxVal := int(maxNS.Int64)
+			t.Max = &maxVal
 		}
 
 		t.Mode = TunnelMode(modeStr)
@@ -502,11 +504,21 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		LogLevel:      req.LogLevel,
 		CommandLine:   commandLine,
 		Password:      req.Password,
-		Min:           req.Min,
-		Max:           req.Max,
-		Restart:       req.Restart,
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		Min: func() *int {
+			if req.Min >= 0 {
+				return &req.Min
+			}
+			return nil
+		}(),
+		Max: func() *int {
+			if req.Max >= 0 {
+				return &req.Max
+			}
+			return nil
+		}(),
+		Restart:   req.Restart,
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
 	// 更新端点隧道计数
@@ -1260,11 +1272,21 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 			LogLevel:      req.LogLevel,
 			CommandLine:   commandLine,
 			Password:      req.Password,
-			Min:           req.Min,
-			Max:           req.Max,
-			Restart:       req.Restart,
-			CreatedAt:     now,
-			UpdatedAt:     now,
+			Min: func() *int {
+				if req.Min >= 0 {
+					return &req.Min
+				}
+				return nil
+			}(),
+			Max: func() *int {
+				if req.Max >= 0 {
+					return &req.Max
+				}
+				return nil
+			}(),
+			Restart:   req.Restart,
+			CreatedAt: now,
+			UpdatedAt: now,
 		}
 
 		log.Infof("[API] 隧道创建成功（等待模式）: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, tunnel.InstanceID)
@@ -1367,11 +1389,21 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		LogLevel:      req.LogLevel,
 		CommandLine:   commandLine,
 		Password:      req.Password,
-		Min:           req.Min,
-		Max:           req.Max,
-		Restart:       req.Restart,
-		CreatedAt:     now,
-		UpdatedAt:     now,
+		Min: func() *int {
+			if req.Min >= 0 {
+				return &req.Min
+			}
+			return nil
+		}(),
+		Max: func() *int {
+			if req.Max >= 0 {
+				return &req.Max
+			}
+			return nil
+		}(),
+		Restart:   req.Restart,
+		CreatedAt: now,
+		UpdatedAt: now,
 	}
 
 	log.Infof("[API] 隧道创建成功（超时回退模式）: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, tunnel.InstanceID)

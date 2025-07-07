@@ -59,8 +59,8 @@ type Tunnel struct {
 	LogLevel      LogLevel     `json:"logLevel"`
 	CommandLine   string       `json:"commandLine"`
 	Password      string       `json:"password,omitempty"`
-	Min           int          `json:"min,omitempty"`
-	Max           int          `json:"max,omitempty"`
+	Min           *int         `json:"min"`
+	Max           *int         `json:"max"`
 	Restart       bool         `json:"restart"`
 	Status        TunnelStatus `json:"status"`
 	CreatedAt     time.Time    `json:"createdAt"`

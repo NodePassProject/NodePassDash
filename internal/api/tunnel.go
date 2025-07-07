@@ -2531,10 +2531,10 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 		// 处理 min/max
 		minVal, _ := parseInt(raw.Min)
 		maxVal, _ := parseInt(raw.Max)
-		if minVal > 0 {
+		if minVal >= 0 {
 			queryParams = append(queryParams, fmt.Sprintf("min=%d", minVal))
 		}
-		if maxVal > 0 {
+		if maxVal >= 0 {
 			queryParams = append(queryParams, fmt.Sprintf("max=%d", maxVal))
 		}
 	}
@@ -2573,6 +2573,8 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 			}
 
 			// 重新创建
+			minVal, _ := parseInt(raw.Min)
+			maxVal, _ := parseInt(raw.Max)
 			createReq := tunnel.CreateTunnelRequest{
 				Name:          raw.Name,
 				EndpointID:    raw.EndpointID,
@@ -2586,6 +2588,8 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 				KeyPath:       raw.KeyPath,
 				LogLevel:      tunnel.LogLevel(raw.LogLevel),
 				Password:      raw.Password,
+				Min:           minVal,
+				Max:           maxVal,
 			}
 			newTunnel, crtErr := h.tunnelService.CreateTunnelAndWait(createReq, 3*time.Second)
 			if crtErr != nil {
@@ -2618,8 +2622,10 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 
 	if !success {
 		// 超时，直接更新本地数据库
-		_, _ = h.tunnelService.DB().Exec(`UPDATE "Tunnel" SET name = ?, mode = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?, tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, status = ?, updatedAt = ? WHERE id = ?`,
-			raw.Name, raw.Mode, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine, "running", time.Now(), tunnelID)
+		minVal, _ := parseInt(raw.Min)
+		maxVal, _ := parseInt(raw.Max)
+		_, _ = h.tunnelService.DB().Exec(`UPDATE "Tunnel" SET name = ?, mode = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?, tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, min = ?, max = ?, status = ?, updatedAt = ? WHERE id = ?`,
+			raw.Name, raw.Mode, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine, minVal, maxVal, "running", time.Now(), tunnelID)
 	}
 
 	json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: true, Message: "编辑实例成功"})

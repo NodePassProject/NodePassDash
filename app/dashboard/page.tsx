@@ -582,7 +582,7 @@ export default function DashboardPage() {
                       <div className="flex items-center gap-2">
                         <div 
                           className={cn(
-                            "text-xs text-default-600 font-mono cursor-pointer transition-all duration-300 flex-1 truncate",
+                            "text-xs text-default-600 font-mono cursor-pointer transition-all duration-300 flex-1 truncate rounded-md px-1 py-0.5",
                             !visibleUrls.has(endpoint.id) && "blur-[4px] hover:blur-none",
                             "hover:text-primary"
                           )}

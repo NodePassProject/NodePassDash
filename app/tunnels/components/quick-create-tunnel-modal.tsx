@@ -127,8 +127,8 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
         tlsMode: editData.tlsMode || prev.tlsMode,
         logLevel: editData.logLevel || prev.logLevel,
         password: editData.password || '',
-        min: editData.min!==undefined? String(editData.min):'',
-        max: editData.max!==undefined? String(editData.max):'',
+        min: editData.min != null ? String(editData.min) : '',
+        max: editData.max != null ? String(editData.max) : '',
         certPath: editData.certPath || '',
         keyPath: editData.keyPath || '',
         apiEndpoint: String(editData.endpointId || prev.apiEndpoint)
@@ -181,8 +181,8 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
           keyPath: mode==='server' && tlsMode==='mode2' ? keyPath.trim() : undefined,
           logLevel,
           password: password || undefined,
-          min: mode==='client' && min ? min : undefined,
-          max: mode==='client' && max ? max : undefined
+          min: mode==='client' && min !== '' ? min : undefined,
+          max: mode==='client' && max !== '' ? max : undefined
         })
       });
       const data = await res.json();
