@@ -159,8 +159,8 @@ release:
   header: |
     ## NodePassDash {{ .Tag }}
     
-    ### Fix
-    - 修复实例编辑的min和max设置为0无效的问题
+    ### Feature
+    - 分组管理
 
   footer: |
     
