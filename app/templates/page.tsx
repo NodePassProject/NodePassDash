@@ -1476,6 +1476,8 @@ export default function TemplatesPage() {
     }
   };
 
+  // 移除了前端的分组创建逻辑，现在由后端自动处理
+
   // 处理创建应用
   const handleCreateApplication = async () => {
     const requestData = buildTemplateRequest();
@@ -1494,11 +1496,12 @@ export default function TemplatesPage() {
     addToast({
       timeout: 1,
       title: '正在创建场景中...',
-      description: selectedMode === 'bothway' ? '正在创建场景中，请稍候' : '正在创建场景中，请稍候',
+      description: '正在创建隧道和分组，请稍候',
       color: 'primary'
     });
 
     try {
+      // 第一步：创建隧道
       const response = await fetch(buildApiUrl('/api/tunnels/template'), {
         method: 'POST',
         headers: {
@@ -1509,22 +1512,22 @@ export default function TemplatesPage() {
 
       const result = await response.json();
 
-      if (response.ok && result.success) {
-        addToast({
-          title: '创建成功！',
-          description: result.message || '隧道已成功创建',
-          color: 'success'
-        });
-        
-        // 延迟跳转到隧道列表页面
-        setTimeout(() => {
-          router.push('/tunnels');
-        }, 1500);
-      } else {
-        throw new Error(result.error || '创建失败');
+      if (!response.ok || !result.success) {
+        throw new Error(result.error || '创建隧道失败');
       }
+
+      addToast({
+        title: '创建成功！',
+        description: `${result.message || '隧道已成功创建'}，分组也已自动创建`,
+        color: 'success'
+      });
+      
+      // 延迟跳转到分组页面
+      setTimeout(() => {
+        router.push('/groups');
+      }, 1500);
     } catch (error) {
-      console.error('创建隧道失败:', error);
+      console.error('创建失败:', error);
       addToast({
         title: '创建失败',
         description: error instanceof Error ? error.message : '未知错误',

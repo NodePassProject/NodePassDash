@@ -26,6 +26,7 @@ type Router struct {
 	dashboardHandler *DashboardHandler
 	dataHandler      *DataHandler
 	versionHandler   *VersionHandler
+	groupHandler     *GroupHandler
 }
 
 // NewRouter 创建路由器实例
@@ -58,6 +59,7 @@ func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Ro
 	dataHandler := NewDataHandler(db, sseManager)
 	dashboardHandler := NewDashboardHandler(dashboardService)
 	versionHandler := NewVersionHandler()
+	groupHandler := NewGroupHandler(db)
 
 	r := &Router{
 		router:           router,
@@ -69,6 +71,7 @@ func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Ro
 		dashboardHandler: dashboardHandler,
 		dataHandler:      dataHandler,
 		versionHandler:   versionHandler,
+		groupHandler:     groupHandler,
 	}
 
 	// 注册路由
@@ -198,6 +201,13 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/version/current", r.versionHandler.HandleGetCurrentVersion).Methods("GET")
 	r.router.HandleFunc("/api/version/check-update", r.versionHandler.HandleCheckUpdate).Methods("GET")
 	r.router.HandleFunc("/api/version/update-info", r.versionHandler.HandleGetUpdateInfo).Methods("GET")
+
+	// 分组相关路由
+	r.router.HandleFunc("/api/groups", r.groupHandler.HandleGetGroups).Methods("GET")
+	r.router.HandleFunc("/api/groups", r.groupHandler.HandleCreateGroup).Methods("POST")
+	r.router.HandleFunc("/api/groups/{id}", r.groupHandler.HandleUpdateGroup).Methods("PUT")
+	r.router.HandleFunc("/api/groups/{id}", r.groupHandler.HandleDeleteGroup).Methods("DELETE")
+	r.router.HandleFunc("/api/groups/from-template", r.groupHandler.HandleCreateGroupFromTemplate).Methods("POST")
 	r.router.HandleFunc("/api/version/history", r.versionHandler.HandleGetReleaseHistory).Methods("GET")
 	r.router.HandleFunc("/api/version/deployment-info", r.versionHandler.HandleGetDeploymentInfo).Methods("GET")
 	r.router.HandleFunc("/api/version/auto-update", r.versionHandler.HandleAutoUpdate).Methods("POST")

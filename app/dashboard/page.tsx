@@ -456,7 +456,7 @@ export default function DashboardPage() {
                 <span className="text-default-600 text-xs md:text-sm">离线</span>
                 <span className="text-xl md:text-2xl font-semibold text-default-500">{loading ? "--" : stats.offline}</span>
               </div>
-              <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg bg-default/10 text-default-500">
+              <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg bg-default/40 text-default-500">
                 <Icon icon="solar:adhesive-plaster-bold-duotone" width={20} className="md:w-6 md:h-6" />
               </div>
             </div>

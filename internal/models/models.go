@@ -109,3 +109,45 @@ type UserSession struct {
 	ExpiresAt time.Time `json:"expiresAt" db:"expiresAt"`
 	IsActive  bool      `json:"isActive" db:"isActive"`
 }
+
+// TunnelGroup 隧道分组
+type TunnelGroup struct {
+	ID          int       `json:"id" db:"id"`
+	Name        string    `json:"name" db:"name"`
+	Description string    `json:"description" db:"description"`
+	Type        string    `json:"type" db:"type"` // single, double, custom
+	Color       string    `json:"color" db:"color"`
+	CreatedAt   time.Time `json:"created_at" db:"created_at"`
+	UpdatedAt   time.Time `json:"updated_at" db:"updated_at"`
+}
+
+// TunnelGroupMember 隧道分组成员
+type TunnelGroupMember struct {
+	ID        int       `json:"id" db:"id"`
+	GroupID   int       `json:"group_id" db:"group_id"`
+	TunnelID  string    `json:"tunnel_id" db:"tunnel_id"`
+	Role      string    `json:"role" db:"role"` // source, target, member
+	CreatedAt time.Time `json:"created_at" db:"created_at"`
+}
+
+// TunnelGroupWithMembers 分组及其成员信息
+type TunnelGroupWithMembers struct {
+	TunnelGroup
+	Members []TunnelGroupMember `json:"members"`
+}
+
+// CreateTunnelGroupRequest 创建分组请求
+type CreateTunnelGroupRequest struct {
+	Name        string `json:"name" binding:"required"`
+	Description string `json:"description"`
+	Type        string `json:"type" binding:"required"` // single, double, custom
+	TunnelIDs   []int  `json:"tunnel_ids"`
+}
+
+// UpdateTunnelGroupRequest 更新分组请求
+type UpdateTunnelGroupRequest struct {
+	Name        string `json:"name"`
+	Description string `json:"description"`
+	Type        string `json:"type"`
+	TunnelIDs   []int  `json:"tunnel_ids"`
+}

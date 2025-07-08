@@ -334,16 +334,25 @@ func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 如果不是移入回收站，先获取端点ID用于后续清理文件日志
+	// 在删除前先获取隧道数据库ID，用于清理分组关系和文件日志
+	var tunnelID int64
 	var endpointID int64
 	var shouldClearLogs = !req.Recycle
-	if shouldClearLogs {
-		// 在删除前先获取端点ID
-		if err := h.tunnelService.DB().QueryRow(`SELECT endpointId FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&endpointID); err != nil {
-			// 如果从Tunnel表获取失败，尝试从EndpointSSE表获取
+	if err := h.tunnelService.DB().QueryRow(`SELECT id, endpointId FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&tunnelID, &endpointID); err != nil {
+		// 如果从Tunnel表获取失败，尝试从EndpointSSE表获取端点ID
+		if shouldClearLogs {
 			if err := h.tunnelService.DB().QueryRow(`SELECT DISTINCT endpointId FROM "EndpointSSE" WHERE instanceId = ? LIMIT 1`, req.InstanceID).Scan(&endpointID); err != nil {
 				log.Warnf("[API] 无法获取端点ID用于清理文件日志: instanceID=%s, err=%v", req.InstanceID, err)
 				shouldClearLogs = false
+			}
+		}
+	} else {
+		// 如果不是移入回收站，在删除前先解绑分组关系
+		if !req.Recycle {
+			if err := h.deleteTunnelFromGroups(tunnelID); err != nil {
+				log.Warnf("[API] 删除隧道分组关系失败: tunnelID=%d, err=%v", tunnelID, err)
+			} else {
+				log.Infof("[API] 已删除隧道分组关系: tunnelID=%d", tunnelID)
 			}
 		}
 	}
@@ -1339,6 +1348,64 @@ func (h *TunnelHandler) HandleQuickBatchCreateTunnel(w http.ResponseWriter, r *h
 	}
 }
 
+// getTunnelIDByName 通过隧道名称获取隧道数据库ID
+func (h *TunnelHandler) getTunnelIDByName(tunnelName string) (int64, error) {
+	var tunnelID int64
+	err := h.tunnelService.DB().QueryRow(`SELECT id FROM "Tunnel" WHERE name = ?`, tunnelName).Scan(&tunnelID)
+	return tunnelID, err
+}
+
+// createTunnelGroup 自动创建隧道分组
+func (h *TunnelHandler) createTunnelGroup(name, groupType, description string, tunnelIDs []int64) error {
+	db := h.tunnelService.DB()
+
+	// 开始事务
+	tx, err := db.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
+
+	// 插入分组记录
+	insertGroupQuery := `
+		INSERT INTO tunnel_groups (name, description, type, color, created_at, updated_at)
+		VALUES (?, ?, ?, ?, ?, ?)`
+
+	now := time.Now()
+	result, err := tx.Exec(insertGroupQuery, name, description, groupType, "#3B82F6", now, now)
+	if err != nil {
+		return err
+	}
+
+	groupID, err := result.LastInsertId()
+	if err != nil {
+		return err
+	}
+
+	// 添加分组成员
+	if len(tunnelIDs) > 0 {
+		insertMemberQuery := `
+			INSERT INTO tunnel_group_members (group_id, tunnel_id, role, created_at)
+			VALUES (?, ?, ?, ?)`
+
+		for _, tunnelID := range tunnelIDs {
+			_, err := tx.Exec(insertMemberQuery, groupID, strconv.FormatInt(tunnelID, 10), "member", now)
+			if err != nil {
+				return err
+			}
+		}
+	}
+
+	// 提交事务
+	return tx.Commit()
+}
+
+// deleteTunnelFromGroups 从所有分组中删除指定的隧道
+func (h *TunnelHandler) deleteTunnelFromGroups(tunnelID int64) error {
+	_, err := h.tunnelService.DB().Exec(`DELETE FROM tunnel_group_members WHERE tunnel_id = ?`, strconv.FormatInt(tunnelID, 10))
+	return err
+}
+
 // HandleTemplateCreate 处理模板创建请求
 func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -1443,9 +1510,19 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			return
 		}
 
+		// 获取创建的隧道ID并自动创建分组
+		tunnelID, err := h.getTunnelIDByName(tunnelName)
+		if err == nil {
+			groupName := endpointName
+			if err := h.createTunnelGroup(groupName, "single", "单端转发分组", []int64{tunnelID}); err != nil {
+				log.Warnf("[API] 自动创建分组失败: %v", err)
+			}
+		}
+
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
-			Success: true,
-			Message: "单端转发隧道创建成功",
+			Success:   true,
+			Message:   "单端转发隧道创建成功",
+			TunnelIDs: []int64{tunnelID}, // 返回创建的隧道ID
 		})
 
 	case "bothway":
@@ -1598,9 +1675,26 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		log.Infof("[API] 步骤2完成: client端隧道创建成功")
 		log.Infof("[API] 双端隧道创建完成")
 
+		// 获取创建的隧道ID并自动创建分组
+		var tunnelIDs []int64
+		if serverTunnelID, err := h.getTunnelIDByName(serverTunnelName); err == nil {
+			tunnelIDs = append(tunnelIDs, serverTunnelID)
+		}
+		if clientTunnelID, err := h.getTunnelIDByName(clientTunnelName); err == nil {
+			tunnelIDs = append(tunnelIDs, clientTunnelID)
+		}
+
+		if len(tunnelIDs) > 0 {
+			groupName := fmt.Sprintf("%s->%s", serverEndpoint.Name, clientEndpoint.Name)
+			if err := h.createTunnelGroup(groupName, "double", "双端转发分组", tunnelIDs); err != nil {
+				log.Warnf("[API] 自动创建分组失败: %v", err)
+			}
+		}
+
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
-			Success: true,
-			Message: "双端转发隧道创建成功",
+			Success:   true,
+			Message:   "双端转发隧道创建成功",
+			TunnelIDs: tunnelIDs, // 返回创建的隧道ID列表
 		})
 
 	case "intranet":
@@ -1753,9 +1847,26 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		log.Infof("[API] 步骤2完成: client端隧道创建成功")
 		log.Infof("[API] 内网穿透隧道创建完成")
 
+		// 获取创建的隧道ID并自动创建分组
+		var tunnelIDs []int64
+		if serverTunnelID, err := h.getTunnelIDByName(serverTunnelName); err == nil {
+			tunnelIDs = append(tunnelIDs, serverTunnelID)
+		}
+		if clientTunnelID, err := h.getTunnelIDByName(clientTunnelName); err == nil {
+			tunnelIDs = append(tunnelIDs, clientTunnelID)
+		}
+
+		if len(tunnelIDs) > 0 {
+			groupName := fmt.Sprintf("%s->%s", clientEndpoint.Name, serverEndpoint.Name)
+			if err := h.createTunnelGroup(groupName, "intranet", "内网穿透分组", tunnelIDs); err != nil {
+				log.Warnf("[API] 自动创建分组失败: %v", err)
+			}
+		}
+
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
-			Success: true,
-			Message: "内网穿透隧道创建成功",
+			Success:   true,
+			Message:   "内网穿透隧道创建成功",
+			TunnelIDs: tunnelIDs, // 返回创建的隧道ID列表
 		})
 
 	default:
@@ -1835,12 +1946,14 @@ func (h *TunnelHandler) HandleBatchDeleteTunnels(w http.ResponseWriter, r *http.
 		return
 	}
 
-	// 如果不是移入回收站，预先获取端点ID用于清理文件日志
+	// 如果不是移入回收站，预先获取隧道ID和端点ID用于清理分组关系和文件日志
 	var instanceEndpointMap = make(map[string]int64)
+	var instanceTunnelMap = make(map[string]int64)
 	if !req.Recycle {
 		for _, iid := range req.InstanceIDs {
-			var endpointID int64
-			if err := h.tunnelService.DB().QueryRow(`SELECT endpointId FROM "Tunnel" WHERE instanceId = ?`, iid).Scan(&endpointID); err == nil {
+			var tunnelID, endpointID int64
+			if err := h.tunnelService.DB().QueryRow(`SELECT id, endpointId FROM "Tunnel" WHERE instanceId = ?`, iid).Scan(&tunnelID, &endpointID); err == nil {
+				instanceTunnelMap[iid] = tunnelID
 				instanceEndpointMap[iid] = endpointID
 			} else {
 				// 尝试从EndpointSSE表获取
@@ -1855,6 +1968,18 @@ func (h *TunnelHandler) HandleBatchDeleteTunnels(w http.ResponseWriter, r *http.
 	var resp batchDeleteResponse
 	for _, iid := range req.InstanceIDs {
 		r := itemResult{InstanceID: iid}
+
+		// 如果不是移入回收站，先解绑分组关系
+		if !req.Recycle {
+			if tunnelID, exists := instanceTunnelMap[iid]; exists {
+				if err := h.deleteTunnelFromGroups(tunnelID); err != nil {
+					log.Warnf("[API] 批量删除-删除隧道分组关系失败: tunnelID=%d, instanceID=%s, err=%v", tunnelID, iid, err)
+				} else {
+					log.Infof("[API] 批量删除-已删除隧道分组关系: tunnelID=%d, instanceID=%s", tunnelID, iid)
+				}
+			}
+		}
+
 		if err := h.tunnelService.DeleteTunnelAndWait(iid, 3*time.Second, req.Recycle); err != nil {
 			r.Success = false
 			r.Error = err.Error()

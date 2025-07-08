@@ -59,6 +59,49 @@ export const LogLevel = {
 
 export type LogLevelType = typeof LogLevel[keyof typeof LogLevel];
 
+// 隧道类型枚举
+export const TunnelType = {
+  SINGLE: 'single',      // 单端
+  DOUBLE: 'double',      // 双端
+  PENETRATE: 'penetrate', // 穿透
+  CUSTOM: 'custom'       // 自定义
+} as const;
+
+export type TunnelTypeKey = keyof typeof TunnelType;
+export type TunnelTypeValue = typeof TunnelType[TunnelTypeKey];
+
+// 分组接口定义
+export interface TunnelGroup {
+  id: string;
+  name: string;
+  description?: string;
+  type: TunnelTypeValue; // 分组类型：single、double、intranet、custom
+  color?: string;
+  tunnelIds: string[];
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// 场景接口定义
+export interface TunnelScene {
+  id: string;
+  name: string;
+  description?: string;
+  groups: TunnelGroup[];
+  isDefault?: boolean;
+  createdAt: Date;
+  updatedAt: Date;
+}
+
+// 隧道连接关系接口（用于可视化双端/穿透显示）
+export interface TunnelConnection {
+  id: string;
+  sourceId: string;  // 入口端隧道ID
+  targetId: string;  // 出口端隧道ID
+  type: TunnelTypeValue;
+  description?: string;
+}
+
 // 接口定义
 export interface Endpoint {
   id: string;
@@ -78,6 +121,7 @@ export interface Tunnel {
   id: string;
   name: string;
   endpointId: string;
+  endpointName?: string; // 主控名称
   mode: TunnelModeType;
   status: TunnelStatusType;
   tunnelAddress: string;

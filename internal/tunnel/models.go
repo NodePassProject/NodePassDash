@@ -213,8 +213,9 @@ type TunnelActionRequest struct {
 
 // TunnelResponse API 响应
 type TunnelResponse struct {
-	Success bool        `json:"success"`
-	Message string      `json:"message,omitempty"`
-	Error   string      `json:"error,omitempty"`
-	Tunnel  interface{} `json:"tunnel,omitempty"`
+	Success   bool        `json:"success"`
+	Message   string      `json:"message,omitempty"`
+	Error     string      `json:"error,omitempty"`
+	Tunnel    interface{} `json:"tunnel,omitempty"`
+	TunnelIDs []int64     `json:"tunnel_ids,omitempty"` // 创建的隧道ID列表
 }
