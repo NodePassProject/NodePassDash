@@ -466,6 +466,11 @@ func (m *Manager) markEndpointFail(endpointID int64) {
 	// 仅当确实修改了行时再打印成功日志
 	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
 		log.Infof("[Master-%d#SSE]更新状态为 FAIL", endpointID)
+
+		// 将该端点下的所有隧道标记为离线
+		if err := m.setTunnelsOfflineForEndpoint(endpointID); err != nil {
+			log.Errorf("[Master-%d#SSE]设置隧道离线状态失败: %v", endpointID, err)
+		}
 	}
 }
 
@@ -482,7 +487,33 @@ func (m *Manager) markEndpointDisconnect(endpointID int64) {
 	// 仅当确实修改了行时再打印成功日志
 	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
 		log.Infof("[Master-%d#SSE]更新状态为 DISCONNECT", endpointID)
+
+		// 将该端点下的所有隧道标记为离线
+		if err := m.setTunnelsOfflineForEndpoint(endpointID); err != nil {
+			log.Errorf("[Master-%d#SSE]设置隧道离线状态失败: %v", endpointID, err)
+		}
 	}
+}
+
+// setTunnelsOfflineForEndpoint 将指定端点下的所有隧道标记为离线状态
+func (m *Manager) setTunnelsOfflineForEndpoint(endpointID int64) error {
+	// 更新该端点下所有隧道的状态为离线
+	res, err := m.db.Exec(`
+		UPDATE "Tunnel" 
+		SET status = 'offline', updatedAt = CURRENT_TIMESTAMP 
+		WHERE endpointId = ? AND status != 'offline'
+	`, endpointID)
+
+	if err != nil {
+		return err
+	}
+
+	// 获取受影响的行数
+	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
+		log.Infof("[Master-%d#SSE]已将 %d 个隧道状态更新为离线", endpointID, rows)
+	}
+
+	return nil
 }
 
 // markEndpointOnline 更新端点状态为 ONLINE

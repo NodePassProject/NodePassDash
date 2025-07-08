@@ -9,6 +9,7 @@ type DashboardStats struct {
 		RunningTunnels int64 `json:"runningTunnels"` // 运行中的隧道数
 		StoppedTunnels int64 `json:"stoppedTunnels"` // 已停止的隧道数
 		ErrorTunnels   int64 `json:"errorTunnels"`   // 错误状态的隧道数
+		OfflineTunnels int64 `json:"offlineTunnels"` // 离线状态的隧道数
 		TotalTraffic   int64 `json:"totalTraffic"`   // 总流量
 	} `json:"overview"`
 

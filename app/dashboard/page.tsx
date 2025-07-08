@@ -49,6 +49,7 @@ interface TunnelStats {
   running: number;
   stopped: number;
   error: number;
+  offline: number;
 }
 
 // 实例实例类型（用于统计）
@@ -138,7 +139,7 @@ const getBestUnit = (values: number[]) => {
  */
 export default function DashboardPage() {
   const router = useRouter();
-  const [stats, setStats] = useState<TunnelStats>({ total: 0, running: 0, stopped: 0, error: 0 });
+  const [stats, setStats] = useState<TunnelStats>({ total: 0, running: 0, stopped: 0, error: 0, offline: 0 });
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [operationLogs, setOperationLogs] = useState<OperationLog[]>([]);
@@ -252,6 +253,7 @@ export default function DashboardPage() {
         running: tunnels.filter(t => t.status.type === 'success').length,
         stopped: tunnels.filter(t => t.status.type === 'danger').length,
         error: tunnels.filter(t => t.status.type === 'warning').length,
+        offline: tunnels.filter(t => t.status.text === '离线').length,
       };
       
       setStats(newStats);
@@ -370,7 +372,7 @@ export default function DashboardPage() {
   return (
     <div className="space-y-4 md:space-y-6 p-4 md:p-0">
       {/* 顶部统计卡片 - 响应式网格布局 */}
-      <div className="grid grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
+      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
         <Card 
           className="p-3 md:p-4 bg-gradient-to-br from-primary-50 to-primary-100/50 dark:from-primary-900/20 dark:to-primary-900/10 cursor-pointer transition-transform hover:scale-[1.02]"
           isPressable
@@ -438,6 +440,24 @@ export default function DashboardPage() {
               </div>
               <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg bg-warning/10 text-warning">
                 <Icon icon="solar:danger-triangle-bold" width={20} className="md:w-6 md:h-6" />
+              </div>
+            </div>
+          </CardBody>
+        </Card>
+
+        <Card 
+          className="p-3 md:p-4 bg-gradient-to-br from-default-50 to-default-100/50 dark:from-default-900/20 dark:to-default-900/10 cursor-pointer transition-transform hover:scale-[1.02]"
+          isPressable
+          onPress={() => router.push("/tunnels?status=offline")}
+        >
+          <CardBody className="p-0">
+            <div className="flex justify-between items-center">
+              <div className="flex flex-col gap-1">
+                <span className="text-default-600 text-xs md:text-sm">离线</span>
+                <span className="text-xl md:text-2xl font-semibold text-default-500">{loading ? "--" : stats.offline}</span>
+              </div>
+              <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg bg-default/10 text-default-500">
+                <Icon icon="solar:adhesive-plaster-bold-duotone" width={20} className="md:w-6 md:h-6" />
               </div>
             </div>
           </CardBody>

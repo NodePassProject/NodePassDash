@@ -114,6 +114,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
     { label: "运行中", value: "running" },
     { label: "已停止", value: "stopped" },
     { label: "错误", value: "error" },
+    { label: "离线", value: "offline" },
   ];
 
   const getSelectedEndpointName = () => {

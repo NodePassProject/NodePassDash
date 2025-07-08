@@ -157,15 +157,18 @@ export default function TunnelsPage() {
   const [selectedKeys, setSelectedKeys] = useState<Selection>(new Set<string>());
 
   // 排序状态
-  const [sortDescriptor, setSortDescriptor] = useState({
-    column: undefined as string | undefined,
-    direction: "ascending" as "ascending" | "descending",
+  const [sortDescriptor, setSortDescriptor] = useState<{
+    column: string | null;
+    direction: "ascending" | "descending";
+  }>({
+    column: null,
+    direction: "ascending",
   });
 
   // 排序处理函数
   const handleSortChange = (descriptor: any) => {
     setSortDescriptor({
-      column: String(descriptor.column),
+      column: descriptor.column ? String(descriptor.column) : null,
       direction: descriptor.direction,
     });
   };
@@ -215,7 +218,8 @@ export default function TunnelsPage() {
     { label: "所有状态", value: "all" },
     { label: "运行中", value: "running" },
     { label: "已停止", value: "stopped" },
-    { label: "错误", value: "error" },
+    { label: "有错误", value: "error" },
+    { label: "已离线", value: "offline" },
   ];
 
   // 获取选中主控名称
@@ -930,6 +934,8 @@ export default function TunnelsPage() {
             return item.status.type === "danger";
           case "error":
             return item.status.type === "warning";
+          case "offline":
+            return item.status.text === "离线";
           default:
             return true;
         }
@@ -1318,8 +1324,13 @@ export default function TunnelsPage() {
                   selectionMode="multiple"
                   selectedKeys={selectedKeys}
                   onSelectionChange={setSelectedKeys}
-                  sortDescriptor={sortDescriptor}
-                  onSortChange={handleSortChange}
+                  {...(sortDescriptor.column ? { 
+                    sortDescriptor: { 
+                      column: sortDescriptor.column, 
+                      direction: sortDescriptor.direction 
+                    },
+                    onSortChange: handleSortChange 
+                  } : {})}
                   aria-label="实例实例表格"
                   className="min-w-full"
                   classNames={{

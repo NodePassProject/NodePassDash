@@ -299,6 +299,9 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		case StatusError:
 			t.StatusInfo.Type = "warning"
 			t.StatusInfo.Text = "错误"
+		case StatusOffline:
+			t.StatusInfo.Type = "default"
+			t.StatusInfo.Text = "离线"
 		default:
 			t.StatusInfo.Type = "danger"
 			t.StatusInfo.Text = "已停止"

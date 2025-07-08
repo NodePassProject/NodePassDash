@@ -43,6 +43,7 @@ func (s *Service) GetStats(timeRange TimeRange) (*DashboardStats, error) {
 			COUNT(DISTINCT CASE WHEN t.status = 'running' THEN t.id END) as running_tunnels,
 			COUNT(DISTINCT CASE WHEN t.status = 'stopped' THEN t.id END) as stopped_tunnels,
 			COUNT(DISTINCT CASE WHEN t.status = 'error' THEN t.id END) as error_tunnels,
+			COUNT(DISTINCT CASE WHEN t.status = 'offline' THEN t.id END) as offline_tunnels,
 			COALESCE(SUM(t.tcpRx + t.tcpTx + t.udpRx + t.udpTx), 0) as total_traffic
 		FROM "Endpoint" e
 		LEFT JOIN "Tunnel" t ON e.id = t.endpointId
@@ -53,6 +54,7 @@ func (s *Service) GetStats(timeRange TimeRange) (*DashboardStats, error) {
 		&stats.Overview.RunningTunnels,
 		&stats.Overview.StoppedTunnels,
 		&stats.Overview.ErrorTunnels,
+		&stats.Overview.OfflineTunnels,
 		&stats.Overview.TotalTraffic,
 	)
 	if err != nil {

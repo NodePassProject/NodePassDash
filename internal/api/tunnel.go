@@ -1001,7 +1001,10 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		statusText = "运行中"
 	} else if tunnelRecord.Status == "error" {
 		statusType = "warning"
-		statusText = "错误"
+		statusText = "有错误"
+	} else if tunnelRecord.Status == "offline" {
+		statusType = "default"
+		statusText = "已离线"
 	}
 
 	// 端口转换

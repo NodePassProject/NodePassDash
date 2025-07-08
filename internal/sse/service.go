@@ -274,11 +274,39 @@ func (s *Service) updateEndpointStatus(endpointID int64, status models.EndpointS
 	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
 		log.Infof("[Master-%d#SSE]端点状态已更新为: %s", endpointID, status)
 
+		// 如果端点状态变为离线，将该端点下的所有隧道标记为离线
+		if status == models.EndpointStatusOffline {
+			if err := s.setTunnelsOfflineForEndpoint(endpointID); err != nil {
+				log.Errorf("[Master-%d#SSE]设置隧道离线状态失败: %v", endpointID, err)
+			}
+		}
+
 		// 通知Manager状态变化
 		if s.manager != nil {
 			s.manager.NotifyEndpointStatusChanged(endpointID, string(status))
 		}
 	}
+}
+
+// setTunnelsOfflineForEndpoint 将指定端点下的所有隧道标记为离线状态
+func (s *Service) setTunnelsOfflineForEndpoint(endpointID int64) error {
+	// 更新该端点下所有隧道的状态为离线
+	res, err := s.db.Exec(`
+		UPDATE "Tunnel" 
+		SET status = 'offline', updatedAt = CURRENT_TIMESTAMP 
+		WHERE endpointId = ? AND status != 'offline'
+	`, endpointID)
+
+	if err != nil {
+		return err
+	}
+
+	// 获取受影响的行数
+	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
+		log.Infof("[Master-%d#SSE]已将 %d 个隧道状态更新为离线", endpointID, rows)
+	}
+
+	return nil
 }
 
 // StartStoreWorkers 启动固定数量的事件持久化 worker
@@ -932,7 +960,7 @@ func (s *Service) handleInitialEvent(e models.EndpointSSE) {
 		return
 	}
 	cfg := parseInstanceURL(ptrString(e.URL), *e.InstanceType)
-	if err := s.withTx(func(tx *sql.Tx) error { return s.tunnelCreate(tx, e, cfg) }); err != nil {
+	if err := s.withTx(func(tx *sql.Tx) error { return s.tunnelCreateOrUpdate(tx, e, cfg) }); err != nil {
 	}
 }
 
@@ -1157,6 +1185,84 @@ func (s *Service) tunnelDelete(tx *sql.Tx, endpointID int64, instanceID string) 
 		SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
 	) WHERE id = ?`, endpointID, endpointID)
 	return err
+}
+
+// tunnelCreateOrUpdate 根据隧道是否存在来决定创建或更新
+func (s *Service) tunnelCreateOrUpdate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) error {
+	exists, err := s.tunnelExists(tx, e.EndpointID, e.InstanceID)
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		log.Infof("[Master-%d#SSE]Inst.%s已存在，执行更新操作", e.EndpointID, e.InstanceID)
+		return s.tunnelUpdate(tx, e, cfg)
+	} else {
+		log.Infof("[Master-%d#SSE]Inst.%s不存在，执行创建操作", e.EndpointID, e.InstanceID)
+		// 直接执行创建逻辑（从tunnelCreate复制，但跳过存在性检查）
+
+		// 如果 SSE 事件包含 alias，使用 alias 作为隧道名称，否则使用 instanceID
+		name := e.InstanceID
+		if e.Alias != nil && *e.Alias != "" {
+			name = *e.Alias
+			log.Infof("[Master-%d#SSE]Inst.%s使用别名作为隧道名称: %s", e.EndpointID, e.InstanceID, name)
+		}
+
+		if cfg.LogLevel == "" {
+			cfg.LogLevel = "inherit"
+		}
+		if e.InstanceType != nil && *e.InstanceType == "server" {
+			if cfg.TLSMode == "" {
+				cfg.TLSMode = "inherit"
+			}
+		}
+
+		// 处理重启策略字段
+		restart := false // 默认值为 false
+		if e.Restart != nil {
+			restart = *e.Restart
+			log.Infof("[Master-%d#SSE]Inst.%s创建隧道时设置重启策略: %t", e.EndpointID, e.InstanceID, restart)
+		}
+
+		_, err = tx.Exec(`INSERT INTO "Tunnel" (
+			instanceId, endpointId, name, mode,
+			status, tunnelAddress, tunnelPort, targetAddress, targetPort,
+			tlsMode, certPath, keyPath, logLevel, commandLine,
+			password, min, max,
+			tcpRx, tcpTx, udpRx, udpTx,
+			restart, createdAt, updatedAt, lastEventTime
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+			e.InstanceID, e.EndpointID, name, ptrStringDefault(e.InstanceType, ""), ptrStringDefault(e.Status, "stopped"),
+			cfg.TunnelAddress, cfg.TunnelPort, cfg.TargetAddress, cfg.TargetPort,
+			cfg.TLSMode, cfg.CertPath, cfg.KeyPath, cfg.LogLevel, ptrString(e.URL),
+			cfg.Password,
+			func() interface{} {
+				if cfg.Min != "" {
+					return cfg.Min
+				}
+				return nil
+			}(),
+			func() interface{} {
+				if cfg.Max != "" {
+					return cfg.Max
+				}
+				return nil
+			}(),
+			e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, restart, time.Now(), time.Now(), e.EventTime,
+		)
+		if err != nil {
+			log.Errorf("[Master-%d#SSE]Inst.%s创建隧道失败,err=%v", e.EndpointID, e.InstanceID, err)
+			return err
+		}
+		log.Infof("[Master-%d#SSE]Inst.%s创建隧道成功", e.EndpointID, e.InstanceID)
+
+		// 更新端点隧道计数
+		_, err = tx.Exec(`UPDATE "Endpoint" SET tunnelCount = (
+			SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
+		) WHERE id = ?`, e.EndpointID, e.EndpointID)
+		log.Infof("[Master-%d#SSE]更新端点隧道计数", e.EndpointID)
+		return err
+	}
 }
 
 func (s *Service) withTx(fn func(*sql.Tx) error) error {

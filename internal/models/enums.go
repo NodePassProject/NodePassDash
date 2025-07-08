@@ -29,6 +29,7 @@ const (
 	TunnelStatusRunning TunnelStatus = "running"
 	TunnelStatusStopped TunnelStatus = "stopped"
 	TunnelStatusError   TunnelStatus = "error"
+	TunnelStatusOffline TunnelStatus = "offline"
 )
 
 // TunnelMode 隧道模式枚举
