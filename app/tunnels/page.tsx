@@ -105,7 +105,14 @@ export default function TunnelsPage() {
   const [filterValue, setFilterValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [endpointFilter, setEndpointFilter] = useState("all");
-  const [rowsPerPage, setRowsPerPage] = useState(10);
+  const [rowsPerPage, setRowsPerPage] = useState(() => {
+    // 从 localStorage 读取保存的每页显示数量，默认为 10
+    if (typeof window !== 'undefined') {
+      const saved = localStorage.getItem('tunnels-rows-per-page');
+      return saved ? parseInt(saved, 10) : 10;
+    }
+    return 10;
+  });
   const [page, setPage] = useState(1);
   const [deleteModalTunnel, setDeleteModalTunnel] = useState<Tunnel | null>(null);
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
@@ -1532,8 +1539,13 @@ export default function TunnelsPage() {
                   selectedKeys={[String(rowsPerPage)]}
                   onSelectionChange={(keys) => {
                     const value = Array.from(keys)[0] as string;
-                    setRowsPerPage(Number(value));
+                    const newRowsPerPage = Number(value);
+                    setRowsPerPage(newRowsPerPage);
                     setPage(1);
+                    // 保存到 localStorage
+                    if (typeof window !== 'undefined') {
+                      localStorage.setItem('tunnels-rows-per-page', String(newRowsPerPage));
+                    }
                   }}
                 >
                   <SelectItem key="10">10</SelectItem>
