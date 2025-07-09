@@ -160,7 +160,7 @@ release:
     ## NodePassDash {{ .Tag }}
     
     ### Feature
-    - 分组管理
+    - 隧道管理页显示数量支持持久化
 
   footer: |
     
