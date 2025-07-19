@@ -8,7 +8,8 @@ import {
   ModalHeader,
   Spinner,
   Select,
-  SelectItem
+  SelectItem,
+  Checkbox
 } from "@heroui/react";
 import { useEffect, useState } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -411,14 +412,15 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                   {/* 重置流量checkbox，仅编辑模式下显示 */}
                   {modalMode === 'edit' && (
                     <div className="flex items-center gap-2 mt-4">
-                      <input
-                        type="checkbox"
+                      <Checkbox
                         id="reset-traffic"
-                        checked={resetChecked}
-                        onChange={e => setResetChecked(e.target.checked)}
-                        disabled={resetLoading}
-                      />
-                      <label htmlFor="reset-traffic" className="text-sm select-none">保存后重置流量统计</label>
+                        isSelected={resetChecked}
+                        onValueChange={setResetChecked}
+                        isDisabled={resetLoading}
+                        size="sm"
+                      >
+                        保存后重置流量统计
+                      </Checkbox>
                     </div>
                   )}
                 </>
