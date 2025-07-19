@@ -587,6 +587,8 @@ func (m *Manager) processPayload(endpointID int64, payload string) {
 		TCPTx   int64  `json:"tcptx"`
 		UDPRx   int64  `json:"udprx"`
 		UDPTx   int64  `json:"udptx"`
+		Pool    *int64 `json:"pool,omitempty"` // 使用指针，兼容低版本
+		Ping    *int64 `json:"ping,omitempty"` // 使用指针，兼容低版本
 		Alias   string `json:"alias"`
 		Restart bool   `json:"restart"`
 	}
@@ -617,6 +619,8 @@ func (m *Manager) processPayload(endpointID int64, payload string) {
 		TCPTx:        inst.TCPTx,
 		UDPRx:        inst.UDPRx,
 		UDPTx:        inst.UDPTx,
+		Pool:         valueOrNilPtr(inst.Pool),
+		Ping:         valueOrNilPtr(inst.Ping),
 		Logs:         &logsStr,
 		Alias:        aliasPtr,
 		Restart:      restartPtr,
@@ -633,6 +637,19 @@ func (m *Manager) GetFileLogger() *log.FileLogger {
 		return m.service.GetFileLogger()
 	}
 	return nil
+}
+
+// valueOrNil 将指针值转换为int64，如果指针为nil则返回0
+func valueOrNil(p *int64) int64 {
+	if p == nil {
+		return 0
+	}
+	return *p
+}
+
+// valueOrNilPtr 将指针值转换为*int64，如果指针为nil则返回nil
+func valueOrNilPtr(p *int64) *int64 {
+	return p
 }
 
 // NotifyEndpointStatusChanged 通知端点状态变化

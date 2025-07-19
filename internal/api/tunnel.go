@@ -963,6 +963,8 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		TCPTx           int64
 		UDPRx           int64
 		UDPTx           int64
+		Pool            sql.NullInt64
+		Ping            sql.NullInt64
 		Min             sql.NullInt64
 		Max             sql.NullInt64
 		Restart         bool
@@ -971,7 +973,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 	query := `SELECT t.id, t.instanceId, t.name, t.mode, t.status, t.endpointId,
 		   e.name, e.tls, e.log, e.ver, t.tunnelPort, t.targetPort, t.tlsMode, t.logLevel,
 		   t.tunnelAddress, t.targetAddress, t.commandLine, t.password, t.certPath, t.keyPath,
-		   t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
+		   t.tcpRx, t.tcpTx, t.udpRx, t.udpTx, t.pool, t.ping,
 		   t.min, t.max, t.restart
 		   FROM "Tunnel" t
 		   LEFT JOIN "Endpoint" e ON t.endpointId = e.id
@@ -1001,6 +1003,8 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		&tunnelRecord.TCPTx,
 		&tunnelRecord.UDPRx,
 		&tunnelRecord.UDPTx,
+		&tunnelRecord.Pool,
+		&tunnelRecord.Ping,
 		&tunnelRecord.Min,
 		&tunnelRecord.Max,
 		&tunnelRecord.Restart,
@@ -1105,11 +1109,23 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 				}(),
 				"restart": tunnelRecord.Restart,
 			},
-			"traffic": map[string]int64{
+			"traffic": map[string]interface{}{
 				"tcpRx": tunnelRecord.TCPRx,
 				"tcpTx": tunnelRecord.TCPTx,
 				"udpRx": tunnelRecord.UDPRx,
 				"udpTx": tunnelRecord.UDPTx,
+				"pool": func() interface{} {
+					if tunnelRecord.Pool.Valid {
+						return tunnelRecord.Pool.Int64
+					}
+					return nil
+				}(),
+				"ping": func() interface{} {
+					if tunnelRecord.Ping.Valid {
+						return tunnelRecord.Ping.Int64
+					}
+					return nil
+				}(),
 			},
 			"tunnelAddress": tunnelRecord.TunnelAddress,
 			"targetAddress": tunnelRecord.TargetAddress,
@@ -2474,7 +2490,7 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(w http.ResponseWriter, r *ht
 
 	if instanceID.Valid && instanceID.String != "" {
 		// 流量趋势 - 查询24小时内的数据
-		trendRows, err := db.Query(`SELECT eventTime, tcpRx, tcpTx, udpRx, udpTx FROM "EndpointSSE" WHERE endpointId = ? AND instanceId = ? AND pushType IN ('update','initial') AND (tcpRx IS NOT NULL OR tcpTx IS NOT NULL OR udpRx IS NOT NULL OR udpTx IS NOT NULL) AND eventTime >= datetime('now', '-24 hours') ORDER BY eventTime ASC`, endpointID, instanceID.String)
+		trendRows, err := db.Query(`SELECT eventTime, tcpRx, tcpTx, udpRx, udpTx, pool, ping FROM "EndpointSSE" WHERE endpointId = ? AND instanceId = ? AND pushType IN ('update','initial') AND (tcpRx IS NOT NULL OR tcpTx IS NOT NULL OR udpRx IS NOT NULL OR udpTx IS NOT NULL) AND eventTime >= datetime('now', '-24 hours') ORDER BY eventTime ASC`, endpointID, instanceID.String)
 		if err == nil {
 			defer trendRows.Close()
 
@@ -2483,8 +2499,8 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(w http.ResponseWriter, r *ht
 
 			for trendRows.Next() {
 				var eventTime time.Time
-				var tcpRx, tcpTx, udpRx, udpTx sql.NullInt64
-				if err := trendRows.Scan(&eventTime, &tcpRx, &tcpTx, &udpRx, &udpTx); err == nil {
+				var tcpRx, tcpTx, udpRx, udpTx, pool, ping sql.NullInt64
+				if err := trendRows.Scan(&eventTime, &tcpRx, &tcpTx, &udpRx, &udpTx, &pool, &ping); err == nil {
 					// 格式化时间到分钟
 					minuteKey := eventTime.Format("2006-01-02 15:04")
 
@@ -2495,6 +2511,18 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(w http.ResponseWriter, r *ht
 						"tcpTx":     tcpTx.Int64,
 						"udpRx":     udpRx.Int64,
 						"udpTx":     udpTx.Int64,
+						"pool": func() interface{} {
+							if pool.Valid {
+								return pool.Int64
+							}
+							return nil
+						}(),
+						"ping": func() interface{} {
+							if ping.Valid {
+								return ping.Int64
+							}
+							return nil
+						}(),
 					}
 				}
 			}
@@ -2506,16 +2534,33 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(w http.ResponseWriter, r *ht
 				TcpTx     int64  `json:"tcpTx"`
 				UdpRx     int64  `json:"udpRx"`
 				UdpTx     int64  `json:"udpTx"`
+				Pool      *int64 `json:"pool,omitempty"`
+				Ping      *int64 `json:"ping,omitempty"`
 			}
 
 			var sortedPoints []TrafficPoint
 			for _, record := range minuteMap {
+				poolVal := func() *int64 {
+					if pool, ok := record["pool"].(int64); ok {
+						return &pool
+					}
+					return nil
+				}()
+				pingVal := func() *int64 {
+					if ping, ok := record["ping"].(int64); ok {
+						return &ping
+					}
+					return nil
+				}()
+
 				sortedPoints = append(sortedPoints, TrafficPoint{
 					EventTime: record["eventTime"].(string),
 					TcpRx:     record["tcpRx"].(int64),
 					TcpTx:     record["tcpTx"].(int64),
 					UdpRx:     record["udpRx"].(int64),
 					UdpTx:     record["udpTx"].(int64),
+					Pool:      poolVal,
+					Ping:      pingVal,
 				})
 			}
 
@@ -2550,14 +2595,39 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(w http.ResponseWriter, r *ht
 					udpTxDiff = current.UdpTx - previous.UdpTx
 				}
 
+				// 计算pool和ping的差值
+				poolDiff := int64(0)
+				if current.Pool != nil && previous.Pool != nil {
+					if *current.Pool >= *previous.Pool {
+						poolDiff = *current.Pool - *previous.Pool
+					}
+				}
+
+				pingDiff := int64(0)
+				if current.Ping != nil && previous.Ping != nil {
+					if *current.Ping >= *previous.Ping {
+						pingDiff = *current.Ping - *previous.Ping
+					}
+				}
+
 				// 添加差值数据到趋势中
-				trafficTrend = append(trafficTrend, map[string]interface{}{
+				trendData := map[string]interface{}{
 					"eventTime": current.EventTime,
 					"tcpRxDiff": float64(tcpRxDiff), // 确保JSON序列化为数字
 					"tcpTxDiff": float64(tcpTxDiff), // 确保JSON序列化为数字
 					"udpRxDiff": float64(udpRxDiff), // 确保JSON序列化为数字
 					"udpTxDiff": float64(udpTxDiff), // 确保JSON序列化为数字
-				})
+				}
+
+				// 只有当pool和ping有有效差值时才添加到数据中
+				if poolDiff > 0 {
+					trendData["poolDiff"] = float64(poolDiff)
+				}
+				if pingDiff > 0 {
+					trendData["pingDiff"] = float64(pingDiff)
+				}
+
+				trafficTrend = append(trafficTrend, trendData)
 			}
 
 			// 补充缺失的时间点到当前时间
@@ -2582,7 +2652,7 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(w http.ResponseWriter, r *ht
 							// 格式化为 "YYYY-MM-DD HH:mm" 格式
 							virtualTimeStr := currentTime.Format("2006-01-02 15:04")
 
-							// 添加虚拟数据点（所有流量差值都为0）
+							// 添加虚拟数据点（所有流量差值都为0，不包含pool和ping）
 							trafficTrend = append(trafficTrend, map[string]interface{}{
 								"eventTime": virtualTimeStr,
 								"tcpRxDiff": float64(0),
@@ -2924,7 +2994,7 @@ func (h *TunnelHandler) HandleExportTunnelLogs(w http.ResponseWriter, r *http.Re
 	sseRecords := []map[string]interface{}{}
 	rows, err := db.Query(`
 		SELECT id, eventType, pushType, eventTime, endpointId, instanceId, 
-		       instanceType, status, url, tcpRx, tcpTx, udpRx, udpTx, 
+		       instanceType, status, url, tcpRx, tcpTx, udpRx, udpTx, pool, ping,
 		       logs, createdAt, alias, restart
 		FROM "EndpointSSE" 
 		WHERE endpointId = ? AND instanceId = ?
@@ -2938,30 +3008,32 @@ func (h *TunnelHandler) HandleExportTunnelLogs(w http.ResponseWriter, r *http.Re
 
 		for rows.Next() {
 			var record struct {
-				ID           int64     `json:"id"`
-				EventType    string    `json:"eventType"`
-				PushType     string    `json:"pushType"`
-				EventTime    time.Time `json:"eventTime"`
-				EndpointID   int64     `json:"endpointId"`
-				InstanceID   string    `json:"instanceId"`
-				InstanceType *string   `json:"instanceType"`
-				Status       *string   `json:"status"`
-				URL          *string   `json:"url"`
-				TCPRx        int64     `json:"tcpRx"`
-				TCPTx        int64     `json:"tcpTx"`
-				UDPRx        int64     `json:"udpRx"`
-				UDPTx        int64     `json:"udpTx"`
-				Logs         *string   `json:"logs"`
-				CreatedAt    time.Time `json:"createdAt"`
-				Alias        *string   `json:"alias"`
-				Restart      *bool     `json:"restart"`
+				ID           int64         `json:"id"`
+				EventType    string        `json:"eventType"`
+				PushType     string        `json:"pushType"`
+				EventTime    time.Time     `json:"eventTime"`
+				EndpointID   int64         `json:"endpointId"`
+				InstanceID   string        `json:"instanceId"`
+				InstanceType *string       `json:"instanceType"`
+				Status       *string       `json:"status"`
+				URL          *string       `json:"url"`
+				TCPRx        int64         `json:"tcpRx"`
+				TCPTx        int64         `json:"tcpTx"`
+				UDPRx        int64         `json:"udpRx"`
+				UDPTx        int64         `json:"udpTx"`
+				Pool         sql.NullInt64 `json:"pool"`
+				Ping         sql.NullInt64 `json:"ping"`
+				Logs         *string       `json:"logs"`
+				CreatedAt    time.Time     `json:"createdAt"`
+				Alias        *string       `json:"alias"`
+				Restart      *bool         `json:"restart"`
 			}
 
 			err := rows.Scan(
 				&record.ID, &record.EventType, &record.PushType, &record.EventTime,
 				&record.EndpointID, &record.InstanceID, &record.InstanceType,
 				&record.Status, &record.URL, &record.TCPRx, &record.TCPTx,
-				&record.UDPRx, &record.UDPTx, &record.Logs, &record.CreatedAt,
+				&record.UDPRx, &record.UDPTx, &record.Pool, &record.Ping, &record.Logs, &record.CreatedAt,
 				&record.Alias, &record.Restart,
 			)
 
@@ -2982,7 +3054,19 @@ func (h *TunnelHandler) HandleExportTunnelLogs(w http.ResponseWriter, r *http.Re
 				"tcpTx":      record.TCPTx,
 				"udpRx":      record.UDPRx,
 				"udpTx":      record.UDPTx,
-				"createdAt":  record.CreatedAt.Format(time.RFC3339),
+				"pool": func() interface{} {
+					if record.Pool.Valid {
+						return record.Pool.Int64
+					}
+					return nil
+				}(),
+				"ping": func() interface{} {
+					if record.Ping.Valid {
+						return record.Ping.Int64
+					}
+					return nil
+				}(),
+				"createdAt": record.CreatedAt.Format(time.RFC3339),
 			}
 
 			// 添加可选字段
@@ -3014,12 +3098,12 @@ func (h *TunnelHandler) HandleExportTunnelLogs(w http.ResponseWriter, r *http.Re
 		writer, err := zipWriter.Create("sse_records.csv")
 		if err == nil {
 			// 写入CSV头部
-			csvHeader := "ID,EventType,PushType,EventTime,EndpointID,InstanceID,InstanceType,Status,URL,TCPRx,TCPTx,UDPRx,UDPTx,Logs,CreatedAt,Alias,Restart\n"
+			csvHeader := "ID,EventType,PushType,EventTime,EndpointID,InstanceID,InstanceType,Status,URL,TCPRx,TCPTx,UDPRx,UDPTx,Pool,Ping,Logs,CreatedAt,Alias,Restart\n"
 			writer.Write([]byte(csvHeader))
 
 			// 写入数据行
 			for _, record := range sseRecords {
-				csvLine := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
+				csvLine := fmt.Sprintf("%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v,%v\n",
 					getFieldValue(record, "id"),
 					getFieldValue(record, "eventType"),
 					getFieldValue(record, "pushType"),
@@ -3033,6 +3117,8 @@ func (h *TunnelHandler) HandleExportTunnelLogs(w http.ResponseWriter, r *http.Re
 					getFieldValue(record, "tcpTx"),
 					getFieldValue(record, "udpRx"),
 					getFieldValue(record, "udpTx"),
+					getFieldValue(record, "pool"),
+					getFieldValue(record, "ping"),
 					escapeCSVField(fmt.Sprintf("%v", getFieldValue(record, "logs"))),
 					getFieldValue(record, "createdAt"),
 					getFieldValue(record, "alias"),

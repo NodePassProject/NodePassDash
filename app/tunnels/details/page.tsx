@@ -74,6 +74,8 @@ interface TunnelInfo {
     tcpTx: number;
     udpRx: number;
     udpTx: number;
+    pool: number | null;
+    ping: number | null;
   };
   nodepassInfo: any;
   error?: string;
@@ -112,6 +114,8 @@ interface TrafficTrendData {
   tcpTxDiff: number;
   udpRxDiff: number;
   udpTxDiff: number;
+  poolDiff: number | null;
+  pingDiff: number | null;
 }
 
 // 添加流量单位转换函数
@@ -499,7 +503,9 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
               tcpRx: data.tcpRx,
               tcpTx: data.tcpTx,
               udpRx: data.udpRx,
-              udpTx: data.udpTx
+              udpTx: data.udpTx,
+              pool: data.pool || 0,
+              ping: data.ping || 0
         }
           } : null);
         }
@@ -958,6 +964,32 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   </div>
                 </CardBody>
               </Card>
+              
+              {tunnelInfo.traffic.pool !== null && (
+                <Card className="p-2 bg-cyan-50 dark:bg-cyan-950/30 shadow-none h-full">
+                  <CardBody className="p-2 md:p-3 flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <p className="text-xs text-cyan-600 dark:text-cyan-400 mb-1">连接池</p>
+                      <p className="text-sm md:text-lg font-bold text-cyan-700 dark:text-cyan-300">
+                        {tunnelInfo.traffic.pool}
+                      </p>
+                    </div>
+                  </CardBody>
+                </Card>
+              )}
+              
+              {tunnelInfo.traffic.ping !== null && tunnelInfo.type === 'server' && (
+                <Card className="p-2 bg-pink-50 dark:bg-pink-950/30 shadow-none h-full">
+                  <CardBody className="p-2 md:p-3 flex items-center justify-center h-full">
+                    <div className="text-center">
+                      <p className="text-xs text-pink-600 dark:text-pink-400 mb-1">延迟</p>
+                      <p className="text-sm md:text-lg font-bold text-pink-700 dark:text-pink-300">
+                        {tunnelInfo.traffic.ping}ms
+                      </p>
+                    </div>
+                  </CardBody>
+                </Card>
+              )}
             </div>
           </div>
         </CardBody>
@@ -1130,7 +1162,25 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                         y: parseFloat(((Number(item.udpTxDiff) || 0) / divisor).toFixed(2)),
                         unit: commonUnit
                       }))
-                    }
+                    },
+                    // 只在有pool数据时显示连接池趋势
+                    ...(filteredData.some((item: TrafficTrendData) => item.poolDiff !== null && item.poolDiff !== undefined) ? [{
+                      id: `连接池`,
+                      data: filteredData.map((item: TrafficTrendData) => ({
+                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
+                        y: Number(item.poolDiff) || 0,
+                        unit: '个'
+                      }))
+                    }] : []),
+                    // 只在有ping数据且为server类型时显示延迟趋势
+                    ...(tunnelInfo.type === 'server' && filteredData.some((item: TrafficTrendData) => item.pingDiff !== null && item.pingDiff !== undefined) ? [{
+                      id: `延迟`,
+                      data: filteredData.map((item: TrafficTrendData) => ({
+                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
+                        y: Number(item.pingDiff) || 0,
+                        unit: 'ms'
+                      }))
+                    }] : [])
                   ];
                   
                   return chartData;

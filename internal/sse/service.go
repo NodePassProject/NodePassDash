@@ -359,13 +359,13 @@ func (s *Service) storeEvent(event models.EndpointSSE) error {
 		INSERT INTO "EndpointSSE" (
 			eventType, pushType, eventTime, endpointId,
 			instanceId, instanceType, status, url,
-			tcpRx, tcpTx, udpRx, udpTx,
+			tcpRx, tcpTx, udpRx, udpTx, pool, ping,
 			logs, alias, restart, createdAt
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		event.EventType, event.PushType, event.EventTime, event.EndpointID,
 		event.InstanceID, event.InstanceType, event.Status, event.URL,
-		event.TCPRx, event.TCPTx, event.UDPRx, event.UDPTx,
+		event.TCPRx, event.TCPTx, event.UDPRx, event.UDPTx, event.Pool, event.Ping,
 		event.Logs, event.Alias, event.Restart, time.Now(),
 	)
 	if err != nil {
@@ -680,9 +680,9 @@ func (s *Service) updateTunnelData(event models.EndpointSSE) {
 					status, tunnelAddress, tunnelPort, targetAddress, targetPort,
 					tlsMode, certPath, keyPath, logLevel, commandLine,
 					password, min, max,
-					tcpRx, tcpTx, udpRx, udpTx,
+					tcpRx, tcpTx, udpRx, udpTx, pool, ping,
 					createdAt, updatedAt, lastEventTime
-				) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+				) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 					event.InstanceID,
 					event.EndpointID,
 					event.InstanceID,
@@ -714,6 +714,8 @@ func (s *Service) updateTunnelData(event models.EndpointSSE) {
 					event.TCPTx,
 					event.UDPRx,
 					event.UDPTx,
+					event.Pool,
+					event.Ping,
 					now,
 					now,
 					event.EventTime,
@@ -755,8 +757,8 @@ func (s *Service) updateTunnelData(event models.EndpointSSE) {
 					args = append(args, statusVal)
 				}
 
-				setParts = append(setParts, "tcpRx = ?", "tcpTx = ?", "udpRx = ?", "udpTx = ?", "lastEventTime = ?", "updatedAt = ?")
-				args = append(args, event.TCPRx, event.TCPTx, event.UDPRx, event.UDPTx, event.EventTime, now)
+				setParts = append(setParts, "tcpRx = ?", "tcpTx = ?", "udpRx = ?", "udpTx = ?", "pool = ?", "ping = ?", "lastEventTime = ?", "updatedAt = ?")
+				args = append(args, event.TCPRx, event.TCPTx, event.UDPRx, event.UDPTx, event.Pool, event.Ping, event.EventTime, now)
 
 				query := fmt.Sprintf(`UPDATE "Tunnel" SET %s WHERE instanceId = ?`, strings.Join(setParts, ", "))
 				args = append(args, event.InstanceID)
@@ -1044,9 +1046,9 @@ func (s *Service) tunnelCreate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 		status, tunnelAddress, tunnelPort, targetAddress, targetPort,
 		tlsMode, certPath, keyPath, logLevel, commandLine,
 		password, min, max,
-		tcpRx, tcpTx, udpRx, udpTx,
+		tcpRx, tcpTx, udpRx, udpTx, pool, ping,
 		restart, createdAt, updatedAt, lastEventTime
-	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+	) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		e.InstanceID, e.EndpointID, name, ptrStringDefault(e.InstanceType, ""), ptrStringDefault(e.Status, "stopped"),
 		cfg.TunnelAddress, cfg.TunnelPort, cfg.TargetAddress, cfg.TargetPort,
 		cfg.TLSMode, cfg.CertPath, cfg.KeyPath, cfg.LogLevel, ptrString(e.URL),
@@ -1063,7 +1065,7 @@ func (s *Service) tunnelCreate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 			}
 			return nil
 		}(),
-		e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, restart, time.Now(), time.Now(), e.EventTime,
+		e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, e.Pool, e.Ping, restart, time.Now(), time.Now(), e.EventTime,
 	)
 	if err != nil {
 		log.Errorf("[Master-%d#SSE]Inst.%s创建隧道失败,err=%v", e.EndpointID, e.InstanceID, err)
@@ -1153,14 +1155,14 @@ func (s *Service) tunnelUpdate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 	}()
 
 	_, err = tx.Exec(`UPDATE "Tunnel" SET 
-		status = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, 
+		status = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, pool = ?, ping = ?, 
 		name = ?, mode = ?, restart = ?, 
 		tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?, 
 		tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, 
 		password = ?, min = ?, max = ?, 
 		lastEventTime = ?, updatedAt = ? 
 		WHERE endpointId = ? AND instanceId = ?`,
-		newStatus, e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx,
+		newStatus, e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, e.Pool, e.Ping,
 		newName, newMode, newRestart,
 		cfg.TunnelAddress, cfg.TunnelPort, cfg.TargetAddress, cfg.TargetPort,
 		cfg.TLSMode, cfg.CertPath, cfg.KeyPath, cfg.LogLevel, ptrString(e.URL),
@@ -1240,9 +1242,9 @@ func (s *Service) tunnelCreateOrUpdate(tx *sql.Tx, e models.EndpointSSE, cfg par
 			status, tunnelAddress, tunnelPort, targetAddress, targetPort,
 			tlsMode, certPath, keyPath, logLevel, commandLine,
 			password, min, max,
-			tcpRx, tcpTx, udpRx, udpTx,
+			tcpRx, tcpTx, udpRx, udpTx, pool, ping,
 			restart, createdAt, updatedAt, lastEventTime
-		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 			e.InstanceID, e.EndpointID, name, ptrStringDefault(e.InstanceType, ""), ptrStringDefault(e.Status, "stopped"),
 			cfg.TunnelAddress, cfg.TunnelPort, cfg.TargetAddress, cfg.TargetPort,
 			cfg.TLSMode, cfg.CertPath, cfg.KeyPath, cfg.LogLevel, ptrString(e.URL),
@@ -1259,7 +1261,7 @@ func (s *Service) tunnelCreateOrUpdate(tx *sql.Tx, e models.EndpointSSE, cfg par
 				}
 				return nil
 			}(),
-			e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, restart, time.Now(), time.Now(), e.EventTime,
+			e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, e.Pool, e.Ping, restart, time.Now(), time.Now(), e.EventTime,
 		)
 		if err != nil {
 			log.Errorf("[Master-%d#SSE]Inst.%s创建隧道失败,err=%v", e.EndpointID, e.InstanceID, err)

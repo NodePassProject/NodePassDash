@@ -655,6 +655,22 @@ func initDatabase(db *sql.DB) error {
 		return err
 	}
 
+	// ---- 为 Tunnel 表添加 pool 和 ping 字段 ----
+	if err := ensureColumn(db, "Tunnel", "pool", "INTEGER DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "Tunnel", "ping", "INTEGER DEFAULT 0"); err != nil {
+		return err
+	}
+
+	// ---- 为 EndpointSSE 表添加 pool 和 ping 字段 ----
+	if err := ensureColumn(db, "EndpointSSE", "pool", "INTEGER DEFAULT 0"); err != nil {
+		return err
+	}
+	if err := ensureColumn(db, "EndpointSSE", "ping", "INTEGER DEFAULT 0"); err != nil {
+		return err
+	}
+
 	// ---- 创建分组表索引 ----
 	groupIndexes := []string{
 		`CREATE INDEX IF NOT EXISTS idx_tunnel_groups_name ON tunnel_groups(name)`,

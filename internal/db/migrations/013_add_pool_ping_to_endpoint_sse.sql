@@ -1,0 +1,3 @@
+-- 为EndpointSSE表添加pool和ping字段
+ALTER TABLE "EndpointSSE" ADD COLUMN pool INTEGER DEFAULT 0;
+ALTER TABLE "EndpointSSE" ADD COLUMN ping INTEGER DEFAULT 0; 

@@ -219,7 +219,7 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 			t.id, t.instanceId, t.name, t.endpointId, t.mode,
 			t.tunnelAddress, t.tunnelPort, t.targetAddress, t.targetPort,
 			t.tlsMode, t.certPath, t.keyPath, t.logLevel, t.commandLine,
-			t.password, t.restart, t.status, t.min, t.max, t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
+			t.password, t.restart, t.status, t.min, t.max, t.tcpRx, t.tcpTx, t.udpRx, t.udpTx, t.pool, t.ping,
 			t.createdAt, t.updatedAt,
 			e.name as endpointName,
 			tag.id as tagId, tag.name as tagName
@@ -246,11 +246,12 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		var minNS, maxNS sql.NullInt64
 		var tagIDNS sql.NullInt64
 		var tagNameNS sql.NullString
+		var poolNS, pingNS sql.NullInt64
 		err := rows.Scan(
 			&t.ID, &instanceID, &t.Name, &t.EndpointID, &modeStr,
 			&t.TunnelAddress, &t.TunnelPort, &t.TargetAddress, &t.TargetPort,
 			&tlsModeStr, &certPathNS, &keyPathNS, &logLevelStr, &t.CommandLine,
-			&passwordNS, &t.Restart, &statusStr, &minNS, &maxNS, &t.Traffic.TCPRx, &t.Traffic.TCPTx, &t.Traffic.UDPRx, &t.Traffic.UDPTx,
+			&passwordNS, &t.Restart, &statusStr, &minNS, &maxNS, &t.Traffic.TCPRx, &t.Traffic.TCPTx, &t.Traffic.UDPRx, &t.Traffic.UDPTx, &poolNS, &pingNS,
 			&t.CreatedAt, &t.UpdatedAt,
 			&endpointNameNS,
 			&tagIDNS, &tagNameNS,
@@ -280,6 +281,16 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		if maxNS.Valid {
 			maxVal := int(maxNS.Int64)
 			t.Max = &maxVal
+		}
+
+		// 处理pool和ping字段
+		if poolNS.Valid {
+			poolVal := poolNS.Int64
+			t.Traffic.Pool = &poolVal
+		}
+		if pingNS.Valid {
+			pingVal := pingNS.Int64
+			t.Traffic.Ping = &pingVal
 		}
 
 		// 处理标签信息

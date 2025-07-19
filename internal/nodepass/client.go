@@ -191,7 +191,9 @@ func (c *Client) doRequest(method, url string, body interface{}, dest interface{
 //	  "tcprx": 0,
 //	  "tcptx": 0,
 //	  "udprx": 0,
-//	  "udptx": 0
+//	  "udptx": 0,
+//	  "pool": 0,
+//	  "ping": 0
 //	}
 //
 // ]
@@ -208,6 +210,8 @@ type Instance struct {
 	TCPTx   int64  `json:"tcptx"`
 	UDPRx   int64  `json:"udprx"`
 	UDPTx   int64  `json:"udptx"`
+	Pool    *int64 `json:"pool,omitempty"`
+	Ping    *int64 `json:"ping,omitempty"`
 	Alias   string `json:"alias"`
 	Restart bool   `json:"restart"`
 }

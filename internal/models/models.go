@@ -44,6 +44,10 @@ type Tunnel struct {
 	UDPRx int64 `json:"udpRx" db:"udpRx"`
 	UDPTx int64 `json:"udpTx" db:"udpTx"`
 
+	// 连接池和延迟信息
+	Pool *int64 `json:"pool,omitempty" db:"pool"`
+	Ping *int64 `json:"ping,omitempty" db:"ping"`
+
 	CreatedAt     time.Time  `json:"createdAt" db:"createdAt"`
 	UpdatedAt     time.Time  `json:"updatedAt" db:"updatedAt"`
 	LastEventTime *time.Time `json:"lastEventTime,omitempty" db:"lastEventTime"`
@@ -79,6 +83,10 @@ type EndpointSSE struct {
 	TCPTx int64 `json:"tcpTx" db:"tcpTx"`
 	UDPRx int64 `json:"udpRx" db:"udpRx"`
 	UDPTx int64 `json:"udpTx" db:"udpTx"`
+
+	// 连接池和延迟信息
+	Pool *int64 `json:"pool,omitempty" db:"pool"`
+	Ping *int64 `json:"ping,omitempty" db:"ping"`
 
 	// 日志信息
 	Logs *string `json:"logs,omitempty" db:"logs"`

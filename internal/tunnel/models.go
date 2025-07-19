@@ -78,11 +78,13 @@ type Tag struct {
 type TunnelWithStats struct {
 	Tunnel
 	Traffic struct {
-		TCPRx     int64 `json:"tcpRx"`
-		TCPTx     int64 `json:"tcpTx"`
-		UDPRx     int64 `json:"udpRx"`
-		UDPTx     int64 `json:"udpTx"`
-		Total     int64 `json:"total"`
+		TCPRx     int64  `json:"tcpRx"`
+		TCPTx     int64  `json:"tcpTx"`
+		UDPRx     int64  `json:"udpRx"`
+		UDPTx     int64  `json:"udpTx"`
+		Pool      *int64 `json:"pool,omitempty"`
+		Ping      *int64 `json:"ping,omitempty"`
+		Total     int64  `json:"total"`
 		Formatted struct {
 			TCPRx string `json:"tcpRx"`
 			TCPTx string `json:"tcpTx"`

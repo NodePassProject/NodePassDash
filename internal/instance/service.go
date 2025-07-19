@@ -16,6 +16,8 @@ type Instance struct {
 	TcpTx  int64  `json:"tcp_tx"`
 	UdpRx  int64  `json:"udp_rx"`
 	UdpTx  int64  `json:"udp_tx"`
+	Pool   *int64 `json:"pool,omitempty"`
+	Ping   *int64 `json:"ping,omitempty"`
 	Error  string `json:"error,omitempty"`
 }
 
@@ -50,6 +52,8 @@ func (s *Service) GetInstances(endpointURL, endpointAPIPath, endpointAPIKey stri
 			TcpTx:  npInstance.TCPTx,
 			UdpRx:  npInstance.UDPRx,
 			UdpTx:  npInstance.UDPTx,
+			Pool:   npInstance.Pool,
+			Ping:   npInstance.Ping,
 		}
 	}
 

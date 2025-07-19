@@ -141,6 +141,8 @@ export interface Tunnel {
   tcpTx?: bigint;
   udpRx?: bigint;
   udpTx?: bigint;
+  pool?: bigint | null;
+  ping?: bigint | null;
   
   createdAt: Date;
   updatedAt: Date;
@@ -177,6 +179,8 @@ export interface EndpointSSE {
   tcpTx?: bigint;
   udpRx?: bigint;
   udpTx?: bigint;
+  pool?: bigint | null;
+  ping?: bigint | null;
   logs?: string;
   createdAt: Date;
   endpoint?: Endpoint;
