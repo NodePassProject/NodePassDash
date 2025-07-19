@@ -68,6 +68,12 @@ type Tunnel struct {
 	UpdatedAt     time.Time    `json:"updatedAt"`
 }
 
+// Tag 标签信息
+type Tag struct {
+	ID   int64  `json:"id"`
+	Name string `json:"name"`
+}
+
 // TunnelWithStats 带统计信息的隧道
 type TunnelWithStats struct {
 	Tunnel
@@ -92,6 +98,7 @@ type TunnelWithStats struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"status"`
+	Tag *Tag `json:"tag,omitempty"` // 标签信息
 }
 
 // CreateTunnelRequest 创建隧道请求

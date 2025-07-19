@@ -5,6 +5,7 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
+	"net/url"
 	"strconv"
 	"strings"
 	"time"
@@ -181,9 +182,19 @@ func parseInstanceURL(raw, mode string) parsedURL {
 			case "log":
 				res.LogLevel = strings.ToLower(val)
 			case "crt":
-				res.CertPath = val
+				// URL解码证书路径
+				if decodedVal, err := url.QueryUnescape(val); err == nil {
+					res.CertPath = decodedVal
+				} else {
+					res.CertPath = val // 解码失败时使用原值
+				}
 			case "key":
-				res.KeyPath = val
+				// URL解码密钥路径
+				if decodedVal, err := url.QueryUnescape(val); err == nil {
+					res.KeyPath = decodedVal
+				} else {
+					res.KeyPath = val // 解码失败时使用原值
+				}
 			case "min":
 				res.Min = val
 			case "max":
@@ -210,9 +221,12 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 			t.tlsMode, t.certPath, t.keyPath, t.logLevel, t.commandLine,
 			t.password, t.restart, t.status, t.min, t.max, t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
 			t.createdAt, t.updatedAt,
-			e.name as endpointName
+			e.name as endpointName,
+			tag.id as tagId, tag.name as tagName
 		FROM "Tunnel" t
 		LEFT JOIN "Endpoint" e ON t.endpointId = e.id
+		LEFT JOIN TunnelTags tt ON t.id = tt.tunnel_id
+		LEFT JOIN Tags tag ON tt.tag_id = tag.id
 		ORDER BY t.createdAt DESC
 	`
 
@@ -230,6 +244,8 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		var certPathNS, keyPathNS, passwordNS sql.NullString
 		var endpointNameNS sql.NullString
 		var minNS, maxNS sql.NullInt64
+		var tagIDNS sql.NullInt64
+		var tagNameNS sql.NullString
 		err := rows.Scan(
 			&t.ID, &instanceID, &t.Name, &t.EndpointID, &modeStr,
 			&t.TunnelAddress, &t.TunnelPort, &t.TargetAddress, &t.TargetPort,
@@ -237,6 +253,7 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 			&passwordNS, &t.Restart, &statusStr, &minNS, &maxNS, &t.Traffic.TCPRx, &t.Traffic.TCPTx, &t.Traffic.UDPRx, &t.Traffic.UDPTx,
 			&t.CreatedAt, &t.UpdatedAt,
 			&endpointNameNS,
+			&tagIDNS, &tagNameNS,
 		)
 		if err != nil {
 			return nil, err
@@ -263,6 +280,14 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		if maxNS.Valid {
 			maxVal := int(maxNS.Int64)
 			t.Max = &maxVal
+		}
+
+		// 处理标签信息
+		if tagIDNS.Valid && tagNameNS.Valid {
+			t.Tag = &Tag{
+				ID:   tagIDNS.Int64,
+				Name: tagNameNS.String,
+			}
 		}
 
 		t.Mode = TunnelMode(modeStr)
@@ -375,8 +400,8 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 
 		if req.TLSMode == TLSMode2 && req.CertPath != "" && req.KeyPath != "" {
 			queryParams = append(queryParams,
-				fmt.Sprintf("crt=%s", req.CertPath),
-				fmt.Sprintf("key=%s", req.KeyPath),
+				fmt.Sprintf("crt=%s", url.QueryEscape(req.CertPath)),
+				fmt.Sprintf("key=%s", url.QueryEscape(req.KeyPath)),
 			)
 		}
 	}
@@ -908,8 +933,8 @@ func (s *Service) UpdateTunnel(req UpdateTunnelRequest) error {
 
 		if tunnel.TLSMode == TLSMode2 && tunnel.CertPath != "" && tunnel.KeyPath != "" {
 			queryParams = append(queryParams,
-				fmt.Sprintf("crt=%s", tunnel.CertPath),
-				fmt.Sprintf("key=%s", tunnel.KeyPath),
+				fmt.Sprintf("crt=%s", url.QueryEscape(tunnel.CertPath)),
+				fmt.Sprintf("key=%s", url.QueryEscape(tunnel.KeyPath)),
 			)
 		}
 	}
@@ -1178,8 +1203,8 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 
 		if req.TLSMode == TLSMode2 && req.CertPath != "" && req.KeyPath != "" {
 			queryParams = append(queryParams,
-				fmt.Sprintf("crt=%s", req.CertPath),
-				fmt.Sprintf("key=%s", req.KeyPath),
+				fmt.Sprintf("crt=%s", url.QueryEscape(req.CertPath)),
+				fmt.Sprintf("key=%s", url.QueryEscape(req.KeyPath)),
 			)
 		}
 	}
