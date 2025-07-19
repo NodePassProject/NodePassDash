@@ -196,6 +196,11 @@ func initSchema(db *sql.DB) error {
 		return err
 	}
 
+	// --------  创建标签表 --------
+	if err := createTagsTable(db); err != nil {
+		return err
+	}
+
 	return nil
 }
 
@@ -463,4 +468,60 @@ func isIndexOnNameField(db *sql.DB, indexName string) (bool, error) {
 
 	// 索引只有一个列且是 name 字段
 	return columnCount == 1 && hasNameField, nil
+}
+
+// createTagsTable 创建标签表
+func createTagsTable(db *sql.DB) error {
+	// 创建标签表
+	_, err := db.Exec(`
+		CREATE TABLE IF NOT EXISTS Tags (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			name TEXT NOT NULL UNIQUE,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+		)
+	`)
+	if err != nil {
+		return err
+	}
+
+	// 创建索引
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_tags_name ON Tags(name)`)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_tags_created_at ON Tags(created_at)`)
+	if err != nil {
+		return err
+	}
+
+	// 创建隧道标签关联表
+	_, err = db.Exec(`
+		CREATE TABLE IF NOT EXISTS TunnelTags (
+			id INTEGER PRIMARY KEY AUTOINCREMENT,
+			tunnel_id INTEGER NOT NULL,
+			tag_id INTEGER NOT NULL,
+			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+			FOREIGN KEY (tunnel_id) REFERENCES tunnels(id) ON DELETE CASCADE,
+			FOREIGN KEY (tag_id) REFERENCES Tags(id) ON DELETE CASCADE,
+			UNIQUE(tunnel_id, tag_id)
+		)
+	`)
+	if err != nil {
+		return err
+	}
+
+	// 创建索引
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_tunnel_tags_tunnel_id ON TunnelTags(tunnel_id)`)
+	if err != nil {
+		return err
+	}
+
+	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_tunnel_tags_tag_id ON TunnelTags(tag_id)`)
+	if err != nil {
+		return err
+	}
+
+	return nil
 }

@@ -11,6 +11,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -937,9 +938,19 @@ func parseInstanceURL(raw, mode string) parsedURL {
 			case "log":
 				res.LogLevel = strings.ToLower(val)
 			case "crt":
-				res.CertPath = val
+				// URL解码证书路径
+				if decodedVal, err := url.QueryUnescape(val); err == nil {
+					res.CertPath = decodedVal
+				} else {
+					res.CertPath = val // 解码失败时使用原值
+				}
 			case "key":
-				res.KeyPath = val
+				// URL解码密钥路径
+				if decodedVal, err := url.QueryUnescape(val); err == nil {
+					res.KeyPath = decodedVal
+				} else {
+					res.KeyPath = val // 解码失败时使用原值
+				}
 			case "min":
 				res.Min = val
 			case "max":

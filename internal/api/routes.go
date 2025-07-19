@@ -10,6 +10,7 @@ import (
 	"NodePassDash/internal/endpoint"
 	"NodePassDash/internal/instance"
 	"NodePassDash/internal/sse"
+	"NodePassDash/internal/tag"
 	"NodePassDash/internal/tunnel"
 
 	"github.com/gorilla/mux"
@@ -22,6 +23,7 @@ type Router struct {
 	endpointHandler  *EndpointHandler
 	instanceHandler  *InstanceHandler
 	tunnelHandler    *TunnelHandler
+	tagHandler       *TagHandler
 	sseHandler       *SSEHandler
 	dashboardHandler *DashboardHandler
 	dataHandler      *DataHandler
@@ -41,6 +43,7 @@ func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Ro
 	endpointService := endpoint.NewService(db)
 	instanceService := instance.NewService(db)
 	tunnelService := tunnel.NewService(db)
+	tagService := tag.NewService(db)
 
 	if sseService == nil {
 		panic("sseService is nil")
@@ -55,6 +58,7 @@ func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Ro
 	endpointHandler := NewEndpointHandler(endpointService, sseManager)
 	instanceHandler := NewInstanceHandler(db, instanceService)
 	tunnelHandler := NewTunnelHandler(tunnelService, sseManager)
+	tagHandler := NewTagHandler(tagService)
 	sseHandler := NewSSEHandler(sseService, sseManager)
 	dataHandler := NewDataHandler(db, sseManager)
 	dashboardHandler := NewDashboardHandler(dashboardService)
@@ -67,6 +71,7 @@ func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Ro
 		endpointHandler:  endpointHandler,
 		instanceHandler:  instanceHandler,
 		tunnelHandler:    tunnelHandler,
+		tagHandler:       tagHandler,
 		sseHandler:       sseHandler,
 		dashboardHandler: dashboardHandler,
 		dataHandler:      dataHandler,
@@ -152,6 +157,14 @@ func (r *Router) registerRoutes() {
 	// EndpointSSE统计和管理
 	r.router.HandleFunc("/api/sse/endpoint-stats", r.sseHandler.HandleEndpointSSEStats).Methods("GET")
 	r.router.HandleFunc("/api/sse/endpoint-clear", r.sseHandler.HandleClearEndpointSSE).Methods("DELETE")
+
+	// 标签相关路由
+	r.router.HandleFunc("/api/tags", r.tagHandler.GetTags).Methods("GET")
+	r.router.HandleFunc("/api/tags", r.tagHandler.CreateTag).Methods("POST")
+	r.router.HandleFunc("/api/tags/{id}", r.tagHandler.UpdateTag).Methods("PUT")
+	r.router.HandleFunc("/api/tags/{id}", r.tagHandler.DeleteTag).Methods("DELETE")
+	r.router.HandleFunc("/api/tunnels/{tunnelId}/tag", r.tagHandler.GetTunnelTag).Methods("GET")
+	r.router.HandleFunc("/api/tunnels/{tunnelId}/tag", r.tagHandler.AssignTagToTunnel).Methods("POST")
 
 	// 隧道相关路由
 	r.router.HandleFunc("/api/tunnels", r.tunnelHandler.HandleGetTunnels).Methods("GET")

@@ -51,7 +51,9 @@ import {
   faChevronDown,
   faBolt,
   faDownload,
-  faQuestionCircle
+  faQuestionCircle,
+  faTag,
+  faRecycle
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { Box, Flex } from "@/components";
@@ -64,7 +66,15 @@ import ManualCopyModal from '@/components/ui/manual-copy-modal';
 import QuickCreateTunnelModal from "./components/quick-create-tunnel-modal";
 import BatchCreateModal from "./components/batch-create-modal";
 import ManualCreateTunnelModal from "./components/manual-create-tunnel-modal";
+import TagManagementModal from "./components/tag-management-modal";
+import SimpleTagModal from "./components/simple-tag-modal";
 import { useGlobalVisibility } from '@/lib/hooks/use-global-visibility';
+
+// 定义标签类型
+interface Tag {
+  id: number;
+  name: string;
+}
 
 // 定义实例类型
 interface Tunnel {
@@ -93,6 +103,8 @@ interface Tunnel {
     udpRx: number;
     udpTx: number;
   };
+  // 标签信息
+  tag?: Tag;
 }
 
 interface Endpoint {
@@ -105,6 +117,9 @@ export default function TunnelsPage() {
   const [filterValue, setFilterValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [endpointFilter, setEndpointFilter] = useState("all");
+  const [tagFilter, setTagFilter] = useState("all");
+  const [tags, setTags] = useState<Tag[]>([]);
+  const [tagsLoading, setTagsLoading] = useState(false);
   const [rowsPerPage, setRowsPerPage] = useState(() => {
     // 从 localStorage 读取保存的每页显示数量，默认为 10
     if (typeof window !== 'undefined') {
@@ -217,6 +232,26 @@ export default function TunnelsPage() {
       });
     } finally {
       setEndpointsLoading(false);
+    }
+  };
+
+  // 获取标签列表
+  const fetchTags = async () => {
+    try {
+      setTagsLoading(true);
+      const response = await fetch(buildApiUrl('/api/tags'));
+      if (!response.ok) throw new Error('获取标签列表失败');
+      const data = await response.json();
+      setTags(data.tags || []);
+    } catch (error) {
+      console.error('获取标签列表失败:', error);
+      addToast({
+        title: '错误',
+        description: '获取标签列表失败',
+        color: 'danger'
+      });
+    } finally {
+      setTagsLoading(false);
     }
   };
 
@@ -660,6 +695,13 @@ export default function TunnelsPage() {
   // 手动复制模态框状态
   const [manualCopyText, setManualCopyText] = useState<string>('');
   const [isManualCopyOpen, setIsManualCopyOpen] = useState(false);
+
+  // 标签管理模态框状态
+  const [tagManagementModalOpen, setTagManagementModalOpen] = useState(false);
+  
+  // 简化标签设置模态框状态
+  const [simpleTagModalOpen, setSimpleTagModalOpen] = useState(false);
+  const [currentTunnelForTag, setCurrentTunnelForTag] = useState<Tunnel | null>(null);
   
   const showManualCopyModal = (text: string) => {
     setManualCopyText(text);
@@ -727,6 +769,7 @@ export default function TunnelsPage() {
   React.useEffect(() => {
     fetchTunnels();
     fetchEndpoints();
+    fetchTags();
   }, []);
 
 
@@ -768,6 +811,7 @@ export default function TunnelsPage() {
       sortable: false
     },
     { key: "status", label: "状态", sortable: false  },
+    { key: "tag", label: "标签", sortable: false },
     { 
       key: "traffic", 
       label: (
@@ -921,6 +965,22 @@ export default function TunnelsPage() {
     }
   };
 
+  // 处理标签管理
+  const handleTagManagement = () => {
+    setTagManagementModalOpen(true);
+  };
+
+  // 处理简化标签设置
+  const handleTagClick = (tunnel: Tunnel) => {
+    setCurrentTunnelForTag(tunnel);
+    setSimpleTagModalOpen(true);
+  };
+
+  const handleTagSaved = () => {
+    fetchTunnels();
+    fetchTags();
+  };
+
   const filteredItems = React.useMemo(() => {
     let filtered = [...tunnels];
 
@@ -955,6 +1015,15 @@ export default function TunnelsPage() {
       });
     }
 
+    if (tagFilter !== "all") {
+      filtered = filtered.filter(item => {
+        if (tagFilter === "untagged") {
+          return !item.tag;
+        }
+        return item.tag && String(item.tag.id) === String(tagFilter);
+      });
+    }
+
     // 添加排序逻辑
     if (sortDescriptor.column) {
       filtered.sort((a, b) => {
@@ -980,7 +1049,7 @@ export default function TunnelsPage() {
     }
 
     return filtered;
-  }, [tunnels, filterValue, statusFilter, endpointFilter, sortDescriptor]);
+  }, [tunnels, filterValue, statusFilter, endpointFilter, tagFilter, sortDescriptor]);
 
   const pages = Math.ceil(filteredItems.length / rowsPerPage);
   const items = React.useMemo(() => {
@@ -1016,6 +1085,11 @@ export default function TunnelsPage() {
     setPage(1);
   }, []);
 
+  const onTagFilterChange = React.useCallback((tagId: string) => {
+    setTagFilter(tagId);
+    setPage(1);
+  }, []);
+
   // 处理批量操作
   const handleBulkAction = (action: string) => {
     switch(action) {
@@ -1042,65 +1116,9 @@ export default function TunnelsPage() {
   return (
     <>
       <div className="p-4 md:p-0">
-        {/* 顶部快捷操作按钮区域 */}
-        {/* <div className="mb-4">
-          <div className="grid grid-cols-2 lg:grid-cols-5 gap-3">
-            {/* 创建实例按钮 */}
-            {/* <Button
-              size="lg"
-              color="primary"
-              className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
-              onClick={() => router.push('/tunnels/create')}
-            >
-              <FontAwesomeIcon icon={faPlus} className="text-sm" />
-              <span className="text-sm">创建实例</span>
-            </Button>
-
-            {/* 快建实例按钮 */}
-            {/* <Button
-              size="lg"
-              color="success"
-              className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-green-500 to-green-600 hover:from-green-600 hover:to-green-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
-              onClick={() => setQuickCreateOpen(true)}
-            >
-              <FontAwesomeIcon icon={faRocket} className="text-sm" />
-              <span className="text-sm">快建实例</span>
-            </Button>
-
-            {/* 手搓创建按钮 */}
-            {/* <Button
-              size="lg"
-              color="warning"
-              className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-yellow-500 to-yellow-600 hover:from-yellow-600 hover:to-yellow-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
-              onClick={() => setManualCreateOpen(true)}
-            >
-              <FontAwesomeIcon icon={faHammer} className="text-sm" />
-              <span className="text-sm">手搓创建</span>
-            </Button>
-
-            {/* 场景创建按钮 */}
-            {/* <Button
-              size="lg"
-              color="secondary"
-              className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-purple-500 to-purple-600 hover:from-purple-600 hover:to-purple-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
-              onClick={() => router.push('/templates')}
-            >
-              <FontAwesomeIcon icon={faLayerGroup} className="text-sm" />
-              <span className="text-sm">场景创建</span>
-            </Button>
-
-            {/* 批量创建按钮 */}
-            {/* <Button
-              size="lg"
-              color="default"
-              className="h-12 flex items-center justify-center gap-2 font-medium bg-gradient-to-r from-orange-500 to-orange-600 hover:from-orange-600 hover:to-orange-700 text-white shadow-md hover:shadow-lg transition-all duration-200"
-              onClick={() => setBatchCreateOpen(true)}
-            >
-              <FontAwesomeIcon icon={faCopy} className="text-sm" />
-              <span className="text-sm">批量创建</span>
-            </Button>
-          </div>
-        </div> */}
+        {/* 页面顶部：标题 */}
+        <div className="mb-6">
+        </div>
 
         <Flex direction="col" className="border border-default-200 rounded-lg transition-all duration-300 hover:shadow-sm">
           <TunnelToolBox 
@@ -1115,8 +1133,10 @@ export default function TunnelsPage() {
             onRefresh={fetchTunnels}
             selectedCount={getSelectedCount()}
             onBulkAction={handleBulkAction}
+            onTagManagement={handleTagManagement}
           />
           <Box className="w-full overflow-hidden">
+
             {/* 移动端：使用卡片布局 */}
             <div className="block md:hidden p-4 space-y-3">
               {loading ? (
@@ -1174,7 +1194,9 @@ export default function TunnelsPage() {
                           {tunnel.type}
                         </Chip>
                         <div className="flex items-center gap-1 min-w-0">
-                          <span className="font-semibold text-sm truncate">{tunnel.name}</span>
+                          <Tooltip content={tunnel.name} size="sm">
+                            <span className="font-semibold text-sm truncate max-w-[120px]">{tunnel.name}</span>
+                          </Tooltip>
                           <Tooltip content="修改名称" size="sm">
                             <FontAwesomeIcon 
                               icon={faPen} 
@@ -1223,6 +1245,32 @@ export default function TunnelsPage() {
                         <span className="text-xs text-default-500 w-12 flex-shrink-0">流量:</span>
                         <div className="flex-1">
                           <TrafficInfo traffic={tunnel.traffic} />
+                        </div>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="text-xs text-default-500 w-12 flex-shrink-0">标签:</span>
+                        <div className="flex items-center gap-2">
+                          {tunnel.tag && tunnel.tag.id ? (
+                            <Tooltip content="点击更改标签" size="sm">
+                              <Chip 
+                                variant="flat"
+                                size="sm"
+                                color="primary"
+                                className="text-xs cursor-pointer hover:opacity-80"
+                                onClick={() => handleTagClick(tunnel)}
+                              >
+                                {tunnel.tag.name}
+                              </Chip>
+                            </Tooltip>
+                          ) : (
+                            <Tooltip content="设置标签" size="sm">
+                              <FontAwesomeIcon 
+                                icon={faTag} 
+                                className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer" 
+                                onClick={() => handleTagClick(tunnel)}
+                              />
+                            </Tooltip>
+                          )}
                         </div>
                       </div>
                     </div>
@@ -1285,6 +1333,32 @@ export default function TunnelsPage() {
                 ))
               )}
             </div>
+
+            {/* 标签筛选器 */}
+            {tags.length > 0 && (
+              <div className="px-3 md:px-4 pb-3">
+                <div className="flex flex-wrap gap-2">
+                  <Chip
+                    color={tagFilter === "all" ? "primary" : "default"}
+                    className="cursor-pointer rounded-md"
+                    onClick={() => onTagFilterChange("all")}
+                  >
+                    所有
+                  </Chip>
+                  {tags.map((tag) => (
+                    <Chip
+                      key={tag.id}
+                      color={tagFilter === String(tag.id) ? "primary" : "default"}
+                      
+                      className="cursor-pointer rounded-md"
+                      onClick={() => onTagFilterChange(String(tag.id))}
+                    >
+                      {tag.name}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+            )}
 
             {/* 桌面端：使用表格布局 */}
             <div className="hidden md:block">
@@ -1385,9 +1459,11 @@ export default function TunnelsPage() {
                         {/* 名称列 */}
                         <TableCell>
                           <Flex align="center" className="gap-2">
-                            <Box className="text-xs md:text-sm font-semibold truncate max-w-[120px] md:max-w-none">
-                              {tunnel.name}
-                            </Box>
+                            <Tooltip content={tunnel.name} size="sm">
+                              <Box className="text-xs md:text-sm font-semibold truncate max-w-[80px] md:max-w-[120px]">
+                                {tunnel.name}
+                              </Box>
+                            </Tooltip>
                             <Tooltip content="修改名称" size="sm">
                               <FontAwesomeIcon 
                                 icon={faPen} 
@@ -1435,6 +1511,35 @@ export default function TunnelsPage() {
                           >
                             {tunnel.status.text}
                           </Chip>
+                        </TableCell>
+                        
+                        {/* 标签列 */}
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {tunnel.tag && tunnel.tag.id ? (
+                              <Tooltip content="点击更改标签" size="sm">
+                                                              <Chip 
+                                variant="flat"
+                                size="sm"
+                                color="primary"
+                                classNames={{
+                                  base: "text-xs md:text-sm cursor-pointer hover:opacity-80"
+                                }}
+                                onClick={() => handleTagClick(tunnel)}
+                              >
+                                  {tunnel.tag.name}
+                                </Chip>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip content="设置标签" size="sm">
+                                <FontAwesomeIcon 
+                                  icon={faTag} 
+                                  className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer" 
+                                  onClick={() => handleTagClick(tunnel)}
+                                />
+                              </Tooltip>
+                            )}
+                          </div>
                         </TableCell>
                         
                         {/* 流量列 */}
@@ -1786,6 +1891,22 @@ export default function TunnelsPage() {
         isOpen={isManualCopyOpen}
         onOpenChange={(open) => setIsManualCopyOpen(open)}
         text={manualCopyText}
+      />
+
+      {/* 标签管理模态框 */}
+      <TagManagementModal
+        isOpen={tagManagementModalOpen}
+        onOpenChange={setTagManagementModalOpen}
+        onSaved={handleTagSaved}
+      />
+
+      {/* 简化标签设置模态框 */}
+      <SimpleTagModal
+        isOpen={simpleTagModalOpen}
+        onOpenChange={setSimpleTagModalOpen}
+        tunnelId={currentTunnelForTag?.id?.toString() || ""}
+        currentTag={currentTunnelForTag?.tag}
+        onSaved={handleTagSaved}
       />
     </>
   );

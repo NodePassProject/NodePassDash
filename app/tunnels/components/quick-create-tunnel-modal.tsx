@@ -71,6 +71,10 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
   const [submitting, setSubmitting] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
+  // 新增：重置流量checkbox，仅编辑模式下显示
+  const [resetChecked, setResetChecked] = useState(false);
+  const [resetLoading, setResetLoading] = useState(false);
+
   // 表单数据
   const [formData, setFormData] = useState({
     apiEndpoint: "",
@@ -190,6 +194,27 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
       addToast({ title: modalMode==='edit' ? '更新成功':'创建成功', description: data.message || '', color: "success" });
       onOpenChange(false);
       onSaved?.();
+
+      // 新增：重置流量逻辑
+      if (mode === 'server' && tlsMode === 'mode2' && certPath.trim() && keyPath.trim() && editData?.id) {
+        setResetLoading(true);
+        try {
+          const resp = await fetch(`${buildApiUrl(`/api/tunnels/${editData.id}`)}`, {
+            method: 'PATCH',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ action: 'reset' }),
+          });
+          const data = await resp.json();
+          if (resp.ok && data.success) {
+            addToast({ title: '流量统计已重置', description: '流量统计已成功重置', color: 'success' });
+          }
+        } catch (e) {
+          addToast({ title: '流量统计重置失败', description: '流量统计重置失败', color: 'danger' });
+        } finally {
+          setResetLoading(false);
+        }
+      }
+
     } catch (err) {
       addToast({ title: modalMode==='edit'?'更新失败':"创建失败", description: err instanceof Error ? err.message : "未知错误", color: "danger" });
     } finally {
@@ -380,6 +405,20 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                     <div className="grid grid-cols-2 gap-2">
                       <Input label="证书路径 (crt)" value={formData.certPath} onValueChange={(v)=>handleField('certPath',v)} />
                       <Input label="密钥路径 (key)" value={formData.keyPath} onValueChange={(v)=>handleField('keyPath',v)} />
+                    </div>
+                  )}
+
+                  {/* 重置流量checkbox，仅编辑模式下显示 */}
+                  {modalMode === 'edit' && (
+                    <div className="flex items-center gap-2 mt-4">
+                      <input
+                        type="checkbox"
+                        id="reset-traffic"
+                        checked={resetChecked}
+                        onChange={e => setResetChecked(e.target.checked)}
+                        disabled={resetLoading}
+                      />
+                      <label htmlFor="reset-traffic" className="text-sm select-none">保存后重置流量统计</label>
                     </div>
                   )}
                 </>

@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"os"
 	"path/filepath"
 	"regexp"
@@ -105,19 +106,27 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 	}
 
 	// 解析整数工具（针对 min/max 字段，允许字符串或数字）
-	parseIntField := func(j json.RawMessage) (int, error) {
+	// 返回值：第一个int是解析结果，第二个bool表示是否有值（区分nil和0），第三个error是解析错误
+	parseIntFieldWithFlag := func(j json.RawMessage) (int, bool, error) {
 		if j == nil {
-			return 0, nil
+			return 0, false, nil // 返回false表示字段未设置
 		}
 		var i int
 		if err := json.Unmarshal(j, &i); err == nil {
-			return i, nil
+			return i, true, nil // 返回true表示字段有值
 		}
 		var s string
 		if err := json.Unmarshal(j, &s); err == nil {
-			return strconv.Atoi(s)
+			val, err := strconv.Atoi(s)
+			return val, true, err
 		}
-		return 0, strconv.ErrSyntax
+		return 0, false, strconv.ErrSyntax
+	}
+
+	// 为了兼容性，保留原函数用于端口解析
+	parseIntField := func(j json.RawMessage) (int, error) {
+		val, _, err := parseIntFieldWithFlag(j)
+		return val, err
 	}
 
 	tunnelPort, err1 := parseIntField(raw.TunnelPort)
@@ -131,8 +140,9 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	minVal, err3 := parseIntField(raw.Min)
-	maxVal, err4 := parseIntField(raw.Max)
+	// 解析min/max字段，区分未设置和设置为0的情况
+	minVal, minSet, err3 := parseIntFieldWithFlag(raw.Min)
+	maxVal, maxSet, err4 := parseIntFieldWithFlag(raw.Max)
 	if err3 != nil || err4 != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
@@ -140,6 +150,14 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 			Error:   "min/max 参数格式错误，应为数字",
 		})
 		return
+	}
+
+	// 对于未设置的min/max，使用-1表示"未设置"状态
+	if !minSet {
+		minVal = -1
+	}
+	if !maxSet {
+		maxVal = -1
 	}
 
 	req := tunnel.CreateTunnelRequest{
@@ -347,12 +365,19 @@ func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Reques
 			}
 		}
 	} else {
-		// 如果不是移入回收站，在删除前先解绑分组关系
+		// 如果不是移入回收站，在删除前先解绑分组关系和清理标签关联
 		if !req.Recycle {
 			if err := h.deleteTunnelFromGroups(tunnelID); err != nil {
 				log.Warnf("[API] 删除隧道分组关系失败: tunnelID=%d, err=%v", tunnelID, err)
 			} else {
 				log.Infof("[API] 已删除隧道分组关系: tunnelID=%d", tunnelID)
+			}
+
+			// 清理隧道标签关联
+			if _, err := h.tunnelService.DB().Exec("DELETE FROM TunnelTags WHERE tunnel_id = ?", tunnelID); err != nil {
+				log.Warnf("[API] 删除隧道标签关联失败: tunnelID=%d, err=%v", tunnelID, err)
+			} else {
+				log.Infof("[API] 已删除隧道标签关联: tunnelID=%d", tunnelID)
 			}
 		}
 	}
@@ -510,26 +535,35 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 		}
 		log.Infof("[Master-%v] 编辑实例=>删除旧实例: %v", rawCreate.EndpointID, instanceID)
 
-		// 工具函数解析 int 字段
-		parseInt := func(j json.RawMessage) (int, error) {
+		// 工具函数解析 int 字段（复用上面定义的函数逻辑）
+		parseIntFieldLocal := func(j json.RawMessage) (int, bool, error) {
 			if j == nil {
-				return 0, nil
+				return 0, false, nil
 			}
 			var i int
 			if err := json.Unmarshal(j, &i); err == nil {
-				return i, nil
+				return i, true, nil
 			}
 			var s string
 			if err := json.Unmarshal(j, &s); err == nil {
-				return strconv.Atoi(s)
+				val, err := strconv.Atoi(s)
+				return val, true, err
 			}
-			return 0, strconv.ErrSyntax
+			return 0, false, strconv.ErrSyntax
 		}
 
-		tunnelPort, _ := parseInt(rawCreate.TunnelPort)
-		targetPort, _ := parseInt(rawCreate.TargetPort)
-		minVal, _ := parseInt(rawCreate.Min)
-		maxVal, _ := parseInt(rawCreate.Max)
+		tunnelPort, _, _ := parseIntFieldLocal(rawCreate.TunnelPort)
+		targetPort, _, _ := parseIntFieldLocal(rawCreate.TargetPort)
+		minVal, minSet, _ := parseIntFieldLocal(rawCreate.Min)
+		maxVal, maxSet, _ := parseIntFieldLocal(rawCreate.Max)
+
+		// 对于未设置的min/max，使用-1表示"未设置"状态
+		if !minSet {
+			minVal = -1
+		}
+		if !maxSet {
+			maxVal = -1
+		}
 
 		createReq := tunnel.CreateTunnelRequest{
 			Name:          rawCreate.Name,
@@ -923,6 +957,8 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		TargetAddress   string
 		CommandLine     string
 		PasswordNS      sql.NullString
+		CertPathNS      sql.NullString
+		KeyPathNS       sql.NullString
 		TCPRx           int64
 		TCPTx           int64
 		UDPRx           int64
@@ -934,7 +970,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 
 	query := `SELECT t.id, t.instanceId, t.name, t.mode, t.status, t.endpointId,
 		   e.name, e.tls, e.log, e.ver, t.tunnelPort, t.targetPort, t.tlsMode, t.logLevel,
-		   t.tunnelAddress, t.targetAddress, t.commandLine, t.password,
+		   t.tunnelAddress, t.targetAddress, t.commandLine, t.password, t.certPath, t.keyPath,
 		   t.tcpRx, t.tcpTx, t.udpRx, t.udpTx,
 		   t.min, t.max, t.restart
 		   FROM "Tunnel" t
@@ -959,6 +995,8 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		&tunnelRecord.TargetAddress,
 		&tunnelRecord.CommandLine,
 		&tunnelRecord.PasswordNS,
+		&tunnelRecord.CertPathNS,
+		&tunnelRecord.KeyPathNS,
 		&tunnelRecord.TCPRx,
 		&tunnelRecord.TCPTx,
 		&tunnelRecord.UDPRx,
@@ -1000,6 +1038,14 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 	password := ""
 	if tunnelRecord.PasswordNS.Valid {
 		password = tunnelRecord.PasswordNS.String
+	}
+	certPath := ""
+	if tunnelRecord.CertPathNS.Valid {
+		certPath = tunnelRecord.CertPathNS.String
+	}
+	keyPath := ""
+	if tunnelRecord.KeyPathNS.Valid {
+		keyPath = tunnelRecord.KeyPathNS.String
 	}
 
 	// 状态映射
@@ -1043,6 +1089,8 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 				"tlsMode":     tunnelRecord.TLSMode,
 				"endpointTLS": endpointTLS, // 主控的TLS配置
 				"endpointLog": endpointLog, // 主控的Log配置
+				"certPath":    certPath,    // TLS证书路径
+				"keyPath":     keyPath,     // TLS密钥路径
 				"min": func() interface{} {
 					if tunnelRecord.Min.Valid {
 						return tunnelRecord.Min.Int64
@@ -1625,7 +1673,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			serverURL += fmt.Sprintf("?tls=%d&log=%s", req.TLS, req.Log)
 			// 如果是TLS 2且提供了证书路径，添加证书参数
 			if req.TLS == 2 && req.CertPath != "" && req.KeyPath != "" {
-				serverURL += fmt.Sprintf("&cert=%s&key=%s", req.CertPath, req.KeyPath)
+				serverURL += fmt.Sprintf("&cert=%s&key=%s", url.QueryEscape(req.CertPath), url.QueryEscape(req.KeyPath))
 			}
 		} else {
 			serverURL += fmt.Sprintf("?log=%s", req.Log)
@@ -1797,7 +1845,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			serverURL += fmt.Sprintf("?tls=%d&log=%s", req.TLS, req.Log)
 			// 如果是TLS 2且提供了证书路径，添加证书参数
 			if req.TLS == 2 && req.CertPath != "" && req.KeyPath != "" {
-				serverURL += fmt.Sprintf("&cert=%s&key=%s", req.CertPath, req.KeyPath)
+				serverURL += fmt.Sprintf("&cert=%s&key=%s", url.QueryEscape(req.CertPath), url.QueryEscape(req.KeyPath))
 			}
 		} else {
 			serverURL += fmt.Sprintf("?log=%s", req.Log)
@@ -2602,24 +2650,25 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// 工具函数解析 int 字段
-	parseInt := func(j json.RawMessage) (int, error) {
+	// 工具函数解析 int 字段（复用前面定义的函数逻辑）
+	parseIntV2 := func(j json.RawMessage) (int, bool, error) {
 		if j == nil {
-			return 0, nil
+			return 0, false, nil
 		}
 		var i int
 		if err := json.Unmarshal(j, &i); err == nil {
-			return i, nil
+			return i, true, nil
 		}
 		var s string
 		if err := json.Unmarshal(j, &s); err == nil {
-			return strconv.Atoi(s)
+			val, err := strconv.Atoi(s)
+			return val, true, err
 		}
-		return 0, strconv.ErrSyntax
+		return 0, false, strconv.ErrSyntax
 	}
 
-	tunnelPort, err1 := parseInt(raw.TunnelPort)
-	targetPort, err2 := parseInt(raw.TargetPort)
+	tunnelPort, _, err1 := parseIntV2(raw.TunnelPort)
+	targetPort, _, err2 := parseIntV2(raw.TargetPort)
 	if err1 != nil || err2 != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "端口号格式错误，应为数字"})
@@ -2652,13 +2701,19 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 			queryParams = append(queryParams, fmt.Sprintf("tls=%s", tlsNum))
 		}
 		if raw.TLSMode == "mode2" && raw.CertPath != "" && raw.KeyPath != "" {
-			queryParams = append(queryParams, fmt.Sprintf("crt=%s", raw.CertPath), fmt.Sprintf("key=%s", raw.KeyPath))
+			queryParams = append(queryParams, fmt.Sprintf("crt=%s", url.QueryEscape(raw.CertPath)), fmt.Sprintf("key=%s", url.QueryEscape(raw.KeyPath)))
 		}
 	}
 	if raw.Mode == "client" {
-		// 处理 min/max
-		minVal, _ := parseInt(raw.Min)
-		maxVal, _ := parseInt(raw.Max)
+		// 处理 min/max，区分未设置状态
+		minVal, minSet, _ := parseIntV2(raw.Min)
+		maxVal, maxSet, _ := parseIntV2(raw.Max)
+		if !minSet {
+			minVal = -1
+		}
+		if !maxSet {
+			maxVal = -1
+		}
 		if minVal >= 0 {
 			queryParams = append(queryParams, fmt.Sprintf("min=%d", minVal))
 		}
@@ -2700,9 +2755,15 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 				return
 			}
 
-			// 重新创建
-			minVal, _ := parseInt(raw.Min)
-			maxVal, _ := parseInt(raw.Max)
+			// 重新创建，处理min/max未设置状态
+			minVal, minSet, _ := parseIntV2(raw.Min)
+			maxVal, maxSet, _ := parseIntV2(raw.Max)
+			if !minSet {
+				minVal = -1
+			}
+			if !maxSet {
+				maxVal = -1
+			}
 			createReq := tunnel.CreateTunnelRequest{
 				Name:          raw.Name,
 				EndpointID:    raw.EndpointID,
@@ -2749,9 +2810,15 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 	}
 
 	if !success {
-		// 超时，直接更新本地数据库
-		minVal, _ := parseInt(raw.Min)
-		maxVal, _ := parseInt(raw.Max)
+		// 超时，直接更新本地数据库，处理min/max未设置状态
+		minVal, minSet, _ := parseIntV2(raw.Min)
+		maxVal, maxSet, _ := parseIntV2(raw.Max)
+		if !minSet {
+			minVal = -1
+		}
+		if !maxSet {
+			maxVal = -1
+		}
 		_, _ = h.tunnelService.DB().Exec(`UPDATE "Tunnel" SET name = ?, mode = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?, tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, min = ?, max = ?, status = ?, updatedAt = ? WHERE id = ?`,
 			raw.Name, raw.Mode, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine, minVal, maxVal, "running", time.Now(), tunnelID)
 	}

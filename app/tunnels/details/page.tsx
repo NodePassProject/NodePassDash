@@ -32,7 +32,7 @@ import React, { useEffect } from "react";
 import QuickCreateTunnelModal from "../components/quick-create-tunnel-modal";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh,faStop, faQuestionCircle, faEye, faEyeSlash, faArrowDown, faDownload, faPen } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh,faStop, faQuestionCircle, faEye, faEyeSlash, faArrowDown, faDownload, faPen, faRecycle } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
@@ -66,6 +66,8 @@ interface TunnelInfo {
     min?: number | null;
     max?: number | null;
     restart: boolean; // 添加 restart 字段
+    certPath?: string; // TLS证书路径
+    keyPath?: string;  // TLS密钥路径
   };
   traffic: {
     tcpRx: number;
@@ -214,7 +216,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   const [logRefreshTrigger, setLogRefreshTrigger] = React.useState(0);
   const [clearPopoverOpen, setClearPopoverOpen] = React.useState(false);
   const [exportLoading, setExportLoading] = React.useState(false);
-
+  const [resetModalOpen, setResetModalOpen] = React.useState(false);
+  const [resetLoading, setResetLoading] = React.useState(false);
 
 
   // 根据时间范围过滤数据
@@ -621,6 +624,38 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     }
   };
 
+  const handleReset = async () => {
+    if (!tunnelInfo) return;
+    setResetLoading(true);
+    try {
+      const response = await fetch(`/api/tunnels/${tunnelInfo.id}`, {
+        method: 'PATCH',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ action: 'reset' }),
+      });
+      const data = await response.json();
+      if (response.ok && data.success) {
+        addToast({
+          title: "重置成功",
+          description: "实例流量信息已重置",
+          color: "success",
+        });
+        fetchTunnelDetails();
+      } else {
+        throw new Error(data.error || '重置失败');
+      }
+    } catch (error) {
+      addToast({
+        title: "重置失败",
+        description: error instanceof Error ? error.message : "未知错误",
+        color: "danger",
+      });
+    } finally {
+      setResetLoading(false);
+      setResetModalOpen(false);
+    }
+  };
+
   // 如果正在加载或没有数据，显示加载状态
   if (loading || !tunnelInfo) {
     return (
@@ -702,6 +737,16 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           >
             <span className="hidden sm:inline">刷新</span>
           </Button>
+          <Button
+            variant="flat"
+            color="secondary"
+            startContent={<FontAwesomeIcon icon={faRecycle} />}
+            onClick={() => setResetModalOpen(true)}
+            isDisabled={resetLoading}
+            className="flex-shrink-0"
+          >
+            <span className="hidden sm:inline">重置</span>
+          </Button>
         </div>
       </div>
 
@@ -751,6 +796,44 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   startContent={<FontAwesomeIcon icon={faTrash} />}
                 >
                   确认删除
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* 重置确认模态框 */}
+      <Modal isOpen={resetModalOpen} onOpenChange={setResetModalOpen} placement="center">
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <FontAwesomeIcon icon={faRecycle} className="text-secondary" />
+                  确认重置
+                </div>
+              </ModalHeader>
+              <ModalBody>
+                <p className="text-default-600 text-sm md:text-base">
+                  您确定要重置实例 <span className="font-semibold text-foreground">"{tunnelInfo.name}"</span> 的流量信息吗？
+                </p>
+                <p className="text-xs md:text-small text-warning">
+                  ⚠️ 此操作仅重置流量统计，不影响其他配置。
+                </p>
+              </ModalBody>
+              <ModalFooter>
+                <Button color="default" variant="light" onPress={onClose} size="sm">
+                  取消
+                </Button>
+                <Button 
+                  color="secondary" 
+                  size="sm"
+                  isLoading={resetLoading}
+                  onPress={handleReset}
+                  startContent={<FontAwesomeIcon icon={faRecycle} />}
+                >
+                  确认重置
                 </Button>
               </ModalFooter>
             </>
@@ -1341,7 +1424,9 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           logLevel: tunnelInfo.config.logLevel,
           password: tunnelInfo.password,
           min: tunnelInfo.config.min,
-          max: tunnelInfo.config.max
+          max: tunnelInfo.config.max,
+          certPath: tunnelInfo.config.certPath,
+          keyPath: tunnelInfo.config.keyPath
         }}
         onSaved={() => {
           setEditModalOpen(false);

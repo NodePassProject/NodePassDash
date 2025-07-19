@@ -537,6 +537,27 @@ func initDatabase(db *sql.DB) error {
 		UNIQUE(group_id, tunnel_id)
 	);`
 
+	// 创建标签表
+	createTagsTable := `
+	CREATE TABLE IF NOT EXISTS Tags (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		name TEXT NOT NULL UNIQUE,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
+	);`
+
+	// 创建隧道标签关联表
+	createTunnelTagsTable := `
+	CREATE TABLE IF NOT EXISTS TunnelTags (
+		id INTEGER PRIMARY KEY AUTOINCREMENT,
+		tunnel_id INTEGER NOT NULL,
+		tag_id INTEGER NOT NULL,
+		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
+		FOREIGN KEY (tunnel_id) REFERENCES "Tunnel"(id) ON DELETE CASCADE,
+		FOREIGN KEY (tag_id) REFERENCES Tags(id) ON DELETE CASCADE,
+		UNIQUE(tunnel_id, tag_id)
+	);`
+
 	// 依次执行创建表 SQL
 	if _, err := db.Exec(createEndpointsTable); err != nil {
 		return err
@@ -563,6 +584,12 @@ func initDatabase(db *sql.DB) error {
 		return err
 	}
 	if _, err := db.Exec(createTunnelGroupMembers); err != nil {
+		return err
+	}
+	if _, err := db.Exec(createTagsTable); err != nil {
+		return err
+	}
+	if _, err := db.Exec(createTunnelTagsTable); err != nil {
 		return err
 	}
 
@@ -636,6 +663,10 @@ func initDatabase(db *sql.DB) error {
 		`CREATE INDEX IF NOT EXISTS idx_tunnel_group_members_group_id ON tunnel_group_members(group_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_tunnel_group_members_tunnel_id ON tunnel_group_members(tunnel_id)`,
 		`CREATE INDEX IF NOT EXISTS idx_tunnel_group_members_role ON tunnel_group_members(role)`,
+		`CREATE INDEX IF NOT EXISTS idx_tags_name ON Tags(name)`,
+		`CREATE INDEX IF NOT EXISTS idx_tags_created_at ON Tags(created_at)`,
+		`CREATE INDEX IF NOT EXISTS idx_tunnel_tags_tunnel_id ON TunnelTags(tunnel_id)`,
+		`CREATE INDEX IF NOT EXISTS idx_tunnel_tags_tag_id ON TunnelTags(tag_id)`,
 	}
 
 	for _, indexSQL := range groupIndexes {
