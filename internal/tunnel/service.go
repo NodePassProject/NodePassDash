@@ -2209,3 +2209,152 @@ func (s *Service) ClearOperationLogs() (int64, error) {
 	}
 	return rows, nil
 }
+
+// ResetTunnelTraffic 重置隧道的流量统计信息
+func (s *Service) ResetTunnelTraffic(tunnelID int64) error {
+	log.Infof("[API] 重置隧道流量统计: tunnelID=%d", tunnelID)
+
+	// 获取隧道和端点信息
+	var tunnel struct {
+		InstanceID string
+		EndpointID int64
+		Name       string
+	}
+	var endpoint struct {
+		URL     string
+		APIPath string
+		APIKey  string
+	}
+
+	// 先调用 NodePass API 重置流量统计
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	if err := npClient.ResetInstanceTraffic(tunnel.InstanceID); err != nil {
+		// 检查是否为 404 错误（旧版本 NodePass 不支持）
+		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
+			log.Warnf("[API] NodePass API 不支持重置流量功能（可能是旧版本）: %v", err)
+			return errors.New("当前实例不支持重置流量功能")
+		} else {
+			log.Errorf("[API] NodePass API 重置流量失败: %v", err)
+			return fmt.Errorf("NodePass API 重置流量失败: %v", err)
+		}
+	}
+
+	// 只有 NodePass API 调用成功后才更新数据库
+	_, err := s.db.Exec(`
+		UPDATE "Tunnel" 
+		SET 
+			tcpRx = 0,
+			tcpTx = 0,
+			udpRx = 0,
+			udpTx = 0,
+			pool = NULL,
+			ping = NULL,
+			updatedAt = ?
+		WHERE id = ?
+	`, time.Now(), tunnelID)
+	if err != nil {
+		log.Errorf("[API] 数据库重置流量统计失败: %v", err)
+		return fmt.Errorf("数据库重置流量统计失败: %v", err)
+	}
+
+	// 记录操作日志
+	_, err = s.db.Exec(`
+		INSERT INTO "TunnelOperationLog" (
+			tunnelId, tunnelName, action, status, message
+		) VALUES (?, ?, ?, ?, ?)
+	`,
+		tunnelID,
+		tunnel.Name,
+		"reset_traffic",
+		"success",
+		"重置流量统计信息",
+	)
+	if err != nil {
+		log.Errorf("[API] 记录重置流量日志失败: %v", err)
+		// 不返回错误，因为主要操作已经成功
+	}
+
+	log.Infof("[API] 隧道流量统计重置成功: tunnelID=%d, name=%s", tunnelID, tunnel.Name)
+	return nil
+}
+
+// ResetTunnelTrafficByInstanceID 根据实例ID重置隧道的流量统计信息
+func (s *Service) ResetTunnelTrafficByInstanceID(instanceID string) error {
+	log.Infof("[API] 根据实例ID重置隧道流量统计: instanceID=%s", instanceID)
+
+	// 获取隧道和端点信息
+	var tunnel struct {
+		ID         int64
+		Name       string
+		EndpointID int64
+	}
+	var endpoint struct {
+		URL     string
+		APIPath string
+		APIKey  string
+	}
+
+	err := s.db.QueryRow(`
+		SELECT t.id, t.name, t.endpointId, e.url, e.apiPath, e.apiKey
+		FROM "Tunnel" t
+		JOIN "Endpoint" e ON t.endpointId = e.id
+		WHERE t.instanceId = ?
+	`, instanceID).Scan(&tunnel.ID, &tunnel.Name, &tunnel.EndpointID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return errors.New("隧道不存在")
+		}
+		return fmt.Errorf("查询隧道失败: %v", err)
+	}
+
+	// 先调用 NodePass API 重置流量统计
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	if err := npClient.ResetInstanceTraffic(instanceID); err != nil {
+		// 检查是否为 404 错误（旧版本 NodePass 不支持）
+		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
+			log.Warnf("[API] NodePass API 不支持重置流量功能（可能是旧版本）: %v", err)
+			return errors.New("当前实例不支持重置流量功能")
+		} else {
+			log.Errorf("[API] NodePass API 重置流量失败: %v", err)
+			return fmt.Errorf("NodePass API 重置流量失败: %v", err)
+		}
+	}
+
+	// 只有 NodePass API 调用成功后才更新数据库
+	_, err = s.db.Exec(`
+		UPDATE "Tunnel" 
+		SET 
+			tcpRx = 0,
+			tcpTx = 0,
+			udpRx = 0,
+			udpTx = 0,
+			pool = NULL,
+			ping = NULL,
+			updatedAt = ?
+		WHERE instanceId = ?
+	`, time.Now(), instanceID)
+	if err != nil {
+		log.Errorf("[API] 数据库重置流量统计失败: %v", err)
+		return fmt.Errorf("数据库重置流量统计失败: %v", err)
+	}
+
+	// 记录操作日志
+	_, err = s.db.Exec(`
+		INSERT INTO "TunnelOperationLog" (
+			tunnelId, tunnelName, action, status, message
+		) VALUES (?, ?, ?, ?, ?)
+	`,
+		tunnel.ID,
+		tunnel.Name,
+		"reset_traffic",
+		"success",
+		"重置流量统计信息",
+	)
+	if err != nil {
+		log.Errorf("[API] 记录重置流量日志失败: %v", err)
+		// 不返回错误，因为主要操作已经成功
+	}
+
+	log.Infof("[API] 隧道流量统计重置成功: instanceID=%s, name=%s", instanceID, tunnel.Name)
+	return nil
+}

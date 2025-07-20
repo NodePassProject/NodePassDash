@@ -1088,7 +1088,10 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 			v, _ := strconv.Atoi(p)
 			return v
 		}
-		convInt := func(s string) int {
+		convInt := func(s string) interface{} {
+			if s == "" {
+				return nil
+			}
 			v, _ := strconv.Atoi(s)
 			return v
 		}

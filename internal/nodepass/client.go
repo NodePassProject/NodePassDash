@@ -127,6 +127,16 @@ func (c *Client) SetRestartInstance(instanceID string, restart bool) error {
 	return nil
 }
 
+// ResetInstanceTraffic 重置指定实例的流量统计 (PATCH /instances/{id})
+func (c *Client) ResetInstanceTraffic(instanceID string) error {
+	payload := map[string]string{"action": "reset"}
+	url := fmt.Sprintf("%s%s/instances/%s", c.baseURL, c.apiPath, instanceID)
+	if err := c.doRequest(http.MethodPatch, url, payload, nil); err != nil {
+		return err
+	}
+	return nil
+}
+
 // GetInfo 获取NodePass实例的系统信息
 func (c *Client) GetInfo() (*NodePassInfo, error) {
 	url := fmt.Sprintf("%s%s/info", c.baseURL, c.apiPath)

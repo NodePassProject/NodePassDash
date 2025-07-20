@@ -152,7 +152,7 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 对于未设置的min/max，使用-1表示"未设置"状态
+	// 对于未设置的min/max，使用-1表示"未设置"状态（在请求中传递，但数据库存储时会转为NULL）
 	if !minSet {
 		minVal = -1
 	}
@@ -749,6 +749,31 @@ func (h *TunnelHandler) HandlePatchTunnels(w http.ResponseWriter, r *http.Reques
 			Message: "操作成功",
 		})
 
+	case "reset":
+		if raw.InstanceID == "" {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   "重置操作需提供有效的隧道实例ID(instanceId)",
+			})
+			return
+		}
+
+		// 重置隧道的流量统计信息
+		if err := h.tunnelService.ResetTunnelTrafficByInstanceID(raw.InstanceID); err != nil {
+			w.WriteHeader(http.StatusBadRequest)
+			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				Success: false,
+				Error:   err.Error(),
+			})
+			return
+		}
+
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: true,
+			Message: "隧道流量信息重置成功",
+		})
+
 	case "rename":
 		if raw.ID == 0 || raw.Name == "" {
 			w.WriteHeader(http.StatusBadRequest)
@@ -777,7 +802,7 @@ func (h *TunnelHandler) HandlePatchTunnels(w http.ResponseWriter, r *http.Reques
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success: false,
-			Error:   "无效的操作类型，支持: start, stop, restart, rename",
+			Error:   "无效的操作类型，支持: start, stop, restart, reset, rename",
 		})
 	}
 }
@@ -2713,6 +2738,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 		Password      string          `json:"password"`
 		Min           json.RawMessage `json:"min"`
 		Max           json.RawMessage `json:"max"`
+		ResetTraffic  bool            `json:"resetTraffic"` // 新增：是否重置流量统计
 	}
 	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -2890,7 +2916,31 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 			maxVal = -1
 		}
 		_, _ = h.tunnelService.DB().Exec(`UPDATE "Tunnel" SET name = ?, mode = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?, tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, min = ?, max = ?, status = ?, updatedAt = ? WHERE id = ?`,
-			raw.Name, raw.Mode, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine, minVal, maxVal, "running", time.Now(), tunnelID)
+			raw.Name, raw.Mode, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine,
+			func() interface{} {
+				if minVal >= 0 {
+					return minVal
+				}
+				return nil
+			}(),
+			func() interface{} {
+				if maxVal >= 0 {
+					return maxVal
+				}
+				return nil
+			}(),
+			"running", time.Now(), tunnelID)
+	}
+
+	// 如果需要重置流量统计
+	if raw.ResetTraffic {
+		log.Infof("[API] 编辑实例后重置流量统计: tunnelID=%d", tunnelID)
+		if err := h.tunnelService.ResetTunnelTrafficByInstanceID(instanceID); err != nil {
+			log.Errorf("[API] 重置流量统计失败: %v", err)
+			// 不返回错误，因为主要操作已经成功，只是重置失败
+		} else {
+			log.Infof("[API] 流量统计重置成功: tunnelID=%d", tunnelID)
+		}
 	}
 
 	json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: true, Message: "编辑实例成功"})

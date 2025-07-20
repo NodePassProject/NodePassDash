@@ -74,7 +74,6 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
 
   // 新增：重置流量checkbox，仅编辑模式下显示
   const [resetChecked, setResetChecked] = useState(false);
-  const [resetLoading, setResetLoading] = useState(false);
 
   // 表单数据
   const [formData, setFormData] = useState({
@@ -187,7 +186,8 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
           logLevel,
           password: password || undefined,
           min: mode==='client' && min !== '' ? min : undefined,
-          max: mode==='client' && max !== '' ? max : undefined
+          max: mode==='client' && max !== '' ? max : undefined,
+          resetTraffic: modalMode === 'edit' ? resetChecked : undefined
         })
       });
       const data = await res.json();
@@ -195,26 +195,6 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
       addToast({ title: modalMode==='edit' ? '更新成功':'创建成功', description: data.message || '', color: "success" });
       onOpenChange(false);
       onSaved?.();
-
-      // 新增：重置流量逻辑
-      if (mode === 'server' && tlsMode === 'mode2' && certPath.trim() && keyPath.trim() && editData?.id) {
-        setResetLoading(true);
-        try {
-          const resp = await fetch(`${buildApiUrl(`/api/tunnels/${editData.id}`)}`, {
-            method: 'PATCH',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify({ action: 'reset' }),
-          });
-          const data = await resp.json();
-          if (resp.ok && data.success) {
-            addToast({ title: '流量统计已重置', description: '流量统计已成功重置', color: 'success' });
-          }
-        } catch (e) {
-          addToast({ title: '流量统计重置失败', description: '流量统计重置失败', color: 'danger' });
-        } finally {
-          setResetLoading(false);
-        }
-      }
 
     } catch (err) {
       addToast({ title: modalMode==='edit'?'更新失败':"创建失败", description: err instanceof Error ? err.message : "未知错误", color: "danger" });
@@ -416,7 +396,6 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                         id="reset-traffic"
                         isSelected={resetChecked}
                         onValueChange={setResetChecked}
-                        isDisabled={resetLoading}
                         size="sm"
                       >
                         保存后重置流量统计

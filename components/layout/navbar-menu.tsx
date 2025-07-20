@@ -23,11 +23,11 @@ const navigationItems = [
     label: "实例管理", 
     icon: "solar:transmission-bold",
   },
-  {
-    href: "/groups",
-    label: "分组场景",
-    icon: "solar:layers-bold",
-  },
+  // {
+  //   href: "/groups",
+  //   label: "分组场景",
+  //   icon: "solar:layers-bold",
+  // },
   {
     href: "/endpoints",
     label: "主控管理",

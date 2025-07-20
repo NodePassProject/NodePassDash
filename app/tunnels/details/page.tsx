@@ -639,7 +639,10 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       const response = await fetch(`/api/tunnels/${tunnelInfo.id}`, {
         method: 'PATCH',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ action: 'reset' }),
+        body: JSON.stringify({ 
+          action: 'reset',
+          instanceId: tunnelInfo.instanceId 
+        }),
       });
       const data = await response.json();
       if (response.ok && data.success) {
@@ -769,6 +772,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           >
             <span className="hidden sm:inline">重置</span>
           </Button>
+          
         </div>
       </div>
 
@@ -848,6 +852,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                 <Button color="default" variant="light" onPress={onClose} size="sm">
                   取消
                 </Button>
+
                 <Button 
                   color="secondary" 
                   size="sm"
