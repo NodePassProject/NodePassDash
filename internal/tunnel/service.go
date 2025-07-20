@@ -1707,6 +1707,20 @@ func (s *Service) QuickCreateTunnelAndWait(endpointID int64, rawURL string, name
 	if strings.TrimSpace(finalName) == "" {
 		finalName = fmt.Sprintf("auto-%d-%d", endpointID, time.Now().Unix())
 	}
+
+	// 正确处理min和max值，区分未设置和设置为0的情况
+	var minVal, maxVal int
+	if cfg.Min != "" {
+		minVal, _ = strconv.Atoi(cfg.Min)
+	} else {
+		minVal = -1 // 使用-1表示未设置
+	}
+	if cfg.Max != "" {
+		maxVal, _ = strconv.Atoi(cfg.Max)
+	} else {
+		maxVal = -1 // 使用-1表示未设置
+	}
+
 	req := CreateTunnelRequest{
 		Name:          finalName,
 		EndpointID:    endpointID,
@@ -1720,8 +1734,8 @@ func (s *Service) QuickCreateTunnelAndWait(endpointID int64, rawURL string, name
 		KeyPath:       cfg.KeyPath,
 		LogLevel:      LogLevel(cfg.LogLevel),
 		Password:      cfg.Password,
-		Min:           func() int { v, _ := strconv.Atoi(cfg.Min); return v }(),
-		Max:           func() int { v, _ := strconv.Atoi(cfg.Max); return v }(),
+		Min:           minVal,
+		Max:           maxVal,
 	}
 	_, err := s.CreateTunnelAndWait(req, timeout)
 	return err

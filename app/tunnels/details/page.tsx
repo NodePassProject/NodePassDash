@@ -942,7 +942,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           </Card>
         )}
         
-        {tunnelInfo.traffic.ping !== null && tunnelInfo.type === '服务端' && (
+        {tunnelInfo.traffic.ping !== null &&  (
           <Card className="p-1 md:p-2 bg-pink-50 dark:bg-pink-950/30 shadow-none">
             <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
               <div className="text-center">

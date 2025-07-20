@@ -355,17 +355,31 @@ func (s *Service) storeEvent(event models.EndpointSSE) error {
 	}
 
 	// 非日志事件继续存储到数据库
+	// 添加调试信息
+	log.Debugf("[Master-%d]存储事件: eventType=%s, instanceID=%s, pool=%v, ping=%v",
+		event.EndpointID, event.EventType, event.InstanceID, event.Pool, event.Ping)
+
+	// 处理可能为 nil 的字段
+	poolValue := event.Pool
+	if poolValue == nil {
+		poolValue = nil // 明确设置为 nil，让数据库处理
+	}
+	pingValue := event.Ping
+	if pingValue == nil {
+		pingValue = nil // 明确设置为 nil，让数据库处理
+	}
+
 	_, err := s.db.Exec(`
 		INSERT INTO "EndpointSSE" (
 			eventType, pushType, eventTime, endpointId,
 			instanceId, instanceType, status, url,
 			tcpRx, tcpTx, udpRx, udpTx, pool, ping,
 			logs, alias, restart, createdAt
-		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+		) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
 	`,
 		event.EventType, event.PushType, event.EventTime, event.EndpointID,
 		event.InstanceID, event.InstanceType, event.Status, event.URL,
-		event.TCPRx, event.TCPTx, event.UDPRx, event.UDPTx, event.Pool, event.Ping,
+		event.TCPRx, event.TCPTx, event.UDPRx, event.UDPTx, poolValue, pingValue,
 		event.Logs, event.Alias, event.Restart, time.Now(),
 	)
 	if err != nil {
@@ -1041,6 +1055,10 @@ func (s *Service) tunnelCreate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 		log.Infof("[Master-%d#SSE]Inst.%s创建隧道时设置重启策略: %t", e.EndpointID, e.InstanceID, restart)
 	}
 
+	// 处理可能为 nil 的字段
+	poolValue := e.Pool
+	pingValue := e.Ping
+
 	_, err = tx.Exec(`INSERT INTO "Tunnel" (
 		instanceId, endpointId, name, mode,
 		status, tunnelAddress, tunnelPort, targetAddress, targetPort,
@@ -1065,7 +1083,7 @@ func (s *Service) tunnelCreate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 			}
 			return nil
 		}(),
-		e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, e.Pool, e.Ping, restart, time.Now(), time.Now(), e.EventTime,
+		e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, poolValue, pingValue, restart, time.Now(), time.Now(), e.EventTime,
 	)
 	if err != nil {
 		log.Errorf("[Master-%d#SSE]Inst.%s创建隧道失败,err=%v", e.EndpointID, e.InstanceID, err)
@@ -1154,6 +1172,10 @@ func (s *Service) tunnelUpdate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 		return nil
 	}()
 
+	// 处理可能为 nil 的字段
+	poolValue := e.Pool
+	pingValue := e.Ping
+
 	_, err = tx.Exec(`UPDATE "Tunnel" SET 
 		status = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, pool = ?, ping = ?, 
 		name = ?, mode = ?, restart = ?, 
@@ -1162,7 +1184,7 @@ func (s *Service) tunnelUpdate(tx *sql.Tx, e models.EndpointSSE, cfg parsedURL) 
 		password = ?, min = ?, max = ?, 
 		lastEventTime = ?, updatedAt = ? 
 		WHERE endpointId = ? AND instanceId = ?`,
-		newStatus, e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, e.Pool, e.Ping,
+		newStatus, e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, poolValue, pingValue,
 		newName, newMode, newRestart,
 		cfg.TunnelAddress, cfg.TunnelPort, cfg.TargetAddress, cfg.TargetPort,
 		cfg.TLSMode, cfg.CertPath, cfg.KeyPath, cfg.LogLevel, ptrString(e.URL),
@@ -1237,6 +1259,10 @@ func (s *Service) tunnelCreateOrUpdate(tx *sql.Tx, e models.EndpointSSE, cfg par
 			log.Infof("[Master-%d#SSE]Inst.%s创建隧道时设置重启策略: %t", e.EndpointID, e.InstanceID, restart)
 		}
 
+		// 处理可能为 nil 的字段
+		poolValue := e.Pool
+		pingValue := e.Ping
+
 		_, err = tx.Exec(`INSERT INTO "Tunnel" (
 			instanceId, endpointId, name, mode,
 			status, tunnelAddress, tunnelPort, targetAddress, targetPort,
@@ -1261,7 +1287,7 @@ func (s *Service) tunnelCreateOrUpdate(tx *sql.Tx, e models.EndpointSSE, cfg par
 				}
 				return nil
 			}(),
-			e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, e.Pool, e.Ping, restart, time.Now(), time.Now(), e.EventTime,
+			e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, poolValue, pingValue, restart, time.Now(), time.Now(), e.EventTime,
 		)
 		if err != nil {
 			log.Errorf("[Master-%d#SSE]Inst.%s创建隧道失败,err=%v", e.EndpointID, e.InstanceID, err)
