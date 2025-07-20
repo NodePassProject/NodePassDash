@@ -159,8 +159,6 @@ release:
   header: |
     ## NodePassDash {{ .Tag }}
     
-    ### Feature
-    - 隧道管理页显示数量支持持久化
 
   footer: |
     
