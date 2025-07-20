@@ -503,8 +503,6 @@ func createTagsTable(db *sql.DB) error {
 			tunnel_id INTEGER NOT NULL,
 			tag_id INTEGER NOT NULL,
 			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			FOREIGN KEY (tunnel_id) REFERENCES tunnels(id) ON DELETE CASCADE,
-			FOREIGN KEY (tag_id) REFERENCES Tags(id) ON DELETE CASCADE,
 			UNIQUE(tunnel_id, tag_id)
 		)
 	`)

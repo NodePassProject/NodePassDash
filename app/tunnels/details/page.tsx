@@ -25,7 +25,8 @@ import {
   SelectItem,
   Popover,
   PopoverTrigger,
-  PopoverContent
+  PopoverContent,
+  Spinner
 } from "@heroui/react";
 import React, { useEffect } from "react";
 // 引入 QuickCreateTunnelModal 组件
@@ -401,6 +402,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       const data = await response.json();
       
       // 设置基本信息
+      console.log('[隧道详情] 接收到的数据:', data.tunnelInfo);
       setTunnelInfo(data.tunnelInfo);
 
       setInitialDataLoaded(true);
@@ -668,11 +670,23 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       <div className="flex items-center justify-center min-h-[400px]">
         <div className="space-y-4">
           <div className="flex justify-center">
-            <div className="relative w-10 h-10">
-              <div className="absolute inset-0 rounded-full border-4 border-default-200 border-t-primary animate-spin" />
-            </div>
+            <Spinner size="lg" color="primary" />
           </div>
           <p className="text-default-500 animate-pulse">加载中...</p>
+        </div>
+      </div>
+    );
+  }
+
+  // 整页loading状态 - 当点击刷新按钮时显示
+  if (refreshLoading) {
+    return (
+      <div className="flex items-center justify-center min-h-[400px]">
+        <div className="space-y-4">
+          <div className="flex justify-center">
+            <Spinner size="lg" color="primary" />
+          </div>
+          <p className="text-default-500 animate-pulse">刷新数据中...</p>
         </div>
       </div>
     );
@@ -683,16 +697,19 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       <div className="space-y-4 md:space-y-6 p-4 md:p-0">
       {/* 顶部操作区 - 响应式布局 */}
       <div className="flex flex-col gap-3 md:gap-0 md:flex-row md:justify-between md:items-center">
-        <div className="flex items-center gap-3 md:gap-4">
+        <div className="flex items-center gap-2 md:gap-3">
           <Button
             isIconOnly
             variant="flat"
             onClick={() => router.back()}
-            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
+            className="bg-default-100 hover:bg-default-200 "
           >
             <FontAwesomeIcon icon={faArrowLeft} />
           </Button>
           <h1 className="text-lg md:text-2xl font-bold truncate">{tunnelInfo.name}</h1>
+          <Chip variant="flat" color={tunnelInfo.type === '服务器' ? "primary" : "secondary"} >
+              {tunnelInfo.type}
+          </Chip>
           <Chip 
             variant="flat"
             color={tunnelInfo.status.type}
@@ -737,7 +754,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
             color="default"
             startContent={<FontAwesomeIcon icon={faRefresh} />}
             onClick={handleRefresh}
-            isLoading={refreshLoading}
             isDisabled={refreshLoading}
             className="flex-shrink-0"
           >
@@ -847,10 +863,100 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         </ModalContent>
       </Modal>
 
-      {/* 实例信息 - 响应式网格布局 */}
+      {/* 流量统计卡片 - 移到顶部 */}
+      <div className="grid gap-2 md:gap-3 mb-4" style={{
+        gridTemplateColumns: 'repeat(auto-fit, minmax(120px, 1fr))',
+        maxWidth: '100%'
+      }}>
+        <Card className="p-1 md:p-2 bg-blue-50 dark:bg-blue-950/30 shadow-none">
+          <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">TCP 接收</p>
+              <p className="text-xs md:text-sm lg:text-lg font-bold text-blue-700 dark:text-blue-300">
+                {(() => {
+                  const { value, unit } = formatTrafficValue(tunnelInfo.traffic.tcpRx);
+                  return `${value} ${unit}`;
+                })()}
+              </p>
+            </div>
+          </CardBody>
+        </Card>
+        
+        <Card className="p-1 md:p-2 bg-green-50 dark:bg-green-950/30 shadow-none">
+          <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-xs text-green-600 dark:text-green-400 mb-1">TCP 发送</p>
+              <p className="text-xs md:text-sm lg:text-lg font-bold text-green-700 dark:text-green-300">
+                {(() => {
+                  const { value, unit } = formatTrafficValue(tunnelInfo.traffic.tcpTx);
+                  return `${value} ${unit}`;
+                })()}
+              </p>
+            </div>
+          </CardBody>
+        </Card>
+        
+        <Card className="p-1 md:p-2 bg-purple-50 dark:bg-purple-950/30 shadow-none">
+          <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">UDP 接收</p>
+              <p className="text-xs md:text-sm lg:text-lg font-bold text-purple-700 dark:text-purple-300">
+                {(() => {
+                  const { value, unit } = formatTrafficValue(tunnelInfo.traffic.udpRx);
+                  return `${value} ${unit}`;
+                })()}
+              </p>
+            </div>
+          </CardBody>
+        </Card>
+        
+        <Card className="p-1 md:p-2 bg-orange-50 dark:bg-orange-950/30 shadow-none">
+          <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
+            <div className="text-center">
+              <p className="text-xs text-orange-600 dark:text-orange-400 mb-1">UDP 发送</p>
+              <p className="text-xs md:text-sm lg:text-lg font-bold text-orange-700 dark:text-orange-300">
+                {(() => {
+                  const { value, unit } = formatTrafficValue(tunnelInfo.traffic.udpTx);
+                  return `${value} ${unit}`;
+                })()}
+              </p>
+            </div>
+          </CardBody>
+        </Card>
+        
+        {tunnelInfo.traffic.pool !== null && (
+          <Card className="p-1 md:p-2 bg-cyan-50 dark:bg-cyan-950/30 shadow-none">
+            <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
+              <div className="text-center">
+                <p className="text-xs text-cyan-600 dark:text-cyan-400 mb-1">连接池</p>
+                <p className="text-xs md:text-sm lg:text-lg font-bold text-cyan-700 dark:text-cyan-300">
+                  {tunnelInfo.traffic.pool}
+                </p>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+        
+        {tunnelInfo.traffic.ping !== null && tunnelInfo.type === '服务端' && (
+          <Card className="p-1 md:p-2 bg-pink-50 dark:bg-pink-950/30 shadow-none">
+            <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
+              <div className="text-center">
+                <p className="text-xs text-pink-600 dark:text-pink-400 mb-1">延迟</p>
+                <p className="text-xs md:text-sm lg:text-lg font-bold text-pink-700 dark:text-pink-300">
+                  {tunnelInfo.traffic.ping}ms
+                </p>
+              </div>
+            </CardBody>
+          </Card>
+        )}
+      </div>
+
+      {/* 实例信息 - 合并配置信息 */}
       <Card className="p-2">
-        <CardHeader className="flex items-center justify-between">
-          <span className="font-bold text-sm md:text-base">实例信息</span>
+        <CardHeader className="flex items-center  justify-between">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">实例信息</h3>              
+          </div>
           <Tooltip content="编辑实例" placement="top">
             <Button
               isIconOnly
@@ -863,133 +969,141 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           </Tooltip>
         </CardHeader>
         <CardBody>
-          <div className="flex flex-col lg:grid lg:grid-cols-2 gap-4 lg:gap-12">
-            {/* 左侧：基本信息 */}
-            <Card className="border shadow-none">
-              <CardBody className="flex flex-col justify-between h-full gap-3 md:gap-4">
-                <CellValue label="实例ID" value={tunnelInfo.instanceId} />
-                <CellValue 
-                  label="主控" 
-                  value={<Chip variant="bordered" color="default" size="sm">{tunnelInfo.endpoint}</Chip>} 
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
+              {/* 基本信息 */}
+              <CellValue label="实例ID" value={tunnelInfo.instanceId} />
+              <CellValue 
+                label="主控" 
+                value={<Chip variant="bordered" color="default" size="sm">{tunnelInfo.endpoint}</Chip>} 
+              />
+
+              <CellValue 
+                label="隧道地址" 
+                value={<span className="font-mono text-sm">{tunnelInfo.tunnelAddress}:{tunnelInfo.config.listenPort}</span>} 
+              />
+              <CellValue 
+                label="目标地址" 
+                value={<span className="font-mono text-sm">{tunnelInfo.targetAddress}:{tunnelInfo.config.targetPort}</span>} 
+              />
+
+              <CellValue 
+                label="日志级别" 
+                value={
+                  <div className="flex items-center gap-2">
+                    <Chip 
+                      variant="flat" 
+                      color={tunnelInfo.config.logLevel === 'inherit' ? "primary" : "default"} 
+                      size="sm"
+                    >
+                      {tunnelInfo.config.logLevel === 'inherit' ? 
+                        (tunnelInfo.config.endpointLog ? `继承主控 [${tunnelInfo.config.endpointLog.toUpperCase()}]` : '继承主控设置') : 
+                        tunnelInfo.config.logLevel.toUpperCase()}
+                    </Chip>
+                  </div>
+                } 
+              />
+              {/* 配置信息字段 */}
+              {/* 仅客户端模式下显示 min/max */}
+              {tunnelInfo.type === '客户端' && (
+                <CellValue
+                  label="连接池大小"
+                  value={
+                    <span className="font-mono text-sm">
+                      {tunnelInfo.config.min !== undefined && tunnelInfo.config.min !== null ? tunnelInfo.config.min.toString() : '64'}<span className="text-default-400 text-xs">(min)</span>~
+                      {tunnelInfo.config.max !== undefined && tunnelInfo.config.max !== null ? tunnelInfo.config.max.toString() : '8192'}<span className="text-default-400 text-xs">(max)</span>
+                    </span>
+                  }
                 />
-                <CellValue 
-                  label="类型" 
-                  value={<Chip variant="flat" color={tunnelInfo.type === '服务器' ? "primary" : "secondary"} size="sm">
-                    {tunnelInfo.type}
-                  </Chip>} 
-                />
-                <CellValue 
-                  label="隧道地址" 
-                  value={<span className="font-mono text-sm">{tunnelInfo.tunnelAddress}:{tunnelInfo.config.listenPort}</span>} 
-                />
-                <CellValue 
-                  label="目标地址" 
-                  value={<span className="font-mono text-sm">{tunnelInfo.targetAddress}:{tunnelInfo.config.targetPort}</span>} 
-                />
-                {/* 密码显示 - 仅在有密码时显示 */}
-                {tunnelInfo.password && (
+              )}
+              {/* 仅服务端模式显示TLS设置 */}
+              {tunnelInfo.type === '服务端' && (
+                <>
                   <CellValue 
-                    label="密码" 
+                    label="TLS 设置" 
                     value={
                       <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs md:text-sm break-all text-default-500">
-                          {isPasswordVisible ? tunnelInfo.password : '••••••••'}
-                        </span>
-                        <FontAwesomeIcon 
-                          icon={isPasswordVisible ? faEyeSlash : faEye}
-                          className="text-xs cursor-pointer hover:text-primary w-4 text-default-500"
-                          onClick={() => setIsPasswordVisible(!isPasswordVisible)}
-                        />
+                        <Chip 
+                          variant="flat" 
+                          color={tunnelInfo.config.tlsMode === 'inherit' ? "primary" : 
+                                tunnelInfo.config.tlsMode === 'mode0' ? "default" : "success"} 
+                          size="sm"
+                        >
+                          {tunnelInfo.config.tlsMode === 'inherit' ? 
+                            (tunnelInfo.config.endpointTLS ? `继承主控 [${getTLSModeText(tunnelInfo.config.endpointTLS)}]` : '继承主控设置') :
+                           tunnelInfo.config.tlsMode === 'mode0' ? '无 TLS 加密' :
+                           tunnelInfo.config.tlsMode === 'mode1' ? '自签名证书' : '自定义证书'}
+                        </Chip>
                       </div>
                     }
                   />
-                )}
-              </CardBody>
-            </Card>
-            
-            {/* 右侧：流量统计卡片 - 响应式网格 */}
-            <div className="grid grid-cols-2 gap-2 md:gap-3 h-full">
-              <Card className="p-2 bg-blue-50 dark:bg-blue-950/30 shadow-none h-full">
-                <CardBody className="p-2 md:p-3 flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">TCP 接收</p>
-                    <p className="text-sm md:text-lg font-bold text-blue-700 dark:text-blue-300">
-                      {(() => {
-                        const { value, unit } = formatTrafficValue(tunnelInfo.traffic.tcpRx);
-                        return `${value} ${unit}`;
-                      })()}
-                    </p>
-                  </div>
-                </CardBody>
-              </Card>
-              
-              <Card className="p-2 bg-green-50 dark:bg-green-950/30 shadow-none h-full">
-                <CardBody className="p-2 md:p-3 flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <p className="text-xs text-green-600 dark:text-green-400 mb-1">TCP 发送</p>
-                    <p className="text-sm md:text-lg font-bold text-green-700 dark:text-green-300">
-                      {(() => {
-                        const { value, unit } = formatTrafficValue(tunnelInfo.traffic.tcpTx);
-                        return `${value} ${unit}`;
-                      })()}
-                    </p>
-                  </div>
-                </CardBody>
-              </Card>
-              
-              <Card className="p-2 bg-purple-50 dark:bg-purple-950/30 shadow-none h-full">
-                <CardBody className="p-2 md:p-3 flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">UDP 接收</p>
-                    <p className="text-sm md:text-lg font-bold text-purple-700 dark:text-purple-300">
-                      {(() => {
-                        const { value, unit } = formatTrafficValue(tunnelInfo.traffic.udpRx);
-                        return `${value} ${unit}`;
-                      })()}
-                    </p>
-                  </div>
-                </CardBody>
-              </Card>
-              
-              <Card className="p-2 bg-orange-50 dark:bg-orange-950/30 shadow-none h-full">
-                <CardBody className="p-2 md:p-3 flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <p className="text-xs text-orange-600 dark:text-orange-400 mb-1">UDP 发送</p>
-                    <p className="text-sm md:text-lg font-bold text-orange-700 dark:text-orange-300">
-                      {(() => {
-                        const { value, unit } = formatTrafficValue(tunnelInfo.traffic.udpTx);
-                        return `${value} ${unit}`;
-                      })()}
-                    </p>
-                  </div>
-                </CardBody>
-              </Card>
-              
-              {tunnelInfo.traffic.pool !== null && (
-                <Card className="p-2 bg-cyan-50 dark:bg-cyan-950/30 shadow-none h-full">
-                  <CardBody className="p-2 md:p-3 flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <p className="text-xs text-cyan-600 dark:text-cyan-400 mb-1">连接池</p>
-                      <p className="text-sm md:text-lg font-bold text-cyan-700 dark:text-cyan-300">
-                        {tunnelInfo.traffic.pool}
-                      </p>
+                  {/* 当TLS模式为mode2时显示证书路径 */}
+                  {tunnelInfo.config.tlsMode === 'mode2' && (
+                    <>
+                      <CellValue 
+                        label="证书路径" 
+                        value={tunnelInfo.config.certPath || '未设置'}
+                      />
+                      <CellValue 
+                        label="密钥路径" 
+                        value={tunnelInfo.config.keyPath || '未设置'}
+                      />
+                    </>
+                  )}
+                </>
+              )}
+              {/* 密码显示 - 仅在有密码时显示 */}
+              {tunnelInfo.password && (
+                <CellValue 
+                  label="隧道密码" 
+                  value={
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs md:text-sm break-all text-default-500">
+                        {isPasswordVisible ? tunnelInfo.password : '••••••••'}
+                      </span>
+                      <FontAwesomeIcon 
+                        icon={isPasswordVisible ? faEyeSlash : faEye}
+                        className="text-xs cursor-pointer hover:text-primary w-4 text-default-500"
+                        onClick={() => setIsPasswordVisible(!isPasswordVisible)}
+                      />
                     </div>
-                  </CardBody>
-                </Card>
+                  }
+                />
               )}
               
-              {tunnelInfo.traffic.ping !== null && tunnelInfo.type === 'server' && (
-                <Card className="p-2 bg-pink-50 dark:bg-pink-950/30 shadow-none h-full">
-                  <CardBody className="p-2 md:p-3 flex items-center justify-center h-full">
-                    <div className="text-center">
-                      <p className="text-xs text-pink-600 dark:text-pink-400 mb-1">延迟</p>
-                      <p className="text-sm md:text-lg font-bold text-pink-700 dark:text-pink-300">
-                        {tunnelInfo.traffic.ping}ms
-                      </p>
-                    </div>
-                  </CardBody>
-                </Card>
-              )}
+
+              {/* 自动重启配置 */}
+              {tunnelInfo.endpointVersion && 
+                <CellValue 
+                  label="自动重启" 
+                  value={
+                    <Switch
+                      size="sm"
+                      isSelected={tunnelInfo.config.restart}
+                      onValueChange={handleRestartToggle}
+                      isDisabled={isUpdatingRestart}
+                      endContent={<span className="text-xs text-default-600">禁用</span>}
+                      startContent={<span className="text-xs text-default-600">启用</span>}
+                      classNames={{
+                        base: cn(
+                          "inline-flex flex-row-reverse w-full max-w-md items-center",
+                          "justify-between"
+                        ),
+                        wrapper: "p-0 h-6 w-14 overflow-visible",
+                        thumb: cn(
+                          "w-6 h-6 border-2 shadow-lg",
+                          "group-data-[hover=true]:border-primary",
+                          //selected
+                          "group-data-[selected=true]:ms-8",
+                          // pressed
+                          "group-data-[pressed=true]:w-16",
+                          "group-data-[selected]:group-data-[pressed]:ms-4",
+                        ),
+                      }}
+                    />
+                  } 
+                />
+              }
             </div>
           </div>
         </CardBody>
@@ -1001,7 +1115,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           key="command" 
           aria-label="命令行" 
           title={
-            <span className="font-bold text-sm md:text-base">命令行</span>
+            <h3 className="text-lg font-semibold">命令行</h3>              
           }
         >
           <div className="pb-4">
@@ -1021,11 +1135,11 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
 
       {/* 流量趋势图 - 响应式高度 */}
       <Card className="p-2">
-        <CardHeader className="font-bold text-sm md:text-base justify-between">
+        <CardHeader className="flex items-center  justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              流量趋势
-              <Tooltip content="需要日志级别设为debug才会有流量变化推送" placement="top">
+              <h3 className="text-lg font-semibold">流量趋势</h3>              
+              <Tooltip content="需要日志级别设为debug才会有流量变化推送" placement="right">
                 <FontAwesomeIcon 
                   icon={faQuestionCircle} 
                   className="text-default-400 hover:text-default-600 cursor-help text-xs"
@@ -1163,24 +1277,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                         unit: commonUnit
                       }))
                     },
-                    // 只在有pool数据时显示连接池趋势
-                    ...(filteredData.some((item: TrafficTrendData) => item.poolDiff !== null && item.poolDiff !== undefined) ? [{
-                      id: `连接池`,
-                      data: filteredData.map((item: TrafficTrendData) => ({
-                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
-                        y: Number(item.poolDiff) || 0,
-                        unit: '个'
-                      }))
-                    }] : []),
-                    // 只在有ping数据且为server类型时显示延迟趋势
-                    ...(tunnelInfo.type === 'server' && filteredData.some((item: TrafficTrendData) => item.pingDiff !== null && item.pingDiff !== undefined) ? [{
-                      id: `延迟`,
-                      data: filteredData.map((item: TrafficTrendData) => ({
-                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
-                        y: Number(item.pingDiff) || 0,
-                        unit: 'ms'
-                      }))
-                    }] : [])
+
+
                   ];
                   
                   return chartData;
@@ -1212,12 +1310,97 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         </CardBody>
       </Card>
 
-            {/* 日志 - 独立Card */}
-      <Card className="p-2">
-        <CardHeader className="font-bold text-sm md:text-base justify-between">
-          <div className="flex items-center gap-3">
+      {/* 延迟趋势图表 - 仅服务端隧道显示 */}
+      {tunnelInfo.type === '服务端' && (
+        <Card className="p-2">
+          <CardHeader className="font-bold text-sm md:text-base justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                延迟趋势
+                <Tooltip content="仅服务端隧道显示延迟数据" placement="top">
+                  <FontAwesomeIcon 
+                    icon={faQuestionCircle} 
+                    className="text-default-400 hover:text-default-600 cursor-help text-xs"
+                  />
+                </Tooltip>
+              </div>
+            </div>
             <div className="flex items-center gap-2">
-              日志
+              {/* 刷新按钮 */}
+              <Button
+                size="sm"
+                variant="flat"
+                isIconOnly
+                onPress={fetchTrafficTrend}
+                isLoading={trafficRefreshLoading}
+                className="h-7 w-7 min-w-0"
+              >
+                <FontAwesomeIcon icon={faRefresh} className="text-xs" />
+              </Button>
+              {/* 时间范围选择 */}
+              <Tabs 
+                selectedKey={trafficTimeRange}
+                onSelectionChange={(key) => setTrafficTimeRange(key as "1h" | "6h" | "12h" | "24h")}
+                size="sm"
+                variant="light"
+                classNames={{
+                  tabList: "gap-1",
+                  tab: "text-xs px-2 py-1 min-w-0 h-7",
+                  tabContent: "text-xs"
+                }}
+              >
+                <Tab key="1h" title="1小时" />
+                <Tab key="6h" title="6小时" />
+                <Tab key="12h" title="12小时" />
+                <Tab key="24h" title="24小时" />
+              </Tabs>
+            </div>
+          </CardHeader>
+          <CardBody>
+            <div className="h-64">
+              {(() => {
+                // 使用过滤后的数据计算单位
+                if (!trafficTrend || !Array.isArray(trafficTrend) || trafficTrend.length === 0) {
+                  return <div className="flex items-center justify-center h-full text-default-400">暂无延迟数据</div>;
+                }
+                
+                const filteredData = filterDataByTimeRange(trafficTrend, trafficTimeRange);
+                if (filteredData.length === 0) {
+                  return <div className="flex items-center justify-center h-full text-default-400">所选时间范围内暂无延迟数据</div>;
+                }
+
+                // 检查是否有延迟数据
+                const hasPingData = filteredData.some((item: TrafficTrendData) => item.pingDiff !== null && item.pingDiff !== undefined);
+                if (!hasPingData) {
+                  return <div className="flex items-center justify-center h-full text-default-400">暂无延迟数据</div>;
+                }
+
+                return (
+                  <FlowTrafficChart
+                    data={[{
+                      id: `延迟`,
+                      data: filteredData.map((item: TrafficTrendData) => ({
+                        x: item.eventTime || '',
+                        y: Number(item.pingDiff) || 0,
+                        unit: 'ms'
+                      }))
+                    }]}
+                    unit="ms"
+                  />
+                );
+              })()}
+            </div>
+          </CardBody>
+        </Card>
+      )}
+
+      {/* 日志 - 独立Card */}
+      <Card className="p-2">
+      <CardHeader className="flex items-center  justify-between">
+           <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold">日志</h3>              
+
               <Chip variant="flat" color="primary" size="sm">
                 {logCount} 条记录
               </Chip>
@@ -1355,103 +1538,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         </CardBody>
       </Card>
             
-      {/* 配置信息 - Tab 内容响应式优化 */}
-      <Card className="p-2">
-        <CardHeader className="font-bold text-sm md:text-base">配置信息</CardHeader>
-        <CardBody>
-              <div className="space-y-4">
-                <div>
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 md:gap-4">
-                {/* 仅客户端模式下显示 min/max */}
-                {tunnelInfo.type === '客户端' && (
-                  <>
-                    <CellValue
-                      label="连接池最小值"
-                      value={tunnelInfo.config.min !== undefined && tunnelInfo.config.min !== null ? tunnelInfo.config.min.toString() : '64(默认值)'}
-                    />
-                    <CellValue
-                      label="连接池最大值"
-                      value={tunnelInfo.config.max !== undefined && tunnelInfo.config.max !== null ? tunnelInfo.config.max.toString() : '8192(默认值)'}
-                    />
-                  </>
-                )}
-                {/* 仅服务端模式显示TLS设置 */}
-                {tunnelInfo.type === '服务端' && (
-                    <CellValue 
-                      label="TLS 设置" 
-                      value={
-                        <div className="flex items-center gap-2">
-                            <Chip 
-                              variant="flat" 
-                              color={tunnelInfo.config.tlsMode === 'inherit' ? "primary" : 
-                                    tunnelInfo.config.tlsMode === 'mode0' ? "default" : "success"} 
-                              size="sm"
-                            >
-                              {tunnelInfo.config.tlsMode === 'inherit' ? 
-                                (tunnelInfo.config.endpointTLS ? `继承主控 [${getTLSModeText(tunnelInfo.config.endpointTLS)}]` : '继承主控设置') :
-                               tunnelInfo.config.tlsMode === 'mode0' ? '无 TLS 加密' :
-                               tunnelInfo.config.tlsMode === 'mode1' ? '自签名证书' : '自定义证书'}
-                            </Chip>
-                        </div>
-                      }
-                    />
-                )}
-                  
-                    <CellValue 
-                      label="日志级别" 
-                      value={
-                        <div className="flex items-center gap-2">
-                          <Chip 
-                            variant="flat" 
-                            color={tunnelInfo.config.logLevel === 'inherit' ? "primary" : "default"} 
-                            size="sm"
-                          >
-                            {tunnelInfo.config.logLevel === 'inherit' ? 
-                              (tunnelInfo.config.endpointLog ? `继承主控 [${tunnelInfo.config.endpointLog.toUpperCase()}]` : '继承主控设置') : 
-                              tunnelInfo.config.logLevel.toUpperCase()}
-                          </Chip>
-                        </div>
-                      } 
-                    />
 
-
-
-                    {/* 自动重启配置 */}
-                    {tunnelInfo.endpointVersion && 
-                      <CellValue 
-                        label="自动重启" 
-                        value={
-                            <Switch
-                              size="sm"
-                              isSelected={tunnelInfo.config.restart}
-                              onValueChange={handleRestartToggle}
-                              isDisabled={isUpdatingRestart}
-                              endContent={<span className="text-xs text-default-600">禁用</span>}
-                              startContent={<span className="text-xs text-default-600">启用</span>}
-                              classNames={{
-                                base: cn(
-                                  "inline-flex flex-row-reverse w-full max-w-md  items-center",
-                                  "justify-between "
-                                ),
-                                wrapper: "p-0 h-6 w-14 overflow-visible",
-                                thumb: cn(
-                                  "w-6 h-6 border-2 shadow-lg",
-                                  "group-data-[hover=true]:border-primary",
-                                  //selected
-                                  "group-data-[selected=true]:ms-8",
-                                  // pressed
-                                  "group-data-[pressed=true]:w-16",
-                                  "group-data-[selected]:group-data-[pressed]:ms-4",
-                                ),
-                              }}
-                            />
-                        } 
-                    />}
-                  </div>
-                </div>
-              </div>
-        </CardBody>
-      </Card>
     </div>
 
     {/* 编辑实例模态框 */}

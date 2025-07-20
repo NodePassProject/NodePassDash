@@ -162,6 +162,21 @@ func (s *Service) AssignTagToTunnel(req *AssignTagRequest) error {
 		return err
 	}
 
+	// 如果TagID为0，表示清除标签，只删除不插入
+	if req.TagID <= 0 {
+		return nil
+	}
+
+	// 验证标签是否存在
+	var exists int
+	err = s.db.QueryRow("SELECT 1 FROM Tags WHERE id = ?", req.TagID).Scan(&exists)
+	if err != nil {
+		if err == sql.ErrNoRows {
+			return errors.New("指定的标签不存在")
+		}
+		return err
+	}
+
 	// 添加新的标签关联
 	_, err = s.db.Exec(
 		"INSERT INTO TunnelTags (tunnel_id, tag_id, created_at) VALUES (?, ?, ?)",
@@ -175,7 +190,7 @@ func (s *Service) GetTunnelTag(tunnelID int64) (*Tag, error) {
 	var tag Tag
 	err := s.db.QueryRow(`
 		SELECT t.id, t.name, t.created_at, t.updated_at 
-		FROM Tag t 
+		FROM Tags t 
 		JOIN TunnelTags tt ON t.id = tt.tag_id 
 		WHERE tt.tunnel_id = ?
 	`, tunnelID).Scan(&tag.ID, &tag.Name, &tag.CreatedAt, &tag.UpdatedAt)
