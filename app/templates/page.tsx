@@ -1524,7 +1524,7 @@ export default function TemplatesPage() {
       
       // 延迟跳转到分组页面
       setTimeout(() => {
-        router.push('/groups');
+        router.push('/tunnels');
       }, 1500);
     } catch (error) {
       console.error('创建失败:', error);

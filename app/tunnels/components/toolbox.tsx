@@ -535,7 +535,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
           </Button>
           
           {/* 创建按钮组 */}
-          <ButtonGroup className="flex-1">
+          <ButtonGroup className="flex-1 ">
             <Button 
               color="primary" 
               startContent={loading ? <Spinner size="sm" /> : <FontAwesomeIcon icon={faPlus} />}

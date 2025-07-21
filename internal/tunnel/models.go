@@ -117,8 +117,8 @@ type CreateTunnelRequest struct {
 	KeyPath       string   `json:"keyPath,omitempty"`
 	LogLevel      LogLevel `json:"logLevel"`
 	Password      string   `json:"password,omitempty"`
-	Min           int      `json:"min,omitempty"`
-	Max           int      `json:"max,omitempty"`
+	Min           *int     `json:"min,omitempty"`
+	Max           *int     `json:"max,omitempty"`
 	Restart       bool     `json:"restart"`
 }
 
@@ -209,9 +209,9 @@ type UpdateTunnelRequest struct {
 	KeyPath       string   `json:"keyPath,omitempty"`
 	LogLevel      LogLevel `json:"logLevel,omitempty"`
 	Password      string   `json:"password,omitempty"`
-	Min           int      `json:"min,omitempty"`
+	Min           *int     `json:"min,omitempty"`
+	Max           *int     `json:"max,omitempty"`
 	Restart       bool     `json:"restart"`
-	Max           int      `json:"max,omitempty"`
 }
 
 // TunnelActionRequest 隧道操作请求

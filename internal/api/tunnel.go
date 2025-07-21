@@ -152,12 +152,13 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 对于未设置的min/max，使用-1表示"未设置"状态（在请求中传递，但数据库存储时会转为NULL）
-	if !minSet {
-		minVal = -1
+	// 根据设置情况决定是否使用指针
+	var minPtr, maxPtr *int
+	if minSet {
+		minPtr = &minVal
 	}
-	if !maxSet {
-		maxVal = -1
+	if maxSet {
+		maxPtr = &maxVal
 	}
 
 	req := tunnel.CreateTunnelRequest{
@@ -173,8 +174,8 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		KeyPath:       raw.KeyPath,
 		LogLevel:      tunnel.LogLevel(raw.LogLevel),
 		Password:      raw.Password,
-		Min:           minVal,
-		Max:           maxVal,
+		Min:           minPtr,
+		Max:           maxPtr,
 	}
 
 	log.Infof("[Master-%v] 创建隧道请求: %v", req.EndpointID, req.Name)
@@ -557,12 +558,13 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 		minVal, minSet, _ := parseIntFieldLocal(rawCreate.Min)
 		maxVal, maxSet, _ := parseIntFieldLocal(rawCreate.Max)
 
-		// 对于未设置的min/max，使用-1表示"未设置"状态
-		if !minSet {
-			minVal = -1
+		// 根据设置情况决定是否使用指针
+		var minPtr, maxPtr *int
+		if minSet {
+			minPtr = &minVal
 		}
-		if !maxSet {
-			maxVal = -1
+		if maxSet {
+			maxPtr = &maxVal
 		}
 
 		createReq := tunnel.CreateTunnelRequest{
@@ -578,8 +580,8 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 			KeyPath:       rawCreate.KeyPath,
 			LogLevel:      tunnel.LogLevel(rawCreate.LogLevel),
 			Password:      rawCreate.Password,
-			Min:           minVal,
-			Max:           maxVal,
+			Min:           minPtr,
+			Max:           maxPtr,
 		}
 
 		// 使用等待模式创建新隧道，超时时间为 3 秒
@@ -2854,11 +2856,12 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 			// 重新创建，处理min/max未设置状态
 			minVal, minSet, _ := parseIntV2(raw.Min)
 			maxVal, maxSet, _ := parseIntV2(raw.Max)
-			if !minSet {
-				minVal = -1
+			var minPtr, maxPtr *int
+			if minSet {
+				minPtr = &minVal
 			}
-			if !maxSet {
-				maxVal = -1
+			if maxSet {
+				maxPtr = &maxVal
 			}
 			createReq := tunnel.CreateTunnelRequest{
 				Name:          raw.Name,
@@ -2873,8 +2876,8 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 				KeyPath:       raw.KeyPath,
 				LogLevel:      tunnel.LogLevel(raw.LogLevel),
 				Password:      raw.Password,
-				Min:           minVal,
-				Max:           maxVal,
+				Min:           minPtr,
+				Max:           maxPtr,
 			}
 			newTunnel, crtErr := h.tunnelService.CreateTunnelAndWait(createReq, 3*time.Second)
 			if crtErr != nil {

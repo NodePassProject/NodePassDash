@@ -418,11 +418,11 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 	}
 
 	if req.Mode == "client" {
-		if req.Min >= 0 {
-			queryParams = append(queryParams, fmt.Sprintf("min=%d", req.Min))
+		if req.Min != nil {
+			queryParams = append(queryParams, fmt.Sprintf("min=%d", *req.Min))
 		}
-		if req.Max >= 0 {
-			queryParams = append(queryParams, fmt.Sprintf("max=%d", req.Max))
+		if req.Max != nil {
+			queryParams = append(queryParams, fmt.Sprintf("max=%d", *req.Max))
 		}
 	}
 
@@ -473,13 +473,13 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 			commandLine,
 			req.Password,
 			func() interface{} {
-				if req.Min >= 0 {
+				if req.Min != nil {
 					return req.Min
 				}
 				return nil
 			}(),
 			func() interface{} {
-				if req.Max >= 0 {
+				if req.Max != nil {
 					return req.Max
 				}
 				return nil
@@ -544,14 +544,14 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		CommandLine:   commandLine,
 		Password:      req.Password,
 		Min: func() *int {
-			if req.Min >= 0 {
-				return &req.Min
+			if req.Min != nil {
+				return req.Min
 			}
 			return nil
 		}(),
 		Max: func() *int {
-			if req.Max >= 0 {
-				return &req.Max
+			if req.Max != nil {
+				return req.Max
 			}
 			return nil
 		}(),
@@ -1220,11 +1220,11 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		}
 	}
 	if req.Mode == "client" {
-		if req.Min >= 0 {
-			queryParams = append(queryParams, fmt.Sprintf("min=%d", req.Min))
+		if req.Min != nil {
+			queryParams = append(queryParams, fmt.Sprintf("min=%d", *req.Min))
 		}
-		if req.Max >= 0 {
-			queryParams = append(queryParams, fmt.Sprintf("max=%d", req.Max))
+		if req.Max != nil {
+			queryParams = append(queryParams, fmt.Sprintf("max=%d", *req.Max))
 		}
 	}
 	if len(queryParams) > 0 {
@@ -1312,14 +1312,14 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 			CommandLine:   commandLine,
 			Password:      req.Password,
 			Min: func() *int {
-				if req.Min >= 0 {
-					return &req.Min
+				if req.Min != nil {
+					return req.Min
 				}
 				return nil
 			}(),
 			Max: func() *int {
-				if req.Max >= 0 {
-					return &req.Max
+				if req.Max != nil {
+					return req.Max
 				}
 				return nil
 			}(),
@@ -1358,13 +1358,13 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 			req.TLSMode, req.CertPath, req.KeyPath, req.LogLevel, commandLine,
 			req.Password,
 			func() interface{} {
-				if req.Min >= 0 {
+				if req.Min != nil {
 					return req.Min
 				}
 				return nil
 			}(),
 			func() interface{} {
-				if req.Max >= 0 {
+				if req.Max != nil {
 					return req.Max
 				}
 				return nil
@@ -1429,14 +1429,14 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		CommandLine:   commandLine,
 		Password:      req.Password,
 		Min: func() *int {
-			if req.Min >= 0 {
-				return &req.Min
+			if req.Min != nil {
+				return req.Min
 			}
 			return nil
 		}(),
 		Max: func() *int {
-			if req.Max >= 0 {
-				return &req.Max
+			if req.Max != nil {
+				return req.Max
 			}
 			return nil
 		}(),
@@ -1682,8 +1682,26 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string
 		KeyPath:       cfg.KeyPath,
 		LogLevel:      LogLevel(cfg.LogLevel),
 		Password:      cfg.Password,
-		Min:           func() int { v, _ := strconv.Atoi(cfg.Min); return v }(),
-		Max:           func() int { v, _ := strconv.Atoi(cfg.Max); return v }(),
+		Min: func() *int {
+			if cfg.Min == "" {
+				return nil
+			}
+			v, err := strconv.Atoi(cfg.Min)
+			if err != nil {
+				return nil
+			}
+			return &v
+		}(),
+		Max: func() *int {
+			if cfg.Max == "" {
+				return nil
+			}
+			v, err := strconv.Atoi(cfg.Max)
+			if err != nil {
+				return nil
+			}
+			return &v
+		}(),
 	}
 	_, err := s.CreateTunnelAndWait(req, 3*time.Second)
 	return err
@@ -1709,16 +1727,16 @@ func (s *Service) QuickCreateTunnelAndWait(endpointID int64, rawURL string, name
 	}
 
 	// 正确处理min和max值，区分未设置和设置为0的情况
-	var minVal, maxVal int
+	var minVal, maxVal *int
 	if cfg.Min != "" {
-		minVal, _ = strconv.Atoi(cfg.Min)
-	} else {
-		minVal = -1 // 使用-1表示未设置
+		if val, err := strconv.Atoi(cfg.Min); err == nil {
+			minVal = &val
+		}
 	}
 	if cfg.Max != "" {
-		maxVal, _ = strconv.Atoi(cfg.Max)
-	} else {
-		maxVal = -1 // 使用-1表示未设置
+		if val, err := strconv.Atoi(cfg.Max); err == nil {
+			maxVal = &val
+		}
 	}
 
 	req := CreateTunnelRequest{
