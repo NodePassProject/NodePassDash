@@ -377,7 +377,7 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                   {formData.mode === 'client' && (
                     <div className="grid grid-cols-2 gap-2">
                       <Input label="连接池最小容量(可选)" value={formData.min} onValueChange={(v)=>handleField('min',v)} placeholder="64(默认值)"/>
-                      <Input label="连接池最大容量(可选)" value={formData.max} onValueChange={(v)=>handleField('max',v)} placeholder="8192(默认值)"/>
+                      <Input label="连接池最大容量(可选)" value={formData.max} onValueChange={(v)=>handleField('max',v)} placeholder="1024(默认值)"/>
                     </div>
                   )}
 

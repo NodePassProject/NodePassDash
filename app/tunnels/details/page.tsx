@@ -1016,7 +1016,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   value={
                     <span className="font-mono text-sm">
                       {tunnelInfo.config.min !== undefined && tunnelInfo.config.min !== null ? tunnelInfo.config.min.toString() : '64'}<span className="text-default-400 text-xs">(min)</span>~
-                      {tunnelInfo.config.max !== undefined && tunnelInfo.config.max !== null ? tunnelInfo.config.max.toString() : '8192'}<span className="text-default-400 text-xs">(max)</span>
+                      {tunnelInfo.config.max !== undefined && tunnelInfo.config.max !== null ? tunnelInfo.config.max.toString() : '1024'}<span className="text-default-400 text-xs">(max)</span>
                     </span>
                   }
                 />

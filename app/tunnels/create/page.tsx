@@ -707,7 +707,7 @@ export default function CreateTunnelPage() {
               />
               <Input
                 label="连接池的最大容量"
-                placeholder="8192"
+                placeholder="1024"
                 value={formData.max}
                 onChange={(e) => handleInputChange('max', e.target.value)}
               />
