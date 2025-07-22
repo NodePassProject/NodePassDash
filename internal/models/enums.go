@@ -59,7 +59,8 @@ const (
 	LogLevelInfo    LogLevel = "info"
 	LogLevelWarn    LogLevel = "warn"
 	LogLevelError   LogLevel = "error"
-	LogLevelFatal   LogLevel = "fatal"
+	LogLevelEvent   LogLevel = "event"
+	LogLevelNone    LogLevel = "none"
 )
 
 // OperationAction 操作类型枚举

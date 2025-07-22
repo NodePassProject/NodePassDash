@@ -12,7 +12,7 @@ CREATE TABLE IF NOT EXISTS tunnels (
     tls_mode TEXT NOT NULL DEFAULT 'inherit' CHECK (tls_mode IN ('inherit', 'mode0', 'mode1', 'mode2')),
     cert_path TEXT,
     key_path TEXT,
-    log_level TEXT NOT NULL DEFAULT 'inherit' CHECK (log_level IN ('inherit', 'debug', 'info', 'warn', 'error')),
+    log_level TEXT NOT NULL DEFAULT 'inherit' CHECK (log_level IN ('inherit', 'debug', 'info', 'warn', 'error', 'event', 'none')),
     command_line TEXT NOT NULL,
     restart BOOLEAN NOT NULL DEFAULT FALSE,
     status TEXT NOT NULL DEFAULT 'stopped' CHECK (status IN ('running', 'stopped', 'error')),

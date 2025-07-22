@@ -282,6 +282,7 @@ export default function QuickCreateTunnelModal({ isOpen, onOpenChange, onSaved, 
                       <SelectItem key="warn">Warn</SelectItem>
                       <SelectItem key="error">Error</SelectItem>
                       <SelectItem key="event">Event</SelectItem>
+                      <SelectItem key="none">None</SelectItem>
                     </Select>
                   </div>
 

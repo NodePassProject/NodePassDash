@@ -41,6 +41,8 @@ const (
 	LogLevelInfo    LogLevel = "info"
 	LogLevelWarn    LogLevel = "warn"
 	LogLevelError   LogLevel = "error"
+	LogLevelEvent   LogLevel = "event"
+	LogLevelNone    LogLevel = "none"
 )
 
 // Tunnel 隧道基本信息

@@ -534,6 +534,10 @@ export default function CreateTunnelPage() {
                   Event
                   <div className="text-tiny text-default-400">事件信息</div>
                 </SelectItem>
+                <SelectItem key="none" textValue="None">
+                  None
+                  <div className="text-tiny text-default-400">禁用日志输出</div>
+                </SelectItem>
               </Select>
             </div>
           </div>

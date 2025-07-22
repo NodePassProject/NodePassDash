@@ -998,11 +998,13 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                   <div className="flex items-center gap-2">
                     <Chip 
                       variant="flat" 
-                      color={tunnelInfo.config.logLevel === 'inherit' ? "primary" : "default"} 
+                      color={tunnelInfo.config.logLevel === 'inherit' ? "primary" : 
+                            tunnelInfo.config.logLevel === 'none' ? "warning" : "default"} 
                       size="sm"
                     >
                       {tunnelInfo.config.logLevel === 'inherit' ? 
                         (tunnelInfo.config.endpointLog ? `继承主控 [${tunnelInfo.config.endpointLog.toUpperCase()}]` : '继承主控设置') : 
+                        tunnelInfo.config.logLevel === 'none' ? '无日志 [NONE]' :
                         tunnelInfo.config.logLevel.toUpperCase()}
                     </Chip>
                   </div>
