@@ -1318,7 +1318,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       </Card>
 
       {/* 延迟趋势图表 - 仅服务端隧道显示 */}
-      {tunnelInfo.type === '服务端' && (
+      {tunnelInfo.type === '服务端1' && (
         <Card className="p-2">
           <CardHeader className="font-bold text-sm md:text-base justify-between">
             <div className="flex items-center gap-3">
