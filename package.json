@@ -1,6 +1,6 @@
 {
   "name": "NodePassDash",
-  "version": "2.2.0-beta3",
+  "version": "2.2.0",
   "private": true,
   "scripts": {
     "dev": "next dev",
