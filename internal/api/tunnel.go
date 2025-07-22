@@ -1603,12 +1603,12 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 
 		// 获取创建的隧道ID并自动创建分组
 		tunnelID, err := h.getTunnelIDByName(tunnelName)
-		if err == nil {
-			groupName := endpointName
-			if err := h.createTunnelGroup(groupName, "single", "单端转发分组", []int64{tunnelID}); err != nil {
-				log.Warnf("[API] 自动创建分组失败: %v", err)
-			}
-		}
+		// if err == nil {
+		// 	groupName := endpointName
+		// 	if err := h.createTunnelGroup(groupName, "single", "单端转发分组", []int64{tunnelID}); err != nil {
+		// 		log.Warnf("[API] 自动创建分组失败: %v", err)
+		// 	}
+		// }
 
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success:   true,
@@ -1775,12 +1775,12 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			tunnelIDs = append(tunnelIDs, clientTunnelID)
 		}
 
-		if len(tunnelIDs) > 0 {
-			groupName := fmt.Sprintf("%s->%s", serverEndpoint.Name, clientEndpoint.Name)
-			if err := h.createTunnelGroup(groupName, "double", "双端转发分组", tunnelIDs); err != nil {
-				log.Warnf("[API] 自动创建分组失败: %v", err)
-			}
-		}
+		// if len(tunnelIDs) > 0 {
+		// 	groupName := fmt.Sprintf("%s->%s", serverEndpoint.Name, clientEndpoint.Name)
+		// 	if err := h.createTunnelGroup(groupName, "double", "双端转发分组", tunnelIDs); err != nil {
+		// 		log.Warnf("[API] 自动创建分组失败: %v", err)
+		// 	}
+		// }
 
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success:   true,
@@ -1947,12 +1947,12 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 			tunnelIDs = append(tunnelIDs, clientTunnelID)
 		}
 
-		if len(tunnelIDs) > 0 {
-			groupName := fmt.Sprintf("%s->%s", clientEndpoint.Name, serverEndpoint.Name)
-			if err := h.createTunnelGroup(groupName, "intranet", "内网穿透分组", tunnelIDs); err != nil {
-				log.Warnf("[API] 自动创建分组失败: %v", err)
-			}
-		}
+		// if len(tunnelIDs) > 0 {
+		// 	groupName := fmt.Sprintf("%s->%s", clientEndpoint.Name, serverEndpoint.Name)
+		// 	if err := h.createTunnelGroup(groupName, "intranet", "内网穿透分组", tunnelIDs); err != nil {
+		// 		log.Warnf("[API] 自动创建分组失败: %v", err)
+		// 	}
+		// }
 
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success:   true,

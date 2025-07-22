@@ -514,28 +514,28 @@ func initDatabase(db *sql.DB) error {
 	);`
 
 	// 创建隧道分组表
-	createTunnelGroups := `
-	CREATE TABLE IF NOT EXISTS tunnel_groups (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL UNIQUE,
-		description TEXT,
-		type TEXT NOT NULL DEFAULT 'custom',
-		color TEXT DEFAULT '#3B82F6',
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	);`
+	// createTunnelGroups := `
+	// CREATE TABLE IF NOT EXISTS tunnel_groups (
+	// 	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	// 	name TEXT NOT NULL UNIQUE,
+	// 	description TEXT,
+	// 	type TEXT NOT NULL DEFAULT 'custom',
+	// 	color TEXT DEFAULT '#3B82F6',
+	// 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	// 	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
+	// );`
 
 	// 创建隧道分组成员表
-	createTunnelGroupMembers := `
-	CREATE TABLE IF NOT EXISTS tunnel_group_members (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		group_id INTEGER NOT NULL,
-		tunnel_id TEXT NOT NULL,
-		role TEXT DEFAULT 'member',
-		created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (group_id) REFERENCES tunnel_groups(id) ON DELETE CASCADE,
-		UNIQUE(group_id, tunnel_id)
-	);`
+	// createTunnelGroupMembers := `
+	// CREATE TABLE IF NOT EXISTS tunnel_group_members (
+	// 	id INTEGER PRIMARY KEY AUTOINCREMENT,
+	// 	group_id INTEGER NOT NULL,
+	// 	tunnel_id TEXT NOT NULL,
+	// 	role TEXT DEFAULT 'member',
+	// 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+	// 	FOREIGN KEY (group_id) REFERENCES tunnel_groups(id) ON DELETE CASCADE,
+	// 	UNIQUE(group_id, tunnel_id)
+	// );`
 
 	// 创建标签表
 	createTagsTable := `
@@ -580,12 +580,12 @@ func initDatabase(db *sql.DB) error {
 	if _, err := db.Exec(createUserSession); err != nil {
 		return err
 	}
-	if _, err := db.Exec(createTunnelGroups); err != nil {
-		return err
-	}
-	if _, err := db.Exec(createTunnelGroupMembers); err != nil {
-		return err
-	}
+	// if _, err := db.Exec(createTunnelGroups); err != nil {
+	// 	return err
+	// }
+	// if _, err := db.Exec(createTunnelGroupMembers); err != nil {
+	// 	return err
+	// }
 	if _, err := db.Exec(createTagsTable); err != nil {
 		return err
 	}
@@ -673,12 +673,12 @@ func initDatabase(db *sql.DB) error {
 
 	// ---- 创建分组表索引 ----
 	groupIndexes := []string{
-		`CREATE INDEX IF NOT EXISTS idx_tunnel_groups_name ON tunnel_groups(name)`,
-		`CREATE INDEX IF NOT EXISTS idx_tunnel_groups_type ON tunnel_groups(type)`,
-		`CREATE INDEX IF NOT EXISTS idx_tunnel_groups_created_at ON tunnel_groups(created_at)`,
-		`CREATE INDEX IF NOT EXISTS idx_tunnel_group_members_group_id ON tunnel_group_members(group_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_tunnel_group_members_tunnel_id ON tunnel_group_members(tunnel_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_tunnel_group_members_role ON tunnel_group_members(role)`,
+		// `CREATE INDEX IF NOT EXISTS idx_tunnel_groups_name ON tunnel_groups(name)`,
+		// `CREATE INDEX IF NOT EXISTS idx_tunnel_groups_type ON tunnel_groups(type)`,
+		// `CREATE INDEX IF NOT EXISTS idx_tunnel_groups_created_at ON tunnel_groups(created_at)`,
+		// `CREATE INDEX IF NOT EXISTS idx_tunnel_group_members_group_id ON tunnel_group_members(group_id)`,
+		// `CREATE INDEX IF NOT EXISTS idx_tunnel_group_members_tunnel_id ON tunnel_group_members(tunnel_id)`,
+		// `CREATE INDEX IF NOT EXISTS idx_tunnel_group_members_role ON tunnel_group_members(role)`,
 		`CREATE INDEX IF NOT EXISTS idx_tags_name ON Tags(name)`,
 		`CREATE INDEX IF NOT EXISTS idx_tags_created_at ON Tags(created_at)`,
 		`CREATE INDEX IF NOT EXISTS idx_tunnel_tags_tunnel_id ON TunnelTags(tunnel_id)`,

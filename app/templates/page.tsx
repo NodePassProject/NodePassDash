@@ -1496,7 +1496,7 @@ export default function TemplatesPage() {
     addToast({
       timeout: 1,
       title: '正在创建场景中...',
-      description: '正在创建隧道和分组，请稍候',
+      description: '正在创建隧道，请稍候',
       color: 'primary'
     });
 
@@ -1518,7 +1518,7 @@ export default function TemplatesPage() {
 
       addToast({
         title: '创建成功！',
-        description: `${result.message || '隧道已成功创建'}，分组也已自动创建`,
+        description: `${result.message || '隧道已成功创建'}`,
         color: 'success'
       });
       
