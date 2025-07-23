@@ -188,6 +188,7 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/tunnels/{id}/details", r.tunnelHandler.HandleGetTunnelDetails).Methods("GET")
 	r.router.HandleFunc("/api/tunnels/{id}/logs", r.tunnelHandler.HandleTunnelLogs).Methods("GET")
 	r.router.HandleFunc("/api/tunnels/{id}/traffic-trend", r.tunnelHandler.HandleGetTunnelTrafficTrend).Methods("GET")
+	r.router.HandleFunc("/api/tunnels/{id}/ping-trend", r.tunnelHandler.HandleGetTunnelPingTrend).Methods("GET")
 	r.router.HandleFunc("/api/tunnels/{id}/export-logs", r.tunnelHandler.HandleExportTunnelLogs).Methods("GET")
 
 	// 隧道日志相关路由

@@ -119,6 +119,12 @@ interface TrafficTrendData {
   pingDiff: number | null;
 }
 
+// 添加延迟趋势数据类型 - 后端返回的是绝对值数据
+interface PingTrendData {
+  eventTime: string;
+  ping: number;
+}
+
 // 添加流量单位转换函数
 const formatTrafficValue = (bytes: number) => {
   const units = ['B', 'KB', 'MB', 'GB', 'TB'];
@@ -201,6 +207,10 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   const [refreshLoading, setRefreshLoading] = React.useState(false);
   const [trafficRefreshLoading, setTrafficRefreshLoading] = React.useState(false);
   const [trafficTimeRange, setTrafficTimeRange] = React.useState<"1h" | "6h" | "12h" | "24h">("24h");
+  // 延迟趋势相关状态
+  const [pingTrend, setPingTrend] = React.useState<PingTrendData[]>([]);
+  const [pingRefreshLoading, setPingRefreshLoading] = React.useState(false);
+  const [pingTimeRange, setPingTimeRange] = React.useState<"1h" | "6h" | "12h" | "24h">("24h");
   const [isPasswordVisible, setIsPasswordVisible] = React.useState(false);
   // 编辑实例模态控制
   const [editModalOpen, setEditModalOpen] = React.useState(false);
@@ -257,6 +267,41 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         return false;
       } catch (error) {
         console.error(`时间解析错误: ${timeStr}`, error);
+        return false;
+      }
+    });
+    
+    return filteredData;
+  }, []);
+
+  // 根据时间范围过滤ping数据
+  const filterPingDataByTimeRange = React.useCallback((data: PingTrendData[], timeRange: "1h" | "6h" | "12h" | "24h") => {
+    if (data.length === 0) return data;
+    
+    // 获取当前时间
+    const now = new Date();
+    const hoursAgo = timeRange === "1h" ? 1 : timeRange === "6h" ? 6 : timeRange === "12h" ? 12 : 24;
+    const cutoffTime = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
+    
+    // 过滤数据
+    const filteredData = data.filter((item) => {
+      const timeStr = item.eventTime;
+      if (!timeStr) return false;
+      
+      try {
+        const [datePart, timePart] = timeStr.split(' ');
+        if (datePart && timePart) {
+          const [year, month, day] = datePart.split('-').map(Number);
+          const [hour, minute] = timePart.split(':').map(Number);
+          const itemTime = new Date(year, month - 1, day, hour, minute);
+          const isValid = !isNaN(itemTime.getTime());
+          const isInRange = isValid && itemTime >= cutoffTime;
+          
+          return isInRange;
+        }
+        return false;
+      } catch (error) {
+        console.error(`ping数据时间解析错误: ${timeStr}`, error);
         return false;
       }
     });
@@ -351,6 +396,15 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         const trafficData = await trafficResponse.json();
         if (trafficData.trafficTrend && Array.isArray(trafficData.trafficTrend)) {
           setTrafficTrend(trafficData.trafficTrend);
+        }
+      }
+
+      // 获取延迟趋势数据
+      const pingResponse = await fetch(`/api/tunnels/${resolvedId}/ping-trend`);
+      if (pingResponse.ok) {
+        const pingData = await pingResponse.json();
+        if (pingData.pingTrend && Array.isArray(pingData.pingTrend)) {
+          setPingTrend(pingData.pingTrend);
         }
       }
       
@@ -453,11 +507,47 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     }
   }, [resolvedId]);
 
+  // 获取延迟趋势数据
+  const fetchPingTrend = React.useCallback(async () => {
+    try {
+      setPingRefreshLoading(true);
+      
+      const response = await fetch(`/api/tunnels/${resolvedId}/ping-trend`);
+      if (!response.ok) {
+        throw new Error('获取延迟趋势失败');
+      }
+      
+      const data = await response.json();
+      
+      // 设置延迟趋势数据
+      if (data.pingTrend && Array.isArray(data.pingTrend)) {
+        setPingTrend(data.pingTrend);
+        console.log('[延迟趋势] 数据获取成功', {
+          数据点数: data.pingTrend.length,
+          最新数据: data.pingTrend[data.pingTrend.length - 1] || null
+        });
+      } else {
+        console.log('[延迟趋势] 数据为空或格式错误', { pingTrend: data.pingTrend });
+        setPingTrend([]);
+      }
+    } catch (error) {
+      console.error('获取延迟趋势失败:', error);
+      addToast({
+        title: "获取延迟趋势失败",
+        description: error instanceof Error ? error.message : "未知错误",
+        color: "danger",
+      });
+    } finally {
+      setPingRefreshLoading(false);
+    }
+  }, [resolvedId]);
+
   // 初始加载数据
   React.useEffect(() => {
     fetchTunnelDetails();
     fetchTrafficTrend();
-  }, [fetchTunnelDetails, fetchTrafficTrend]);
+    fetchPingTrend();
+  }, [fetchTunnelDetails, fetchTrafficTrend, fetchPingTrend]);
 
   // SSE监听逻辑
   useTunnelSSE(tunnelInfo?.instanceId || "", {
@@ -482,6 +572,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         fetchTunnelDetails();
         // 刷新流量趋势
         fetchTrafficTrend();
+        // 刷新延迟趋势
+        fetchPingTrend();
         // 刷新日志（通过触发器）
         setLogRefreshTrigger(prev => prev + 1);
         
@@ -1400,6 +1492,121 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           </CardBody>
         </Card>
       )}
+
+      {/* 延迟变化 - 独立Card */}
+      <Card className="p-2">
+        <CardHeader className="flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold">延迟变化</h3>              
+              <Tooltip content="显示隧道连接的延迟变化趋势" placement="right">
+                <FontAwesomeIcon 
+                  icon={faQuestionCircle} 
+                  className="text-default-400 hover:text-default-600 cursor-help text-xs"
+                />
+              </Tooltip>
+            </div>
+          </div>
+          <div className="flex items-center gap-2">
+           {/* 刷新按钮 */}
+           <Button
+              size="sm"
+              variant="flat"
+              isIconOnly
+              onPress={fetchPingTrend}
+              isLoading={pingRefreshLoading}
+              className="h-7 w-7 min-w-0"
+            >
+                <FontAwesomeIcon icon={faRefresh} className="text-xs" />
+            </Button>
+           {/* 时间范围选择 */}
+           <Tabs 
+              selectedKey={pingTimeRange}
+              onSelectionChange={(key) => setPingTimeRange(key as "1h" | "6h" | "12h" | "24h")}
+              size="sm"
+              variant="light"
+              classNames={{
+                tabList: "gap-1",
+                tab: "text-xs px-2 py-1 min-w-0 h-7",
+                tabContent: "text-xs"
+              }}
+            >
+              <Tab key="1h" title="1小时" />
+              <Tab key="6h" title="6小时" />
+              <Tab key="12h" title="12小时" />
+              <Tab key="24h" title="24小时" />
+            </Tabs>
+          </div>
+        </CardHeader>
+        <CardBody>
+          <div className="h-[250px] md:h-[300px]">
+            {loading ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="space-y-4 text-center">
+                  <div className="flex justify-center">
+                    <div className="relative w-8 h-8">
+                      <div className="absolute inset-0 rounded-full border-4 border-default-200 border-t-primary animate-spin" />
+                    </div>
+                  </div>
+                  <p className="text-default-500 animate-pulse text-sm md:text-base">加载延迟数据中...</p>
+                </div>
+              </div>
+            ) : (() => {
+              // 检查原始数据是否为空
+              if (!pingTrend || !Array.isArray(pingTrend) || pingTrend.length === 0) {
+                return true; // 显示占位符
+              }
+              
+              // 检查过滤后的数据是否为空
+              const filteredData = filterPingDataByTimeRange(pingTrend, pingTimeRange);
+              return filteredData.length === 0;
+            })() ? (
+              <div className="flex items-center justify-center h-full">
+                <div className="text-center">
+                  <p className="text-default-500 text-base md:text-lg">暂无延迟数据</p>
+                  <p className="text-default-400 text-xs md:text-sm mt-2">
+                    {!pingTrend || pingTrend.length === 0 
+                      ? "当实例运行时，延迟变化数据将在此显示" 
+                      : `在过去${pingTimeRange === "1h" ? "1小时" : pingTimeRange === "6h" ? "6小时" : pingTimeRange === "12h" ? "12小时" : "24小时"}内暂无延迟数据`
+                    }
+                  </p>
+                </div>
+              </div>
+            ) : (
+              <FlowTrafficChart 
+                key={`ping-${pingTimeRange}-${pingTrend?.length || 0}`} // 强制重新渲染
+                timeRange={pingTimeRange}
+                showLegend={false}
+                data={(() => {
+                  // 安全检查
+                  if (!pingTrend || !Array.isArray(pingTrend) || pingTrend.length === 0) {
+                    return [];
+                  }
+                  
+                  // 首先根据时间范围过滤数据
+                  const filteredData = filterPingDataByTimeRange(pingTrend, pingTimeRange);
+                  
+                  if (filteredData.length === 0) return [];
+                  
+                  const chartData = [
+                    {
+                      id: `延迟`,
+                      data: filteredData.map((item: PingTrendData) => ({
+                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
+                        y: Number(item.ping) || 0,
+                        unit: 'ms'
+                      }))
+                    }
+                  ];
+                  
+                  return chartData;
+                })()}
+                unit="ms"
+              />
+            )}
+          </div>
+        </CardBody>
+      </Card>
 
       {/* 日志 - 独立Card */}
       <Card className="p-2">

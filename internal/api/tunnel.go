@@ -2704,6 +2704,143 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(w http.ResponseWriter, r *ht
 	})
 }
 
+// HandleGetTunnelPingTrend 获取隧道延迟趋势数据 (GET /api/tunnels/{id}/ping-trend)
+func (h *TunnelHandler) HandleGetTunnelPingTrend(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	idStr := vars["id"]
+	if idStr == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "缺少隧道ID"})
+		return
+	}
+	id, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的隧道ID"})
+		return
+	}
+
+	db := h.tunnelService.DB()
+
+	// 查询隧道基本信息
+	var endpointID int64
+	var instanceID sql.NullString
+	if err := db.QueryRow(`SELECT endpointId, instanceId FROM "Tunnel" WHERE id = ?`, id).Scan(&endpointID, &instanceID); err != nil {
+		if err == sql.ErrNoRows {
+			w.WriteHeader(http.StatusNotFound)
+			json.NewEncoder(w).Encode(map[string]interface{}{"error": "隧道不存在"})
+			return
+		}
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	pingTrend := make([]map[string]interface{}, 0)
+
+	if instanceID.Valid && instanceID.String != "" {
+		// 延迟趋势 - 查询24小时内的ping数据
+		trendRows, err := db.Query(`SELECT eventTime, ping FROM "EndpointSSE" WHERE endpointId = ? AND instanceId = ? AND pushType IN ('update','initial') AND ping IS NOT NULL AND eventTime >= datetime('now', '-24 hours') ORDER BY eventTime ASC`, endpointID, instanceID.String)
+		if err == nil {
+			defer trendRows.Close()
+
+			// 使用 map 来存储每分钟的最新记录
+			minuteMap := make(map[string]map[string]interface{})
+
+			for trendRows.Next() {
+				var eventTime time.Time
+				var ping sql.NullInt64
+				if err := trendRows.Scan(&eventTime, &ping); err == nil && ping.Valid {
+					// 格式化时间到分钟
+					minuteKey := eventTime.Format("2006-01-02 15:04")
+
+					// 存储这一分钟的最新记录（由于是按时间升序，后面的会覆盖前面的）
+					minuteMap[minuteKey] = map[string]interface{}{
+						"eventTime": minuteKey,
+						"ping":      ping.Int64,
+					}
+				}
+			}
+
+			// 将 map 转换为有序的 slice
+			type PingPoint struct {
+				EventTime string `json:"eventTime"`
+				Ping      int64  `json:"ping"`
+			}
+
+			var sortedPoints []PingPoint
+			for _, record := range minuteMap {
+				sortedPoints = append(sortedPoints, PingPoint{
+					EventTime: record["eventTime"].(string),
+					Ping:      record["ping"].(int64),
+				})
+			}
+
+			// 按时间排序
+			sort.Slice(sortedPoints, func(i, j int) bool {
+				return sortedPoints[i].EventTime < sortedPoints[j].EventTime
+			})
+
+			// 构建延迟趋势数据（不需要计算差值，直接使用绝对值）
+			for _, current := range sortedPoints {
+				// 直接添加延迟数据到趋势中
+				trendData := map[string]interface{}{
+					"eventTime": current.EventTime,
+					"ping":      float64(current.Ping), // 确保JSON序列化为数字
+				}
+
+				pingTrend = append(pingTrend, trendData)
+			}
+
+			// 补充缺失的时间点到当前时间
+			if len(pingTrend) > 0 {
+				// 获取最后一个数据点的时间
+				lastItem := pingTrend[len(pingTrend)-1]
+				lastTimeStr := lastItem["eventTime"].(string)
+
+				// 解析最后时间
+				lastTime, err := time.Parse("2006-01-02 15:04", lastTimeStr)
+				if err == nil {
+					now := time.Now()
+					// 计算时间差（分钟）
+					timeDiffMinutes := int(now.Sub(lastTime).Minutes())
+
+					// 如果最后数据时间距离当前时间超过2分钟，就补充虚拟时间点
+					if timeDiffMinutes > 2 {
+						// 从最后数据时间的下一分钟开始补充
+						currentTime := lastTime.Add(time.Minute)
+
+						for currentTime.Before(now) {
+							// 格式化为 "YYYY-MM-DD HH:mm" 格式
+							virtualTimeStr := currentTime.Format("2006-01-02 15:04")
+
+							// 添加虚拟数据点（延迟为0，表示无数据）
+							pingTrend = append(pingTrend, map[string]interface{}{
+								"eventTime": virtualTimeStr,
+								"ping":      float64(0),
+							})
+
+							// 移动到下一分钟
+							currentTime = currentTime.Add(time.Minute)
+						}
+					}
+				}
+			}
+		}
+	}
+
+	// 返回延迟趋势数据
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":   true,
+		"pingTrend": pingTrend,
+	})
+}
+
 // HandleUpdateTunnelV2 新版隧道更新逻辑 (PUT /api/tunnels/{id})
 // 特点：
 // 1. 不再删除后重建，而是构建命令行后调用 NodePass PUT /v1/instance/{id}
