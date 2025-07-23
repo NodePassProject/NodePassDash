@@ -42,6 +42,7 @@ import { FlowTrafficChart } from "@/components/ui/flow-traffic-chart";
 import { useSearchParams } from 'next/navigation';
 import { FileLogViewer } from "@/components/ui/file-log-viewer";
 import { useTunnelSSE } from "@/lib/hooks/use-sse";
+import { DualAxisChart } from "@/components/ui/dual-axis-chart";
 
 interface TunnelInfo {
   id: string;
@@ -1117,7 +1118,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           <Card className="p-1 md:p-2 bg-cyan-50 dark:bg-cyan-950/30 shadow-none">
             <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
               <div className="text-center">
-                <p className="text-xs text-cyan-600 dark:text-cyan-400 mb-1">连接池</p>
+                <p className="text-xs text-cyan-600 dark:text-cyan-400 mb-1">池连接数</p>
                 <p className="text-xs md:text-sm lg:text-lg font-bold text-cyan-700 dark:text-cyan-300">
                   {tunnelInfo.traffic.pool}
                 </p>
@@ -1130,7 +1131,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           <Card className="p-1 md:p-2 bg-pink-50 dark:bg-pink-950/30 shadow-none">
             <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
               <div className="text-center">
-                <p className="text-xs text-pink-600 dark:text-pink-400 mb-1">延迟</p>
+                <p className="text-xs text-pink-600 dark:text-pink-400 mb-1">端内延迟</p>
                 <p className="text-xs md:text-sm lg:text-lg font-bold text-pink-700 dark:text-pink-300">
                   {tunnelInfo.traffic.ping}ms
                 </p>
@@ -1509,7 +1510,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
       </Card>
       
       {/* 连接池变化 - 独立Card - 只有当traffic.pool不为null时才显示 */}
-      {tunnelInfo.traffic.pool !== null && (
+      {false && (
       <Card className="p-2">
         <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-3">
@@ -1625,13 +1626,13 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
        </Card>
        )}
 
-{/* 延迟变化 - 独立Card - 只有当traffic.ping不为null时才显示 */}
-{tunnelInfo.traffic.ping !== null && (
+    {/* 延迟变化 - 独立Card - 只有当traffic.ping不为null时才显示 */}
+    {(tunnelInfo.traffic.ping !== null || tunnelInfo.traffic.pool !== null) && (
         <Card className="p-2">
         <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold">延迟变化</h3>              
+              <h3 className="text-lg font-semibold">连接质量</h3>              
               <Tooltip content="显示隧道连接的延迟变化趋势" placement="right">
                 <FontAwesomeIcon 
                   icon={faQuestionCircle} 
@@ -1646,8 +1647,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
               size="sm"
               variant="flat"
               isIconOnly
-              onPress={fetchPingTrend}
-              isLoading={pingRefreshLoading}
+              onPress={() => { fetchPingTrend(); fetchPoolTrend(); }}
+              isLoading={pingRefreshLoading || poolRefreshLoading}
               className="h-7 w-7 min-w-0"
             >
                 <FontAwesomeIcon icon={faRefresh} className="text-xs" />
@@ -1706,35 +1707,39 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                 </div>
               </div>
             ) : (
-              <FlowTrafficChart 
-                key={`ping-${pingTimeRange}-${pingTrend?.length || 0}`} // 强制重新渲染
+              <DualAxisChart 
+                key={`dual-${pingTimeRange}-${pingTrend?.length || 0}-${poolTrend?.length || 0}`}
                 timeRange={pingTimeRange}
-                showLegend={false}
-                data={(() => {
-                  // 安全检查
-                  if (!pingTrend || !Array.isArray(pingTrend) || pingTrend.length === 0) {
-                    return [];
-                  }
-                  
-                  // 首先根据时间范围过滤数据
-                  const filteredData = filterPingDataByTimeRange(pingTrend, pingTimeRange);
-                  
-                  if (filteredData.length === 0) return [];
-                  
-                  const chartData = [
-                    {
-                      id: `延迟`,
-                      data: filteredData.map((item: PingTrendData) => ({
-                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
-                        y: Number(item.ping) || 0,
-                        unit: 'ms'
-                      }))
+                showLegend={true}
+                leftUnit="个"
+                rightUnit="ms"
+                datasets={(() => {
+                  const result: any[] = [];
+
+                  if (poolTrend && Array.isArray(poolTrend) && poolTrend.length > 0) {
+                    const filteredPool = filterPoolDataByTimeRange(poolTrend, pingTimeRange);
+                    if (filteredPool.length > 0) {
+                      result.push({
+                        id: '池连接数',
+                        axis: 'left',
+                        data: filteredPool.map((item: PoolTrendData) => ({ x: item.eventTime || '', y: Number(item.pool) || 0 }))
+                      });
                     }
-                  ];
-                  
-                  return chartData;
+                  }
+
+                  if (pingTrend && Array.isArray(pingTrend) && pingTrend.length > 0) {
+                    const filteredPing = filterPingDataByTimeRange(pingTrend, pingTimeRange);
+                    if (filteredPing.length > 0) {
+                      result.push({
+                        id: '端内延迟',
+                        axis: 'right',
+                        data: filteredPing.map((item: PingTrendData) => ({ x: item.eventTime || '', y: Number(item.ping) || 0 }))
+                      });
+                    }
+                  }
+
+                  return result;
                 })()}
-                unit="ms"
               />
             )}
           </div>

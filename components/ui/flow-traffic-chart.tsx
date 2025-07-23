@@ -96,6 +96,18 @@ export function FlowTrafficChart({ data, height = 300, unit = 'GB', timeRange = 
     };
   }, [data, isDark]);
 
+  // 判断是否所有点在同一天
+  const sameDay = React.useMemo(() => {
+    if (!data || data.length === 0) return true;
+    const labelsArr = data[0]?.data.map((p) => p.x) || [];
+    if (labelsArr.length === 0) return true;
+    const firstLabel = labelsArr[0];
+    const match = firstLabel.match(/(\d{4}-\d{2}-\d{2})/);
+    if (!match) return true;
+    const target = match[1];
+    return labelsArr.every((lbl) => lbl.startsWith(target));
+  }, [data]);
+
   const options = React.useMemo(() => ({
     responsive: true,
     maintainAspectRatio: false,
@@ -119,21 +131,16 @@ export function FlowTrafficChart({ data, height = 300, unit = 'GB', timeRange = 
           maxTicksLimit: 1000, // 设置足够大的数字，实现全部显示
           maxRotation: 45, // 允许旋转45度
           minRotation: 0, // 优先水平显示
-          callback: function(value: any, index: number, ticks: any[]) {
-            const labels = chartData.labels;
-            if (!labels || labels.length === 0) return '';
-            
-            const label = labels[index];
-            if (!label || typeof label !== 'string') return '';
-            
-            // 解析时间格式提取小时:分钟部分
-            const timeMatch = label.match(/(\d{4}-\d{2}-\d{2})\s+(\d{2}):(\d{2})/);
-            if (!timeMatch) return label;
-            
-            const [, date, hour, minute] = timeMatch;
-            
-            // 全部显示，让Chart.js自动处理旋转
-            return `${hour}:${minute}`;
+          callback: function(value: any, index: number) {
+            const labelsArr: any = chartData.labels;
+            if (!labelsArr || labelsArr.length === 0) return '';
+            const label = labelsArr[index] as string;
+            if (!label) return '';
+            const m = label.match(/(\d{4})-(\d{2})-(\d{2})\s+(\d{2}):(\d{2})/);
+            if (!m) return label;
+            const [, , month, day, hh, mm] = m;
+            if (sameDay) return `${hh}:${mm}`;
+            return `${month}-${day} ${hh}:${mm}`;
           },
         },
         border: {
