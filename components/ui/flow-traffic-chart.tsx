@@ -39,9 +39,10 @@ interface FlowTrafficChartProps {
   height?: number;
   unit?: string;
   timeRange?: "1h" | "6h" | "12h" | "24h";
+  showLegend?: boolean;
 }
 
-export function FlowTrafficChart({ data, height = 300, unit = 'GB', timeRange = '24h' }: FlowTrafficChartProps) {
+export function FlowTrafficChart({ data, height = 300, unit = 'GB', timeRange = '24h', showLegend = true }: FlowTrafficChartProps) {
   const { theme } = useTheme();
   const isDark = theme === "dark";
 
@@ -162,7 +163,7 @@ export function FlowTrafficChart({ data, height = 300, unit = 'GB', timeRange = 
     },
     plugins: {
       legend: {
-        display: true,
+        display: showLegend,
         position: 'top' as const,
         align: 'end' as const,
         labels: {
@@ -211,7 +212,7 @@ export function FlowTrafficChart({ data, height = 300, unit = 'GB', timeRange = 
         hoverRadius: 8,
       },
     },
-  }), [isDark]);
+  }), [isDark, showLegend]);
 
   return (
     <div style={{ height, width: '100%' }}>
