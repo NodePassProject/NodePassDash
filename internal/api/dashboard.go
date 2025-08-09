@@ -1,11 +1,10 @@
 package api
 
 import (
+	"NodePassDash/internal/dashboard"
 	"encoding/json"
 	"net/http"
 	"strconv"
-
-	"NodePassDash/internal/dashboard"
 )
 
 // DashboardHandler 仪表盘相关的处理器
@@ -95,4 +94,48 @@ func (h *DashboardHandler) HandleTrafficTrend(w http.ResponseWriter, r *http.Req
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "data": trend, "count": len(trend)})
+}
+
+// HandleGetTunnelStats GET /api/dashboard/tunnel-stats
+func (h *DashboardHandler) HandleGetTunnelStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 获取隧道统计数据
+	var stats struct {
+		Total   int64 `json:"total"`
+		Running int64 `json:"running"`
+		Stopped int64 `json:"stopped"`
+		Error   int64 `json:"error"`
+		Offline int64 `json:"offline"`
+	}
+
+	// 使用原生 SQL 查询统计数据
+	query := `
+		SELECT 
+			COUNT(*) AS total,
+			COUNT(CASE WHEN status = 'running' THEN 1 END) AS running,
+			COUNT(CASE WHEN status = 'stopped' THEN 1 END) AS stopped,
+			COUNT(CASE WHEN status = 'error' THEN 1 END) AS error,
+			COUNT(CASE WHEN status = 'offline' THEN 1 END) AS offline
+		FROM tunnels
+		`
+
+	err := h.dashboardService.DB().Raw(query).Scan(&stats).Error
+	if err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    stats,
+	})
 }

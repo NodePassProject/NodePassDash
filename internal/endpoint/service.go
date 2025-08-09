@@ -1,67 +1,53 @@
 package endpoint
 
 import (
-	"database/sql"
+	"NodePassDash/internal/models"
 	"errors"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // Service 端点管理服务
 type Service struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
 // NewService 创建端点服务实例
-func NewService(db *sql.DB) *Service {
+func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
-// DB 返回底层 *sql.DB 以便其他层访问
-func (s *Service) DB() *sql.DB {
+// DB 返回底层 *gorm.DB 以便其他层访问
+func (s *Service) DB() *gorm.DB {
 	return s.db
 }
 
 // GetEndpoints 获取所有端点列表
 func (s *Service) GetEndpoints() ([]EndpointWithStats, error) {
-	query := `
-		SELECT 
-			e.id, e.name, e.url, e.apiPath, e.apiKey, e.status, e.color,
+	var endpoints []EndpointWithStats
+
+	err := s.db.Table("endpoints e").
+		Select(`
+			e.id, e.name, e.url, e.api_path, e.api_key, e.status, e.color,
 			e.os, e.arch, e.ver, e.log, e.tls, e.crt, e.key_path, e.uptime,
-			e.lastCheck, e.createdAt, e.updatedAt,
+			e.last_check, e.created_at, e.updated_at,
 			COUNT(t.id) as tunnel_count,
 			COUNT(CASE WHEN t.status = 'running' THEN 1 END) as active_tunnels
-		FROM "Endpoint" e
-		LEFT JOIN "Tunnel" t ON e.id = t.endpointId
-		GROUP BY e.id
-		ORDER BY e.createdAt DESC
-	`
+		`).
+		Joins("LEFT JOIN tunnels t ON e.id = t.endpoint_id").
+		Group("e.id").
+		Order("e.created_at DESC").
+		Scan(&endpoints).Error
 
-	rows, err := s.db.Query(query)
+	// 确保返回空数组而不是nil
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var endpoints []EndpointWithStats
-	for rows.Next() {
-		var e EndpointWithStats
-		var statusStr string
-		var uptime sql.NullInt64
-		err := rows.Scan(
-			&e.ID, &e.Name, &e.URL, &e.APIPath, &e.APIKey, &statusStr, &e.Color,
-			&e.OS, &e.Arch, &e.Ver, &e.Log, &e.TLS, &e.Crt, &e.KeyPath, &uptime,
-			&e.LastCheck, &e.CreatedAt, &e.UpdatedAt,
-			&e.TunnelCount, &e.ActiveTunnels,
-		)
-		if err != nil {
-			return nil, err
-		}
-		e.Status = EndpointStatus(statusStr)
-		if uptime.Valid {
-			uptimeVal := uptime.Int64
-			e.Uptime = &uptimeVal
-		}
-		endpoints = append(endpoints, e)
+	// 如果没有数据，返回空数组
+	if endpoints == nil {
+		endpoints = []EndpointWithStats{}
 	}
 
 	return endpoints, nil
@@ -70,88 +56,49 @@ func (s *Service) GetEndpoints() ([]EndpointWithStats, error) {
 // CreateEndpoint 创建新端点
 func (s *Service) CreateEndpoint(req CreateEndpointRequest) (*Endpoint, error) {
 	// 检查名称是否重复
-	var exists bool
-	err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Endpoint\" WHERE name = ?)", req.Name).Scan(&exists)
-	if err != nil {
+	var count int64
+	if err := s.db.Model(&models.Endpoint{}).Where("name = ?", req.Name).Count(&count).Error; err != nil {
 		return nil, err
 	}
-	if exists {
+	if count > 0 {
 		return nil, errors.New("端点名称已存在")
 	}
 
 	// 检查URL是否重复
-	err = s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Endpoint\" WHERE url = ?)", req.URL).Scan(&exists)
-	if err != nil {
+	if err := s.db.Model(&models.Endpoint{}).Where("url = ?", req.URL).Count(&count).Error; err != nil {
 		return nil, err
 	}
-	if exists {
+	if count > 0 {
 		return nil, errors.New("该URL已存在")
 	}
 
 	// 创建新端点
-	query := `
-		INSERT INTO "Endpoint" (name, url, apiPath, apiKey, status, color, lastCheck, createdAt, updatedAt)
-		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
-	`
-
-	now := time.Now()
-	result, err := s.db.Exec(query,
-		req.Name,
-		req.URL,
-		req.APIPath,
-		req.APIKey,
-		StatusOffline,
-		req.Color,
-		now,
-		now,
-		now,
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	id, err := result.LastInsertId()
-	if err != nil {
-		return nil, err
-	}
-
-	return &Endpoint{
-		ID:        id,
+	endpoint := &models.Endpoint{
 		Name:      req.Name,
 		URL:       req.URL,
 		APIPath:   req.APIPath,
 		APIKey:    req.APIKey,
 		Status:    StatusOffline,
-		Color:     req.Color,
-		LastCheck: now,
-		CreatedAt: now,
-		UpdatedAt: now,
-	}, nil
+		Color:     &req.Color,
+		LastCheck: time.Now(),
+	}
+
+	if err := s.db.Create(endpoint).Error; err != nil {
+		return nil, err
+	}
+
+	return endpoint, nil
 }
 
 // UpdateEndpoint 更新端点信息
 func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
-	// 检查端点是否存在
-	var endpoint Endpoint
-	var statusStr string
-	var uptime sql.NullInt64
-	err := s.db.QueryRow(
-		"SELECT id, name, url, apiPath, apiKey, status, color, uptime, lastCheck, createdAt, updatedAt FROM \"Endpoint\" WHERE id = ?",
-		req.ID,
-	).Scan(
-		&endpoint.ID, &endpoint.Name, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey,
-		&statusStr, &endpoint.Color, &uptime, &endpoint.LastCheck, &endpoint.CreatedAt, &endpoint.UpdatedAt,
-	)
-	if err != nil {
-		if err == sql.ErrNoRows {
+	// 获取现有端点
+	var endpoint models.Endpoint
+	if err := s.db.First(&endpoint, req.ID).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("端点不存在")
 		}
 		return nil, err
-	}
-	endpoint.Status = EndpointStatus(statusStr)
-	if uptime.Valid {
-		uptimeVal := uptime.Int64
-		endpoint.Uptime = &uptimeVal
 	}
 
 	switch req.Action {
@@ -160,18 +107,15 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 			return nil, errors.New("新名称不能为空")
 		}
 		// 检查新名称是否已存在
-		var exists bool
-		err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Endpoint\" WHERE name = ? AND id != ?)", req.Name, req.ID).Scan(&exists)
-		if err != nil {
+		var count int64
+		if err := s.db.Model(&models.Endpoint{}).Where("name = ? AND id != ?", req.Name, req.ID).Count(&count).Error; err != nil {
 			return nil, err
 		}
-		if exists {
+		if count > 0 {
 			return nil, errors.New("端点名称已存在")
 		}
 
-		_, err = s.db.Exec("UPDATE \"Endpoint\" SET name = ?, updatedAt = ? WHERE id = ?",
-			req.Name, time.Now(), req.ID)
-		if err != nil {
+		if err := s.db.Model(&endpoint).Update("name", req.Name).Error; err != nil {
 			return nil, err
 		}
 		endpoint.Name = req.Name
@@ -179,139 +123,99 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 	case "update":
 		// 检查URL是否重复
 		if req.URL != "" && req.URL != endpoint.URL {
-			var exists bool
-			err := s.db.QueryRow("SELECT EXISTS(SELECT 1 FROM \"Endpoint\" WHERE url = ? AND id != ?)", req.URL, req.ID).Scan(&exists)
-			if err != nil {
+			var count int64
+			if err := s.db.Model(&models.Endpoint{}).Where("url = ? AND id != ?", req.URL, req.ID).Count(&count).Error; err != nil {
 				return nil, err
 			}
-			if exists {
+			if count > 0 {
 				return nil, errors.New("该URL已存在")
 			}
 		}
 
-		// 若某些字段未提供，则保持原值
-		newName := endpoint.Name
+		// 准备更新数据
+		updates := make(map[string]interface{})
 		if req.Name != "" {
-			newName = req.Name
+			updates["name"] = req.Name
 		}
-
-		newURL := endpoint.URL
 		if req.URL != "" {
-			newURL = req.URL
+			updates["url"] = req.URL
 		}
-
-		newAPIPath := endpoint.APIPath
 		if req.APIPath != "" {
-			newAPIPath = req.APIPath
+			updates["api_path"] = req.APIPath
 		}
-
-		newAPIKey := endpoint.APIKey
 		if req.APIKey != "" {
-			newAPIKey = req.APIKey
+			updates["api_key"] = req.APIKey
 		}
+		updates["updated_at"] = time.Now()
 
-		// 更新端点信息
-		query := `
-			UPDATE "Endpoint" 
-			SET name = ?, url = ?, apiPath = ?, apiKey = ?, updatedAt = ?
-			WHERE id = ?
-		`
-		_, err = s.db.Exec(query,
-			newName,
-			newURL,
-			newAPIPath,
-			newAPIKey,
-			time.Now(),
-			req.ID,
-		)
-		if err != nil {
+		if err := s.db.Model(&endpoint).Updates(updates).Error; err != nil {
 			return nil, err
 		}
 
-		endpoint.Name = newName
-		endpoint.URL = newURL
-		endpoint.APIPath = newAPIPath
-		endpoint.APIKey = newAPIKey
+		// 重新获取更新后的数据
+		if err := s.db.First(&endpoint, req.ID).Error; err != nil {
+			return nil, err
+		}
 	}
 
-	endpoint.UpdatedAt = time.Now()
 	return &endpoint, nil
 }
 
 // DeleteEndpoint 删除端点
 func (s *Service) DeleteEndpoint(id int64) error {
-	// 使用事务保证原子性：先删隧道再删端点
-	tx, err := s.db.Begin()
-	if err != nil {
-		return err
-	}
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 1) 删除关联隧道
+		if err := tx.Where("endpoint_id = ?", id).Delete(&models.Tunnel{}).Error; err != nil {
+			return err
+		}
 
-	// 1) 删除关联隧道
-	if _, err := tx.Exec(`DELETE FROM "Tunnel" WHERE endpointId = ?`, id); err != nil {
-		tx.Rollback()
-		return err
-	}
+		// 2) 删除SSE日志
+		if err := tx.Where("endpoint_id = ?", id).Delete(&models.EndpointSSE{}).Error; err != nil {
+			// 忽略记录不存在的错误
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+		}
 
-	// 2) 删除SSE日志 (如果表存在)
-	if _, err := tx.Exec(`DELETE FROM "EndpointSSE" WHERE endpointId = ?`, id); err != nil {
-		// 如果表不存在，忽略错误
-	}
+		// 3) 删除回收站记录
+		if err := tx.Where("endpoint_id = ?", id).Delete(&models.TunnelRecycle{}).Error; err != nil {
+			// 忽略记录不存在的错误
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return err
+			}
+		}
 
-	// 3) 删除端点
-	res, err := tx.Exec(`DELETE FROM "Endpoint" WHERE id = ?`, id)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
+		// 4) 删除端点
+		result := tx.Delete(&models.Endpoint{}, id)
+		if result.Error != nil {
+			return result.Error
+		}
+		if result.RowsAffected == 0 {
+			return errors.New("端点不存在")
+		}
 
-	// 检查端点是否存在
-	affected, err := res.RowsAffected()
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	if affected == 0 {
-		tx.Rollback()
-		return errors.New("端点不存在")
-	}
-
-	// 4) 删除回收站（不检查影响行数，因为可能没有回收站记录）
-	_, err = tx.Exec(`DELETE FROM "TunnelRecycle" WHERE endpointId = ?`, id)
-	if err != nil {
-		// 如果表不存在，忽略错误
-	}
-
-	return tx.Commit()
+		return nil
+	})
 }
 
 // UpdateEndpointStatus 更新端点状态
 func (s *Service) UpdateEndpointStatus(id int64, status EndpointStatus) error {
-	_, err := s.db.Exec(
-		"UPDATE \"Endpoint\" SET status = ?, lastCheck = ? WHERE id = ?",
-		status, time.Now(), id,
-	)
-	return err
+	return s.db.Model(&models.Endpoint{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"status":     status,
+		"last_check": time.Now(),
+	}).Error
 }
 
 // GetEndpointByID 根据ID获取端点信息
 func (s *Service) GetEndpointByID(id int64) (*Endpoint, error) {
-	var e Endpoint
-	var statusStr sql.NullString
-	var uptime sql.NullInt64
-	err := s.db.QueryRow(`SELECT id, name, url, apiPath, apiKey, status, color, os, arch, ver, log, tls, crt, key_path, uptime, lastCheck, createdAt, updatedAt FROM "Endpoint" WHERE id = ?`, id).
-		Scan(&e.ID, &e.Name, &e.URL, &e.APIPath, &e.APIKey, &statusStr, &e.Color, &e.OS, &e.Arch, &e.Ver, &e.Log, &e.TLS, &e.Crt, &e.KeyPath, &uptime, &e.LastCheck, &e.CreatedAt, &e.UpdatedAt)
-	if err != nil {
-		if err == sql.ErrNoRows {
+	var endpoint models.Endpoint
+	if err := s.db.First(&endpoint, id).Error; err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, errors.New("端点不存在")
 		}
 		return nil, err
 	}
-	e.Status = EndpointStatus(statusStr.String)
-	if uptime.Valid {
-		uptimeVal := uptime.Int64
-		e.Uptime = &uptimeVal
-	}
-	return &e, nil
+	return &endpoint, nil
 }
 
 // SimpleEndpoint 简化端点信息结构
@@ -332,79 +236,46 @@ type SimpleEndpoint struct {
 
 // GetSimpleEndpoints 获取简化端点列表，可排除 FAIL
 func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error) {
-	query := `SELECT e.id, e.name, e.url, e.apiPath, e.status, e.tunnelCount, e.ver, e.tls, e.log, e.crt, e.key_path, e.uptime FROM "Endpoint" e`
-	if excludeFail {
-		query += ` WHERE e.status not in ('FAIL', 'DISCONNECT')`
-	}
-	query += ` ORDER BY e.createdAt DESC`
+	query := s.db.Table("endpoints e").
+		Select("e.id, e.name, e.url, e.api_path, e.status, 0 as tunnel_count, e.ver, e.tls, e.log, e.crt, e.key_path, e.uptime")
 
-	rows, err := s.db.Query(query)
+	if excludeFail {
+		query = query.Where("e.status NOT IN ('FAIL', 'DISCONNECT')")
+	}
+
+	var endpoints []SimpleEndpoint
+	err := query.Order("e.created_at DESC").Scan(&endpoints).Error
+
+	// 确保返回空数组而不是nil
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var endpoints []SimpleEndpoint
-	for rows.Next() {
-		var e SimpleEndpoint
-		var statusStr string
-		var version, tls, log, crt, keyPath sql.NullString
-		var uptime sql.NullInt64
-		if err := rows.Scan(&e.ID, &e.Name, &e.URL, &e.APIPath, &statusStr, &e.TunnelCount, &version, &tls, &log, &crt, &keyPath, &uptime); err != nil {
-			return nil, err
-		}
-		e.Status = EndpointStatus(statusStr)
-		if version.Valid {
-			e.Version = version.String
-		}
-		if tls.Valid {
-			e.TLS = tls.String
-		}
-		if log.Valid {
-			e.Log = log.String
-		}
-		if crt.Valid {
-			e.Crt = crt.String
-		}
-		if keyPath.Valid {
-			e.KeyPath = keyPath.String
-		}
-		if uptime.Valid {
-			uptimeVal := uptime.Int64
-			e.Uptime = &uptimeVal
-		}
-		endpoints = append(endpoints, e)
+	// 如果没有数据，返回空数组
+	if endpoints == nil {
+		endpoints = []SimpleEndpoint{}
 	}
+
 	return endpoints, nil
 }
 
 // UpdateEndpointInfo 更新端点的系统信息
 func (s *Service) UpdateEndpointInfo(id int64, info NodePassInfo) error {
-	query := `
-		UPDATE "Endpoint" 
-		SET os = ?, arch = ?, ver = ?, log = ?, tls = ?, crt = ?, key_path = ?, uptime = ?, updatedAt = ?
-		WHERE id = ?
-	`
-
-	// 处理uptime字段，如果为nil则保持NULL（保持兼容性）
-	var uptimeValue interface{}
-	if info.Uptime != nil {
-		uptimeValue = *info.Uptime
-	} else {
-		uptimeValue = nil
+	updates := map[string]interface{}{
+		"os":         info.OS,
+		"arch":       info.Arch,
+		"ver":        info.Ver,
+		"log":        info.Log,
+		"tls":        info.TLS,
+		"crt":        info.Crt,
+		"key_path":   info.Key,
+		"updated_at": time.Now(),
 	}
 
-	_, err := s.db.Exec(query,
-		info.OS,
-		info.Arch,
-		info.Ver,
-		info.Log,
-		info.TLS,
-		info.Crt,
-		info.Key,
-		uptimeValue,
-		time.Now(),
-		id,
-	)
-	return err
+	// 处理uptime字段，如果为nil则保持NULL
+	if info.Uptime != nil {
+		updates["uptime"] = *info.Uptime
+	}
+
+	return s.db.Model(&models.Endpoint{}).Where("id = ?", id).Updates(updates).Error
 }

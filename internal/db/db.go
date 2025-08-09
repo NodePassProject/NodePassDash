@@ -1,81 +1,218 @@
 package db
 
 import (
-	"database/sql"
+	applog "NodePassDash/internal/log"
+	"NodePassDash/internal/models"
 	"log"
-	"os"
-	"path/filepath"
-	"regexp"
 	"sync"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+	"gorm.io/gorm/logger"
 )
 
 var (
-	db   *sql.DB
-	once sync.Once
+	gormDB *gorm.DB
+	once   sync.Once
 )
 
-// DB 获取数据库单例
-func DB() *sql.DB {
+// GetDB 获取GORM数据库实例
+func GetDB() *gorm.DB {
 	once.Do(func() {
+		config := GetDBConfig()
 		var err error
 
-		// 确保public目录存在
-		dbDir := "public"
-		if err := ensureDir(dbDir); err != nil {
-			log.Fatalf("创建数据库目录失败: %v", err)
+		// 构建SQLite DSN
+		dsn := config.BuildDSN()
+
+		// 根据配置设置日志级别
+		var logLevel logger.LogLevel
+		switch config.LogLevel {
+		case "silent":
+			logLevel = logger.Silent
+		case "error":
+			logLevel = logger.Error
+		case "warn":
+			logLevel = logger.Warn
+		case "info":
+			logLevel = logger.Info
+		default:
+			logLevel = logger.Info
 		}
 
-		// 数据库文件路径
-		dbPath := filepath.Join(dbDir, "sqlite.db")
+		// GORM配置
+		gormConfig := &gorm.Config{
+			Logger: logger.Default.LogMode(logLevel),
+			NowFunc: func() time.Time {
+				return time.Now().Local()
+			},
+		}
 
-		// 优化的连接字符串，增加更长的超时时间和优化配置
-		db, err = sql.Open("sqlite3", "file:"+dbPath+"?_journal_mode=WAL&_busy_timeout=10000&_fk=1&_sync=NORMAL&_cache_size=1000000")
+		// 连接数据库
+		gormDB, err = gorm.Open(sqlite.Open(dsn), gormConfig)
 		if err != nil {
-			log.Fatalf("打开数据库失败: %v", err)
+			log.Fatalf("连接SQLite数据库失败: %v", err)
 		}
 
-		// 优化连接池配置
-		db.SetMaxOpenConns(8)                  // 增加最大连接数
-		db.SetMaxIdleConns(4)                  // 保持一定的空闲连接
-		db.SetConnMaxLifetime(0)               // 连接不过期
-		db.SetConnMaxIdleTime(5 * time.Minute) // 空闲连接5分钟后关闭
-
-		// 初始化表结构
-		if err := initSchema(db); err != nil {
-			log.Fatalf("初始化数据库表结构失败: %v", err)
+		// 获取底层sql.DB以配置连接池
+		sqlDB, err := gormDB.DB()
+		if err != nil {
+			log.Fatalf("获取sql.DB实例失败: %v", err)
 		}
 
-		log.Printf("数据库初始化成功: %s", dbPath)
+		// 配置连接池
+		sqlDB.SetMaxOpenConns(config.MaxOpenConns)
+		sqlDB.SetMaxIdleConns(config.MaxIdleConns)
+		sqlDB.SetConnMaxLifetime(config.MaxLifetime)
+		sqlDB.SetConnMaxIdleTime(config.MaxIdleTime)
+
+		// 测试数据库连接
+		if err := sqlDB.Ping(); err != nil {
+			log.Fatalf("数据库连接测试失败: %v", err)
+		}
+
+		// 自动迁移数据库表结构
+		if err := AutoMigrate(gormDB); err != nil {
+			log.Fatalf("数据库迁移失败: %v", err)
+		}
+
+		// 打印配置信息
+		config.PrintConfig()
+		log.Printf("SQLite数据库连接成功并完成表结构迁移")
+
+		// 启动连接健康检查
+		go startConnectionHealthCheck()
 	})
-	return db
+	return gormDB
 }
 
-// ensureDir 确保目录存在，如果不存在则创建
-func ensureDir(dir string) error {
-	if _, err := os.Stat(dir); os.IsNotExist(err) {
-		log.Printf("创建目录: %s", dir)
-		return os.MkdirAll(dir, 0755)
+// startConnectionHealthCheck 启动连接健康检查
+func startConnectionHealthCheck() {
+	ticker := time.NewTicker(30 * time.Second) // 每30秒检查一次
+	defer ticker.Stop()
+
+	for range ticker.C {
+		if gormDB == nil {
+			continue
+		}
+
+		sqlDB, err := gormDB.DB()
+		if err != nil {
+			log.Printf("健康检查：获取sql.DB失败: %v", err)
+			continue
+		}
+
+		if err := sqlDB.Ping(); err != nil {
+			log.Printf("健康检查：数据库连接异常: %v", err)
+			// 可以在这里添加告警或者其他处理逻辑
+		}
+
+		// 检查连接池状态
+		stats := sqlDB.Stats()
+		if stats.OpenConnections > int(float64(stats.MaxOpenConnections)*0.8) {
+			log.Printf("警告：连接池使用率较高 %d/%d", stats.OpenConnections, stats.MaxOpenConnections)
+		}
+	}
+}
+
+// AutoMigrate 自动迁移数据库表结构
+func AutoMigrate(db *gorm.DB) error {
+	// 检查是否是全新数据库（没有任何表）
+	var tableCount int64
+	db.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tableCount)
+
+	if tableCount == 0 {
+		// 全新数据库，使用快速初始化
+		return QuickInitSchema(db)
+	}
+
+	// 现有数据库，使用标准迁移
+	return StandardMigrate(db)
+}
+
+// QuickInitSchema 快速初始化数据库表结构（适用于全新数据库）
+func QuickInitSchema(db *gorm.DB) error {
+	log.Println("检测到全新数据库，使用快速初始化模式")
+
+	// 按照依赖关系顺序创建表
+	return db.AutoMigrate(
+		// 基础表
+		&models.Endpoint{},
+		&models.SystemConfig{},
+		&models.UserSession{},
+		&models.Tag{},
+		&models.TunnelGroup{},
+
+		// 依赖表
+		&models.Tunnel{},
+		&models.TunnelRecycle{},
+		&models.TunnelOperationLog{},
+		&models.EndpointSSE{},
+		&models.TunnelGroupMember{},
+		&models.TunnelTag{},
+
+		// 流量统计表
+		&models.TrafficHourlySummary{},
+	)
+}
+
+// StandardMigrate 标准迁移（适用于现有数据库）
+func StandardMigrate(db *gorm.DB) error {
+	log.Println("检测到现有数据库，使用标准迁移模式")
+
+	// 按照依赖关系顺序迁移表
+	return db.AutoMigrate(
+		// 基础表
+		&models.Endpoint{},
+		&models.SystemConfig{},
+		&models.UserSession{},
+		&models.Tag{},
+		&models.TunnelGroup{},
+
+		// 依赖表
+		&models.Tunnel{},
+		&models.TunnelRecycle{},
+		&models.TunnelOperationLog{},
+		&models.EndpointSSE{},
+		&models.TunnelGroupMember{},
+		&models.TunnelTag{},
+
+		// 流量统计表
+		&models.TrafficHourlySummary{},
+	)
+}
+
+// Close 关闭数据库连接
+func Close() error {
+	if gormDB != nil {
+		sqlDB, err := gormDB.DB()
+		if err != nil {
+			return err
+		}
+		return sqlDB.Close()
 	}
 	return nil
 }
 
-// ExecuteWithRetry 带重试机制的数据库执行
-func ExecuteWithRetry(fn func(*sql.DB) error) error {
+// ExecuteWithRetry 带重试机制的数据库执行（兼容旧接口）
+func ExecuteWithRetry(fn func(*gorm.DB) error) error {
 	maxRetries := 3
-	baseDelay := 50 * time.Millisecond
+	baseDelay := 100 * time.Millisecond
 
 	for i := 0; i < maxRetries; i++ {
-		err := fn(DB())
+		// 使用健康的数据库连接
+		db := GetHealthyDB()
+		err := fn(db)
 		if err == nil {
 			return nil
 		}
 
-		// 检查是否是数据库锁错误
-		if isLockError(err) && i < maxRetries-1 {
-			delay := time.Duration(i+1) * baseDelay
+		// 检查是否是可重试的错误
+		if isRetryableError(err) && i < maxRetries-1 {
+			// 指数退避策略
+			delay := time.Duration(1<<uint(i)) * baseDelay
+			log.Printf("数据库操作失败，%v后重试 (第%d次): %v", delay, i+1, err)
 			time.Sleep(delay)
 			continue
 		}
@@ -86,440 +223,131 @@ func ExecuteWithRetry(fn func(*sql.DB) error) error {
 }
 
 // TxWithRetry 带重试机制的事务执行
-func TxWithRetry(fn func(*sql.Tx) error) error {
+func TxWithRetry(fn func(*gorm.DB) error) error {
 	maxRetries := 3
-	baseDelay := 50 * time.Millisecond
+	baseDelay := 100 * time.Millisecond
 
 	for i := 0; i < maxRetries; i++ {
-		tx, err := DB().Begin()
-		if err != nil {
-			if isLockError(err) && i < maxRetries-1 {
-				delay := time.Duration(i+1) * baseDelay
-				time.Sleep(delay)
-				continue
-			}
-			return err
+		// 使用健康的数据库连接
+		db := GetHealthyDB()
+		err := db.Transaction(fn)
+		if err == nil {
+			return nil
 		}
 
-		err = fn(tx)
-		if err != nil {
-			tx.Rollback()
-			if isLockError(err) && i < maxRetries-1 {
-				delay := time.Duration(i+1) * baseDelay
-				time.Sleep(delay)
-				continue
-			}
-			return err
+		// 检查是否是可重试的错误
+		if isRetryableError(err) && i < maxRetries-1 {
+			// 指数退避策略
+			delay := time.Duration(1<<uint(i)) * baseDelay
+			log.Printf("数据库事务失败，%v后重试 (第%d次): %v", delay, i+1, err)
+			time.Sleep(delay)
+			continue
 		}
 
-		err = tx.Commit()
-		if err != nil {
-			if isLockError(err) && i < maxRetries-1 {
-				delay := time.Duration(i+1) * baseDelay
-				time.Sleep(delay)
-				continue
-			}
-			return err
-		}
-
-		return nil
+		return err
 	}
 	return nil
 }
 
-// isLockError 检查是否是数据库锁错误
-func isLockError(err error) bool {
+// isRetryableError 检查是否是可重试的错误
+func isRetryableError(err error) bool {
 	if err == nil {
 		return false
 	}
 	errStr := err.Error()
-	return errStr == "database is locked" ||
-		errStr == "database locked" ||
-		errStr == "SQLITE_BUSY"
+	// SQLite常见的可重试错误
+	return contains(errStr, "database is locked") ||
+		contains(errStr, "busy") ||
+		contains(errStr, "no such table") ||
+		contains(errStr, "disk I/O error") ||
+		contains(errStr, "database disk image is malformed") ||
+		contains(errStr, "readonly database") ||
+		contains(errStr, "out of memory") ||
+		contains(errStr, "database or disk is full")
 }
 
-// 初始化数据库Schema
-func initSchema(db *sql.DB) error {
-	// --------  兼容旧版本：为 Tunnel 表添加 min / max 列 --------
-	if err := ensureColumn(db, "Tunnel", "min", "INTEGER"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Tunnel", "max", "INTEGER"); err != nil {
-		return err
-	}
-
-	// --------  为 Tunnel 表添加密码字段 --------
-	if err := ensureColumn(db, "Tunnel", "password", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-
-	// --------  为 Tunnel 表添加重启字段 --------
-	if err := ensureColumn(db, "Tunnel", "restart", "BOOLEAN DEFAULT FALSE"); err != nil {
-		return err
-	}
-
-	// --------  移除 Tunnel 表 name 字段的唯一约束 --------
-	if err := removeTunnelNameUniqueConstraint(db); err != nil {
-		return err
-	}
-
-	// --------  为 TunnelRecycle 表添加密码字段 --------
-	if err := ensureColumn(db, "TunnelRecycle", "password", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-
-	// --------  为 Endpoint 表添加系统信息字段 --------
-	if err := ensureColumn(db, "Endpoint", "os", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Endpoint", "arch", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Endpoint", "ver", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Endpoint", "log", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Endpoint", "tls", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Endpoint", "crt", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Endpoint", "key_path", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-
-	// --------  为 Endpoint 表添加运行时间字段 --------
-	if err := ensureColumn(db, "Endpoint", "uptime", "INTEGER DEFAULT NULL"); err != nil {
-		return err
-	}
-
-	// --------  创建标签表 --------
-	if err := createTagsTable(db); err != nil {
-		return err
-	}
-
-	return nil
+// contains 检查字符串是否包含子字符串
+func contains(s, substr string) bool {
+	return len(s) >= len(substr) &&
+		stringContains(s, substr)
 }
 
-// ensureColumn 检查列是否存在，不存在则自动 ALTER TABLE 添加
-func ensureColumn(db *sql.DB, table, column, typ string) error {
-	// 查询表信息
-	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	var exists bool
-	for rows.Next() {
-		var cid int
-		var name, ctype string
-		var notnull int
-		var dfltValue interface{}
-		var pk int
-		_ = rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk)
-		if name == column {
-			exists = true
-			break
+// stringContains 辅助函数，用于字符串包含检查
+func stringContains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
 		}
 	}
-
-	if !exists {
-		// 注意：SQLite ALTER TABLE ADD COLUMN 不支持 IF NOT EXISTS，因此需要手动检查
-		_, err := db.Exec(`ALTER TABLE "` + table + `" ADD COLUMN ` + column + ` ` + typ)
-		return err
-	}
-	return nil
+	return false
 }
 
-// removeTunnelNameUniqueConstraint 移除 Tunnel 表 name 字段的唯一约束
-func removeTunnelNameUniqueConstraint(db *sql.DB) error {
-	// 检查 Tunnel 表是否存在
-	var tableExists bool
-	err := db.QueryRow(`SELECT COUNT(*) > 0 FROM sqlite_master WHERE type='table' AND name='Tunnel'`).Scan(&tableExists)
+// PingDB 检查数据库连接是否正常
+func PingDB() error {
+	db := GetDB()
+	sqlDB, err := db.DB()
 	if err != nil {
 		return err
 	}
+	return sqlDB.Ping()
+}
 
-	if !tableExists {
-		log.Printf("Tunnel 表不存在，跳过唯一约束移除迁移")
-		return nil
-	}
+// GetHealthyDB 获取健康的数据库连接，如果连接有问题会尝试重新初始化
+func GetHealthyDB() *gorm.DB {
+	db := GetDB()
 
-	// 检查是否需要执行迁移：查看 name 字段是否有 UNIQUE 约束
-	hasUnique, err := hasUniqueConstraintOnNameField(db)
+	// 先尝试ping检查连接
+	sqlDB, err := db.DB()
 	if err != nil {
-		log.Printf("检查 UNIQUE 约束时出错: %v", err)
-		return err
+		log.Printf("获取sql.DB失败，重新初始化连接: %v", err)
+		once = sync.Once{} // 重置once，允许重新初始化
+		return GetDB()
 	}
 
-	if !hasUnique {
-		log.Printf("Tunnel 表 name 字段已经没有 UNIQUE 约束，跳过迁移")
-		return nil
+	if err := sqlDB.Ping(); err != nil {
+		log.Printf("数据库连接异常，重新初始化连接: %v", err)
+		once = sync.Once{} // 重置once，允许重新初始化
+		return GetDB()
 	}
 
-	log.Printf("检测到 Tunnel 表 name 字段存在 UNIQUE 约束，开始执行移除迁移...")
+	return db
+}
 
-	// 开始事务执行迁移
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
+// --- 兼容旧版本的接口 ---
 
-	// 1. 创建新的隧道表（移除name字段的UNIQUE约束）
-	log.Printf("步骤 1/5: 创建新的 Tunnel 表结构...")
-	_, err = tx.Exec(`
-		CREATE TABLE tunnels_new (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT NOT NULL,
-			endpointId INTEGER NOT NULL,
-			mode TEXT NOT NULL,
-			status TEXT NOT NULL DEFAULT 'stopped',
-			tunnelAddress TEXT NOT NULL,
-			tunnelPort TEXT NOT NULL,
-			targetAddress TEXT NOT NULL,
-			targetPort TEXT NOT NULL,
-			tlsMode TEXT NOT NULL,
-			certPath TEXT,
-			keyPath TEXT,
-			logLevel TEXT NOT NULL DEFAULT 'info',
-			commandLine TEXT NOT NULL,
-			restart BOOLEAN DEFAULT FALSE,
-			instanceId TEXT,
-			password TEXT DEFAULT '',
-			tcpRx INTEGER DEFAULT 0,
-			tcpTx INTEGER DEFAULT 0,
-			udpRx INTEGER DEFAULT 0,
-			udpTx INTEGER DEFAULT 0,
-			min INTEGER,
-			max INTEGER,
-			createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			lastEventTime DATETIME
-		)
-	`)
-	if err != nil {
-		log.Printf("创建新表失败: %v", err)
-		return err
-	}
+// DB 兼容旧版本的数据库获取接口（返回*gorm.DB而不是*sql.DB）
+func DB() interface{} {
+	return GetDB()
+}
 
-	// 2. 复制数据（字段名映射：旧表 snake_case -> 新表 camelCase）
-	log.Printf("步骤 2/5: 复制现有数据到新表...")
-	_, err = tx.Exec(`
-		INSERT INTO tunnels_new (
-			id, name, endpointId, mode, status, tunnelAddress, tunnelPort,
-			targetAddress, targetPort, tlsMode, certPath, keyPath, logLevel,
-			commandLine, restart, instanceId, password, tcpRx, tcpTx, udpRx, udpTx,
-			min, max, createdAt, updatedAt
-		)
-		SELECT 
-			id, name, endpointId, mode, status, tunnelAddress, tunnelPort,
-			targetAddress, targetPort, 
-			COALESCE(tlsMode, 'mode0') as tlsMode, 
-			certPath, keyPath, 
-			COALESCE(logLevel, 'info') as logLevel,
-			commandLine,
-			COALESCE(restart, 0) as restart,
-			instanceId,
-			COALESCE(password, '') as password, 
-			COALESCE(tcpRx, 0) as tcpRx,
-			COALESCE(tcpTx, 0) as tcpTx,
-			COALESCE(udpRx, 0) as udpRx,
-			COALESCE(udpTx, 0) as udpTx,
-			min, max, 
-			createdAt, updatedAt
-		FROM Tunnel
-	`)
-	if err != nil {
-		log.Printf("数据复制失败: %v", err)
-		return err
-	}
+// InitSchema 兼容旧版本的初始化接口（现在由AutoMigrate替代）
+func InitSchema() error {
+	return AutoMigrate(GetDB())
+}
 
-	// 3. 删除旧表
-	log.Printf("步骤 3/5: 删除旧表...")
-	_, err = tx.Exec(`DROP TABLE Tunnel`)
-	if err != nil {
-		log.Printf("删除旧表失败: %v", err)
-		return err
-	}
+// UpdateEndpointTunnelCount 异步更新端点的隧道计数，使用重试机制避免死锁
+// 这是一个全局函数，可以被各个模块调用
+func UpdateEndpointTunnelCount(endpointID int64) {
+	go func() {
+		time.Sleep(50 * time.Millisecond) // 稍作延迟避免并发冲突
 
-	// 4. 重命名新表
-	log.Printf("步骤 4/5: 重命名新表为 Tunnel...")
-	_, err = tx.Exec(`ALTER TABLE tunnels_new RENAME TO Tunnel`)
-	if err != nil {
-		log.Printf("重命名表失败: %v", err)
-		return err
-	}
+		err := ExecuteWithRetry(func(db *gorm.DB) error {
+			return db.Model(&models.Endpoint{}).Where("id = ?", endpointID).
+				Update("tunnel_count", db.Model(&models.Tunnel{}).Where("endpoint_id = ?", endpointID).Count(nil)).Error
+		})
 
-	// 5. 重新创建索引
-	log.Printf("步骤 5/5: 重新创建索引...")
-	indexes := []string{
-		`CREATE INDEX IF NOT EXISTS idx_tunnels_instance_id ON Tunnel(instanceId)`,
-		`CREATE INDEX IF NOT EXISTS idx_tunnels_name ON Tunnel(name)`,
-		`CREATE INDEX IF NOT EXISTS idx_tunnels_endpoint_id ON Tunnel(endpointId)`,
-		`CREATE INDEX IF NOT EXISTS idx_tunnels_status ON Tunnel(status)`,
-		`CREATE INDEX IF NOT EXISTS idx_tunnels_created_at ON Tunnel(createdAt)`,
-	}
-
-	for i, indexSQL := range indexes {
-		_, err = tx.Exec(indexSQL)
 		if err != nil {
-			log.Printf("创建索引 %d/%d 失败: %v", i+1, len(indexes), err)
-			return err
+			applog.Errorf("[DB]更新端点 %d 隧道计数失败: %v", endpointID, err)
+		} else {
+			applog.Debugf("[DB]端点 %d 隧道计数已更新", endpointID)
 		}
-	}
-
-	// 提交事务
-	if err = tx.Commit(); err != nil {
-		log.Printf("事务提交失败: %v", err)
-		return err
-	}
-
-	log.Printf("✅ Tunnel 表 name 字段唯一约束移除迁移完成！现在可以创建同名的隧道实例了")
-	return nil
+	}()
 }
 
-// hasUniqueConstraintOnNameField 检查 Tunnel 表的 name 字段是否有 UNIQUE 约束
-func hasUniqueConstraintOnNameField(db *sql.DB) (bool, error) {
-	// 方法1: 检查索引列表，查找 name 字段的唯一索引
-	rows, err := db.Query(`PRAGMA index_list(Tunnel)`)
-	if err != nil {
-		return false, err
-	}
-	defer rows.Close()
-
-	for rows.Next() {
-		var seq int
-		var name string
-		var unique int
-		var origin string
-		var partial int
-
-		if err := rows.Scan(&seq, &name, &unique, &origin, &partial); err != nil {
-			continue
-		}
-
-		// 如果是唯一索引，检查是否是 name 字段的索引
-		if unique == 1 {
-			isNameIndex, err := isIndexOnNameField(db, name)
-			if err != nil {
-				continue
-			}
-			if isNameIndex {
-				log.Printf("发现 name 字段的唯一索引: %s", name)
-				return true, nil
-			}
-		}
-	}
-
-	// 方法2: 检查表定义中的内联 UNIQUE 约束
-	var schema string
-	err = db.QueryRow(`SELECT sql FROM sqlite_master WHERE type='table' AND name='Tunnel'`).Scan(&schema)
-	if err != nil {
-		return false, err
-	}
-
-	// 检查 CREATE TABLE 语句中是否有 name 字段的 UNIQUE 约束
-	hasInlineUnique := regexp.MustCompile(`name\s+[^,\)]*\bUNIQUE\b`).MatchString(schema)
-	if hasInlineUnique {
-		log.Printf("发现 name 字段的内联 UNIQUE 约束")
-		return true, nil
-	}
-
-	// 检查表级 UNIQUE 约束
-	hasTableUnique := regexp.MustCompile(`UNIQUE\s*\(\s*name\s*\)`).MatchString(schema)
-	if hasTableUnique {
-		log.Printf("发现 name 字段的表级 UNIQUE 约束")
-		return true, nil
-	}
-
-	return false, nil
-}
-
-// isIndexOnNameField 检查指定索引是否只包含 name 字段
-func isIndexOnNameField(db *sql.DB, indexName string) (bool, error) {
-	rows, err := db.Query(`PRAGMA index_info(` + indexName + `)`)
-	if err != nil {
-		return false, err
-	}
-	defer rows.Close()
-
-	var columnCount int
-	var hasNameField bool
-
-	for rows.Next() {
-		var seqno int
-		var cid int
-		var name string
-
-		if err := rows.Scan(&seqno, &cid, &name); err != nil {
-			continue
-		}
-
-		columnCount++
-		if name == "name" {
-			hasNameField = true
-		}
-	}
-
-	// 索引只有一个列且是 name 字段
-	return columnCount == 1 && hasNameField, nil
-}
-
-// createTagsTable 创建标签表
-func createTagsTable(db *sql.DB) error {
-	// 创建标签表
-	_, err := db.Exec(`
-		CREATE TABLE IF NOT EXISTS Tags (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			name TEXT NOT NULL UNIQUE,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-		)
-	`)
-	if err != nil {
-		return err
-	}
-
-	// 创建索引
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_tags_name ON Tags(name)`)
-	if err != nil {
-		return err
-	}
-
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_tags_created_at ON Tags(created_at)`)
-	if err != nil {
-		return err
-	}
-
-	// 创建隧道标签关联表
-	_, err = db.Exec(`
-		CREATE TABLE IF NOT EXISTS TunnelTags (
-			id INTEGER PRIMARY KEY AUTOINCREMENT,
-			tunnel_id INTEGER NOT NULL,
-			tag_id INTEGER NOT NULL,
-			created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-			UNIQUE(tunnel_id, tag_id)
-		)
-	`)
-	if err != nil {
-		return err
-	}
-
-	// 创建索引
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_tunnel_tags_tunnel_id ON TunnelTags(tunnel_id)`)
-	if err != nil {
-		return err
-	}
-
-	_, err = db.Exec(`CREATE INDEX IF NOT EXISTS idx_tunnel_tags_tag_id ON TunnelTags(tag_id)`)
-	if err != nil {
-		return err
-	}
-
-	return nil
+// UpdateEndpointTunnelCountSync 同步更新端点的隧道计数，仅在必要时使用
+func UpdateEndpointTunnelCountSync(endpointID int64) error {
+	return ExecuteWithRetry(func(db *gorm.DB) error {
+		return db.Model(&models.Endpoint{}).Where("id = ?", endpointID).
+			Update("tunnel_count", db.Model(&models.Tunnel{}).Where("endpoint_id = ?", endpointID).Count(nil)).Error
+	})
 }

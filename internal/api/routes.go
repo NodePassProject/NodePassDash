@@ -1,10 +1,6 @@
 package api
 
 import (
-	"database/sql"
-	"net/http"
-	"strings"
-
 	"NodePassDash/internal/auth"
 	"NodePassDash/internal/dashboard"
 	"NodePassDash/internal/endpoint"
@@ -12,8 +8,11 @@ import (
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tag"
 	"NodePassDash/internal/tunnel"
+	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
+	"gorm.io/gorm"
 )
 
 // Router API 路由器
@@ -33,7 +32,7 @@ type Router struct {
 
 // NewRouter 创建路由器实例
 // 如果外部已创建 sseService / sseManager，则传入以复用，避免出现多个实例导致推流失效
-func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Router {
+func NewRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager) *Router {
 	// 创建路由器（忽略末尾斜杠差异）
 	router := mux.NewRouter()
 	router.StrictSlash(true)
@@ -56,11 +55,11 @@ func NewRouter(db *sql.DB, sseService *sse.Service, sseManager *sse.Manager) *Ro
 	// 创建处理器实例
 	authHandler := NewAuthHandler(authService)
 	endpointHandler := NewEndpointHandler(endpointService, sseManager)
-	instanceHandler := NewInstanceHandler(db, instanceService)
+	instanceHandler := NewInstanceHandler(instanceService, endpointService)
 	tunnelHandler := NewTunnelHandler(tunnelService, sseManager)
 	tagHandler := NewTagHandler(tagService)
 	sseHandler := NewSSEHandler(sseService, sseManager)
-	dataHandler := NewDataHandler(db, sseManager)
+	dataHandler := NewDataHandler(db, sseManager, endpointService, tunnelService)
 	dashboardHandler := NewDashboardHandler(dashboardService)
 	versionHandler := NewVersionHandler()
 	groupHandler := NewGroupHandler(db)
@@ -207,6 +206,7 @@ func (r *Router) registerRoutes() {
 
 	// 仪表盘统计数据
 	r.router.HandleFunc("/api/dashboard/stats", r.dashboardHandler.HandleGetStats).Methods("GET")
+	r.router.HandleFunc("/api/dashboard/tunnel-stats", r.dashboardHandler.HandleGetTunnelStats).Methods("GET")
 
 	// 数据导入导出
 	r.router.HandleFunc("/api/data/export", r.dataHandler.HandleExport).Methods("GET")

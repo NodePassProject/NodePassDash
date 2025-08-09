@@ -2,9 +2,13 @@ package api
 
 import (
 	log "NodePassDash/internal/log"
+	"NodePassDash/internal/models"
+	"NodePassDash/internal/sse"
+	"bufio"
 	"context"
 	"crypto/tls"
 	"database/sql"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"net/http"
@@ -12,14 +16,10 @@ import (
 	"strings"
 	"time"
 
-	"NodePassDash/internal/sse"
-
-	"bufio"
-	"encoding/base64"
+	"github.com/mattn/go-ieproxy"
 
 	"github.com/google/uuid"
 	"github.com/gorilla/mux"
-	"github.com/mattn/go-ieproxy"
 )
 
 // SSEHandler SSE处理器
@@ -492,6 +492,7 @@ func (h *SSEHandler) HandleNodePassSSEProxy(w http.ResponseWriter, r *http.Reque
 	// 构造NodePass SSE URL
 	sseURL := fmt.Sprintf("%s%s/events", config.URL, config.APIPath)
 	log.Infof("[NodePass SSE Proxy] 连接到: %s", sseURL)
+	log.Infof("[NodePass SSE Proxy] 配置信息: URL=%s, APIPath=%s, APIKey=%s", config.URL, config.APIPath, config.APIKey)
 
 	// 创建连接上下文
 	ctx, cancel := context.WithCancel(r.Context())
@@ -670,27 +671,32 @@ func (h *SSEHandler) HandleClearEndpointSSE(w http.ResponseWriter, r *http.Reque
 // getEndpointSSECount 获取EndpointSSE总数
 func (h *SSEHandler) getEndpointSSECount() (int, error) {
 	db := h.sseService.GetDB()
-	var count int
-	err := db.QueryRow("SELECT COUNT(*) FROM EndpointSSE").Scan(&count)
-	return count, err
+	var count int64
+	err := db.Model(&models.EndpointSSE{}).Count(&count).Error
+	return int(count), err
 }
 
 // getEndpointSSETimeRange 获取EndpointSSE时间范围
 func (h *SSEHandler) getEndpointSSETimeRange() (string, string, error) {
 	db := h.sseService.GetDB()
 
-	var oldestTime, newestTime sql.NullTime
-	query := `
-		SELECT 
-			MIN(eventTime) as oldest,
-			MAX(eventTime) as newest
-		FROM EndpointSSE
-	`
+	var result struct {
+		Oldest sql.NullTime `json:"oldest"`
+		Newest sql.NullTime `json:"newest"`
+	}
 
-	err := db.QueryRow(query).Scan(&oldestTime, &newestTime)
+	err := db.Raw(`
+		SELECT 
+			MIN(event_time) as oldest,
+			MAX(event_time) as newest
+		FROM endpoint_sses
+	`).Scan(&result).Error
 	if err != nil {
 		return "", "", err
 	}
+
+	oldestTime := result.Oldest
+	newestTime := result.Newest
 
 	oldestStr := ""
 	newestStr := ""
@@ -710,10 +716,10 @@ func (h *SSEHandler) getEndpointSSETimeRange() (string, string, error) {
 func (h *SSEHandler) clearAllEndpointSSE() (int64, error) {
 	db := h.sseService.GetDB()
 
-	result, err := db.Exec("DELETE FROM EndpointSSE")
-	if err != nil {
-		return 0, err
+	result := db.Where("1 = 1").Delete(&models.EndpointSSE{})
+	if result.Error != nil {
+		return 0, result.Error
 	}
 
-	return result.RowsAffected()
+	return result.RowsAffected, nil
 }

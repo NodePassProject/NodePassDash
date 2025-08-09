@@ -136,13 +136,13 @@ export interface Tunnel {
   password?: string;
   instanceId?: string;
   
-  // 网络流量统计字段
-  tcpRx?: bigint;
-  tcpTx?: bigint;
-  udpRx?: bigint;
-  udpTx?: bigint;
-  pool?: bigint | null;
-  ping?: bigint | null;
+  // 网络流量统计字段 - 改为number类型减少内存占用
+  tcpRx?: number;
+  tcpTx?: number;
+  udpRx?: number;
+  udpTx?: number;
+  pool?: number | null;
+  ping?: number | null;
   
   createdAt: Date;
   updatedAt: Date;

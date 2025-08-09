@@ -2,7 +2,6 @@ package auth
 
 import (
 	"crypto/rand"
-	"database/sql"
 	"errors"
 	"fmt"
 	"math/big"
@@ -10,8 +9,11 @@ import (
 	"sync"
 	"time"
 
+	"NodePassDash/internal/models"
+
 	"github.com/google/uuid"
 	"golang.org/x/crypto/bcrypt"
+	"gorm.io/gorm"
 )
 
 var (
@@ -25,11 +27,11 @@ var (
 
 // Service 认证服务
 type Service struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
-// NewService 创建认证服务实例，需要传入数据库连接
-func NewService(db *sql.DB) *Service {
+// NewService 创建认证服务实例，需要传入GORM数据库连接
+func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
@@ -55,34 +57,67 @@ func (s *Service) GetSystemConfig(key string) (string, error) {
 		return value.(string), nil
 	}
 
-	// 查询数据库
-	var value string
-	err := s.db.QueryRow(`SELECT value FROM "SystemConfig" WHERE key = ?`, key).Scan(&value)
+	// 使用GORM查询数据库
+	var config models.SystemConfig
+	err := s.db.Where("`key` = ?", key).First(&config).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
 			return "", errors.New("配置不存在")
 		}
 		return "", err
 	}
 
 	// 写入缓存
-	configCache.Store(key, value)
-	return value, nil
+	configCache.Store(key, config.Value)
+	return config.Value, nil
 }
 
-// SetSystemConfig 设置系统配置（写库并更新缓存）
-func (s *Service) SetSystemConfig(key, value, description string) error {
-	_, err := s.db.Exec(`
-		INSERT INTO "SystemConfig" (key, value, description, createdAt, updatedAt)
-		VALUES (?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		ON CONFLICT(key) DO UPDATE SET value = excluded.value, description = excluded.description, updatedAt = CURRENT_TIMESTAMP;
-	`, key, value, description)
-	if err != nil {
-		return err
+// SetSystemConfig 设置系统配置
+func (s *Service) SetSystemConfig(key, value string) error {
+	// 使用GORM的Upsert操作 (Create or Update)
+	config := models.SystemConfig{
+		Key:   key,
+		Value: value,
+	}
+
+	// 先尝试更新，如果不存在则创建
+	result := s.db.Where("`key` = ?", key).Updates(&config)
+	if result.Error != nil {
+		return result.Error
+	}
+
+	// 如果没有更新任何行，则创建新记录
+	if result.RowsAffected == 0 {
+		err := s.db.Create(&config).Error
+		if err != nil {
+			return err
+		}
 	}
 
 	// 更新缓存
 	configCache.Store(key, value)
+	return nil
+}
+
+// GetSystemConfigWithDefault 获取系统配置，如果不存在则返回默认值
+func (s *Service) GetSystemConfigWithDefault(key, defaultValue string) string {
+	value, err := s.GetSystemConfig(key)
+	if err != nil {
+		return defaultValue
+	}
+	return value
+}
+
+// DeleteSystemConfig 删除系统配置
+func (s *Service) DeleteSystemConfig(key string) error {
+	// 使用GORM删除
+	err := s.db.Where("`key` = ?", key).Delete(&models.SystemConfig{}).Error
+	if err != nil {
+		return err
+	}
+
+	// 删除缓存
+	configCache.Delete(key)
 	return nil
 }
 
@@ -108,21 +143,26 @@ func (s *Service) AuthenticateUser(username, password string) bool {
 	return s.VerifyPassword(password, storedPasswordHash)
 }
 
-// CreateUserSession 创建用户会话
-func (s *Service) CreateUserSession(username string) (string, error) {
+// CreateSession 创建用户会话
+func (s *Service) CreateSession(username string, duration time.Duration) (string, error) {
 	sessionID := uuid.New().String()
-	expiresAt := time.Now().Add(24 * time.Hour)
+	expiresAt := time.Now().Add(duration)
 
-	// 写入数据库
-	_, err := s.db.Exec(`
-		INSERT INTO "UserSession" (sessionId, username, createdAt, expiresAt, isActive)
-		VALUES (?, ?, CURRENT_TIMESTAMP, ?, 1);
-	`, sessionID, username, expiresAt)
+	// 使用GORM创建会话
+	session := models.UserSession{
+		SessionID: sessionID,
+		Username:  username,
+		CreatedAt: time.Now(),
+		ExpiresAt: expiresAt,
+		IsActive:  true,
+	}
+
+	err := s.db.Create(&session).Error
 	if err != nil {
 		return "", err
 	}
 
-	// 写入缓存
+	// 更新缓存
 	sessionCache.Store(sessionID, Session{
 		SessionID: sessionID,
 		Username:  username,
@@ -133,9 +173,9 @@ func (s *Service) CreateUserSession(username string) (string, error) {
 	return sessionID, nil
 }
 
-// ValidateSession 验证会话
+// ValidateSession 验证会话是否有效
 func (s *Service) ValidateSession(sessionID string) bool {
-	// 先查缓存
+	// 先检查缓存
 	if value, ok := sessionCache.Load(sessionID); ok {
 		session := value.(Session)
 		if session.IsActive && time.Now().Before(session.ExpiresAt) {
@@ -145,44 +185,81 @@ func (s *Service) ValidateSession(sessionID string) bool {
 		sessionCache.Delete(sessionID)
 	}
 
-	// 查询数据库
-	var username string
-	var expiresAt time.Time
-	var isActive bool
-	err := s.db.QueryRow(`SELECT username, expiresAt, isActive FROM "UserSession" WHERE sessionId = ?`, sessionID).Scan(&username, &expiresAt, &isActive)
+	// 使用GORM查询数据库
+	var userSession models.UserSession
+	err := s.db.Where("session_id = ?", sessionID).First(&userSession).Error
 	if err != nil {
 		return false
 	}
 
-	if !isActive || time.Now().After(expiresAt) {
+	if !userSession.IsActive || time.Now().After(userSession.ExpiresAt) {
 		// 标记为失效
-		s.db.Exec(`UPDATE "UserSession" SET isActive = 0 WHERE sessionId = ?`, sessionID)
+		s.db.Model(&userSession).Update("is_active", false)
 		return false
 	}
 
 	// 更新缓存
 	sessionCache.Store(sessionID, Session{
 		SessionID: sessionID,
-		Username:  username,
-		ExpiresAt: expiresAt,
-		IsActive:  isActive,
+		Username:  userSession.Username,
+		ExpiresAt: userSession.ExpiresAt,
+		IsActive:  userSession.IsActive,
 	})
 
 	return true
 }
 
+// GetSessionUser 获取会话对应的用户名
+func (s *Service) GetSessionUser(sessionID string) (string, error) {
+	// 先检查缓存
+	if value, ok := sessionCache.Load(sessionID); ok {
+		session := value.(Session)
+		if session.IsActive && time.Now().Before(session.ExpiresAt) {
+			return session.Username, nil
+		}
+		sessionCache.Delete(sessionID)
+	}
+
+	// 使用GORM查询数据库
+	var userSession models.UserSession
+	err := s.db.Where("session_id = ?", sessionID).First(&userSession).Error
+	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return "", errors.New("会话不存在")
+		}
+		return "", err
+	}
+
+	if !userSession.IsActive || time.Now().After(userSession.ExpiresAt) {
+		return "", errors.New("会话已过期")
+	}
+
+	// 更新缓存
+	sessionCache.Store(sessionID, Session{
+		SessionID: sessionID,
+		Username:  userSession.Username,
+		ExpiresAt: userSession.ExpiresAt,
+		IsActive:  userSession.IsActive,
+	})
+
+	return userSession.Username, nil
+}
+
 // DestroySession 销毁会话
 func (s *Service) DestroySession(sessionID string) {
-	// 更新数据库
-	s.db.Exec(`UPDATE "UserSession" SET isActive = 0 WHERE sessionId = ?`, sessionID)
+	// 使用GORM更新数据库
+	s.db.Model(&models.UserSession{}).Where("session_id = ?", sessionID).Update("is_active", false)
+
 	// 删除缓存
 	sessionCache.Delete(sessionID)
 }
 
 // CleanupExpiredSessions 清理过期会话
 func (s *Service) CleanupExpiredSessions() {
-	// 更新数据库
-	s.db.Exec(`UPDATE "UserSession" SET isActive = 0 WHERE expiresAt < CURRENT_TIMESTAMP AND isActive = 1`)
+	// 使用GORM更新数据库
+	s.db.Model(&models.UserSession{}).
+		Where("expires_at < ? AND is_active = ?", time.Now(), true).
+		Update("is_active", false)
 
 	// 清理缓存
 	sessionCache.Range(func(key, value interface{}) bool {
@@ -209,13 +286,13 @@ func (s *Service) InitializeSystem() (string, string, error) {
 	}
 
 	// 保存系统配置
-	if err := s.SetSystemConfig(ConfigKeyAdminUsername, username, "管理员用户名"); err != nil {
+	if err := s.SetSystemConfig(ConfigKeyAdminUsername, username); err != nil {
 		return "", "", err
 	}
-	if err := s.SetSystemConfig(ConfigKeyAdminPassword, passwordHash, "管理员密码哈希"); err != nil {
+	if err := s.SetSystemConfig(ConfigKeyAdminPassword, passwordHash); err != nil {
 		return "", "", err
 	}
-	if err := s.SetSystemConfig(ConfigKeyIsInitialized, "true", "系统是否已初始化"); err != nil {
+	if err := s.SetSystemConfig(ConfigKeyIsInitialized, "true"); err != nil {
 		return "", "", err
 	}
 
@@ -242,24 +319,24 @@ func (s *Service) GetSession(sessionID string) (*Session, bool) {
 	}
 
 	// 查询数据库
-	var username string
-	var expiresAt time.Time
-	var isActive bool
-	err := s.db.QueryRow(`SELECT username, expiresAt, isActive FROM "UserSession" WHERE sessionId = ?`, sessionID).
-		Scan(&username, &expiresAt, &isActive)
+	var userSession models.UserSession
+	err := s.db.Where("session_id = ?", sessionID).First(&userSession).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, false
+		}
 		return nil, false
 	}
 
-	if !isActive || time.Now().After(expiresAt) {
+	if !userSession.IsActive || time.Now().After(userSession.ExpiresAt) {
 		return nil, false
 	}
 
 	session := Session{
-		SessionID: sessionID,
-		Username:  username,
-		ExpiresAt: expiresAt,
-		IsActive:  isActive,
+		SessionID: userSession.SessionID,
+		Username:  userSession.Username,
+		ExpiresAt: userSession.ExpiresAt,
+		IsActive:  userSession.IsActive,
 	}
 	// 更新缓存
 	sessionCache.Store(sessionID, session)
@@ -296,7 +373,7 @@ func (s *Service) ChangePassword(username, currentPassword, newPassword string) 
 	}
 
 	// 更新系统配置
-	if err := s.SetSystemConfig(ConfigKeyAdminPassword, hash, "管理员密码哈希"); err != nil {
+	if err := s.SetSystemConfig(ConfigKeyAdminPassword, hash); err != nil {
 		return false, "更新密码失败"
 	}
 
@@ -313,12 +390,12 @@ func (s *Service) ChangeUsername(currentUsername, newUsername string) (bool, str
 	}
 
 	// 更新系统配置中的用户名
-	if err := s.SetSystemConfig(ConfigKeyAdminUsername, newUsername, "管理员用户名"); err != nil {
+	if err := s.SetSystemConfig(ConfigKeyAdminUsername, newUsername); err != nil {
 		return false, "更新用户名失败"
 	}
 
 	// 更新数据库中的会话记录
-	_, _ = s.db.Exec(`UPDATE "UserSession" SET username = ? WHERE username = ? AND isActive = 1`, newUsername, currentUsername)
+	s.db.Model(&models.UserSession{}).Where("username = ?", currentUsername).Update("username", newUsername)
 
 	// 更新缓存中的会话
 	sessionCache.Range(func(key, value interface{}) bool {
@@ -357,7 +434,7 @@ func (s *Service) ResetAdminPassword() (string, string, error) {
 	}
 
 	// 更新配置
-	if err := s.SetSystemConfig(ConfigKeyAdminPassword, hash, "管理员密码哈希"); err != nil {
+	if err := s.SetSystemConfig(ConfigKeyAdminPassword, hash); err != nil {
 		return "", "", err
 	}
 
@@ -380,7 +457,7 @@ func (s *Service) ResetAdminPassword() (string, string, error) {
 // invalidateAllSessions 使所有会话失效（数据库 + 缓存）
 func (s *Service) invalidateAllSessions() {
 	// 更新数据库会话状态
-	_, _ = s.db.Exec(`UPDATE "UserSession" SET isActive = 0`)
+	s.db.Model(&models.UserSession{}).Update("is_active", false)
 	// 清空缓存
 	sessionCache.Range(func(key, value interface{}) bool {
 		sessionCache.Delete(key)
@@ -395,33 +472,21 @@ func (s *Service) invalidateAllSessions() {
 // dataJSON: 原始用户信息 JSON 字符串
 func (s *Service) SaveOAuthUser(provider, providerID, username, dataJSON string) error {
 	// 创建表（若不存在）
-	createSQL := `CREATE TABLE IF NOT EXISTS "OAuthUser" (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		provider TEXT NOT NULL,
-		providerId TEXT NOT NULL,
-		username TEXT NOT NULL,
-		data TEXT,
-		createdAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-		updatedAt DATETIME DEFAULT CURRENT_TIMESTAMP,
-		UNIQUE(provider, providerId)
-	);`
-	if _, err := s.db.Exec(createSQL); err != nil {
-		return err
-	}
+	// GORM handles table creation automatically if models are defined
 
 	// 检查是否已存在 OAuth 用户（只允许第一个用户登录）
-	var existingCount int
-	err := s.db.QueryRow(`SELECT COUNT(*) FROM "OAuthUser"`).Scan(&existingCount)
+	var existingCount int64
+	err := s.db.Model(&models.OAuthUser{}).Count(&existingCount).Error
 	if err != nil {
 		return err
 	}
 
 	// 如果已有用户，检查是否是同一个用户
 	if existingCount > 0 {
-		var existingProviderID string
-		err := s.db.QueryRow(`SELECT providerId FROM "OAuthUser" WHERE provider = ?`, provider).Scan(&existingProviderID)
+		var existingUser models.OAuthUser
+		err := s.db.Where("provider = ?", provider).First(&existingUser).Error
 		if err != nil {
-			if err == sql.ErrNoRows {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
 				// 当前 provider 没有用户，但其他 provider 有用户，不允许登录
 				return errors.New("系统已绑定其他 OAuth2 用户，不允许使用不同的 OAuth2 账户登录")
 			}
@@ -429,23 +494,35 @@ func (s *Service) SaveOAuthUser(provider, providerID, username, dataJSON string)
 		}
 
 		// 如果是不同的用户ID，拒绝登录
-		if existingProviderID != providerID {
+		if existingUser.ProviderID != providerID {
 			return errors.New("系统已绑定其他 OAuth2 用户，不允许使用不同的账户登录")
 		}
 	}
 
 	// 插入或更新（只有同一用户才能更新）
-	_, err = s.db.Exec(`INSERT INTO "OAuthUser" (provider, providerId, username, data, createdAt, updatedAt)
-		VALUES (?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)
-		ON CONFLICT(provider, providerId) DO UPDATE SET username = excluded.username, data = excluded.data, updatedAt = CURRENT_TIMESTAMP;`,
-		provider, providerID, username, dataJSON)
-	return err
+	oauthUser := models.OAuthUser{
+		Provider:   provider,
+		ProviderID: providerID,
+		Username:   username,
+		Data:       dataJSON,
+		CreatedAt:  time.Now(),
+		UpdatedAt:  time.Now(),
+	}
+	err = s.db.Where("provider = ? AND provider_id = ?", provider, providerID).FirstOrCreate(&oauthUser).Error
+	if err != nil {
+		return err
+	}
+
+	return nil
 }
 
 // DeleteAllOAuthUsers 删除所有 OAuth 用户信息（解绑时使用）
 func (s *Service) DeleteAllOAuthUsers() error {
-	_, err := s.db.Exec(`DELETE FROM "OAuthUser"`)
-	return err
+	err := s.db.Where("1 = 1").Delete(&models.OAuthUser{}).Error
+	if err != nil {
+		return err
+	}
+	return nil
 }
 
 // GenerateOAuthState 生成并缓存 state 值（10 分钟有效）

@@ -1,84 +1,76 @@
 package tunnel
 
 import (
-	"time"
+	"NodePassDash/internal/models"
 )
 
-// TunnelStatus 隧道状态枚举
-type TunnelStatus string
+// 使用统一模型定义
+type Tunnel = models.Tunnel
+type TunnelStatus = models.TunnelStatus
+type TunnelMode = models.TunnelMode
+type TLSMode = models.TLSMode
+type LogLevel = models.LogLevel
+type Tag = models.Tag
 
+// 状态常量 - 保持向后兼容
 const (
-	StatusRunning TunnelStatus = "running"
-	StatusStopped TunnelStatus = "stopped"
-	StatusError   TunnelStatus = "error"
-	StatusOffline TunnelStatus = "offline"
+	StatusRunning = models.TunnelStatusRunning
+	StatusStopped = models.TunnelStatusStopped
+	StatusError   = models.TunnelStatusError
+	StatusOffline = models.TunnelStatusOffline
 )
 
-// TunnelMode 隧道模式枚举
-type TunnelMode string
-
+// 模式常量 - 保持向后兼容
 const (
-	ModeServer TunnelMode = "server"
-	ModeClient TunnelMode = "client"
+	ModeServer = models.TunnelModeServer
+	ModeClient = models.TunnelModeClient
 )
 
-// TLSMode TLS模式枚举
-type TLSMode string
-
+// TLS模式常量 - 保持向后兼容
 const (
-	TLSModeInherit TLSMode = "inherit"
-	TLSMode0       TLSMode = "mode0"
-	TLSMode1       TLSMode = "mode1"
-	TLSMode2       TLSMode = "mode2"
+	TLSModeInherit = models.TLSModeInherit
+	TLSMode0       = models.TLSMode0
+	TLSMode1       = models.TLSMode1
+	TLSMode2       = models.TLSMode2
 )
 
-// LogLevel 日志级别枚举
-type LogLevel string
-
+// 日志级别常量 - 保持向后兼容
 const (
-	LogLevelInherit LogLevel = "inherit"
-	LogLevelDebug   LogLevel = "debug"
-	LogLevelInfo    LogLevel = "info"
-	LogLevelWarn    LogLevel = "warn"
-	LogLevelError   LogLevel = "error"
-	LogLevelEvent   LogLevel = "event"
-	LogLevelNone    LogLevel = "none"
+	LogLevelInherit = models.LogLevelInherit
+	LogLevelDebug   = models.LogLevelDebug
+	LogLevelInfo    = models.LogLevelInfo
+	LogLevelWarn    = models.LogLevelWarn
+	LogLevelError   = models.LogLevelError
+	LogLevelEvent   = models.LogLevelEvent
+	LogLevelNone    = models.LogLevelNone
 )
 
-// Tunnel 隧道基本信息
-type Tunnel struct {
-	ID            int64        `json:"id"`
-	InstanceID    string       `json:"instanceId"`
-	Name          string       `json:"name"`
-	EndpointID    int64        `json:"endpointId"`
-	Mode          TunnelMode   `json:"mode"`
-	TunnelAddress string       `json:"tunnelAddress"`
-	TunnelPort    int          `json:"tunnelPort"`
-	TargetAddress string       `json:"targetAddress"`
-	TargetPort    int          `json:"targetPort"`
-	TLSMode       TLSMode      `json:"tlsMode"`
-	CertPath      string       `json:"certPath,omitempty"`
-	KeyPath       string       `json:"keyPath,omitempty"`
-	LogLevel      LogLevel     `json:"logLevel"`
-	CommandLine   string       `json:"commandLine"`
-	Password      string       `json:"password,omitempty"`
-	Min           *int         `json:"min"`
-	Max           *int         `json:"max"`
-	Restart       bool         `json:"restart"`
-	Status        TunnelStatus `json:"status"`
-	CreatedAt     time.Time    `json:"createdAt"`
-	UpdatedAt     time.Time    `json:"updatedAt"`
+// TunnelQueryParams 隧道查询参数
+type TunnelQueryParams struct {
+	Search          string `json:"search"`            // 搜索关键词
+	Status          string `json:"status"`            // 状态筛选
+	EndpointID      string `json:"endpoint_id"`       // 主控筛选
+	EndpointGroupID string `json:"endpoint_group_id"` // 主控组筛选
+	PortFilter      string `json:"port_filter"`       // 端口筛选
+	TagID           string `json:"tag_id"`            // 标签筛选
+	Page            int    `json:"page"`              // 页码
+	PageSize        int    `json:"page_size"`         // 每页大小
+	SortBy          string `json:"sort_by"`           // 排序字段
+	SortOrder       string `json:"sort_order"`        // 排序方向
 }
 
-// Tag 标签信息
-type Tag struct {
-	ID   int64  `json:"id"`
-	Name string `json:"name"`
+// TunnelListResult 隧道列表结果
+type TunnelListResult struct {
+	Data       []TunnelWithStats `json:"data"`        // 数据列表
+	Total      int               `json:"total"`       // 总数
+	Page       int               `json:"page"`        // 当前页码
+	PageSize   int               `json:"page_size"`   // 每页大小
+	TotalPages int               `json:"total_pages"` // 总页数
 }
 
 // TunnelWithStats 带统计信息的隧道
 type TunnelWithStats struct {
-	Tunnel
+	models.Tunnel
 	Traffic struct {
 		TCPRx     int64  `json:"tcpRx"`
 		TCPTx     int64  `json:"tcpTx"`

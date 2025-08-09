@@ -1,42 +1,24 @@
 package endpoint
 
-import "time"
-
-// EndpointStatus 端点状态枚举
-type EndpointStatus string
-
-const (
-	StatusOnline     EndpointStatus = "ONLINE"
-	StatusOffline    EndpointStatus = "OFFLINE"
-	StatusFail       EndpointStatus = "FAIL"
-	StatusDisconnect EndpointStatus = "DISCONNECT"
+import (
+	"NodePassDash/internal/models"
 )
 
-// Endpoint 端点基本信息
-type Endpoint struct {
-	ID        int64          `json:"id"`
-	Name      string         `json:"name"`
-	URL       string         `json:"url"`
-	APIPath   string         `json:"apiPath"`
-	APIKey    string         `json:"apiKey"`
-	Status    EndpointStatus `json:"status"`
-	Color     string         `json:"color,omitempty"`
-	OS        string         `json:"os,omitempty"`
-	Arch      string         `json:"arch,omitempty"`
-	Ver       string         `json:"ver,omitempty"`
-	Log       string         `json:"log,omitempty"`
-	TLS       string         `json:"tls,omitempty"`
-	Crt       string         `json:"crt,omitempty"`
-	KeyPath   string         `json:"keyPath,omitempty"`
-	Uptime    *int64         `json:"uptime,omitempty"`
-	LastCheck time.Time      `json:"lastCheck"`
-	CreatedAt time.Time      `json:"createdAt"`
-	UpdatedAt time.Time      `json:"updatedAt"`
-}
+// 使用统一模型定义
+type Endpoint = models.Endpoint
+type EndpointStatus = models.EndpointStatus
+
+// 状态常量 - 保持向后兼容
+const (
+	StatusOnline     = models.EndpointStatusOnline
+	StatusOffline    = models.EndpointStatusOffline
+	StatusFail       = models.EndpointStatusFail
+	StatusDisconnect = models.EndpointStatusDisconnect
+)
 
 // EndpointWithStats 带统计信息的端点
 type EndpointWithStats struct {
-	Endpoint
+	models.Endpoint
 	TunnelCount   int `json:"tunnelCount"`
 	ActiveTunnels int `json:"activeTunnels"`
 }

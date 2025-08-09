@@ -44,14 +44,19 @@ type eventJob struct {
 // NewManager 创建SSE管理器
 func NewManager(db *sql.DB, service *Service) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
-	return &Manager{
+	m := &Manager{
 		service:      service,
 		db:           db,
 		connections:  make(map[int64]*EndpointConnection),
-		jobs:         make(chan eventJob, 4096), // 缓冲可按需调整
+		jobs:         make(chan eventJob, 8192), // 增加缓冲大小到8192
 		daemonCtx:    ctx,
 		daemonCancel: cancel,
 	}
+
+	// 启动worker处理事件
+	m.StartWorkers(4) // 启动4个worker处理事件
+
+	return m
 }
 
 // StartDaemon 启动守护进程
@@ -209,14 +214,14 @@ func (m *Manager) InitializeSystem() error {
 	log.Infof("开始初始化系统")
 	// 统计需要重连的端点数量（过滤掉已明确失败和手动断开的端点）
 	var total int
-	if err := m.db.QueryRow(`SELECT COUNT(*) FROM "Endpoint" WHERE status NOT IN ('FAIL', 'DISCONNECT')`).Scan(&total); err == nil {
+	if err := m.db.QueryRow(`SELECT COUNT(*) FROM endpoints WHERE status NOT IN ('FAIL', 'DISCONNECT')`).Scan(&total); err == nil {
 		log.Infof("扫描到需重连的端点数量: %d", total)
 	}
 
 	// 获取所有端点
 	rows, err := m.db.Query(`
-		SELECT id, url, apiPath, apiKey 
-		FROM "Endpoint" 
+		SELECT id, url, api_path, api_key 
+		FROM endpoints 
 		WHERE status NOT IN ('FAIL', 'DISCONNECT')
 	`)
 	if err != nil {
@@ -456,7 +461,7 @@ func (m *Manager) GetConnectionStatus() map[int64]map[string]interface{} {
 // markEndpointFail 更新端点状态为 FAIL
 func (m *Manager) markEndpointFail(endpointID int64) {
 	// 更新端点状态为 FAIL，避免重复写
-	res, err := m.db.Exec(`UPDATE "Endpoint" SET status = 'FAIL', updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND status != 'FAIL'`, endpointID)
+	res, err := m.db.Exec(`UPDATE endpoints SET status = 'FAIL', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'FAIL'`, endpointID)
 	if err != nil {
 		// 更新失败直接返回
 		log.Errorf("[Master-%d#SSE]更新状态为 FAIL 失败 %v", endpointID, err)
@@ -477,7 +482,7 @@ func (m *Manager) markEndpointFail(endpointID int64) {
 // markEndpointDisconnect 更新端点状态为 DISCONNECT
 func (m *Manager) markEndpointDisconnect(endpointID int64) {
 	// 更新端点状态为 DISCONNECT，避免重复写
-	res, err := m.db.Exec(`UPDATE "Endpoint" SET status = 'DISCONNECT', updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND status != 'DISCONNECT'`, endpointID)
+	res, err := m.db.Exec(`UPDATE endpoints SET status = 'DISCONNECT', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'DISCONNECT'`, endpointID)
 	if err != nil {
 		// 更新失败直接返回
 		log.Errorf("[Master-%d#SSE]更新状态为 DISCONNECT 失败 %v", endpointID, err)
@@ -499,9 +504,9 @@ func (m *Manager) markEndpointDisconnect(endpointID int64) {
 func (m *Manager) setTunnelsOfflineForEndpoint(endpointID int64) error {
 	// 更新该端点下所有隧道的状态为离线
 	res, err := m.db.Exec(`
-		UPDATE "Tunnel" 
-		SET status = 'offline', updatedAt = CURRENT_TIMESTAMP 
-		WHERE endpointId = ? AND status != 'offline'
+		UPDATE tunnels 
+		SET status = 'offline', updated_at = CURRENT_TIMESTAMP 
+		WHERE endpoint_id = ? AND status != 'offline'
 	`, endpointID)
 
 	if err != nil {
@@ -519,7 +524,7 @@ func (m *Manager) setTunnelsOfflineForEndpoint(endpointID int64) error {
 // markEndpointOnline 更新端点状态为 ONLINE
 func (m *Manager) markEndpointOnline(endpointID int64) {
 	// 尝试更新状态为 ONLINE
-	res, err := m.db.Exec(`UPDATE "Endpoint" SET status = 'ONLINE', updatedAt = CURRENT_TIMESTAMP WHERE id = ? AND status != 'ONLINE'`, endpointID)
+	res, err := m.db.Exec(`UPDATE endpoints SET status = 'ONLINE', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'ONLINE'`, endpointID)
 	if err != nil {
 		// 更新失败，记录错误并返回
 		log.Errorf("[Master-%d#SSE]更新状态为 ONLINE 失败 %v", endpointID, err)

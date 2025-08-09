@@ -1,19 +1,28 @@
 package dashboard
 
 import (
-	"database/sql"
+	"NodePassDash/internal/models"
 	"fmt"
+	"sort"
+	"strings"
 	"time"
+
+	"gorm.io/gorm"
 )
 
 // Service 仪表盘服务
 type Service struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
 // NewService 创建仪表盘服务实例
-func NewService(db *sql.DB) *Service {
+func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
+}
+
+// DB 返回数据库连接
+func (s *Service) DB() *gorm.DB {
+	return s.db
 }
 
 // GetStats 获取仪表盘统计数据
@@ -22,124 +31,172 @@ func (s *Service) GetStats(timeRange TimeRange) (*DashboardStats, error) {
 
 	// 获取时间范围
 	startTime := time.Now()
+	var timeCondition string
 	switch timeRange {
 	case TimeRangeToday:
 		startTime = time.Date(startTime.Year(), startTime.Month(), startTime.Day(), 0, 0, 0, 0, startTime.Location())
+		timeCondition = "created_at >= ?"
 	case TimeRangeWeek:
 		startTime = startTime.AddDate(0, 0, -7)
+		timeCondition = "created_at >= ?"
 	case TimeRangeMonth:
 		startTime = startTime.AddDate(0, -1, 0)
+		timeCondition = "created_at >= ?"
 	case TimeRangeYear:
 		startTime = startTime.AddDate(-1, 0, 0)
+		timeCondition = "created_at >= ?"
 	case TimeRangeAllTime:
-		startTime = time.Time{} // 零时间，表示不限制时间范围
+		timeCondition = "1 = 1" // 无时间限制
 	}
 
 	// 获取总览数据
-	err := s.db.QueryRow(`
-		SELECT 
+	var overviewResult struct {
+		TotalEndpoints int64 `json:"total_endpoints"`
+		TotalTunnels   int64 `json:"total_tunnels"`
+		RunningTunnels int64 `json:"running_tunnels"`
+		StoppedTunnels int64 `json:"stopped_tunnels"`
+		ErrorTunnels   int64 `json:"error_tunnels"`
+		OfflineTunnels int64 `json:"offline_tunnels"`
+		TotalTraffic   int64 `json:"total_traffic"`
+	}
+
+	query := s.db.Table("endpoints e").
+		Select(`
 			COUNT(DISTINCT e.id) as total_endpoints,
 			COUNT(DISTINCT t.id) as total_tunnels,
 			COUNT(DISTINCT CASE WHEN t.status = 'running' THEN t.id END) as running_tunnels,
 			COUNT(DISTINCT CASE WHEN t.status = 'stopped' THEN t.id END) as stopped_tunnels,
 			COUNT(DISTINCT CASE WHEN t.status = 'error' THEN t.id END) as error_tunnels,
 			COUNT(DISTINCT CASE WHEN t.status = 'offline' THEN t.id END) as offline_tunnels,
-			COALESCE(SUM(t.tcpRx + t.tcpTx + t.udpRx + t.udpTx), 0) as total_traffic
-		FROM "Endpoint" e
-		LEFT JOIN "Tunnel" t ON e.id = t.endpointId
-		WHERE (? = '' OR t.createdAt >= ?)
-	`, startTime, startTime).Scan(
-		&stats.Overview.TotalEndpoints,
-		&stats.Overview.TotalTunnels,
-		&stats.Overview.RunningTunnels,
-		&stats.Overview.StoppedTunnels,
-		&stats.Overview.ErrorTunnels,
-		&stats.Overview.OfflineTunnels,
-		&stats.Overview.TotalTraffic,
-	)
+			COALESCE(SUM(t.tcp_rx + t.tcp_tx + t.udp_rx + t.udp_tx), 0) as total_traffic
+		`).
+		Joins("LEFT JOIN tunnels t ON e.id = t.endpoint_id")
+
+	if timeRange != TimeRangeAllTime {
+		query = query.Where("t."+timeCondition, startTime)
+	}
+
+	err := query.Scan(&overviewResult).Error
 	if err != nil {
 		return nil, fmt.Errorf("获取总览数据失败: %v", err)
 	}
 
+	stats.Overview.TotalEndpoints = overviewResult.TotalEndpoints
+	stats.Overview.TotalTunnels = overviewResult.TotalTunnels
+	stats.Overview.RunningTunnels = overviewResult.RunningTunnels
+	stats.Overview.StoppedTunnels = overviewResult.StoppedTunnels
+	stats.Overview.ErrorTunnels = overviewResult.ErrorTunnels
+	stats.Overview.OfflineTunnels = overviewResult.OfflineTunnels
+	stats.Overview.TotalTraffic = overviewResult.TotalTraffic
+
 	// 获取流量统计
-	var tcpRx, tcpTx, udpRx, udpTx int64
-	err = s.db.QueryRow(`
-		SELECT 
-			COALESCE(SUM(tcpRx), 0) as tcp_rx,
-			COALESCE(SUM(tcpTx), 0) as tcp_tx,
-			COALESCE(SUM(udpRx), 0) as udp_rx,
-			COALESCE(SUM(udpTx), 0) as udp_tx
-		FROM "Tunnel"
-		WHERE (? = '' OR createdAt >= ?)
-	`, startTime, startTime).Scan(&tcpRx, &tcpTx, &udpRx, &udpTx)
+	var trafficResult struct {
+		TCPRx int64 `json:"tcp_rx"`
+		TCPTx int64 `json:"tcp_tx"`
+		UDPRx int64 `json:"udp_rx"`
+		UDPTx int64 `json:"udp_tx"`
+	}
+
+	trafficQuery := s.db.Table("tunnels").
+		Select(`
+			COALESCE(SUM(tcp_rx), 0) as tcp_rx,
+			COALESCE(SUM(tcp_tx), 0) as tcp_tx,
+			COALESCE(SUM(udp_rx), 0) as udp_rx,
+			COALESCE(SUM(udp_tx), 0) as udp_tx
+		`)
+
+	if timeRange != TimeRangeAllTime {
+		trafficQuery = trafficQuery.Where(timeCondition, startTime)
+	}
+
+	err = trafficQuery.Scan(&trafficResult).Error
 	if err != nil {
 		return nil, fmt.Errorf("获取流量统计失败: %v", err)
 	}
 
 	// 设置流量统计数据
-	stats.Traffic.TCP.Rx.Value = tcpRx
-	stats.Traffic.TCP.Rx.Formatted = formatTrafficBytes(tcpRx)
-	stats.Traffic.TCP.Tx.Value = tcpTx
-	stats.Traffic.TCP.Tx.Formatted = formatTrafficBytes(tcpTx)
-	stats.Traffic.UDP.Rx.Value = udpRx
-	stats.Traffic.UDP.Rx.Formatted = formatTrafficBytes(udpRx)
-	stats.Traffic.UDP.Tx.Value = udpTx
-	stats.Traffic.UDP.Tx.Formatted = formatTrafficBytes(udpTx)
+	stats.Traffic.TCP.Rx.Value = trafficResult.TCPRx
+	stats.Traffic.TCP.Rx.Formatted = formatTrafficBytes(trafficResult.TCPRx)
+	stats.Traffic.TCP.Tx.Value = trafficResult.TCPTx
+	stats.Traffic.TCP.Tx.Formatted = formatTrafficBytes(trafficResult.TCPTx)
+	stats.Traffic.UDP.Rx.Value = trafficResult.UDPRx
+	stats.Traffic.UDP.Rx.Formatted = formatTrafficBytes(trafficResult.UDPRx)
+	stats.Traffic.UDP.Tx.Value = trafficResult.UDPTx
+	stats.Traffic.UDP.Tx.Formatted = formatTrafficBytes(trafficResult.UDPTx)
 
-	totalTraffic := tcpRx + tcpTx + udpRx + udpTx
+	totalTraffic := trafficResult.TCPRx + trafficResult.TCPTx + trafficResult.UDPRx + trafficResult.UDPTx
 	stats.Traffic.Total.Value = totalTraffic
 	stats.Traffic.Total.Formatted = formatTrafficBytes(totalTraffic)
 
-	// 获取端点状态分布
-	err = s.db.QueryRow(`
-		SELECT 
-			COUNT(CASE WHEN lastCheck >= datetime('now', '-5 minutes') THEN 1 END) as online,
-			COUNT(CASE WHEN lastCheck < datetime('now', '-5 minutes') THEN 1 END) as offline,
+	// 获取端点状态分布 (基于最后检查时间判断在线状态)
+	var endpointStatusResult struct {
+		Online  int64 `json:"online"`
+		Offline int64 `json:"offline"`
+		Total   int64 `json:"total"`
+	}
+
+	fiveMinutesAgo := time.Now().Add(-5 * time.Minute)
+	endpointQuery := s.db.Table("endpoints").
+		Select(`
+			COUNT(CASE WHEN last_check >= ? THEN 1 END) as online,
+			COUNT(CASE WHEN last_check < ? THEN 1 END) as offline,
 			COUNT(*) as total
-		FROM "Endpoint"
-		WHERE (? = '' OR createdAt >= ?)
-	`, startTime, startTime).Scan(
-		&stats.EndpointStatus.Online,
-		&stats.EndpointStatus.Offline,
-		&stats.EndpointStatus.Total,
-	)
+		`, fiveMinutesAgo, fiveMinutesAgo)
+
+	if timeRange != TimeRangeAllTime {
+		endpointQuery = endpointQuery.Where(timeCondition, startTime)
+	}
+
+	err = endpointQuery.Scan(&endpointStatusResult).Error
 	if err != nil {
 		return nil, fmt.Errorf("获取端点状态分布失败: %v", err)
 	}
 
+	stats.EndpointStatus.Online = endpointStatusResult.Online
+	stats.EndpointStatus.Offline = endpointStatusResult.Offline
+	stats.EndpointStatus.Total = endpointStatusResult.Total
+
 	// 获取隧道类型分布
-	err = s.db.QueryRow(`
-		SELECT 
+	var tunnelTypesResult struct {
+		Server int64 `json:"server"`
+		Client int64 `json:"client"`
+		Total  int64 `json:"total"`
+	}
+
+	tunnelTypesQuery := s.db.Table("tunnels").
+		Select(`
 			COUNT(CASE WHEN mode = 'server' THEN 1 END) as server,
 			COUNT(CASE WHEN mode = 'client' THEN 1 END) as client,
 			COUNT(*) as total
-		FROM "Tunnel"
-		WHERE (? = '' OR createdAt >= ?)
-	`, startTime, startTime).Scan(
-		&stats.TunnelTypes.Server,
-		&stats.TunnelTypes.Client,
-		&stats.TunnelTypes.Total,
-	)
+		`)
+
+	if timeRange != TimeRangeAllTime {
+		tunnelTypesQuery = tunnelTypesQuery.Where(timeCondition, startTime)
+	}
+
+	err = tunnelTypesQuery.Scan(&tunnelTypesResult).Error
 	if err != nil {
 		return nil, fmt.Errorf("获取隧道类型分布失败: %v", err)
 	}
 
+	stats.TunnelTypes.Server = tunnelTypesResult.Server
+	stats.TunnelTypes.Client = tunnelTypesResult.Client
+	stats.TunnelTypes.Total = tunnelTypesResult.Total
+
 	// 获取最近的操作日志
-	rows, err := s.db.Query(`
-		SELECT 
-			id, tunnelId, tunnelName, action, status, message, createdAt
-		FROM "TunnelOperationLog"
-		WHERE (? = '' OR createdAt >= ?)
-		ORDER BY createdAt DESC
-		LIMIT 10
-	`, startTime, startTime)
+	var operationLogs []models.TunnelOperationLog
+	logQuery := s.db.Order("created_at DESC").Limit(10)
+	if timeRange != TimeRangeAllTime {
+		logQuery = logQuery.Where(timeCondition, startTime)
+	}
+
+	err = logQuery.Find(&operationLogs).Error
 	if err != nil {
 		return nil, fmt.Errorf("获取操作日志失败: %v", err)
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var log struct {
+	for _, log := range operationLogs {
+		stats.RecentLogs = append(stats.RecentLogs, struct {
 			ID        int64  `json:"id"`
 			TunnelID  int64  `json:"tunnelId"`
 			Name      string `json:"name"`
@@ -147,51 +204,42 @@ func (s *Service) GetStats(timeRange TimeRange) (*DashboardStats, error) {
 			Status    string `json:"status"`
 			Message   string `json:"message"`
 			CreatedAt string `json:"createdAt"`
-		}
-		err := rows.Scan(
-			&log.ID,
-			&log.TunnelID,
-			&log.Name,
-			&log.Action,
-			&log.Status,
-			&log.Message,
-			&log.CreatedAt,
-		)
-		if err != nil {
-			return nil, fmt.Errorf("读取操作日志失败: %v", err)
-		}
-		stats.RecentLogs = append(stats.RecentLogs, log)
+		}{
+			ID:        log.ID,
+			TunnelID:  *log.TunnelID,
+			Name:      log.TunnelName,
+			Action:    string(log.Action),
+			Status:    log.Status,
+			Message:   *log.Message,
+			CreatedAt: log.CreatedAt.Format("2006-01-02 15:04:05"),
+		})
 	}
 
 	// 获取最活跃的隧道
-	rows, err = s.db.Query(`
-		SELECT 
-			id, name, mode,
-			(tcpRx + tcpTx + udpRx + udpTx) as total_traffic
-		FROM "Tunnel"
-		WHERE (? = '' OR createdAt >= ?)
-		ORDER BY total_traffic DESC
-		LIMIT 5
-	`, startTime, startTime)
+	var topTunnels []struct {
+		ID           int64  `json:"id"`
+		Name         string `json:"name"`
+		Mode         string `json:"mode"`
+		TotalTraffic int64  `json:"total_traffic"`
+	}
+
+	topTunnelsQuery := s.db.Table("tunnels").
+		Select("id, name, mode, (tcp_rx + tcp_tx + udp_rx + udp_tx) as total_traffic").
+		Order("total_traffic DESC").
+		Limit(5)
+
+	if timeRange != TimeRangeAllTime {
+		topTunnelsQuery = topTunnelsQuery.Where(timeCondition, startTime)
+	}
+
+	err = topTunnelsQuery.Find(&topTunnels).Error
 	if err != nil {
 		return nil, fmt.Errorf("获取最活跃隧道失败: %v", err)
 	}
-	defer rows.Close()
 
-	for rows.Next() {
-		var t struct {
-			ID      int64
-			Name    string
-			Mode    string
-			Traffic int64
-		}
-		err := rows.Scan(&t.ID, &t.Name, &t.Mode, &t.Traffic)
-		if err != nil {
-			return nil, fmt.Errorf("读取隧道数据失败: %v", err)
-		}
-
+	for _, tunnel := range topTunnels {
 		tunnelType := "客户端"
-		if t.Mode == "server" {
+		if tunnel.Mode == "server" {
 			tunnelType = "服务端"
 		}
 
@@ -202,11 +250,11 @@ func (s *Service) GetStats(timeRange TimeRange) (*DashboardStats, error) {
 			Traffic   int64  `json:"traffic"`
 			Formatted string `json:"formatted"`
 		}{
-			ID:        t.ID,
-			Name:      t.Name,
+			ID:        tunnel.ID,
+			Name:      tunnel.Name,
 			Type:      tunnelType,
-			Traffic:   t.Traffic,
-			Formatted: formatTrafficBytes(t.Traffic),
+			Traffic:   tunnel.TotalTraffic,
+			Formatted: formatTrafficBytes(tunnel.TotalTraffic),
 		})
 	}
 
@@ -259,58 +307,129 @@ type TrafficTrendItem struct {
 }
 
 // GetTrafficTrend 获取最近 hours 小时内的流量趋势，默认24小时
+// 优化版本：优先使用汇总表，降级到原始查询
 func (s *Service) GetTrafficTrend(hours int) ([]TrafficTrendItem, error) {
 	if hours <= 0 {
 		hours = 24
 	}
 
-	// 查询最近 hours+1 小时的数据，按实例ID分组获取每个小时内每个实例的最新累计值
-	rows, err := s.db.Query(`
-		WITH hourly_latest AS (
-			SELECT 
-				instanceId,
-				strftime('%Y-%m-%d %H:00:00', eventTime) as hour_key,
-				eventTime,
-				tcpRx, tcpTx, udpRx, udpTx,
-				ROW_NUMBER() OVER (
-					PARTITION BY instanceId, strftime('%Y-%m-%d %H:00:00', eventTime) 
-					ORDER BY eventTime DESC
-				) as rn
-			FROM "EndpointSSE"
-			WHERE pushType IN ('initial','update')
-			  AND eventTime >= datetime('now', ?||' hours')
-			  AND (tcpRx IS NOT NULL OR tcpTx IS NOT NULL OR udpRx IS NOT NULL OR udpTx IS NOT NULL)
-		)
-		SELECT instanceId, hour_key, eventTime, tcpRx, tcpTx, udpRx, udpTx
-		FROM hourly_latest 
-		WHERE rn = 1
-		ORDER BY instanceId, hour_key ASC
-		`, -(hours + 1))
-	if err != nil {
-		return nil, err
-	}
-	defer rows.Close()
+	// 使用优化的流量服务
+	trafficService := NewTrafficService(s.db)
+	return trafficService.GetTrafficTrendOptimized(hours)
+}
 
-	type instanceHourlyData struct {
-		instanceId                 string
-		hourKey                    string
-		eventTime                  time.Time
-		tcpRx, tcpTx, udpRx, udpTx sql.NullInt64
+// 使用原生SQL实现流量趋势查询
+func (s *Service) getTrafficTrendWithSQL(hours int) ([]TrafficTrendItem, error) {
+	var records []struct {
+		InstanceID string    `json:"instance_id"`
+		HourKey    string    `json:"hour_key"`
+		EventTime  time.Time `json:"event_time"`
+		TCPRx      int64     `json:"tcp_rx"` // 改为int64，与模型一致
+		TCPTx      int64     `json:"tcp_tx"`
+		UDPRx      int64     `json:"udp_rx"`
+		UDPTx      int64     `json:"udp_tx"`
 	}
 
-	var records []instanceHourlyData
-	for rows.Next() {
-		var h instanceHourlyData
-		if err := rows.Scan(&h.instanceId, &h.hourKey, &h.eventTime, &h.tcpRx, &h.tcpTx, &h.udpRx, &h.udpTx); err != nil {
-			return nil, err
+	// 检查MySQL版本，尝试使用窗口函数
+	var version string
+	s.db.Raw("SELECT VERSION()").Scan(&version)
+
+	// MySQL 8.0+ 支持窗口函数
+	if strings.Contains(version, "8.") || strings.Contains(version, "9.") {
+		sqlQuery := `
+			SELECT instance_id, hour_key, event_time, tcp_rx, tcp_tx, udp_rx, udp_tx
+			FROM (
+				SELECT 
+					instance_id,
+					DATE_FORMAT(event_time, '%Y-%m-%d %H:00:00') as hour_key,
+					event_time,
+					tcp_rx, tcp_tx, udp_rx, udp_tx,
+					ROW_NUMBER() OVER (
+						PARTITION BY instance_id, DATE_FORMAT(event_time, '%Y-%m-%d %H:00:00') 
+						ORDER BY event_time DESC
+					) as rn
+				FROM endpoint_sse
+				WHERE push_type IN ('initial','update')
+				AND event_time >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+				AND (tcp_rx > 0 OR tcp_tx > 0 OR udp_rx > 0 OR udp_tx > 0)
+			) as hourly_latest
+			WHERE rn = 1
+			ORDER BY instance_id, hour_key ASC
+		`
+
+		err := s.db.Raw(sqlQuery, hours+1).Scan(&records).Error
+		if err == nil {
+			return s.processTrafficRecords(records, hours)
 		}
-		records = append(records, h)
+		// 如果窗口函数失败，继续使用备用方案
 	}
+
+	// 备用方案：使用GROUP BY + MAX，兼容MySQL 5.7及以下
+	sqlQuery := `
+		SELECT 
+			t1.instance_id,
+			DATE_FORMAT(t1.event_time, '%Y-%m-%d %H:00:00') as hour_key,
+			t1.event_time,
+			t1.tcp_rx, t1.tcp_tx, t1.udp_rx, t1.udp_tx
+		FROM endpoint_sse t1
+		INNER JOIN (
+			SELECT 
+				instance_id,
+				DATE_FORMAT(event_time, '%Y-%m-%d %H:00:00') as hour_key,
+				MAX(event_time) as max_time
+			FROM endpoint_sse
+			WHERE push_type IN ('initial','update')
+			AND event_time >= DATE_SUB(NOW(), INTERVAL ? HOUR)
+			AND (tcp_rx > 0 OR tcp_tx > 0 OR udp_rx > 0 OR udp_tx > 0)
+			GROUP BY instance_id, DATE_FORMAT(event_time, '%Y-%m-%d %H:00:00')
+		) t2 ON t1.instance_id = t2.instance_id 
+			AND t1.event_time = t2.max_time
+			AND DATE_FORMAT(t1.event_time, '%Y-%m-%d %H:00:00') = t2.hour_key
+		WHERE t1.push_type IN ('initial','update')
+		ORDER BY t1.instance_id, hour_key ASC
+	`
+
+	err := s.db.Raw(sqlQuery, hours+1).Scan(&records).Error
+	if err != nil {
+		return nil, fmt.Errorf("查询流量数据失败: %v", err)
+	}
+
+	return s.processTrafficRecords(records, hours)
+}
+
+// 处理流量记录数据
+func (s *Service) processTrafficRecords(records []struct {
+	InstanceID string    `json:"instance_id"`
+	HourKey    string    `json:"hour_key"`
+	EventTime  time.Time `json:"event_time"`
+	TCPRx      int64     `json:"tcp_rx"`
+	TCPTx      int64     `json:"tcp_tx"`
+	UDPRx      int64     `json:"udp_rx"`
+	UDPTx      int64     `json:"udp_tx"`
+}, hours int) ([]TrafficTrendItem, error) {
 
 	// 按实例ID分组数据
-	instanceData := make(map[string][]instanceHourlyData)
+	instanceData := make(map[string][]struct {
+		InstanceID string    `json:"instance_id"`
+		HourKey    string    `json:"hour_key"`
+		EventTime  time.Time `json:"event_time"`
+		TCPRx      int64     `json:"tcp_rx"`
+		TCPTx      int64     `json:"tcp_tx"`
+		UDPRx      int64     `json:"udp_rx"`
+		UDPTx      int64     `json:"udp_tx"`
+	})
+
 	for _, record := range records {
-		instanceData[record.instanceId] = append(instanceData[record.instanceId], record)
+		instanceData[record.InstanceID] = append(instanceData[record.InstanceID], record)
+	}
+
+	// 确保每个实例的数据按时间排序
+	for instanceID := range instanceData {
+		data := instanceData[instanceID]
+		sort.Slice(data, func(i, j int) bool {
+			return data[i].HourKey < data[j].HourKey
+		})
+		instanceData[instanceID] = data
 	}
 
 	// 计算每个实例每小时的流量增量，然后按小时汇总
@@ -323,46 +442,49 @@ func (s *Service) GetTrafficTrend(hours int) ([]TrafficTrendItem, error) {
 			previous := hourlyRecords[i-1]
 
 			// 解析小时时间
-			hourTime, err := time.Parse("2006-01-02 15:00:00", current.hourKey)
+			hourTime, err := time.Parse("2006-01-02 15:00:00", current.HourKey)
 			if err != nil {
 				continue
 			}
 
 			// 初始化该小时的数据结构
-			if _, exists := hourlyTraffic[current.hourKey]; !exists {
-				hourlyTraffic[current.hourKey] = &TrafficTrendItem{
-					HourTime:    current.hourKey,
+			if _, exists := hourlyTraffic[current.HourKey]; !exists {
+				hourlyTraffic[current.HourKey] = &TrafficTrendItem{
+					HourTime:    current.HourKey,
 					HourDisplay: hourTime.Format("15:04"),
+					TCPRx:       0,
+					TCPTx:       0,
+					UDPRx:       0,
+					UDPTx:       0,
 					RecordCount: 0,
 				}
 			}
 
-			item := hourlyTraffic[current.hourKey]
+			item := hourlyTraffic[current.HourKey]
 
 			// 计算该实例在这个小时的流量增量
-			if current.tcpRx.Valid && previous.tcpRx.Valid {
-				diff := current.tcpRx.Int64 - previous.tcpRx.Int64
-				if diff >= 0 {
-					item.TCPRx += diff
-				}
+			// TCP Rx
+			diff := current.TCPRx - previous.TCPRx
+			if diff >= 0 {
+				item.TCPRx += diff
 			}
-			if current.tcpTx.Valid && previous.tcpTx.Valid {
-				diff := current.tcpTx.Int64 - previous.tcpTx.Int64
-				if diff >= 0 {
-					item.TCPTx += diff
-				}
+
+			// TCP Tx
+			diff = current.TCPTx - previous.TCPTx
+			if diff >= 0 {
+				item.TCPTx += diff
 			}
-			if current.udpRx.Valid && previous.udpRx.Valid {
-				diff := current.udpRx.Int64 - previous.udpRx.Int64
-				if diff >= 0 {
-					item.UDPRx += diff
-				}
+
+			// UDP Rx
+			diff = current.UDPRx - previous.UDPRx
+			if diff >= 0 {
+				item.UDPRx += diff
 			}
-			if current.udpTx.Valid && previous.udpTx.Valid {
-				diff := current.udpTx.Int64 - previous.udpTx.Int64
-				if diff >= 0 {
-					item.UDPTx += diff
-				}
+
+			// UDP Tx
+			diff = current.UDPTx - previous.UDPTx
+			if diff >= 0 {
+				item.UDPTx += diff
 			}
 
 			item.RecordCount++
@@ -376,17 +498,18 @@ func (s *Service) GetTrafficTrend(hours int) ([]TrafficTrendItem, error) {
 	}
 
 	// 按时间排序
-	for i := 0; i < len(list); i++ {
-		for j := i + 1; j < len(list); j++ {
-			if list[i].HourTime > list[j].HourTime {
-				list[i], list[j] = list[j], list[i]
-			}
-		}
-	}
+	sort.Slice(list, func(i, j int) bool {
+		return list[i].HourTime < list[j].HourTime
+	})
 
 	// 限制返回最近 hours 条记录
 	if len(list) > hours {
 		list = list[len(list)-hours:]
+	}
+
+	// 确保返回空数组而不是nil
+	if list == nil {
+		list = []TrafficTrendItem{}
 	}
 
 	return list, nil

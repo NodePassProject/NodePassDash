@@ -1,7 +1,10 @@
 package tunnel
 
 import (
+	"NodePassDash/internal/db"
 	log "NodePassDash/internal/log"
+	"NodePassDash/internal/models"
+	"NodePassDash/internal/nodepass"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -10,12 +13,12 @@ import (
 	"strings"
 	"time"
 
-	"NodePassDash/internal/nodepass"
+	"gorm.io/gorm"
 )
 
 // Service 隧道管理服务
 type Service struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
 // OperationLog 操作日志结构
@@ -93,6 +96,13 @@ func parseInstanceURL(raw, mode string) parsedURL {
 		part = strings.TrimSpace(part)
 		if part == "" {
 			return "", ""
+		}
+
+		// 特殊处理 ":port" 格式（只有端口号，没有地址）
+		if strings.HasPrefix(part, ":") {
+			port = strings.TrimPrefix(part, ":")
+			addr = "" // 空地址表示使用默认地址
+			return
 		}
 
 		// 处理方括号包围的IPv6地址格式：[IPv6]:port
@@ -207,30 +217,35 @@ func parseInstanceURL(raw, mode string) parsedURL {
 }
 
 // NewService 创建隧道服务实例
-func NewService(db *sql.DB) *Service {
+func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
-// GetTunnels 获取所有隧道列表
+// GetTunnels 获取所有隧道列表 (GORM版本)
 func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
-	// log.Debugf("[API] 获取所有隧道列表")
+	// 临时解决方案：使用原生SQL查询直到完全迁移完成
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return nil, err
+	}
+
 	query := `
 		SELECT 
-			t.id, t.instanceId, t.name, t.endpointId, t.mode,
-			t.tunnelAddress, t.tunnelPort, t.targetAddress, t.targetPort,
-			t.tlsMode, t.certPath, t.keyPath, t.logLevel, t.commandLine,
-			t.password, t.restart, t.status, t.min, t.max, t.tcpRx, t.tcpTx, t.udpRx, t.udpTx, t.pool, t.ping,
-			t.createdAt, t.updatedAt,
-			e.name as endpointName,
-			tag.id as tagId, tag.name as tagName
-		FROM "Tunnel" t
-		LEFT JOIN "Endpoint" e ON t.endpointId = e.id
-		LEFT JOIN TunnelTags tt ON t.id = tt.tunnel_id
-		LEFT JOIN Tags tag ON tt.tag_id = tag.id
-		ORDER BY t.createdAt DESC
+			t.id, t.instance_id, t.name, t.endpoint_id, t.mode,
+			t.tunnel_address, t.tunnel_port, t.target_address, t.target_port,
+			t.tls_mode, t.cert_path, t.key_path, t.log_level, t.command_line,
+			t.password, t.restart, t.status, t.min, t.max, t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.pool, t.ping,
+			t.created_at, t.updated_at,
+			e.name AS endpoint_name,
+			tag.id AS tag_id, tag.name AS tag_name
+		FROM tunnels t
+		LEFT JOIN endpoints e ON t.endpoint_id = e.id
+		LEFT JOIN tunnel_tags tt ON t.id = tt.tunnel_id
+		LEFT JOIN tags tag ON tt.tag_id = tag.id
+		ORDER BY t.created_at DESC
 	`
 
-	rows, err := s.db.Query(query)
+	rows, err := sqlDB.Query(query)
 	if err != nil {
 		return nil, err
 	}
@@ -247,6 +262,7 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		var tagIDNS sql.NullInt64
 		var tagNameNS sql.NullString
 		var poolNS, pingNS sql.NullInt64
+
 		err := rows.Scan(
 			&t.ID, &instanceID, &t.Name, &t.EndpointID, &modeStr,
 			&t.TunnelAddress, &t.TunnelPort, &t.TargetAddress, &t.TargetPort,
@@ -259,27 +275,29 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		if err != nil {
 			return nil, err
 		}
+
+		// 处理NULL值
 		if instanceID.Valid {
-			t.InstanceID = instanceID.String
+			t.InstanceID = &instanceID.String
 		}
 		if certPathNS.Valid {
-			t.CertPath = certPathNS.String
+			t.CertPath = &certPathNS.String
 		}
 		if keyPathNS.Valid {
-			t.KeyPath = keyPathNS.String
+			t.KeyPath = &keyPathNS.String
 		}
 		if passwordNS.Valid {
-			t.Password = passwordNS.String
+			t.Password = &passwordNS.String
 		}
 		if endpointNameNS.Valid {
 			t.EndpointName = endpointNameNS.String
 		}
 		if minNS.Valid {
-			minVal := int(minNS.Int64)
+			minVal := minNS.Int64
 			t.Min = &minVal
 		}
 		if maxNS.Valid {
-			maxVal := int(maxNS.Int64)
+			maxVal := maxNS.Int64
 			t.Max = &maxVal
 		}
 
@@ -346,28 +364,28 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		tunnels = append(tunnels, t)
 	}
 
+	// 确保返回空数组而不是nil
+	if tunnels == nil {
+		tunnels = []TunnelWithStats{}
+	}
+
 	return tunnels, nil
 }
 
 // CreateTunnel 创建新隧道
 func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 	log.Infof("[API] 创建隧道: %v", req.Name)
-	// 检查端点是否存在
-	var endpointURL, endpointAPIPath, endpointAPIKey string
-	err := s.db.QueryRow(
-		"SELECT url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
-		req.EndpointID,
-	).Scan(&endpointURL, &endpointAPIPath, &endpointAPIKey)
-	if err != nil {
-		if err == sql.ErrNoRows {
+
+	// 1. 检查端点是否存在
+	var endpoint models.Endpoint
+	if err := s.db.Where("id = ?", req.EndpointID).First(&endpoint).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
 			return nil, errors.New("指定的端点不存在")
 		}
 		return nil, err
 	}
 
-	// 移除隧道名称唯一性检查 - 允许重复名称
-
-	// 构建命令行
+	// 2. 构建命令行
 	var commandLine string
 	if req.Password != "" {
 		commandLine = fmt.Sprintf("%s://%s@%s:%d/%s:%d",
@@ -390,7 +408,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 
 	log.Infof("[API] 构建的命令行: %s", commandLine)
 
-	// 添加查询参数
+	// 3. 添加查询参数
 	var queryParams []string
 
 	if req.LogLevel != LogLevelInherit {
@@ -430,251 +448,234 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		commandLine += "?" + strings.Join(queryParams, "&")
 	}
 
-	// 使用 NodePass 客户端创建实例
-	npClient := nodepass.NewClient(endpointURL, endpointAPIPath, endpointAPIKey, nil)
+	// 4. 使用 NodePass 客户端创建实例
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
 	instanceID, remoteStatus, err := npClient.CreateInstance(commandLine)
 	if err != nil {
-		// 记录 NodePass API 错误，包含关键上下文信息
 		log.Errorf("[NodePass] 创建实例失败 endpoint=%d cmd=%s err=%v", req.EndpointID, commandLine, err)
 		return nil, err
 	}
 
-	// 尝试查询是否已存在相同 endpointId+instanceId 的记录（可能由 SSE 先行创建）
-	var existingID int64
-	err = s.db.QueryRow(`SELECT id FROM "Tunnel" WHERE endpointId = ? AND instanceId = ?`, req.EndpointID, instanceID).Scan(&existingID)
-	if err != nil && err != sql.ErrNoRows {
-		return nil, err
-	}
+	// 5. 在事务中处理数据库更新
+	var tunnel *Tunnel
+	err = db.TxWithRetry(func(tx *gorm.DB) error {
+		// 检查是否已存在相同 endpointId+instanceId 的记录
+		var existingTunnel models.Tunnel
+		err := tx.Where("endpoint_id = ? AND instance_id = ?", req.EndpointID, instanceID).First(&existingTunnel).Error
 
-	now := time.Now()
-	if existingID == 0 {
-		// 创建新记录
-		result, err := s.db.Exec(`
-			INSERT INTO "Tunnel" (
-				instanceId, name, endpointId, mode,
-				tunnelAddress, tunnelPort, targetAddress, targetPort,
-				tlsMode, certPath, keyPath, logLevel, commandLine,
-				password, min, max, restart,
-				status, createdAt, updatedAt
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`,
-			instanceID,
-			req.Name,
-			req.EndpointID,
-			req.Mode,
-			req.TunnelAddress,
-			req.TunnelPort,
-			req.TargetAddress,
-			req.TargetPort,
-			req.TLSMode,
-			req.CertPath,
-			req.KeyPath,
-			req.LogLevel,
-			commandLine,
-			req.Password,
-			func() interface{} {
-				if req.Min != nil {
-					return req.Min
-				}
-				return nil
-			}(),
-			func() interface{} {
-				if req.Max != nil {
-					return req.Max
-				}
-				return nil
-			}(),
-			req.Restart,
-			"running",
-			now,
-			now,
-		)
-		if err != nil {
-			return nil, err
-		}
+		now := time.Now()
+		var tunnelID int64
 
-		existingID, err = result.LastInsertId()
-		if err != nil {
-			return nil, err
-		}
-	} else {
-		// 已存在，仅更新名称（其余字段由 SSE 写入保持）
-		_, err := s.db.Exec(`UPDATE "Tunnel" SET name = ?, updatedAt = ? WHERE id = ?`,
-			req.Name,
-			now,
-			existingID,
-		)
-		if err != nil {
-			return nil, err
-		}
-	}
+		if err == gorm.ErrRecordNotFound {
+			// 创建新记录
+			newTunnel := models.Tunnel{
+				InstanceID:    &instanceID,
+				Name:          req.Name,
+				EndpointID:    req.EndpointID,
+				Mode:          models.TunnelMode(req.Mode),
+				TunnelAddress: req.TunnelAddress,
+				TunnelPort:    strconv.Itoa(req.TunnelPort),
+				TargetAddress: req.TargetAddress,
+				TargetPort:    strconv.Itoa(req.TargetPort),
+				TLSMode:       models.TLSMode(req.TLSMode),
+				LogLevel:      models.LogLevel(req.LogLevel),
+				CommandLine:   commandLine,
+				Restart:       req.Restart,
+				Status:        models.TunnelStatusRunning,
+				CreatedAt:     now,
+				UpdatedAt:     now,
+			}
 
-	// 记录操作日志
-	_, err = s.db.Exec(`
-		INSERT INTO "TunnelOperationLog" (
-			tunnelId, tunnelName, action, status, message
-		) VALUES (?, ?, ?, ?, ?)
-	`,
-		existingID,
-		req.Name,
-		"create",
-		"success",
-		"隧道创建成功",
-	)
-	if err != nil {
-		return nil, err
-	}
-
-	// 返回创建的隧道
-	tunnel := &Tunnel{
-		ID:            existingID,
-		InstanceID:    instanceID,
-		Name:          req.Name,
-		EndpointID:    req.EndpointID,
-		Mode:          TunnelMode(req.Mode),
-		Status:        TunnelStatus(remoteStatus),
-		TunnelAddress: req.TunnelAddress,
-		TunnelPort:    req.TunnelPort,
-		TargetAddress: req.TargetAddress,
-		TargetPort:    req.TargetPort,
-		TLSMode:       req.TLSMode,
-		CertPath:      req.CertPath,
-		KeyPath:       req.KeyPath,
-		LogLevel:      req.LogLevel,
-		CommandLine:   commandLine,
-		Password:      req.Password,
-		Min: func() *int {
+			// 处理可选字段
+			if req.CertPath != "" {
+				newTunnel.CertPath = &req.CertPath
+			}
+			if req.KeyPath != "" {
+				newTunnel.KeyPath = &req.KeyPath
+			}
+			if req.Password != "" {
+				newTunnel.Password = &req.Password
+			}
 			if req.Min != nil {
-				return req.Min
+				minVal := int64(*req.Min)
+				newTunnel.Min = &minVal
 			}
-			return nil
-		}(),
-		Max: func() *int {
 			if req.Max != nil {
-				return req.Max
+				maxVal := int64(*req.Max)
+				newTunnel.Max = &maxVal
 			}
-			return nil
-		}(),
-		Restart:   req.Restart,
-		CreatedAt: now,
-		UpdatedAt: now,
+
+			err = tx.Create(&newTunnel).Error
+			if err != nil {
+				return err
+			}
+			tunnelID = newTunnel.ID
+		} else if err != nil {
+			return err
+		} else {
+			// 已存在，仅更新名称
+			err = tx.Model(&existingTunnel).Updates(map[string]interface{}{
+				"name":       req.Name,
+				"updated_at": now,
+			}).Error
+			if err != nil {
+				return err
+			}
+			tunnelID = existingTunnel.ID
+		}
+
+		// 记录操作日志
+		message := "隧道创建成功"
+		operationLog := models.TunnelOperationLog{
+			TunnelID:   &tunnelID,
+			TunnelName: req.Name,
+			Action:     models.OperationActionCreate,
+			Status:     "success",
+			Message:    &message,
+			CreatedAt:  time.Now(),
+		}
+		if err := tx.Create(&operationLog).Error; err != nil {
+			log.Errorf("[API] 记录操作日志失败: %v", err)
+			// 不中断事务，只记录错误
+		}
+
+		// 构建返回的隧道对象
+		tunnel = &Tunnel{
+			ID:            tunnelID,
+			InstanceID:    &instanceID,
+			Name:          req.Name,
+			EndpointID:    req.EndpointID,
+			Mode:          TunnelMode(req.Mode),
+			Status:        TunnelStatus(remoteStatus),
+			TunnelAddress: req.TunnelAddress,
+			TunnelPort:    strconv.Itoa(req.TunnelPort),
+			TargetAddress: req.TargetAddress,
+			TargetPort:    strconv.Itoa(req.TargetPort),
+			TLSMode:       req.TLSMode,
+			LogLevel:      req.LogLevel,
+			CommandLine:   commandLine,
+			Restart:       req.Restart,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+
+		// 处理可选字段
+		if req.CertPath != "" {
+			tunnel.CertPath = &req.CertPath
+		}
+		if req.KeyPath != "" {
+			tunnel.KeyPath = &req.KeyPath
+		}
+		if req.Password != "" {
+			tunnel.Password = &req.Password
+		}
+		if req.Min != nil {
+			minVal := int64(*req.Min)
+			tunnel.Min = &minVal
+		}
+		if req.Max != nil {
+			maxVal := int64(*req.Max)
+			tunnel.Max = &maxVal
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		return nil, err
 	}
 
-	// 更新端点隧道计数
-	_, err = s.db.Exec(`UPDATE "Endpoint" SET tunnelCount = (
-		SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
-	) WHERE id = ?`, req.EndpointID, req.EndpointID)
-	if err != nil {
-		log.Errorf("[API] 更新端点隧道计数失败: %v", err)
-		// 不影响隧道创建的成功，只记录错误
-	}
+	// 异步更新端点隧道计数（避免死锁）
+	go func() {
+		time.Sleep(100 * time.Millisecond) // 稍作延迟
+		s.updateEndpointTunnelCount(req.EndpointID)
+	}()
 
 	// 设置隧道别名
 	if err := s.SetTunnelAlias(tunnel.ID, tunnel.Name); err != nil {
 		log.Warnf("[API] 设置隧道别名失败，但不影响创建: %v", err)
 	}
 
-	log.Infof("[API] 隧道创建成功: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, tunnel.InstanceID)
+	log.Infof("[API] 隧道创建成功: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, *tunnel.InstanceID)
 	return tunnel, nil
 }
 
 // DeleteTunnel 删除隧道
 func (s *Service) DeleteTunnel(instanceID string) error {
 	log.Infof("[API] 删除隧道: %v", instanceID)
-	// 获取隧道信息
-	var tunnel struct {
-		ID         int64
-		Name       string
-		EndpointID int64
-	}
-	err := s.db.QueryRow(`
-		SELECT id, name, endpointId
-		FROM "Tunnel"
-		WHERE instanceId = ?
-	`, instanceID).Scan(&tunnel.ID, &tunnel.Name, &tunnel.EndpointID)
+
+	// 使用GORM获取隧道和端点信息
+	var tunnelWithEndpoint models.Tunnel
+	err := s.db.Preload("Endpoint").Where("instance_id = ?", instanceID).First(&tunnelWithEndpoint).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return errors.New("隧道不存在")
 		}
 		return err
 	}
 
-	// 获取端点信息
-	var endpoint struct {
-		URL     string
-		APIPath string
-		APIKey  string
-	}
-	err = s.db.QueryRow(`SELECT url, apiPath, apiKey FROM "Endpoint" WHERE id = ?`, tunnel.EndpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
-	if err != nil {
-		return err
-	}
-
 	// 调用 NodePass API 删除隧道实例
-	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	npClient := nodepass.NewClient(
+		tunnelWithEndpoint.Endpoint.URL,
+		tunnelWithEndpoint.Endpoint.APIPath,
+		tunnelWithEndpoint.Endpoint.APIKey,
+		nil,
+	)
 	if err := npClient.DeleteInstance(instanceID); err != nil {
 		// 如果收到401或404错误，说明NodePass核心已经没有这个实例了
 		if strings.Contains(err.Error(), "NodePass API 返回错误: 401") || strings.Contains(err.Error(), "NodePass API 返回错误: 404") {
 			log.Warnf("[API] NodePass API 返回401/404错误，实例 %s 可能已不存在，继续删除本地记录", instanceID)
 		} else {
-			log.Warnf("[API] NodePass API 删除失败: %v，继续删除本地记录", err)
+			log.Errorf("[API] NodePass API 删除失败: %v", err)
+			return fmt.Errorf("NodePass API 删除失败: %v", err)
 		}
 	}
 
-	// 删除隧道记录
-	result, err := s.db.Exec(`DELETE FROM "Tunnel" WHERE id = ?`, tunnel.ID)
-	if err != nil {
-		return err
+	// 使用GORM删除隧道记录
+	result := s.db.Where("id = ?", tunnelWithEndpoint.ID).Delete(&models.Tunnel{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		// 如果删除影响行数为0，说明隧道可能已经被SSE推送先删除了
+		// 这种情况算作删除成功，不返回错误
+		log.Infof("[API] 隧道 %s 可能已被SSE推送先删除，算作删除成功", instanceID)
 	}
 
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
-		return errors.New("隧道不存在")
-	}
-
-	// 更新端点隧道计数
-	_, err = s.db.Exec(`UPDATE "Endpoint" SET tunnelCount = (
-		SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
-	) WHERE id = ?`, tunnel.EndpointID, tunnel.EndpointID)
-	if err != nil {
-		log.Errorf("[API] 更新端点隧道计数失败: %v", err)
-		// 不影响隧道删除的成功，只记录错误
-	}
+	// 异步更新端点隧道计数（避免死锁）
+	go func(endpointID int64) {
+		time.Sleep(50 * time.Millisecond)
+		s.updateEndpointTunnelCount(endpointID)
+	}(tunnelWithEndpoint.EndpointID)
 
 	// 记录操作日志
-	_, err = s.db.Exec(`
-		INSERT INTO "TunnelOperationLog" (
-			tunnelId, tunnelName, action, status, message
-		) VALUES (?, ?, ?, ?, ?)
-	`,
-		tunnel.ID,
-		tunnel.Name,
-		"delete",
-		"success",
-		"隧道删除成功",
-	)
+	deleteMessage := "隧道删除成功"
+	operationLog := models.TunnelOperationLog{
+		TunnelID:   &tunnelWithEndpoint.ID,
+		TunnelName: tunnelWithEndpoint.Name,
+		Action:     models.OperationActionDelete,
+		Status:     "success",
+		Message:    &deleteMessage,
+		CreatedAt:  time.Now(),
+	}
+	err = s.db.Create(&operationLog).Error
 	return err
 }
 
 // UpdateTunnelStatus 更新隧道状态
 func (s *Service) UpdateTunnelStatus(instanceID string, status TunnelStatus) error {
-	result, err := s.db.Exec(`
-		UPDATE "Tunnel" SET status = ?, updatedAt = ? WHERE instanceId = ?
-	`,
-		status, time.Now(), instanceID,
-	)
-	if err != nil {
-		return err
+	result := s.db.Model(&models.Tunnel{}).
+		Where("instance_id = ?", instanceID).
+		Updates(map[string]interface{}{
+			"status":     models.TunnelStatus(status),
+			"updated_at": time.Now(),
+		})
+
+	if result.Error != nil {
+		return result.Error
 	}
 
-	affected, err := result.RowsAffected()
-	if err != nil {
-		return err
-	}
-	if affected == 0 {
+	if result.RowsAffected == 0 {
 		return errors.New("隧道不存在")
 	}
 
@@ -684,37 +685,24 @@ func (s *Service) UpdateTunnelStatus(instanceID string, status TunnelStatus) err
 // ControlTunnel 控制隧道状态（启动/停止/重启）
 func (s *Service) ControlTunnel(req TunnelActionRequest) error {
 	log.Infof("[API] 控制隧道状态: %v => %v", req.InstanceID, req.Action)
-	// 获取隧道和端点信息
-	var tunnel struct {
-		ID         int64
-		Name       string
-		EndpointID int64
-	}
-	var endpoint struct {
-		URL     string
-		APIPath string
-		APIKey  string
-	}
 
-	err := s.db.QueryRow(`
-		SELECT t.id, t.name, t.endpointId,
-			   e.url, e.apiPath, e.apiKey
-		FROM "Tunnel" t
-		JOIN "Endpoint" e ON t.endpointId = e.id
-		WHERE t.instanceId = ?
-	`, req.InstanceID).Scan(
-		&tunnel.ID, &tunnel.Name, &tunnel.EndpointID,
-		&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey,
-	)
+	// 使用GORM获取隧道和端点信息
+	var tunnelWithEndpoint models.Tunnel
+	err := s.db.Preload("Endpoint").Where("instance_id = ?", req.InstanceID).First(&tunnelWithEndpoint).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return errors.New("隧道不存在")
 		}
 		return err
 	}
 
 	// 调用 NodePass API
-	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	npClient := nodepass.NewClient(
+		tunnelWithEndpoint.Endpoint.URL,
+		tunnelWithEndpoint.Endpoint.APIPath,
+		tunnelWithEndpoint.Endpoint.APIKey,
+		nil,
+	)
 	if _, err = npClient.ControlInstance(req.InstanceID, req.Action); err != nil {
 		return err
 	}
@@ -729,9 +717,9 @@ func (s *Service) ControlTunnel(req TunnelActionRequest) error {
 		stoppedDetected := false
 
 		for time.Now().Before(stoppedDeadline) {
-			var curStatus string
-			if err := s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&curStatus); err == nil {
-				if TunnelStatus(curStatus) == StatusStopped {
+			var tunnel models.Tunnel
+			if err := s.db.Select("status").Where("instance_id = ?", req.InstanceID).First(&tunnel).Error; err == nil {
+				if tunnel.Status == models.TunnelStatusStopped {
 					log.Infof("[API] 重启隧道 %s: 检测到停止状态", req.InstanceID)
 					stoppedDetected = true
 					break
@@ -750,9 +738,9 @@ func (s *Service) ControlTunnel(req TunnelActionRequest) error {
 		runningDetected := false
 
 		for time.Now().Before(runningDeadline) {
-			var curStatus string
-			if err := s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&curStatus); err == nil {
-				if TunnelStatus(curStatus) == StatusRunning {
+			var tunnel models.Tunnel
+			if err := s.db.Select("status").Where("instance_id = ?", req.InstanceID).First(&tunnel).Error; err == nil {
+				if tunnel.Status == models.TunnelStatusRunning {
 					log.Infof("[API] 重启隧道 %s: 检测到运行状态，重启完成", req.InstanceID)
 					runningDetected = true
 					break
@@ -782,9 +770,9 @@ func (s *Service) ControlTunnel(req TunnelActionRequest) error {
 		// 轮询数据库等待状态变更 (最多3秒)
 		deadline := time.Now().Add(3 * time.Second)
 		for time.Now().Before(deadline) {
-			var curStatus string
-			if err := s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&curStatus); err == nil {
-				if TunnelStatus(curStatus) == targetStatus {
+			var tunnel models.Tunnel
+			if err := s.db.Select("status").Where("instance_id = ?", req.InstanceID).First(&tunnel).Error; err == nil {
+				if tunnel.Status == models.TunnelStatus(targetStatus) {
 					break // 成功
 				}
 			}
@@ -792,21 +780,24 @@ func (s *Service) ControlTunnel(req TunnelActionRequest) error {
 		}
 
 		// 再次检查，若仍未到目标状态则手动更新
-		var finalStatus string
-		_ = s.db.QueryRow(`SELECT status FROM "Tunnel" WHERE instanceId = ?`, req.InstanceID).Scan(&finalStatus)
-		if TunnelStatus(finalStatus) != targetStatus {
+		var finalTunnel models.Tunnel
+		_ = s.db.Select("status").Where("instance_id = ?", req.InstanceID).First(&finalTunnel).Error
+		if finalTunnel.Status != models.TunnelStatus(targetStatus) {
 			_ = s.UpdateTunnelStatus(req.InstanceID, targetStatus)
 		}
 	}
 
 	// 记录操作日志
-	_, err = s.db.Exec(`INSERT INTO "TunnelOperationLog" (tunnelId, tunnelName, action, status, message) VALUES (?, ?, ?, ?, ?)`,
-		tunnel.ID,
-		tunnel.Name,
-		req.Action,
-		"success",
-		fmt.Sprintf("隧道%s成功", req.Action),
-	)
+	controlMessage := fmt.Sprintf("隧道%s成功", req.Action)
+	operationLog := models.TunnelOperationLog{
+		TunnelID:   &tunnelWithEndpoint.ID,
+		TunnelName: tunnelWithEndpoint.Name,
+		Action:     models.OperationAction(req.Action),
+		Status:     "success",
+		Message:    &controlMessage,
+		CreatedAt:  time.Now(),
+	}
+	err = s.db.Create(&operationLog).Error
 	return err
 }
 
@@ -847,105 +838,101 @@ func formatTrafficBytes(bytes int64) string {
 // UpdateTunnel 更新隧道配置
 func (s *Service) UpdateTunnel(req UpdateTunnelRequest) error {
 	log.Infof("[API] 更新隧道: %v", req.ID)
-	// 检查隧道是否存在
-	var exists bool
-	err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM "Tunnel" WHERE id = ?)`, req.ID).Scan(&exists)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		return errors.New("隧道不存在")
-	}
 
-	// 获取当前隧道信息
-	var tunnel Tunnel
-	err = s.db.QueryRow(`
-		SELECT 
-			id, instanceId, name, endpointId, mode,
-			tunnelAddress, tunnelPort, targetAddress, targetPort,
-			tlsMode, certPath, keyPath, logLevel, commandLine
-		FROM "Tunnel" 
-		WHERE id = ?
-	`, req.ID).Scan(
-		&tunnel.ID, &tunnel.InstanceID, &tunnel.Name, &tunnel.EndpointID, &tunnel.Mode,
-		&tunnel.TunnelAddress, &tunnel.TunnelPort, &tunnel.TargetAddress, &tunnel.TargetPort,
-		&tunnel.TLSMode, &tunnel.CertPath, &tunnel.KeyPath, &tunnel.LogLevel, &tunnel.CommandLine,
-	)
+	// 使用GORM获取隧道和端点信息
+	var tunnelWithEndpoint models.Tunnel
+	err := s.db.Preload("Endpoint").Where("id = ?", req.ID).First(&tunnelWithEndpoint).Error
 	if err != nil {
-		return err
-	}
-
-	// 获取端点信息
-	var endpointURL, endpointAPIPath, endpointAPIKey string
-	err = s.db.QueryRow(`SELECT url, apiPath, apiKey FROM "Endpoint" WHERE id = ?`, tunnel.EndpointID).Scan(&endpointURL, &endpointAPIPath, &endpointAPIKey)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return errors.New("指定的端点不存在")
+		if err == gorm.ErrRecordNotFound {
+			return errors.New("隧道不存在")
 		}
 		return err
 	}
 
-	// 更新隧道信息
+	// 检查instance_id是否存在
+	if tunnelWithEndpoint.InstanceID == nil || *tunnelWithEndpoint.InstanceID == "" {
+		return errors.New("隧道没有关联的实例ID")
+	}
+
+	// 准备更新字段
+	updateFields := make(map[string]interface{})
+
+	// 根据请求参数更新字段
 	if req.Name != "" {
-		tunnel.Name = req.Name
+		tunnelWithEndpoint.Name = req.Name
+		updateFields["name"] = req.Name
 	}
 	if req.TunnelAddress != "" {
-		tunnel.TunnelAddress = req.TunnelAddress
+		tunnelWithEndpoint.TunnelAddress = req.TunnelAddress
+		updateFields["tunnel_address"] = req.TunnelAddress
 	}
 	if req.TunnelPort != 0 {
-		tunnel.TunnelPort = req.TunnelPort
+		tunnelPortStr := strconv.Itoa(req.TunnelPort)
+		tunnelWithEndpoint.TunnelPort = tunnelPortStr
+		updateFields["tunnel_port"] = tunnelPortStr
 	}
 	if req.TargetAddress != "" {
-		tunnel.TargetAddress = req.TargetAddress
+		tunnelWithEndpoint.TargetAddress = req.TargetAddress
+		updateFields["target_address"] = req.TargetAddress
 	}
 	if req.TargetPort != 0 {
-		tunnel.TargetPort = req.TargetPort
+		targetPortStr := strconv.Itoa(req.TargetPort)
+		tunnelWithEndpoint.TargetPort = targetPortStr
+		updateFields["target_port"] = targetPortStr
 	}
 	if req.TLSMode != "" {
-		tunnel.TLSMode = req.TLSMode
+		tunnelWithEndpoint.TLSMode = models.TLSMode(req.TLSMode)
+		updateFields["tls_mode"] = req.TLSMode
 	}
 	if req.CertPath != "" {
-		tunnel.CertPath = req.CertPath
+		tunnelWithEndpoint.CertPath = &req.CertPath
+		updateFields["cert_path"] = req.CertPath
 	}
 	if req.KeyPath != "" {
-		tunnel.KeyPath = req.KeyPath
+		tunnelWithEndpoint.KeyPath = &req.KeyPath
+		updateFields["key_path"] = req.KeyPath
 	}
 	if req.LogLevel != "" {
-		tunnel.LogLevel = req.LogLevel
+		tunnelWithEndpoint.LogLevel = models.LogLevel(req.LogLevel)
+		updateFields["log_level"] = req.LogLevel
 	}
 
 	// 构建命令行
+	tunnelPortInt, _ := strconv.Atoi(tunnelWithEndpoint.TunnelPort)
+	targetPortInt, _ := strconv.Atoi(tunnelWithEndpoint.TargetPort)
 	commandLine := fmt.Sprintf("%s://%s:%d/%s:%d",
-		tunnel.Mode,
-		tunnel.TunnelAddress,
-		tunnel.TunnelPort,
-		tunnel.TargetAddress,
-		tunnel.TargetPort,
+		tunnelWithEndpoint.Mode,
+		tunnelWithEndpoint.TunnelAddress,
+		tunnelPortInt,
+		tunnelWithEndpoint.TargetAddress,
+		targetPortInt,
 	)
 
 	// 添加查询参数
 	var queryParams []string
 
-	if tunnel.LogLevel != LogLevelInherit {
-		queryParams = append(queryParams, fmt.Sprintf("log=%s", tunnel.LogLevel))
+	if tunnelWithEndpoint.LogLevel != models.LogLevelInherit {
+		queryParams = append(queryParams, fmt.Sprintf("log=%s", tunnelWithEndpoint.LogLevel))
 	}
 
-	if tunnel.Mode == ModeServer && tunnel.TLSMode != TLSModeInherit {
+	if tunnelWithEndpoint.Mode == models.TunnelModeServer && tunnelWithEndpoint.TLSMode != models.TLSModeInherit {
 		var tlsModeNum string
-		switch tunnel.TLSMode {
-		case TLSMode0:
+		switch tunnelWithEndpoint.TLSMode {
+		case models.TLSMode0:
 			tlsModeNum = "0"
-		case TLSMode1:
+		case models.TLSMode1:
 			tlsModeNum = "1"
-		case TLSMode2:
+		case models.TLSMode2:
 			tlsModeNum = "2"
 		}
 		queryParams = append(queryParams, fmt.Sprintf("tls=%s", tlsModeNum))
 
-		if tunnel.TLSMode == TLSMode2 && tunnel.CertPath != "" && tunnel.KeyPath != "" {
+		if tunnelWithEndpoint.TLSMode == models.TLSMode2 &&
+			tunnelWithEndpoint.CertPath != nil && *tunnelWithEndpoint.CertPath != "" &&
+			tunnelWithEndpoint.KeyPath != nil && *tunnelWithEndpoint.KeyPath != "" {
 			queryParams = append(queryParams,
-				fmt.Sprintf("crt=%s", url.QueryEscape(tunnel.CertPath)),
-				fmt.Sprintf("key=%s", url.QueryEscape(tunnel.KeyPath)),
+				fmt.Sprintf("crt=%s", url.QueryEscape(*tunnelWithEndpoint.CertPath)),
+				fmt.Sprintf("key=%s", url.QueryEscape(*tunnelWithEndpoint.KeyPath)),
 			)
 		}
 	}
@@ -954,45 +941,27 @@ func (s *Service) UpdateTunnel(req UpdateTunnelRequest) error {
 		commandLine += "?" + strings.Join(queryParams, "&")
 	}
 
-	// 更新数据库
-	_, err = s.db.Exec(`
-		UPDATE "Tunnel" SET
-			name = ?,
-			tunnelAddress = ?,
-			tunnelPort = ?,
-			targetAddress = ?,
-			targetPort = ?,
-			tlsMode = ?,
-			certPath = ?,
-			keyPath = ?,
-			logLevel = ?,
-			commandLine = ?,
-			updatedAt = ?
-		WHERE id = ?
-	`,
-		tunnel.Name,
-		tunnel.TunnelAddress,
-		tunnel.TunnelPort,
-		tunnel.TargetAddress,
-		tunnel.TargetPort,
-		tunnel.TLSMode,
-		tunnel.CertPath,
-		tunnel.KeyPath,
-		tunnel.LogLevel,
-		commandLine,
-		time.Now(),
-		tunnel.ID,
-	)
+	// 更新commandLine到字段
+	updateFields["command_line"] = commandLine
+	updateFields["updated_at"] = time.Now()
+
+	// 使用GORM更新数据库
+	err = s.db.Model(&tunnelWithEndpoint).Updates(updateFields).Error
 	if err != nil {
 		return err
 	}
 
 	// 调用 NodePass API 更新隧道实例
-	npClient := nodepass.NewClient(endpointURL, endpointAPIPath, endpointAPIKey, nil)
-	if err := npClient.UpdateInstanceV1(tunnel.InstanceID, commandLine); err != nil {
+	npClient := nodepass.NewClient(
+		tunnelWithEndpoint.Endpoint.URL,
+		tunnelWithEndpoint.Endpoint.APIPath,
+		tunnelWithEndpoint.Endpoint.APIKey,
+		nil,
+	)
+	if err := npClient.UpdateInstanceV1(*tunnelWithEndpoint.InstanceID, commandLine); err != nil {
 		// 若远端未实现新版接口(如返回405 Method Not Allowed)，回退旧版接口
 		if strings.Contains(err.Error(), "405") {
-			if err2 := npClient.UpdateInstance(tunnel.InstanceID, commandLine); err2 != nil {
+			if err2 := npClient.UpdateInstance(*tunnelWithEndpoint.InstanceID, commandLine); err2 != nil {
 				return err2
 			}
 		} else {
@@ -1008,50 +977,74 @@ func (s *Service) GetOperationLogs(limit int) ([]OperationLog, error) {
 	if limit <= 0 {
 		limit = 50
 	}
-	rows, err := s.db.Query(`SELECT id, tunnelId, tunnelName, action, status, message, createdAt FROM "TunnelOperationLog" ORDER BY createdAt DESC LIMIT ?`, limit)
+
+	var logs []models.TunnelOperationLog
+	err := s.db.Order("created_at DESC").Limit(limit).Find(&logs).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	var logs []OperationLog
-	for rows.Next() {
-		var l OperationLog
-		if err := rows.Scan(&l.ID, &l.TunnelID, &l.TunnelName, &l.Action, &l.Status, &l.Message, &l.CreatedAt); err != nil {
-			return nil, err
+	// 转换为OperationLog类型
+	result := make([]OperationLog, len(logs))
+	for i, log := range logs {
+		// 转换TunnelID类型
+		var tunnelID sql.NullInt64
+		if log.TunnelID != nil {
+			tunnelID = sql.NullInt64{Int64: *log.TunnelID, Valid: true}
 		}
-		logs = append(logs, l)
+
+		// 转换Message类型
+		var message sql.NullString
+		if log.Message != nil {
+			message = sql.NullString{String: *log.Message, Valid: true}
+		}
+
+		result[i] = OperationLog{
+			ID:         log.ID,
+			TunnelID:   tunnelID,
+			TunnelName: log.TunnelName,
+			Action:     string(log.Action),
+			Status:     log.Status,
+			Message:    message,
+			CreatedAt:  log.CreatedAt,
+		}
 	}
-	return logs, nil
+
+	// 确保返回空数组而不是nil
+	if result == nil {
+		result = []OperationLog{}
+	}
+
+	return result, nil
 }
 
 // GetInstanceIDByTunnelID 根据隧道数据库ID获取对应的实例ID (instanceId)
 func (s *Service) GetInstanceIDByTunnelID(id int64) (string, error) {
-	var instanceNS sql.NullString
-	err := s.db.QueryRow(`SELECT instanceId FROM "Tunnel" WHERE id = ?`, id).Scan(&instanceNS)
+	var tunnel models.Tunnel
+	err := s.db.Select("instance_id").Where("id = ?", id).First(&tunnel).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return "", errors.New("隧道不存在")
 		}
 		return "", err
 	}
-	if !instanceNS.Valid || instanceNS.String == "" {
+	if tunnel.InstanceID == nil || *tunnel.InstanceID == "" {
 		return "", errors.New("隧道没有关联的实例ID")
 	}
-	return instanceNS.String, nil
+	return *tunnel.InstanceID, nil
 }
 
 // GetTunnelNameByID 根据隧道数据库ID获取隧道名称
 func (s *Service) GetTunnelNameByID(id int64) (string, error) {
-	var name string
-	err := s.db.QueryRow(`SELECT name FROM "Tunnel" WHERE id = ?`, id).Scan(&name)
+	var tunnel models.Tunnel
+	err := s.db.Select("name").Where("id = ?", id).First(&tunnel).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return "", errors.New("隧道不存在")
 		}
 		return "", err
 	}
-	return name, nil
+	return tunnel.Name, nil
 }
 
 // DeleteTunnelAndWait 触发远端删除后等待数据库记录被移除
@@ -1059,44 +1052,53 @@ func (s *Service) GetTunnelNameByID(id int64) (string, error) {
 // timeout 为等待的最长时长
 func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, recycle bool) error {
 	log.Infof("[API] 删除隧道: %v", instanceID)
-	// 获取隧道及端点信息（与 DeleteTunnel 中相同，但不删除本地记录）
-	var tunnel struct {
-		ID         int64
-		Name       string
-		EndpointID int64
-	}
-	err := s.db.QueryRow(`
-		SELECT id, name, endpointId FROM "Tunnel" WHERE instanceId = ?
-	`, instanceID).Scan(&tunnel.ID, &tunnel.Name, &tunnel.EndpointID)
+
+	// 使用GORM获取隧道和端点信息
+	var tunnelWithEndpoint models.Tunnel
+	err := s.db.Preload("Endpoint").Where("instance_id = ?", instanceID).First(&tunnelWithEndpoint).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return errors.New("隧道不存在")
 		}
 		return err
 	}
 
-	var endpoint struct {
-		URL     string
-		APIPath string
-		APIKey  string
-	}
-	if err := s.db.QueryRow(`SELECT url, apiPath, apiKey FROM "Endpoint" WHERE id = ?`, tunnel.EndpointID).
-		Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
-		return err
-	}
-
-	// 在删除之前，如选择移入回收站，则先复制记录
+	// 在删除之前，如选择移入回收站，则先复制记录到回收站
 	if recycle {
-		_, _ = s.db.Exec(`INSERT INTO "TunnelRecycle" (
-			name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode,
-			certPath, keyPath, logLevel, commandLine, instanceId, password, restart, tcpRx, tcpTx, udpRx, udpTx, min, max
-		) SELECT name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode,
-			certPath, keyPath, logLevel, commandLine, instanceId, password, restart, tcpRx, tcpTx, udpRx, udpTx, min, max
-		FROM "Tunnel" WHERE instanceId = ?`, instanceID)
+		recycleRecord := models.TunnelRecycle{
+			Name:          tunnelWithEndpoint.Name,
+			EndpointID:    tunnelWithEndpoint.EndpointID,
+			Mode:          tunnelWithEndpoint.Mode,
+			TunnelAddress: tunnelWithEndpoint.TunnelAddress,
+			TunnelPort:    tunnelWithEndpoint.TunnelPort,
+			TargetAddress: tunnelWithEndpoint.TargetAddress,
+			TargetPort:    tunnelWithEndpoint.TargetPort,
+			TLSMode:       tunnelWithEndpoint.TLSMode,
+			CertPath:      tunnelWithEndpoint.CertPath,
+			KeyPath:       tunnelWithEndpoint.KeyPath,
+			LogLevel:      tunnelWithEndpoint.LogLevel,
+			CommandLine:   tunnelWithEndpoint.CommandLine,
+			InstanceID:    tunnelWithEndpoint.InstanceID,
+			Password:      tunnelWithEndpoint.Password,
+			Restart:       tunnelWithEndpoint.Restart,
+			TCPRx:         tunnelWithEndpoint.TCPRx,
+			TCPTx:         tunnelWithEndpoint.TCPTx,
+			UDPRx:         tunnelWithEndpoint.UDPRx,
+			UDPTx:         tunnelWithEndpoint.UDPTx,
+			Min:           tunnelWithEndpoint.Min,
+			Max:           tunnelWithEndpoint.Max,
+			CreatedAt:     time.Now(),
+		}
+		s.db.Create(&recycleRecord)
 	}
 
 	// 调用 NodePass API 删除实例
-	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	npClient := nodepass.NewClient(
+		tunnelWithEndpoint.Endpoint.URL,
+		tunnelWithEndpoint.Endpoint.APIPath,
+		tunnelWithEndpoint.Endpoint.APIKey,
+		nil,
+	)
 	if err := npClient.DeleteInstance(instanceID); err != nil {
 		// 如果收到401或404错误，说明NodePass核心已经没有这个实例了，按删除成功处理
 		if strings.Contains(err.Error(), "NodePass API 返回错误: 401") || strings.Contains(err.Error(), "NodePass API 返回错误: 404") {
@@ -1109,11 +1111,11 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 	// 轮询等待数据库记录被删除
 	deadline := time.Now().Add(timeout)
 	for time.Now().Before(deadline) {
-		var exists bool
-		if err := s.db.QueryRow(`SELECT EXISTS(SELECT 1 FROM "Tunnel" WHERE instanceId = ?)`, instanceID).Scan(&exists); err != nil {
+		var count int64
+		if err := s.db.Model(&models.Tunnel{}).Where("instance_id = ?", instanceID).Count(&count).Error; err != nil {
 			return err
 		}
-		if !exists {
+		if count == 0 {
 			return nil // 删除完成
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -1123,35 +1125,38 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 	log.Warnf("[API] 等待删除超时，执行本地删除: %v", instanceID)
 
 	// 删除隧道记录
-	result, err := s.db.Exec(`DELETE FROM "Tunnel" WHERE id = ?`, tunnel.ID)
-	if err != nil {
-		return err
+	result := s.db.Where("id = ?", tunnelWithEndpoint.ID).Delete(&models.Tunnel{})
+	if result.Error != nil {
+		return result.Error
 	}
-
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
-		return errors.New("隧道删除失败")
+	if result.RowsAffected == 0 {
+		// 如果删除影响行数为0，说明隧道可能已经被SSE推送先删除了
+		// 这种情况算作删除成功，不返回错误
+		log.Infof("[API] 隧道 %s 可能已被SSE推送先删除，算作删除成功", instanceID)
+		return nil
 	}
 
 	if !recycle {
-		_, _ = s.db.Exec(`DELETE FROM "EndpointSSE" WHERE instanceId = ?`, instanceID)
+		s.db.Where("instance_id = ?", instanceID).Delete(&models.EndpointSSE{})
 	}
 
-	// 更新端点隧道计数
-	_, _ = s.db.Exec(`UPDATE "Endpoint" SET tunnelCount = (
-		SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
-	) WHERE id = ?`, tunnel.EndpointID, tunnel.EndpointID)
+	// 异步更新端点隧道计数（避免死锁）
+	go func(endpointID int64) {
+		time.Sleep(50 * time.Millisecond)
+		s.updateEndpointTunnelCount(endpointID)
+	}(tunnelWithEndpoint.EndpointID)
 
 	// 写入操作日志
-	_, _ = s.db.Exec(`INSERT INTO "TunnelOperationLog" (
-		tunnelId, tunnelName, action, status, message
-	) VALUES (?, ?, ?, ?, ?)`,
-		tunnel.ID,
-		tunnel.Name,
-		"delete",
-		"success",
-		"远端删除超时，本地强制删除",
-	)
+	timeoutMessage := "远端删除超时，本地强制删除"
+	operationLog := models.TunnelOperationLog{
+		TunnelID:   &tunnelWithEndpoint.ID,
+		TunnelName: tunnelWithEndpoint.Name,
+		Action:     models.OperationActionDelete,
+		Status:     "success",
+		Message:    &timeoutMessage,
+		CreatedAt:  time.Now(),
+	}
+	s.db.Create(&operationLog)
 
 	return nil
 }
@@ -1161,14 +1166,11 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Duration) (*Tunnel, error) {
 	log.Infof("[API] 创建隧道（等待模式）: %v", req.Name)
 
-	// 检查端点是否存在
-	var endpointURL, endpointAPIPath, endpointAPIKey string
-	err := s.db.QueryRow(
-		"SELECT url, apiPath, apiKey FROM \"Endpoint\" WHERE id = ?",
-		req.EndpointID,
-	).Scan(&endpointURL, &endpointAPIPath, &endpointAPIKey)
+	// 使用GORM检查端点是否存在
+	var endpoint models.Endpoint
+	err := s.db.Where("id = ?", req.EndpointID).First(&endpoint).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return nil, errors.New("指定的端点不存在")
 		}
 		return nil, err
@@ -1234,7 +1236,7 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 	log.Infof("[API] 构建的命令行: %s", commandLine)
 
 	// 1. 使用 NodePass 客户端创建实例
-	npClient := nodepass.NewClient(endpointURL, endpointAPIPath, endpointAPIKey, nil)
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
 	instanceID, remoteStatus, err := npClient.CreateInstance(commandLine)
 	if err != nil {
 		log.Errorf("[NodePass] 创建实例失败 endpoint=%d cmd=%s err=%v", req.EndpointID, commandLine, err)
@@ -1249,14 +1251,15 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 	waitSuccess := false
 
 	for time.Now().Before(deadline) {
-		err := s.db.QueryRow(`SELECT id FROM "Tunnel" WHERE endpointId = ? AND instanceId = ?`,
-			req.EndpointID, instanceID).Scan(&tunnelID)
+		var tunnel models.Tunnel
+		err := s.db.Select("id").Where("endpoint_id = ? AND instance_id = ?", req.EndpointID, instanceID).First(&tunnel).Error
 		if err == nil {
+			tunnelID = tunnel.ID
 			log.Infof("[API] 检测到SSE已创建隧道记录，tunnelID=%d, instanceID=%s", tunnelID, instanceID)
 			waitSuccess = true
 			break
 		}
-		if err != sql.ErrNoRows {
+		if err != gorm.ErrRecordNotFound {
 			log.Warnf("[API] 查询隧道记录时出错: %v", err)
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -1268,25 +1271,31 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		log.Infof("[API] 等待SSE成功，更新隧道名称为: %s", req.Name)
 
 		// 3. 更新隧道名称为指定的名称
-		_, err = s.db.Exec(`UPDATE "Tunnel" SET name = ?, updatedAt = ? WHERE id = ?`,
-			req.Name, now, tunnelID)
+		err = s.db.Model(&models.Tunnel{}).Where("id = ?", tunnelID).Updates(map[string]interface{}{
+			"name":       req.Name,
+			"updated_at": now,
+		}).Error
 		if err != nil {
 			log.Warnf("[API] 更新隧道名称失败: %v", err)
 		}
 
 		// 记录操作日志
-		_, _ = s.db.Exec(`INSERT INTO "TunnelOperationLog" (
-			tunnelId, tunnelName, action, status, message
-		) VALUES (?, ?, ?, ?, ?)`,
-			tunnelID, req.Name, "create", "success", "隧道创建成功（等待模式）")
-
-		// 更新端点隧道计数
-		_, err = s.db.Exec(`UPDATE "Endpoint" SET tunnelCount = (
-			SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
-		) WHERE id = ?`, req.EndpointID, req.EndpointID)
-		if err != nil {
-			log.Errorf("[API] 更新端点隧道计数失败: %v", err)
+		waitMessage := "隧道创建成功（等待模式）"
+		operationLog := models.TunnelOperationLog{
+			TunnelID:   &tunnelID,
+			TunnelName: req.Name,
+			Action:     models.OperationActionCreate,
+			Status:     "success",
+			Message:    &waitMessage,
+			CreatedAt:  time.Now(),
 		}
+		s.db.Create(&operationLog)
+
+		// 异步更新端点隧道计数（避免死锁）
+		go func(endpointID int64) {
+			time.Sleep(50 * time.Millisecond)
+			s.updateEndpointTunnelCount(endpointID)
+		}(req.EndpointID)
 
 		// 设置隧道别名
 		if err := s.SetTunnelAlias(tunnelID, req.Name); err != nil {
@@ -1296,36 +1305,40 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		// 构建返回的隧道对象
 		tunnel := &Tunnel{
 			ID:            tunnelID,
-			InstanceID:    instanceID,
+			InstanceID:    &instanceID,
 			Name:          req.Name,
 			EndpointID:    req.EndpointID,
 			Mode:          TunnelMode(req.Mode),
 			Status:        TunnelStatus(remoteStatus),
 			TunnelAddress: req.TunnelAddress,
-			TunnelPort:    req.TunnelPort,
+			TunnelPort:    strconv.Itoa(req.TunnelPort),
 			TargetAddress: req.TargetAddress,
-			TargetPort:    req.TargetPort,
+			TargetPort:    strconv.Itoa(req.TargetPort),
 			TLSMode:       req.TLSMode,
-			CertPath:      req.CertPath,
-			KeyPath:       req.KeyPath,
 			LogLevel:      req.LogLevel,
 			CommandLine:   commandLine,
-			Password:      req.Password,
-			Min: func() *int {
-				if req.Min != nil {
-					return req.Min
-				}
-				return nil
-			}(),
-			Max: func() *int {
-				if req.Max != nil {
-					return req.Max
-				}
-				return nil
-			}(),
-			Restart:   req.Restart,
-			CreatedAt: now,
-			UpdatedAt: now,
+			Restart:       req.Restart,
+			CreatedAt:     now,
+			UpdatedAt:     now,
+		}
+
+		// 处理可选字段
+		if req.CertPath != "" {
+			tunnel.CertPath = &req.CertPath
+		}
+		if req.KeyPath != "" {
+			tunnel.KeyPath = &req.KeyPath
+		}
+		if req.Password != "" {
+			tunnel.Password = &req.Password
+		}
+		if req.Min != nil {
+			minVal := int64(*req.Min)
+			tunnel.Min = &minVal
+		}
+		if req.Max != nil {
+			maxVal := int64(*req.Max)
+			tunnel.Max = &maxVal
 		}
 
 		log.Infof("[API] 隧道创建成功（等待模式）: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, tunnel.InstanceID)
@@ -1336,74 +1349,90 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 	log.Warnf("[API] 等待SSE超时，回退到手动创建模式: %s", instanceID)
 
 	// 尝试查询是否已存在相同 endpointId+instanceId 的记录（可能由 SSE 先行创建）
+	var existingTunnel models.Tunnel
+	err = s.db.Select("id").Where("endpoint_id = ? AND instance_id = ?", req.EndpointID, instanceID).First(&existingTunnel).Error
 	var existingID int64
-	err = s.db.QueryRow(`SELECT id FROM "Tunnel" WHERE endpointId = ? AND instanceId = ?`, req.EndpointID, instanceID).Scan(&existingID)
-	if err != nil && err != sql.ErrNoRows {
+	if err == nil {
+		existingID = existingTunnel.ID
+	} else if err != gorm.ErrRecordNotFound {
 		return nil, err
 	}
 
 	if existingID == 0 {
 		// 创建新记录
-		result, err := s.db.Exec(`
-			INSERT INTO "Tunnel" (
-				instanceId, name, endpointId, mode,
-				tunnelAddress, tunnelPort, targetAddress, targetPort,
-				tlsMode, certPath, keyPath, logLevel, commandLine,
-				password, min, max, restart,
-				status, createdAt, updatedAt
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
-		`,
-			instanceID, req.Name, req.EndpointID, req.Mode,
-			req.TunnelAddress, req.TunnelPort, req.TargetAddress, req.TargetPort,
-			req.TLSMode, req.CertPath, req.KeyPath, req.LogLevel, commandLine,
-			req.Password,
-			func() interface{} {
-				if req.Min != nil {
-					return req.Min
-				}
-				return nil
-			}(),
-			func() interface{} {
-				if req.Max != nil {
-					return req.Max
-				}
-				return nil
-			}(),
-			req.Restart, "running", now, now,
-		)
-		if err != nil {
-			return nil, err
+		newTunnel := models.Tunnel{
+			InstanceID:    &instanceID,
+			Name:          req.Name,
+			EndpointID:    req.EndpointID,
+			Mode:          models.TunnelMode(req.Mode),
+			TunnelAddress: req.TunnelAddress,
+			TunnelPort:    strconv.Itoa(req.TunnelPort),
+			TargetAddress: req.TargetAddress,
+			TargetPort:    strconv.Itoa(req.TargetPort),
+			TLSMode:       models.TLSMode(req.TLSMode),
+			LogLevel:      models.LogLevel(req.LogLevel),
+			CommandLine:   commandLine,
+			Restart:       req.Restart,
+			Status:        models.TunnelStatusRunning,
+			CreatedAt:     now,
+			UpdatedAt:     now,
 		}
 
-		existingID, err = result.LastInsertId()
+		// 处理可选字段
+		if req.CertPath != "" {
+			newTunnel.CertPath = &req.CertPath
+		}
+		if req.KeyPath != "" {
+			newTunnel.KeyPath = &req.KeyPath
+		}
+		if req.Password != "" {
+			newTunnel.Password = &req.Password
+		}
+		if req.Min != nil {
+			minVal := int64(*req.Min)
+			newTunnel.Min = &minVal
+		}
+		if req.Max != nil {
+			maxVal := int64(*req.Max)
+			newTunnel.Max = &maxVal
+		}
+
+		err = s.db.Create(&newTunnel).Error
 		if err != nil {
 			return nil, err
 		}
+		existingID = newTunnel.ID
 	} else {
 		// 已存在，仅更新名称
-		_, err := s.db.Exec(`UPDATE "Tunnel" SET name = ?, updatedAt = ? WHERE id = ?`,
-			req.Name, now, existingID)
+		err := s.db.Model(&models.Tunnel{}).Where("id = ?", existingID).Updates(map[string]interface{}{
+			"name":       req.Name,
+			"updated_at": now,
+		}).Error
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	// 记录操作日志
-	_, err = s.db.Exec(`INSERT INTO "TunnelOperationLog" (
-		tunnelId, tunnelName, action, status, message
-	) VALUES (?, ?, ?, ?, ?)`,
-		existingID, req.Name, "create", "success", "隧道创建成功（超时回退模式）")
+	fallbackMessage := "隧道创建成功（超时回退模式）"
+	operationLog := models.TunnelOperationLog{
+		TunnelID:   &existingID,
+		TunnelName: req.Name,
+		Action:     models.OperationActionCreate,
+		Status:     "success",
+		Message:    &fallbackMessage,
+		CreatedAt:  time.Now(),
+	}
+	err = s.db.Create(&operationLog).Error
 	if err != nil {
 		return nil, err
 	}
 
-	// 更新端点隧道计数
-	_, err = s.db.Exec(`UPDATE "Endpoint" SET tunnelCount = (
-		SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?
-	) WHERE id = ?`, req.EndpointID, req.EndpointID)
-	if err != nil {
-		log.Errorf("[API] 更新端点隧道计数失败: %v", err)
-	}
+	// 异步更新端点隧道计数（避免死锁）
+	go func(endpointID int64) {
+		time.Sleep(50 * time.Millisecond)
+		s.updateEndpointTunnelCount(endpointID)
+	}(req.EndpointID)
 
 	// 设置隧道别名
 	if err := s.SetTunnelAlias(existingID, req.Name); err != nil {
@@ -1413,36 +1442,40 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 	// 构建返回的隧道对象
 	tunnel := &Tunnel{
 		ID:            existingID,
-		InstanceID:    instanceID,
+		InstanceID:    &instanceID,
 		Name:          req.Name,
 		EndpointID:    req.EndpointID,
 		Mode:          TunnelMode(req.Mode),
 		Status:        TunnelStatus(remoteStatus),
 		TunnelAddress: req.TunnelAddress,
-		TunnelPort:    req.TunnelPort,
+		TunnelPort:    strconv.Itoa(req.TunnelPort),
 		TargetAddress: req.TargetAddress,
-		TargetPort:    req.TargetPort,
+		TargetPort:    strconv.Itoa(req.TargetPort),
 		TLSMode:       req.TLSMode,
-		CertPath:      req.CertPath,
-		KeyPath:       req.KeyPath,
 		LogLevel:      req.LogLevel,
 		CommandLine:   commandLine,
-		Password:      req.Password,
-		Min: func() *int {
-			if req.Min != nil {
-				return req.Min
-			}
-			return nil
-		}(),
-		Max: func() *int {
-			if req.Max != nil {
-				return req.Max
-			}
-			return nil
-		}(),
-		Restart:   req.Restart,
-		CreatedAt: now,
-		UpdatedAt: now,
+		Restart:       req.Restart,
+		CreatedAt:     now,
+		UpdatedAt:     now,
+	}
+
+	// 处理可选字段
+	if req.CertPath != "" {
+		tunnel.CertPath = &req.CertPath
+	}
+	if req.KeyPath != "" {
+		tunnel.KeyPath = &req.KeyPath
+	}
+	if req.Password != "" {
+		tunnel.Password = &req.Password
+	}
+	if req.Min != nil {
+		minVal := int64(*req.Min)
+		tunnel.Min = &minVal
+	}
+	if req.Max != nil {
+		maxVal := int64(*req.Max)
+		tunnel.Max = &maxVal
 	}
 
 	log.Infof("[API] 隧道创建成功（超时回退模式）: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, tunnel.InstanceID)
@@ -1453,28 +1486,19 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 func (s *Service) PatchTunnel(id int64, updates map[string]interface{}) error {
 	log.Infof("[API] 修补隧道: %v, 更新: %+v", id, updates)
 
-	// 获取隧道和端点信息
-	var tunnel struct {
-		InstanceID string
-		EndpointID int64
-	}
-	var endpoint struct {
-		URL     string
-		APIPath string
-		APIKey  string
-	}
-
-	err := s.db.QueryRow(`
-		SELECT t.instanceId, t.endpointId, e.url, e.apiPath, e.apiKey
-		FROM "Tunnel" t
-		JOIN "Endpoint" e ON t.endpointId = e.id
-		WHERE t.id = ?
-	`, id).Scan(&tunnel.InstanceID, &tunnel.EndpointID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
+	// 使用GORM获取隧道和端点信息
+	var tunnelWithEndpoint models.Tunnel
+	err := s.db.Preload("Endpoint").Where("id = ?", id).First(&tunnelWithEndpoint).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return errors.New("隧道不存在")
 		}
 		return err
+	}
+
+	// 检查instance_id是否存在
+	if tunnelWithEndpoint.InstanceID == nil || *tunnelWithEndpoint.InstanceID == "" {
+		return errors.New("隧道没有关联的实例ID")
 	}
 
 	// 准备本地数据库更新和远程API更新
@@ -1503,31 +1527,25 @@ func (s *Service) PatchTunnel(id int64, updates map[string]interface{}) error {
 
 	// 更新本地数据库
 	if len(localUpdates) > 0 {
-		setParts := []string{}
-		values := []interface{}{}
-
-		for field, value := range localUpdates {
-			setParts = append(setParts, fmt.Sprintf("%s = ?", field))
-			values = append(values, value)
-		}
-		setParts = append(setParts, "updatedAt = ?")
-		values = append(values, time.Now())
-		values = append(values, id)
-
-		sql := fmt.Sprintf("UPDATE \"Tunnel\" SET %s WHERE id = ?", strings.Join(setParts, ", "))
-		_, err = s.db.Exec(sql, values...)
+		localUpdates["updated_at"] = time.Now()
+		err = s.db.Model(&models.Tunnel{}).Where("id = ?", id).Updates(localUpdates).Error
 		if err != nil {
 			return err
 		}
 	}
 
 	// 调用 NodePass API 更新远程实例
-	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	npClient := nodepass.NewClient(
+		tunnelWithEndpoint.Endpoint.URL,
+		tunnelWithEndpoint.Endpoint.APIPath,
+		tunnelWithEndpoint.Endpoint.APIKey,
+		nil,
+	)
 
 	// 处理别名更新
 	if alias, ok := remoteUpdates["alias"]; ok {
 		aliasStr := alias.(string)
-		if err := npClient.RenameInstance(tunnel.InstanceID, aliasStr); err != nil {
+		if err := npClient.RenameInstance(*tunnelWithEndpoint.InstanceID, aliasStr); err != nil {
 			// 检查是否为 404 错误（旧版本 NodePass 不支持）
 			if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
 				log.Warnf("[API] NodePass API 不支持重命名功能（可能是旧版本）: %v", err)
@@ -1546,33 +1564,29 @@ func (s *Service) PatchTunnel(id int64, updates map[string]interface{}) error {
 func (s *Service) SetTunnelAlias(tunnelID int64, alias string) error {
 	log.Infof("[API] 设置隧道别名: tunnelID=%d, alias=%s", tunnelID, alias)
 
-	// 获取隧道和端点信息
-	var tunnel struct {
-		InstanceID string
-		EndpointID int64
-	}
-	var endpoint struct {
-		URL     string
-		APIPath string
-		APIKey  string
-	}
-
-	err := s.db.QueryRow(`
-		SELECT t.instanceId, t.endpointId, e.url, e.apiPath, e.apiKey
-		FROM "Tunnel" t
-		JOIN "Endpoint" e ON t.endpointId = e.id
-		WHERE t.id = ?
-	`, tunnelID).Scan(&tunnel.InstanceID, &tunnel.EndpointID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
+	// 使用GORM获取隧道和端点信息
+	var tunnelWithEndpoint models.Tunnel
+	err := s.db.Preload("Endpoint").Where("id = ?", tunnelID).First(&tunnelWithEndpoint).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return errors.New("隧道不存在")
 		}
 		return err
 	}
 
+	// 检查instance_id是否存在
+	if tunnelWithEndpoint.InstanceID == nil || *tunnelWithEndpoint.InstanceID == "" {
+		return errors.New("隧道没有关联的实例ID")
+	}
+
 	// 调用 NodePass API 设置别名
-	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
-	if err := npClient.RenameInstance(tunnel.InstanceID, alias); err != nil {
+	npClient := nodepass.NewClient(
+		tunnelWithEndpoint.Endpoint.URL,
+		tunnelWithEndpoint.Endpoint.APIPath,
+		tunnelWithEndpoint.Endpoint.APIKey,
+		nil,
+	)
+	if err := npClient.RenameInstance(*tunnelWithEndpoint.InstanceID, alias); err != nil {
 		// 检查是否为 404 错误（旧版本 NodePass 不支持）
 		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
 			log.Warnf("[API] NodePass API 不支持别名功能（可能是旧版本），跳过设置: %v", err)
@@ -1593,33 +1607,29 @@ func (s *Service) RenameTunnel(id int64, newName string) error {
 
 	// 移除名称重复检查 - 允许重复名称
 
-	// 获取隧道和端点信息
-	var tunnel struct {
-		InstanceID string
-		EndpointID int64
-	}
-	var endpoint struct {
-		URL     string
-		APIPath string
-		APIKey  string
-	}
-
-	err := s.db.QueryRow(`
-		SELECT t.instanceId, t.endpointId, e.url, e.apiPath, e.apiKey
-		FROM "Tunnel" t
-		JOIN "Endpoint" e ON t.endpointId = e.id
-		WHERE t.id = ?
-	`, id).Scan(&tunnel.InstanceID, &tunnel.EndpointID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
+	// 使用GORM获取隧道和端点信息
+	var tunnelWithEndpoint models.Tunnel
+	err := s.db.Preload("Endpoint").Where("id = ?", id).First(&tunnelWithEndpoint).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return errors.New("隧道不存在")
 		}
 		return err
 	}
 
+	// 检查instance_id是否存在
+	if tunnelWithEndpoint.InstanceID == nil || *tunnelWithEndpoint.InstanceID == "" {
+		return errors.New("隧道没有关联的实例ID")
+	}
+
 	// 首先调用 NodePass API 尝试重命名远程实例
-	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
-	if err := npClient.RenameInstance(tunnel.InstanceID, newName); err != nil {
+	npClient := nodepass.NewClient(
+		tunnelWithEndpoint.Endpoint.URL,
+		tunnelWithEndpoint.Endpoint.APIPath,
+		tunnelWithEndpoint.Endpoint.APIKey,
+		nil,
+	)
+	if err := npClient.RenameInstance(*tunnelWithEndpoint.InstanceID, newName); err != nil {
 		// 检查是否为 404 错误（旧版本 NodePass 不支持）
 		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
 			log.Warnf("[API] NodePass API 不支持重命名功能（可能是旧版本），仅更新本地记录: %v", err)
@@ -1631,24 +1641,39 @@ func (s *Service) RenameTunnel(id int64, newName string) error {
 	}
 
 	// 更新本地数据库名称
-	result, err := s.db.Exec(`UPDATE "Tunnel" SET name = ?, updatedAt = CURRENT_TIMESTAMP WHERE id = ?`, newName, id)
-	if err != nil {
-		return err
+	result := s.db.Model(&models.Tunnel{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"name":       newName,
+		"updated_at": time.Now(),
+	})
+	if result.Error != nil {
+		return result.Error
 	}
-	rows, _ := result.RowsAffected()
-	if rows == 0 {
+	if result.RowsAffected == 0 {
 		return errors.New("隧道不存在")
 	}
 
 	// 记录操作日志
-	_, _ = s.db.Exec(`INSERT INTO "TunnelOperationLog" (tunnelId, tunnelName, action, status, message) VALUES (?, ?, ?, ?, ?)`, id, newName, "rename", "success", "重命名成功")
+	renameMessage := "重命名成功"
+	operationLog := models.TunnelOperationLog{
+		TunnelID:   &id,
+		TunnelName: newName,
+		Action:     models.OperationActionRename,
+		Status:     "success",
+		Message:    &renameMessage,
+		CreatedAt:  time.Now(),
+	}
+	s.db.Create(&operationLog)
 
 	return nil
 }
 
 // DB 返回底层 *sql.DB 指针，供需要直接执行查询的调用者使用
 func (s *Service) DB() *sql.DB {
-	return s.db
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return nil
+	}
+	return sqlDB
 }
 
 // QuickCreateTunnel 根据完整 URL 快速创建隧道实例 (server://addr:port/target:port?params)
@@ -1780,13 +1805,10 @@ func (s *Service) BatchCreateTunnels(req BatchCreateTunnelRequest) (*BatchCreate
 
 	for _, item := range req.Items {
 		if _, exists := endpointMap[item.EndpointID]; !exists {
-			var url, apiPath, apiKey, name string
-			err := s.db.QueryRow(
-				"SELECT url, apiPath, apiKey, name FROM \"Endpoint\" WHERE id = ?",
-				item.EndpointID,
-			).Scan(&url, &apiPath, &apiKey, &name)
+			var endpoint models.Endpoint
+			err := s.db.Select("url, api_path, api_key, name").Where("id = ?", item.EndpointID).First(&endpoint).Error
 			if err != nil {
-				if err == sql.ErrNoRows {
+				if err == gorm.ErrRecordNotFound {
 					log.Errorf("[API] 批量创建: 端点 %d 不存在", item.EndpointID)
 					continue // 跳过不存在的端点，在结果中标记为失败
 				}
@@ -1798,7 +1820,7 @@ func (s *Service) BatchCreateTunnels(req BatchCreateTunnelRequest) (*BatchCreate
 				APIPath string
 				APIKey  string
 				Name    string
-			}{url, apiPath, apiKey, name}
+			}{endpoint.URL, endpoint.APIPath, endpoint.APIKey, endpoint.Name}
 		}
 	}
 
@@ -1867,22 +1889,21 @@ func (s *Service) BatchCreateTunnels(req BatchCreateTunnelRequest) (*BatchCreate
 	}
 
 	// 记录批量操作日志
-	_, err := s.db.Exec(`
-		INSERT INTO "TunnelOperationLog" (
-			tunnelId, tunnelName, action, status, message
-		) VALUES (?, ?, ?, ?, ?)
-	`,
-		0, // 批量操作没有特定的tunnelId
-		"批量创建",
-		"batch_create",
-		func() string {
-			if successCount > 0 {
-				return "success"
-			}
-			return "failed"
-		}(),
-		fmt.Sprintf("批量创建完成，成功 %d 个，失败 %d 个", successCount, failCount),
-	)
+	batchStatus := "failed"
+	if successCount > 0 {
+		batchStatus = "success"
+	}
+	batchMessage := fmt.Sprintf("批量创建完成，成功 %d 个，失败 %d 个", successCount, failCount)
+
+	batchLog := models.TunnelOperationLog{
+		TunnelID:   nil, // 批量操作没有特定的tunnelId
+		TunnelName: "批量创建",
+		Action:     "batch_create",
+		Status:     batchStatus,
+		Message:    &batchMessage,
+		CreatedAt:  time.Now(),
+	}
+	err := s.db.Create(&batchLog).Error
 	if err != nil {
 		log.Errorf("[API] 记录批量创建日志失败: %v", err)
 	}
@@ -2025,13 +2046,10 @@ func (s *Service) NewBatchCreateTunnels(req NewBatchCreateRequest) (*NewBatchCre
 	for _, item := range allItems {
 		log.Infof("[API] 新批量创建：检查端点 %d", item.EndpointID)
 		if _, exists := endpointMap[item.EndpointID]; !exists {
-			var url, apiPath, apiKey, name string
-			err := s.db.QueryRow(
-				"SELECT url, apiPath, apiKey, name FROM \"Endpoint\" WHERE id = ?",
-				item.EndpointID,
-			).Scan(&url, &apiPath, &apiKey, &name)
+			var endpoint models.Endpoint
+			err := s.db.Select("url, api_path, api_key, name").Where("id = ?", item.EndpointID).First(&endpoint).Error
 			if err != nil {
-				if err == sql.ErrNoRows {
+				if err == gorm.ErrRecordNotFound {
 					log.Errorf("[API] 新批量创建: 端点 %d 不存在", item.EndpointID)
 					continue
 				}
@@ -2043,8 +2061,8 @@ func (s *Service) NewBatchCreateTunnels(req NewBatchCreateRequest) (*NewBatchCre
 				APIPath string
 				APIKey  string
 				Name    string
-			}{url, apiPath, apiKey, name}
-			log.Infof("[API] 新批量创建：端点 %d 查询成功: %s", item.EndpointID, name)
+			}{endpoint.URL, endpoint.APIPath, endpoint.APIKey, endpoint.Name}
+			log.Infof("[API] 新批量创建：端点 %d 查询成功: %s", item.EndpointID, endpoint.Name)
 		} else {
 			log.Infof("[API] 新批量创建：端点 %d 已在缓存中", item.EndpointID)
 		}
@@ -2132,22 +2150,21 @@ func (s *Service) NewBatchCreateTunnels(req NewBatchCreateRequest) (*NewBatchCre
 	}
 
 	// 记录批量操作日志
-	_, err := s.db.Exec(`
-		INSERT INTO "TunnelOperationLog" (
-			tunnelId, tunnelName, action, status, message
-		) VALUES (?, ?, ?, ?, ?)
-	`,
-		0, // 批量操作没有特定的tunnelId
-		fmt.Sprintf("新批量创建-%s", req.Mode),
-		"new_batch_create",
-		func() string {
-			if successCount > 0 {
-				return "success"
-			}
-			return "failed"
-		}(),
-		fmt.Sprintf("新批量创建完成，成功 %d 个，失败 %d 个", successCount, failCount),
-	)
+	newBatchStatus := "failed"
+	if successCount > 0 {
+		newBatchStatus = "success"
+	}
+	newBatchMessage := fmt.Sprintf("新批量创建完成，成功 %d 个，失败 %d 个", successCount, failCount)
+
+	newBatchLog := models.TunnelOperationLog{
+		TunnelID:   nil, // 批量操作没有特定的tunnelId
+		TunnelName: fmt.Sprintf("新批量创建-%s", req.Mode),
+		Action:     "new_batch_create",
+		Status:     newBatchStatus,
+		Message:    &newBatchMessage,
+		CreatedAt:  time.Now(),
+	}
+	err := s.db.Create(&newBatchLog).Error
 	if err != nil {
 		log.Errorf("[API] 记录新批量创建日志失败: %v", err)
 	}
@@ -2175,33 +2192,29 @@ func (s *Service) NewBatchCreateTunnels(req NewBatchCreateRequest) (*NewBatchCre
 func (s *Service) SetTunnelRestart(tunnelID int64, restart bool) error {
 	log.Infof("[API] 设置隧道重启策略: tunnelID=%d, restart=%t", tunnelID, restart)
 
-	// 获取隧道和端点信息
-	var tunnel struct {
-		InstanceID string
-		EndpointID int64
-	}
-	var endpoint struct {
-		URL     string
-		APIPath string
-		APIKey  string
-	}
-
-	err := s.db.QueryRow(`
-		SELECT t.instanceId, t.endpointId, e.url, e.apiPath, e.apiKey
-		FROM "Tunnel" t
-		JOIN "Endpoint" e ON t.endpointId = e.id
-		WHERE t.id = ?
-	`, tunnelID).Scan(&tunnel.InstanceID, &tunnel.EndpointID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
+	// 使用GORM获取隧道和端点信息
+	var tunnelWithEndpoint models.Tunnel
+	err := s.db.Preload("Endpoint").Where("id = ?", tunnelID).First(&tunnelWithEndpoint).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return errors.New("隧道不存在")
 		}
 		return err
 	}
 
+	// 检查instance_id是否存在
+	if tunnelWithEndpoint.InstanceID == nil || *tunnelWithEndpoint.InstanceID == "" {
+		return errors.New("隧道没有关联的实例ID")
+	}
+
 	// 先调用 NodePass API 设置重启策略
-	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
-	if err := npClient.SetRestartInstance(tunnel.InstanceID, restart); err != nil {
+	npClient := nodepass.NewClient(
+		tunnelWithEndpoint.Endpoint.URL,
+		tunnelWithEndpoint.Endpoint.APIPath,
+		tunnelWithEndpoint.Endpoint.APIKey,
+		nil,
+	)
+	if err := npClient.SetRestartInstance(*tunnelWithEndpoint.InstanceID, restart); err != nil {
 		// 检查是否为 404 错误（旧版本 NodePass 不支持）
 		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
 			log.Warnf("[API] NodePass API 不支持重启策略功能（可能是旧版本）: %v", err)
@@ -2213,11 +2226,10 @@ func (s *Service) SetTunnelRestart(tunnelID int64, restart bool) error {
 	}
 
 	// 只有 NodePass API 调用成功后才更新数据库
-	_, err = s.db.Exec(`
-		UPDATE "Tunnel" 
-		SET restart = ?, updatedAt = ? 
-		WHERE id = ?
-	`, restart, time.Now(), tunnelID)
+	err = s.db.Model(&models.Tunnel{}).Where("id = ?", tunnelID).Updates(map[string]interface{}{
+		"restart":    restart,
+		"updated_at": time.Now(),
+	}).Error
 	if err != nil {
 		log.Errorf("[API] 数据库更新重启策略失败: %v", err)
 		return fmt.Errorf("数据库更新重启策略失败: %v", err)
@@ -2229,84 +2241,82 @@ func (s *Service) SetTunnelRestart(tunnelID int64, restart bool) error {
 
 // ClearOperationLogs 删除所有隧道操作日志，返回删除的行数
 func (s *Service) ClearOperationLogs() (int64, error) {
-	// 执行删除操作
-	result, err := s.db.Exec(`DELETE FROM "TunnelOperationLog"`)
-	if err != nil {
-		return 0, err
+	// 使用GORM执行删除操作
+	result := s.db.Where("1 = 1").Delete(&models.TunnelOperationLog{})
+	if result.Error != nil {
+		return 0, result.Error
 	}
-
-	rows, err := result.RowsAffected()
-	if err != nil {
-		return 0, err
-	}
-	return rows, nil
+	return result.RowsAffected, nil
 }
 
 // ResetTunnelTraffic 重置隧道的流量统计信息
 func (s *Service) ResetTunnelTraffic(tunnelID int64) error {
 	log.Infof("[API] 重置隧道流量统计: tunnelID=%d", tunnelID)
 
-	// 获取隧道和端点信息
-	var tunnel struct {
-		InstanceID string
-		EndpointID int64
-		Name       string
-	}
-	var endpoint struct {
-		URL     string
-		APIPath string
-		APIKey  string
+	// 使用GORM获取隧道和端点信息
+	var tunnelWithEndpoint models.Tunnel
+	err := s.db.Preload("Endpoint").Where("id = ?", tunnelID).First(&tunnelWithEndpoint).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return errors.New("隧道不存在")
+		}
+		return err
 	}
 
-	// 先调用 NodePass API 重置流量统计
-	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
-	if err := npClient.ResetInstanceTraffic(tunnel.InstanceID); err != nil {
-		// 检查是否为 404 错误（旧版本 NodePass 不支持）
-		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
-			log.Warnf("[API] NodePass API 不支持重置流量功能（可能是旧版本）: %v", err)
-			return errors.New("当前实例不支持重置流量功能")
-		} else {
-			log.Errorf("[API] NodePass API 重置流量失败: %v", err)
-			return fmt.Errorf("NodePass API 重置流量失败: %v", err)
+	// 检查instance_id是否存在
+	if tunnelWithEndpoint.InstanceID == nil || *tunnelWithEndpoint.InstanceID == "" {
+		log.Warnf("[API] 隧道没有关联的实例ID，只重置本地数据库流量统计")
+	} else {
+		// 先调用 NodePass API 重置流量统计
+		npClient := nodepass.NewClient(
+			tunnelWithEndpoint.Endpoint.URL,
+			tunnelWithEndpoint.Endpoint.APIPath,
+			tunnelWithEndpoint.Endpoint.APIKey,
+			nil,
+		)
+		if err := npClient.ResetInstanceTraffic(*tunnelWithEndpoint.InstanceID); err != nil {
+			// 检查是否为 404 错误（旧版本 NodePass 不支持）
+			if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
+				log.Warnf("[API] NodePass API 不支持重置流量功能（可能是旧版本）: %v", err)
+				return errors.New("当前实例不支持重置流量功能")
+			} else {
+				log.Errorf("[API] NodePass API 重置流量失败: %v", err)
+				return fmt.Errorf("NodePass API 重置流量失败: %v", err)
+			}
 		}
 	}
 
-	// 只有 NodePass API 调用成功后才更新数据库
-	_, err := s.db.Exec(`
-		UPDATE "Tunnel" 
-		SET 
-			tcpRx = 0,
-			tcpTx = 0,
-			udpRx = 0,
-			udpTx = 0,
-			pool = NULL,
-			ping = NULL,
-			updatedAt = ?
-		WHERE id = ?
-	`, time.Now(), tunnelID)
+	// 重置数据库流量统计
+	err = s.db.Model(&models.Tunnel{}).Where("id = ?", tunnelID).Updates(map[string]interface{}{
+		"tcp_rx":     0,
+		"tcp_tx":     0,
+		"udp_rx":     0,
+		"udp_tx":     0,
+		"pool":       nil,
+		"ping":       nil,
+		"updated_at": time.Now(),
+	}).Error
 	if err != nil {
 		log.Errorf("[API] 数据库重置流量统计失败: %v", err)
 		return fmt.Errorf("数据库重置流量统计失败: %v", err)
 	}
 
 	// 记录操作日志
-	_, err = s.db.Exec(`
-		INSERT INTO "TunnelOperationLog" (
-			tunnelId, tunnelName, action, status, message
-		) VALUES (?, ?, ?, ?, ?)
-	`,
-		tunnelID,
-		tunnel.Name,
-		"reset_traffic",
-		"success",
-		"重置流量统计信息",
-	)
-	if err != nil {
+	resetMessage := "重置流量统计信息"
+	operationLog := models.TunnelOperationLog{
+		TunnelID:   &tunnelID,
+		TunnelName: tunnelWithEndpoint.Name,
+		Action:     models.OperationActionResetTraffic,
+		Status:     "success",
+		Message:    &resetMessage,
+		CreatedAt:  time.Now(),
+	}
+	if err := s.db.Create(&operationLog).Error; err != nil {
 		log.Errorf("[API] 记录重置流量日志失败: %v", err)
 		// 不返回错误，因为主要操作已经成功
 	}
 
-	log.Infof("[API] 隧道流量统计重置成功: tunnelID=%d, name=%s", tunnelID, tunnel.Name)
+	log.Infof("[API] 隧道流量统计重置成功: tunnelID=%d, name=%s", tunnelID, tunnelWithEndpoint.Name)
 	return nil
 }
 
@@ -2314,33 +2324,23 @@ func (s *Service) ResetTunnelTraffic(tunnelID int64) error {
 func (s *Service) ResetTunnelTrafficByInstanceID(instanceID string) error {
 	log.Infof("[API] 根据实例ID重置隧道流量统计: instanceID=%s", instanceID)
 
-	// 获取隧道和端点信息
-	var tunnel struct {
-		ID         int64
-		Name       string
-		EndpointID int64
-	}
-	var endpoint struct {
-		URL     string
-		APIPath string
-		APIKey  string
-	}
-
-	err := s.db.QueryRow(`
-		SELECT t.id, t.name, t.endpointId, e.url, e.apiPath, e.apiKey
-		FROM "Tunnel" t
-		JOIN "Endpoint" e ON t.endpointId = e.id
-		WHERE t.instanceId = ?
-	`, instanceID).Scan(&tunnel.ID, &tunnel.Name, &tunnel.EndpointID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
+	// 使用GORM通过instance_id获取隧道和端点信息
+	var tunnelWithEndpoint models.Tunnel
+	err := s.db.Preload("Endpoint").Where("instance_id = ?", instanceID).First(&tunnelWithEndpoint).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			return errors.New("隧道不存在")
 		}
 		return fmt.Errorf("查询隧道失败: %v", err)
 	}
 
 	// 先调用 NodePass API 重置流量统计
-	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	npClient := nodepass.NewClient(
+		tunnelWithEndpoint.Endpoint.URL,
+		tunnelWithEndpoint.Endpoint.APIPath,
+		tunnelWithEndpoint.Endpoint.APIKey,
+		nil,
+	)
 	if err := npClient.ResetInstanceTraffic(instanceID); err != nil {
 		// 检查是否为 404 错误（旧版本 NodePass 不支持）
 		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
@@ -2352,41 +2352,537 @@ func (s *Service) ResetTunnelTrafficByInstanceID(instanceID string) error {
 		}
 	}
 
-	// 只有 NodePass API 调用成功后才更新数据库
-	_, err = s.db.Exec(`
-		UPDATE "Tunnel" 
-		SET 
-			tcpRx = 0,
-			tcpTx = 0,
-			udpRx = 0,
-			udpTx = 0,
-			pool = NULL,
-			ping = NULL,
-			updatedAt = ?
-		WHERE instanceId = ?
-	`, time.Now(), instanceID)
+	// 重置数据库流量统计
+	err = s.db.Model(&models.Tunnel{}).Where("instance_id = ?", instanceID).Updates(map[string]interface{}{
+		"tcp_rx":     0,
+		"tcp_tx":     0,
+		"udp_rx":     0,
+		"udp_tx":     0,
+		"pool":       nil,
+		"ping":       nil,
+		"updated_at": time.Now(),
+	}).Error
 	if err != nil {
 		log.Errorf("[API] 数据库重置流量统计失败: %v", err)
 		return fmt.Errorf("数据库重置流量统计失败: %v", err)
 	}
 
 	// 记录操作日志
-	_, err = s.db.Exec(`
-		INSERT INTO "TunnelOperationLog" (
-			tunnelId, tunnelName, action, status, message
-		) VALUES (?, ?, ?, ?, ?)
-	`,
-		tunnel.ID,
-		tunnel.Name,
-		"reset_traffic",
-		"success",
-		"重置流量统计信息",
-	)
-	if err != nil {
+	resetMessage2 := "重置流量统计信息"
+	operationLog := models.TunnelOperationLog{
+		TunnelID:   &tunnelWithEndpoint.ID,
+		TunnelName: tunnelWithEndpoint.Name,
+		Action:     models.OperationActionResetTraffic,
+		Status:     "success",
+		Message:    &resetMessage2,
+		CreatedAt:  time.Now(),
+	}
+	if err := s.db.Create(&operationLog).Error; err != nil {
 		log.Errorf("[API] 记录重置流量日志失败: %v", err)
 		// 不返回错误，因为主要操作已经成功
 	}
 
-	log.Infof("[API] 隧道流量统计重置成功: instanceID=%s, name=%s", instanceID, tunnel.Name)
+	log.Infof("[API] 隧道流量统计重置成功: instanceID=%s, name=%s", instanceID, tunnelWithEndpoint.Name)
 	return nil
+}
+
+// updateEndpointTunnelCount 更新端点的隧道计数，使用重试机制避免死锁
+func (s *Service) updateEndpointTunnelCount(endpointID int64) {
+	err := db.ExecuteWithRetry(func(db *gorm.DB) error {
+		return db.Model(&models.Endpoint{}).Where("id = ?", endpointID).
+			Update("tunnel_count", db.Model(&models.Tunnel{}).
+				Where("endpoint_id = ?", endpointID).
+				Select("count(*)")).Error
+	})
+
+	if err != nil {
+		log.Errorf("[API] 更新端点 %d 隧道计数失败: %v", endpointID, err)
+	} else {
+		log.Debugf("[API] 端点 %d 隧道计数已更新", endpointID)
+	}
+}
+
+// GetTunnelsWithPagination 获取带分页和筛选的隧道列表（优化版本）
+func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelListResult, error) {
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("获取数据库连接失败: %v", err)
+	}
+
+	// 优化策略1：分离主查询和关联查询，减少JOIN复杂度
+	// 构建基础查询 - 只查询tunnels表
+	baseQuery := "FROM tunnels t"
+
+	// 构建 WHERE 条件
+	var whereConditions []string
+	var args []interface{}
+
+	// 搜索筛选
+	if params.Search != "" {
+		whereConditions = append(whereConditions, "(t.name LIKE ? OR t.tunnel_address LIKE ? OR t.target_address LIKE ?)")
+		args = append(args, "%"+params.Search+"%", "%"+params.Search+"%", "%"+params.Search+"%")
+	}
+
+	// 状态筛选
+	if params.Status != "" && params.Status != "all" {
+		switch params.Status {
+		case "running":
+			whereConditions = append(whereConditions, "t.status = ?")
+			args = append(args, "running")
+		case "stopped":
+			whereConditions = append(whereConditions, "t.status = ?")
+			args = append(args, "stopped")
+		case "error":
+			whereConditions = append(whereConditions, "t.status = ?")
+			args = append(args, "error")
+		case "offline":
+			whereConditions = append(whereConditions, "t.status = ?")
+			args = append(args, "offline")
+		}
+	}
+
+	// 主控筛选
+	if params.EndpointID != "" && params.EndpointID != "all" {
+		whereConditions = append(whereConditions, "t.endpoint_id = ?")
+		args = append(args, params.EndpointID)
+	}
+
+	// 主控组筛选（需要特殊处理，因为不在主表中）
+	if params.EndpointGroupID != "" && params.EndpointGroupID != "all" {
+		// 这里需要子查询来获取属于指定组的主控ID
+		whereConditions = append(whereConditions, "t.endpoint_id IN (SELECT e.id FROM endpoints e WHERE e.group_id = ?)")
+		args = append(args, params.EndpointGroupID)
+	}
+
+	// 端口筛选
+	if params.PortFilter != "" {
+		whereConditions = append(whereConditions, "t.tunnel_port LIKE ?")
+		args = append(args, "%"+params.PortFilter+"%")
+	}
+
+	// 标签筛选（需要特殊处理，因为不在主表中）
+	if params.TagID != "" && params.TagID != "all" {
+		if params.TagID == "untagged" {
+			whereConditions = append(whereConditions, "t.id NOT IN (SELECT DISTINCT tunnel_id FROM tunnel_tags)")
+		} else {
+			whereConditions = append(whereConditions, "t.id IN (SELECT tunnel_id FROM tunnel_tags WHERE tag_id = ?)")
+			args = append(args, params.TagID)
+		}
+	}
+
+	// 构建完整的 WHERE 子句
+	var whereClause string
+	if len(whereConditions) > 0 {
+		whereClause = " WHERE " + strings.Join(whereConditions, " AND ")
+	}
+
+	// 优化策略2：使用子查询优化COUNT，避免复杂JOIN
+	countQuery := "SELECT COUNT(*) " + baseQuery + whereClause
+	var total int
+	err = sqlDB.QueryRow(countQuery, args...).Scan(&total)
+	if err != nil {
+		return nil, fmt.Errorf("获取总数失败: %v", err)
+	}
+
+	// 构建排序
+	var orderClause string
+	if params.SortBy != "" {
+		switch params.SortBy {
+		case "name":
+			orderClause = fmt.Sprintf(" ORDER BY t.name %s", params.SortOrder)
+		case "created_at":
+			orderClause = fmt.Sprintf(" ORDER BY t.created_at %s", params.SortOrder)
+		case "status":
+			orderClause = fmt.Sprintf(" ORDER BY t.status %s", params.SortOrder)
+		case "tunnelAddress":
+			orderClause = fmt.Sprintf(" ORDER BY t.tunnel_address %s, t.tunnel_port %s", params.SortOrder, params.SortOrder)
+		case "targetAddress":
+			orderClause = fmt.Sprintf(" ORDER BY t.target_address %s, t.target_port %s", params.SortOrder, params.SortOrder)
+		case "mode":
+			orderClause = fmt.Sprintf(" ORDER BY t.mode %s", params.SortOrder)
+		case "type":
+			orderClause = fmt.Sprintf(" ORDER BY t.mode %s", params.SortOrder)
+		case "updated_at":
+			orderClause = fmt.Sprintf(" ORDER BY t.updated_at %s", params.SortOrder)
+		default:
+			orderClause = " ORDER BY t.created_at DESC"
+		}
+	} else {
+		orderClause = " ORDER BY t.created_at DESC"
+	}
+
+	// 构建分页
+	offset := (params.Page - 1) * params.PageSize
+	limitClause := " LIMIT ? OFFSET ?"
+	args = append(args, params.PageSize, offset)
+
+	// 优化策略3：先查询主表数据，再批量获取关联数据
+	selectFields := `
+		SELECT 
+			t.id, t.name, t.endpoint_id, t.mode, t.tunnel_address, t.tunnel_port, 
+			t.target_address, t.target_port, t.tls_mode, t.log_level, t.status, 
+			t.created_at, t.updated_at, t.min, t.max, t.password, t.restart, 
+			t.pool, t.ping, t.instance_id, t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx
+	`
+
+	// 执行主查询
+	query := selectFields + baseQuery + whereClause + orderClause + limitClause
+	rows, err := sqlDB.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("查询隧道列表失败: %v", err)
+	}
+	defer rows.Close()
+
+	var tunnels []TunnelWithStats
+	var tunnelIDs []int64
+	var endpointIDs []int64
+
+	// 收集主数据
+	for rows.Next() {
+		var tunnel TunnelWithStats
+		err := rows.Scan(
+			&tunnel.ID, &tunnel.Name, &tunnel.EndpointID, &tunnel.Mode,
+			&tunnel.TunnelAddress, &tunnel.TunnelPort, &tunnel.TargetAddress, &tunnel.TargetPort,
+			&tunnel.TLSMode, &tunnel.LogLevel, &tunnel.Status, &tunnel.CreatedAt, &tunnel.UpdatedAt,
+			&tunnel.Min, &tunnel.Max, &tunnel.Password, &tunnel.Restart,
+			&tunnel.Pool, &tunnel.Ping, &tunnel.InstanceID,
+			&tunnel.TCPRx, &tunnel.TCPTx, &tunnel.UDPRx, &tunnel.UDPTx,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("扫描隧道数据失败: %v", err)
+		}
+
+		// 设置流量统计
+		tunnel.Traffic.TCPRx = tunnel.TCPRx
+		tunnel.Traffic.TCPTx = tunnel.TCPTx
+		tunnel.Traffic.UDPRx = tunnel.UDPRx
+		tunnel.Traffic.UDPTx = tunnel.UDPTx
+		tunnel.Traffic.Pool = tunnel.Pool
+		tunnel.Traffic.Ping = tunnel.Ping
+		tunnel.Traffic.Total = tunnel.TCPRx + tunnel.TCPTx + tunnel.UDPRx + tunnel.UDPTx
+
+		// 设置状态信息
+		switch tunnel.Status {
+		case "running":
+			tunnel.StatusInfo.Type = "success"
+			tunnel.StatusInfo.Text = "运行中"
+		case "stopped":
+			tunnel.StatusInfo.Type = "danger"
+			tunnel.StatusInfo.Text = "已停止"
+		case "error":
+			tunnel.StatusInfo.Type = "warning"
+			tunnel.StatusInfo.Text = "有错误"
+		case "offline":
+			tunnel.StatusInfo.Type = "default"
+			tunnel.StatusInfo.Text = "离线"
+		}
+
+		// 设置类型
+		if tunnel.Mode == "server" {
+			tunnel.Type = "服务端"
+		} else {
+			tunnel.Type = "客户端"
+		}
+
+		tunnels = append(tunnels, tunnel)
+		tunnelIDs = append(tunnelIDs, tunnel.ID)
+		endpointIDs = append(endpointIDs, tunnel.EndpointID)
+	}
+
+	if err = rows.Err(); err != nil {
+		return nil, fmt.Errorf("遍历查询结果失败: %v", err)
+	}
+
+	// 优化策略4：批量获取关联数据，减少数据库查询次数
+	if len(tunnels) > 0 {
+		// 批量获取endpoint信息
+		endpointMap, err := s.getEndpointsByIDs(endpointIDs)
+		if err != nil {
+			return nil, fmt.Errorf("获取主控信息失败: %v", err)
+		}
+
+		// 批量获取标签信息（如果需要）
+		var tagMap map[int64][]models.Tag
+		if params.TagID != "" && params.TagID != "all" {
+			tagMap, err = s.getTagsByTunnelIDs(tunnelIDs)
+			if err != nil {
+				return nil, fmt.Errorf("获取标签信息失败: %v", err)
+			}
+		}
+
+		// 填充关联数据
+		for i := range tunnels {
+			// 填充endpoint信息
+			if endpoint, exists := endpointMap[tunnels[i].EndpointID]; exists {
+				tunnels[i].EndpointName = endpoint.Name
+			}
+
+			// 填充标签信息
+			if tagMap != nil {
+				if tags, exists := tagMap[tunnels[i].ID]; exists && len(tags) > 0 {
+					tunnels[i].Tag = &tags[0] // 取第一个标签
+				}
+			}
+		}
+	}
+
+	// 计算总页数
+	totalPages := (total + params.PageSize - 1) / params.PageSize
+
+	return &TunnelListResult{
+		Data:       tunnels,
+		Total:      total,
+		Page:       params.Page,
+		PageSize:   params.PageSize,
+		TotalPages: totalPages,
+	}, nil
+}
+
+// getEndpointsByIDs 批量获取主控信息
+func (s *Service) getEndpointsByIDs(endpointIDs []int64) (map[int64]struct {
+	ID     int64
+	Name   string
+	Status string
+}, error) {
+	if len(endpointIDs) == 0 {
+		return make(map[int64]struct {
+			ID     int64
+			Name   string
+			Status string
+		}), nil
+	}
+
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return nil, err
+	}
+
+	// 构建IN查询
+	placeholders := strings.Repeat("?,", len(endpointIDs))
+	placeholders = placeholders[:len(placeholders)-1] // 移除最后一个逗号
+
+	query := fmt.Sprintf(`
+		SELECT e.id, e.name, e.status
+		FROM endpoints e
+		WHERE e.id IN (%s)
+	`, placeholders)
+
+	// 转换参数类型
+	args := make([]interface{}, len(endpointIDs))
+	for i, id := range endpointIDs {
+		args[i] = id
+	}
+
+	rows, err := sqlDB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int64]struct {
+		ID     int64
+		Name   string
+		Status string
+	})
+
+	for rows.Next() {
+		var endpoint struct {
+			ID     int64
+			Name   string
+			Status string
+		}
+		err := rows.Scan(&endpoint.ID, &endpoint.Name, &endpoint.Status)
+		if err != nil {
+			return nil, err
+		}
+
+		result[endpoint.ID] = endpoint
+	}
+
+	return result, nil
+}
+
+// getTagsByTunnelIDs 批量获取标签信息
+func (s *Service) getTagsByTunnelIDs(tunnelIDs []int64) (map[int64][]models.Tag, error) {
+	if len(tunnelIDs) == 0 {
+		return make(map[int64][]models.Tag), nil
+	}
+
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return nil, err
+	}
+
+	// 构建IN查询
+	placeholders := strings.Repeat("?,", len(tunnelIDs))
+	placeholders = placeholders[:len(placeholders)-1] // 移除最后一个逗号
+
+	query := fmt.Sprintf(`
+		SELECT tt.tunnel_id, t.id, t.name
+		FROM tunnel_tags tt
+		JOIN tags t ON tt.tag_id = t.id
+		WHERE tt.tunnel_id IN (%s)
+	`, placeholders)
+
+	// 转换参数类型
+	args := make([]interface{}, len(tunnelIDs))
+	for i, id := range tunnelIDs {
+		args[i] = id
+	}
+
+	rows, err := sqlDB.Query(query, args...)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+
+	result := make(map[int64][]models.Tag)
+	for rows.Next() {
+		var tunnelID int64
+		var tag models.Tag
+		err := rows.Scan(&tunnelID, &tag.ID, &tag.Name)
+		if err != nil {
+			return nil, err
+		}
+		result[tunnelID] = append(result[tunnelID], tag)
+	}
+
+	return result, nil
+}
+
+// getEndpointsWithGroups 获取端点及其分组信息
+func (s *Service) getEndpointsWithGroups(endpointIDs []int) ([]struct {
+	ID        int
+	Name      string
+	GroupID   *int
+	GroupName *string
+}, error) {
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return nil, fmt.Errorf("获取数据库连接失败: %v", err)
+	}
+
+	// 构建查询
+	query := `
+		SELECT e.id, e.name, e.group_id, eg.name AS group_name
+		FROM endpoints e
+		LEFT JOIN endpoint_groups eg ON e.group_id = eg.id
+		WHERE e.id IN (?` + strings.Repeat(",?", len(endpointIDs)-1) + `)`
+
+	args := make([]interface{}, len(endpointIDs))
+	for i, id := range endpointIDs {
+		args[i] = id
+	}
+
+	rows, err := sqlDB.Query(query, args...)
+	if err != nil {
+		return nil, fmt.Errorf("查询端点信息失败: %v", err)
+	}
+	defer rows.Close()
+
+	var endpoints []struct {
+		ID        int
+		Name      string
+		GroupID   *int
+		GroupName *string
+	}
+
+	for rows.Next() {
+		var endpoint struct {
+			ID        int
+			Name      string
+			GroupID   *int
+			GroupName *string
+		}
+		var groupID sql.NullInt64
+		var groupName sql.NullString
+
+		err := rows.Scan(&endpoint.ID, &endpoint.Name, &groupID, &groupName)
+		if err != nil {
+			return nil, fmt.Errorf("扫描端点数据失败: %v", err)
+		}
+
+		if groupID.Valid {
+			id := int(groupID.Int64)
+			endpoint.GroupID = &id
+		}
+		if groupName.Valid {
+			endpoint.GroupName = &groupName.String
+		}
+
+		endpoints = append(endpoints, endpoint)
+	}
+
+	// 确保返回空数组而不是nil
+	if endpoints == nil {
+		endpoints = []struct {
+			ID        int
+			Name      string
+			GroupID   *int
+			GroupName *string
+		}{}
+	}
+
+	return endpoints, nil
+}
+
+// getEndpointWithGroup 获取单个端点及其分组信息
+func (s *Service) getEndpointWithGroup(endpointID int) (struct {
+	ID        int
+	Name      string
+	GroupName *string
+}, error) {
+	sqlDB, err := s.db.DB()
+	if err != nil {
+		return struct {
+			ID        int
+			Name      string
+			GroupName *string
+		}{}, fmt.Errorf("获取数据库连接失败: %v", err)
+	}
+
+	query := `
+		SELECT e.id, e.name, eg.name AS group_name
+		FROM endpoints e
+		LEFT JOIN endpoint_groups eg ON e.group_id = eg.id
+		WHERE e.id = ?`
+
+	var endpoint struct {
+		ID        int
+		Name      string
+		GroupName *string
+	}
+	var groupName sql.NullString
+
+	err = sqlDB.QueryRow(query, endpointID).Scan(&endpoint.ID, &endpoint.Name, &groupName)
+	if err != nil {
+		return endpoint, fmt.Errorf("查询端点信息失败: %v", err)
+	}
+
+	if groupName.Valid {
+		endpoint.GroupName = &groupName.String
+	}
+
+	return endpoint, nil
+}
+
+// getTunnelsByIDs 根据ID列表获取隧道信息
+func (s *Service) getTunnelsByIDs(tunnelIDs []int) ([]models.Tunnel, error) {
+	var tunnels []models.Tunnel
+
+	if len(tunnelIDs) == 0 {
+		return tunnels, nil
+	}
+
+	err := s.db.Where("id IN ?", tunnelIDs).Find(&tunnels).Error
+	if err != nil {
+		return nil, fmt.Errorf("查询隧道信息失败: %v", err)
+	}
+
+	// 确保返回空数组而不是nil
+	if tunnels == nil {
+		tunnels = []models.Tunnel{}
+	}
+
+	return tunnels, nil
 }

@@ -1,7 +1,9 @@
 package api
 
 import (
+	"NodePassDash/internal/db"
 	log "NodePassDash/internal/log"
+	"NodePassDash/internal/models"
 	"crypto/tls"
 	"database/sql"
 	"encoding/json"
@@ -16,6 +18,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/mattn/go-ieproxy"
+	"gorm.io/gorm"
 
 	"NodePassDash/internal/endpoint"
 	"NodePassDash/internal/nodepass"
@@ -211,25 +214,21 @@ func (h *EndpointHandler) HandleDeleteEndpoint(w http.ResponseWriter, r *http.Re
 	db := h.endpointService.DB()
 
 	// 从Tunnel表获取实例ID
-	rows, err := db.Query(`SELECT DISTINCT instanceId FROM "Tunnel" WHERE endpointId = ? AND instanceId IS NOT NULL`, id)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var instanceID string
-			if err := rows.Scan(&instanceID); err == nil && instanceID != "" {
-				instanceIDs = append(instanceIDs, instanceID)
+	var tunnels []models.Tunnel
+	if err := db.Select("DISTINCT instance_id").Where("endpoint_id = ? AND instance_id IS NOT NULL AND instance_id != ''", id).Find(&tunnels).Error; err == nil {
+		for _, tunnel := range tunnels {
+			if tunnel.InstanceID != nil && *tunnel.InstanceID != "" {
+				instanceIDs = append(instanceIDs, *tunnel.InstanceID)
 			}
 		}
 	}
 
 	// 从TunnelRecycle表也获取实例ID
-	rows2, err := db.Query(`SELECT DISTINCT instanceId FROM "TunnelRecycle" WHERE endpointId = ? AND instanceId IS NOT NULL`, id)
-	if err == nil {
-		defer rows2.Close()
-		for rows2.Next() {
-			var instanceID string
-			if err := rows2.Scan(&instanceID); err == nil && instanceID != "" {
-				instanceIDs = append(instanceIDs, instanceID)
+	var recycledTunnels []models.TunnelRecycle
+	if err := db.Select("DISTINCT instance_id").Where("endpoint_id = ? AND instance_id IS NOT NULL AND instance_id != ''", id).Find(&recycledTunnels).Error; err == nil {
+		for _, tunnel := range recycledTunnels {
+			if tunnel.InstanceID != nil && *tunnel.InstanceID != "" {
+				instanceIDs = append(instanceIDs, *tunnel.InstanceID)
 			}
 		}
 	}
@@ -644,35 +643,27 @@ func (h *EndpointHandler) HandleSearchEndpointLogs(w http.ResponseWriter, r *htt
 
 	db := h.endpointService.DB()
 
-	// 构造动态 SQL
-	where := []string{"endpointId = ?", "eventType = 'log'"}
-	args := []interface{}{endpointID}
+	// 构造GORM查询
+	query := db.Model(&models.EndpointSSE{}).Where("endpoint_id = ? AND event_type = 'log'", endpointID)
 
 	if instanceID != "" {
-		where = append(where, "instanceId = ?")
-		args = append(args, instanceID)
+		query = query.Where("instance_id = ?", instanceID)
 	}
 
 	if start != "" {
-		where = append(where, "createdAt >= ?")
-		args = append(args, start)
+		query = query.Where("created_at >= ?", start)
 	}
 	if end != "" {
-		where = append(where, "createdAt <= ?")
-		args = append(args, end)
+		query = query.Where("created_at <= ?", end)
 	}
 
 	if level != "" && level != "all" {
-		where = append(where, "LOWER(logs) LIKE ?")
-		args = append(args, "%"+level+"%")
+		query = query.Where("LOWER(logs) LIKE ?", "%"+level+"%")
 	}
 
-	whereSQL := strings.Join(where, " AND ")
-
 	// 查询总数
-	countSQL := "SELECT COUNT(*) FROM \"EndpointSSE\" WHERE " + whereSQL
-	var total int
-	if err := db.QueryRow(countSQL, args...).Scan(&total); err != nil {
+	var total int64
+	if err := query.Count(&total).Error; err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
 		return
@@ -680,50 +671,45 @@ func (h *EndpointHandler) HandleSearchEndpointLogs(w http.ResponseWriter, r *htt
 
 	// 查询分页数据
 	offset := (page - 1) * size
-	dataSQL := "SELECT id, createdAt, logs, instanceId FROM \"EndpointSSE\" WHERE " + whereSQL + " ORDER BY createdAt DESC LIMIT ? OFFSET ?"
-	argsWithLim := append(args, size, offset)
-	rows, err := db.Query(dataSQL, argsWithLim...)
-	if err != nil {
+	var endpointSSEList []models.EndpointSSE
+	if err := query.Select("id, created_at, logs, instance_id").Order("created_at DESC").Limit(size).Offset(offset).Find(&endpointSSEList).Error; err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
 		return
 	}
-	defer rows.Close()
 
 	logs := make([]map[string]interface{}, 0)
-	for rows.Next() {
-		var id int64
-		var createdAt time.Time
-		var logsStr sql.NullString
-		var instanceID sql.NullString
-		if err := rows.Scan(&id, &createdAt, &logsStr, &instanceID); err == nil {
-			logs = append(logs, map[string]interface{}{
-				"id":       id,
-				"createAt": createdAt.Format("2006-01-02 15:04:05"),
-				"message":  logsStr.String,
-				"instanceId": func() string {
-					if instanceID.Valid {
-						return instanceID.String
-					}
-					return ""
-				}(),
-				"level": func() string { // 简单解析日志行级别
-					upper := strings.ToUpper(logsStr.String)
-					switch {
-					case strings.Contains(upper, "ERROR"):
-						return "ERROR"
-					case strings.Contains(upper, "WARN"):
-						return "WARN"
-					case strings.Contains(upper, "DEBUG"):
-						return "DEBUG"
-					case strings.Contains(upper, "EVENTS"):
-						return "EVENTS"
-					default:
-						return "INFO"
-					}
-				}(),
-			})
+	for _, sse := range endpointSSEList {
+		logsStr := ""
+		if sse.Logs != nil {
+			logsStr = *sse.Logs
 		}
+		instanceIDStr := ""
+		if sse.InstanceID != "" {
+			instanceIDStr = sse.InstanceID
+		}
+
+		logs = append(logs, map[string]interface{}{
+			"id":         sse.ID,
+			"createAt":   sse.CreatedAt.Format("2006-01-02 15:04:05"),
+			"message":    logsStr,
+			"instanceId": instanceIDStr,
+			"level": func() string { // 简单解析日志行级别
+				upper := strings.ToUpper(logsStr)
+				switch {
+				case strings.Contains(upper, "ERROR"):
+					return "ERROR"
+				case strings.Contains(upper, "WARN"):
+					return "WARN"
+				case strings.Contains(upper, "DEBUG"):
+					return "DEBUG"
+				case strings.Contains(upper, "EVENTS"):
+					return "EVENTS"
+				default:
+					return "INFO"
+				}
+			}(),
+		})
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -735,10 +721,11 @@ func (h *EndpointHandler) HandleSearchEndpointLogs(w http.ResponseWriter, r *htt
 			if size == 0 {
 				return 0
 			}
-			if total%size == 0 {
-				return total / size
+			totalInt := int(total)
+			if totalInt%size == 0 {
+				return totalInt / size
 			} else {
-				return total/size + 1
+				return totalInt/size + 1
 			}
 		}(),
 		"logs": logs,
@@ -763,15 +750,12 @@ func (h *EndpointHandler) HandleRecycleList(w http.ResponseWriter, r *http.Reque
 	db := h.endpointService.DB()
 
 	// 查询 TunnelRecycle 表所有字段
-	rows, err := db.Query(`SELECT id, name, mode, tunnelAddress, tunnelPort, targetAddress, targetPort, tlsMode,
-		certPath, keyPath, logLevel, commandLine, instanceId, password, tcpRx, tcpTx, udpRx, udpTx, min, max
-		FROM "TunnelRecycle" WHERE endpointId = ? ORDER BY id DESC`, endpointID)
-	if err != nil {
+	var recycledTunnels []models.TunnelRecycle
+	if err := db.Where("endpoint_id = ?", endpointID).Order("id DESC").Find(&recycledTunnels).Error; err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
 		return
 	}
-	defer rows.Close()
 
 	type recycleItem struct {
 		ID            int64          `json:"id"`
@@ -797,14 +781,43 @@ func (h *EndpointHandler) HandleRecycleList(w http.ResponseWriter, r *http.Reque
 	}
 
 	list := make([]recycleItem, 0)
-	for rows.Next() {
-		var item recycleItem
-		if err := rows.Scan(
-			&item.ID, &item.Name, &item.Mode, &item.TunnelAddress, &item.TunnelPort, &item.TargetAddress, &item.TargetPort, &item.TLSMode,
-			&item.CertPath, &item.KeyPath, &item.LogLevel, &item.CommandLine, &item.InstanceID, &item.Password, &item.TCPRx, &item.TCPTx, &item.UDPRx, &item.UDPTx, &item.Min, &item.Max,
-		); err == nil {
-			list = append(list, item)
+	for _, tunnel := range recycledTunnels {
+		item := recycleItem{
+			ID:            tunnel.ID,
+			Name:          tunnel.Name,
+			Mode:          string(tunnel.Mode),
+			TunnelAddress: tunnel.TunnelAddress,
+			TunnelPort:    tunnel.TunnelPort,
+			TargetAddress: tunnel.TargetAddress,
+			TargetPort:    tunnel.TargetPort,
+			TLSMode:       string(tunnel.TLSMode),
+			LogLevel:      string(tunnel.LogLevel),
+			CommandLine:   tunnel.CommandLine,
+			Password:      "", // 密码字段不返回
+			TCPRx:         tunnel.TCPRx,
+			TCPTx:         tunnel.TCPTx,
+			UDPRx:         tunnel.UDPRx,
+			UDPTx:         tunnel.UDPTx,
 		}
+
+		// 处理可选字段
+		if tunnel.CertPath != nil {
+			item.CertPath = sql.NullString{String: *tunnel.CertPath, Valid: true}
+		}
+		if tunnel.KeyPath != nil {
+			item.KeyPath = sql.NullString{String: *tunnel.KeyPath, Valid: true}
+		}
+		if tunnel.InstanceID != nil {
+			item.InstanceID = sql.NullString{String: *tunnel.InstanceID, Valid: true}
+		}
+		if tunnel.Min != nil {
+			item.Min = sql.NullInt64{Int64: *tunnel.Min, Valid: true}
+		}
+		if tunnel.Max != nil {
+			item.Max = sql.NullInt64{Int64: *tunnel.Max, Valid: true}
+		}
+
+		list = append(list, item)
 	}
 
 	json.NewEncoder(w).Encode(list)
@@ -826,8 +839,8 @@ func (h *EndpointHandler) HandleRecycleCount(w http.ResponseWriter, r *http.Requ
 	}
 
 	db := h.endpointService.DB()
-	var count int
-	err = db.QueryRow(`SELECT COUNT(*) FROM "TunnelRecycle" WHERE endpointId = ?`, endpointID).Scan(&count)
+	var count int64
+	err = db.Model(&models.TunnelRecycle{}).Where("endpoint_id = ?", endpointID).Count(&count).Error
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
@@ -858,10 +871,10 @@ func (h *EndpointHandler) HandleRecycleDelete(w http.ResponseWriter, r *http.Req
 	db := h.endpointService.DB()
 
 	// 获取 instanceId
-	var instanceNS sql.NullString
-	err := db.QueryRow(`SELECT instanceId FROM "TunnelRecycle" WHERE id = ? AND endpointId = ?`, recycleID, endpointID).Scan(&instanceNS)
+	var tunnelRecycle models.TunnelRecycle
+	err := db.Select("instance_id").Where("id = ? AND endpoint_id = ?", recycleID, endpointID).First(&tunnelRecycle).Error
 	if err != nil {
-		if err == sql.ErrNoRows {
+		if err == gorm.ErrRecordNotFound {
 			w.WriteHeader(http.StatusNotFound)
 			json.NewEncoder(w).Encode(map[string]interface{}{"error": "记录不存在"})
 			return
@@ -871,43 +884,34 @@ func (h *EndpointHandler) HandleRecycleDelete(w http.ResponseWriter, r *http.Req
 		return
 	}
 
-	tx, err := db.Begin()
+	err = db.Transaction(func(tx *gorm.DB) error {
+		// 删除 TunnelRecycle 记录
+		if err := tx.Delete(&models.TunnelRecycle{}, recycleID).Error; err != nil {
+			return err
+		}
+
+		// 删除 EndpointSSE 记录
+		if tunnelRecycle.InstanceID != nil && *tunnelRecycle.InstanceID != "" {
+			if err := tx.Delete(&models.EndpointSSE{}, "endpoint_id = ? AND instance_id = ?", endpointID, *tunnelRecycle.InstanceID).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
+
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
 		return
 	}
 
-	// 删除 TunnelRecycle 记录
-	if _, err := tx.Exec(`DELETE FROM "TunnelRecycle" WHERE id = ?`, recycleID); err != nil {
-		tx.Rollback()
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
-		return
-	}
-
-	// 删除 EndpointSSE 记录
-	if instanceNS.Valid {
-		if _, err := tx.Exec(`DELETE FROM "EndpointSSE" WHERE endpointId = ? AND instanceId = ?`, endpointID, instanceNS.String); err != nil {
-			tx.Rollback()
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
-			return
-		}
-	}
-
-	if err := tx.Commit(); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
-		return
-	}
-
 	// 清理文件日志（如果有有效的实例ID）
-	if instanceNS.Valid && h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
-		if err := h.sseManager.GetFileLogger().ClearLogs(endpointID, instanceNS.String); err != nil {
-			log.Warnf("[API] 回收站删除-清理文件日志失败: endpointID=%d, instanceID=%s, err=%v", endpointID, instanceNS.String, err)
+	if tunnelRecycle.InstanceID != nil && *tunnelRecycle.InstanceID != "" && h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
+		if err := h.sseManager.GetFileLogger().ClearLogs(endpointID, *tunnelRecycle.InstanceID); err != nil {
+			log.Warnf("[API] 回收站删除-清理文件日志失败: endpointID=%d, instanceID=%s, err=%v", endpointID, *tunnelRecycle.InstanceID, err)
 		} else {
-			log.Infof("[API] 回收站删除-已清理文件日志: endpointID=%d, instanceID=%s", endpointID, instanceNS.String)
+			log.Infof("[API] 回收站删除-已清理文件日志: endpointID=%d, instanceID=%s", endpointID, *tunnelRecycle.InstanceID)
 		}
 	}
 
@@ -923,18 +927,27 @@ func (h *EndpointHandler) HandleRecycleListAll(w http.ResponseWriter, r *http.Re
 
 	db := h.endpointService.DB()
 
-	rows, err := db.Query(`SELECT tr.id, tr.name, tr.mode, tr.tunnelAddress, tr.tunnelPort, tr.targetAddress, tr.targetPort, tr.tlsMode,
-		tr.certPath, tr.keyPath, tr.logLevel, tr.commandLine, tr.instanceId, tr.password, tr.tcpRx, tr.tcpTx, tr.udpRx, tr.udpTx, tr.min, tr.max,
-		tr.endpointId, ep.name as endpointName
-		FROM "TunnelRecycle" tr
-		JOIN "Endpoint" ep ON tr.endpointId = ep.id
-		ORDER BY tr.id DESC`)
-	if err != nil {
+	// 使用GORM查询TunnelRecycle
+	var recycledTunnels []models.TunnelRecycle
+	if err := db.Order("id DESC").Find(&recycledTunnels).Error; err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
 		return
 	}
-	defer rows.Close()
+
+	// 获取所有端点信息用于映射
+	var endpoints []models.Endpoint
+	if err := db.Find(&endpoints).Error; err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		return
+	}
+
+	// 创建端点ID到名称的映射
+	endpointMap := make(map[int64]string)
+	for _, ep := range endpoints {
+		endpointMap[ep.ID] = ep.Name
+	}
 
 	type recycleItemAll struct {
 		ID            int64          `json:"id"`
@@ -962,15 +975,45 @@ func (h *EndpointHandler) HandleRecycleListAll(w http.ResponseWriter, r *http.Re
 	}
 
 	list := make([]recycleItemAll, 0)
-	for rows.Next() {
-		var item recycleItemAll
-		if err := rows.Scan(
-			&item.ID, &item.Name, &item.Mode, &item.TunnelAddress, &item.TunnelPort, &item.TargetAddress, &item.TargetPort, &item.TLSMode,
-			&item.CertPath, &item.KeyPath, &item.LogLevel, &item.CommandLine, &item.InstanceID, &item.Password, &item.TCPRx, &item.TCPTx, &item.UDPRx, &item.UDPTx, &item.Min, &item.Max,
-			&item.EndpointID, &item.EndpointName,
-		); err == nil {
-			list = append(list, item)
+	for _, tunnel := range recycledTunnels {
+		item := recycleItemAll{
+			ID:            tunnel.ID,
+			EndpointID:    tunnel.EndpointID,
+			EndpointName:  endpointMap[tunnel.EndpointID],
+			Name:          tunnel.Name,
+			Mode:          string(tunnel.Mode),
+			TunnelAddress: tunnel.TunnelAddress,
+			TunnelPort:    tunnel.TunnelPort,
+			TargetAddress: tunnel.TargetAddress,
+			TargetPort:    tunnel.TargetPort,
+			TLSMode:       string(tunnel.TLSMode),
+			LogLevel:      string(tunnel.LogLevel),
+			CommandLine:   tunnel.CommandLine,
+			Password:      "", // 密码字段不返回
+			TCPRx:         tunnel.TCPRx,
+			TCPTx:         tunnel.TCPTx,
+			UDPRx:         tunnel.UDPRx,
+			UDPTx:         tunnel.UDPTx,
 		}
+
+		// 处理可选字段
+		if tunnel.CertPath != nil {
+			item.CertPath = sql.NullString{String: *tunnel.CertPath, Valid: true}
+		}
+		if tunnel.KeyPath != nil {
+			item.KeyPath = sql.NullString{String: *tunnel.KeyPath, Valid: true}
+		}
+		if tunnel.InstanceID != nil {
+			item.InstanceID = sql.NullString{String: *tunnel.InstanceID, Valid: true}
+		}
+		if tunnel.Min != nil {
+			item.Min = sql.NullInt64{Int64: *tunnel.Min, Valid: true}
+		}
+		if tunnel.Max != nil {
+			item.Max = sql.NullInt64{Int64: *tunnel.Max, Valid: true}
+		}
+
+		list = append(list, item)
 	}
 
 	json.NewEncoder(w).Encode(list)
@@ -991,44 +1034,37 @@ func (h *EndpointHandler) HandleRecycleClearAll(w http.ResponseWriter, r *http.R
 		InstanceID sql.NullString
 	}
 
-	rows, err := db.Query(`SELECT endpointId, instanceId FROM "TunnelRecycle" WHERE instanceId IS NOT NULL`)
-	if err == nil {
-		defer rows.Close()
-		for rows.Next() {
-			var item struct {
+	var allRecycles []models.TunnelRecycle
+	if err := db.Select("endpoint_id, instance_id").Where("instance_id IS NOT NULL AND instance_id != ''").Find(&allRecycles).Error; err == nil {
+		for _, recycle := range allRecycles {
+			item := struct {
 				EndpointID int64
 				InstanceID sql.NullString
+			}{
+				EndpointID: recycle.EndpointID,
 			}
-			if err := rows.Scan(&item.EndpointID, &item.InstanceID); err == nil {
-				recycleItems = append(recycleItems, item)
+			if recycle.InstanceID != nil {
+				item.InstanceID = sql.NullString{String: *recycle.InstanceID, Valid: true}
 			}
+			recycleItems = append(recycleItems, item)
 		}
 	}
 
-	tx, err := db.Begin()
+	err := db.Transaction(func(tx *gorm.DB) error {
+		// 删除 EndpointSSE 记录中对应实例
+		if err := tx.Where("instance_id IN (SELECT instance_id FROM tunnel_recycles WHERE instance_id IS NOT NULL AND instance_id != '')").Delete(&models.EndpointSSE{}).Error; err != nil {
+			return err
+		}
+
+		// 删除所有回收站记录
+		if err := tx.Where("1 = 1").Delete(&models.TunnelRecycle{}).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
+
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
-		return
-	}
-
-	// 删除 EndpointSSE 记录中对应实例
-	if _, err := tx.Exec(`DELETE FROM "EndpointSSE" WHERE instanceId IN (SELECT instanceId FROM "TunnelRecycle" WHERE instanceId IS NOT NULL)`); err != nil {
-		tx.Rollback()
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
-		return
-	}
-
-	// 删除所有回收站记录
-	if _, err := tx.Exec(`DELETE FROM "TunnelRecycle"`); err != nil {
-		tx.Rollback()
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
-		return
-	}
-
-	if err := tx.Commit(); err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
 		return
@@ -1067,134 +1103,200 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 	}
 
 	db := h.endpointService.DB()
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
 
 	// 记录 NodePass 实例 ID，便于后续删除不存在的隧道
 	instanceIDSet := make(map[string]struct{})
 
-	// Upsert
-	for _, inst := range instances {
-		if inst.Type == "" {
-			continue
-		}
-		instanceIDSet[inst.ID] = struct{}{}
+	return db.Transaction(func(tx *gorm.DB) error {
 
-		parsed := parseInstanceURL(inst.URL, inst.Type)
-
-		convPort := func(p string) int {
-			v, _ := strconv.Atoi(p)
-			return v
-		}
-		convInt := func(s string) interface{} {
-			if s == "" {
-				return nil
+		// Upsert
+		for _, inst := range instances {
+			if inst.Type == "" {
+				continue
 			}
-			v, _ := strconv.Atoi(s)
-			return v
-		}
+			instanceIDSet[inst.ID] = struct{}{}
 
-		// 检查隧道是否存在
-		var tunnelID int64
-		err := tx.QueryRow(`SELECT id FROM "Tunnel" WHERE instanceId = ?`, inst.ID).Scan(&tunnelID)
-		if err != nil && err != sql.ErrNoRows {
-			tx.Rollback()
-			return err
-		}
+			parsed := parseInstanceURL(inst.URL, inst.Type)
 
-		if err == sql.ErrNoRows {
-			// 插入新隧道 - 如果有 alias 则使用 alias，否则使用自动生成的名称
-			name := fmt.Sprintf("auto-%s", inst.ID)
-			if inst.Alias != "" {
-				name = inst.Alias
-				log.Infof("[API] 端点 %d 更新：使用别名作为隧道名称: %s -> %s", endpointID, inst.ID, name)
+			convPort := func(p string) int {
+				v, _ := strconv.Atoi(p)
+				return v
+			}
+			convInt := func(s string) interface{} {
+				if s == "" {
+					return nil
+				}
+				v, _ := strconv.Atoi(s)
+				return v
 			}
 
-			_, err = tx.Exec(`INSERT INTO "Tunnel" (
-				instanceId, name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort,
-				tlsMode, certPath, keyPath, logLevel, commandLine, password, status, min, max,
-				tcpRx, tcpTx, udpRx, udpTx, restart, createdAt, updatedAt)
-				VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-				inst.ID, name, endpointID, inst.Type,
-				parsed.TunnelAddress, convPort(parsed.TunnelPort), parsed.TargetAddress, convPort(parsed.TargetPort),
-				parsed.TLSMode, parsed.CertPath, parsed.KeyPath, parsed.LogLevel, inst.URL, parsed.Password, inst.Status,
-				convInt(parsed.Min), convInt(parsed.Max),
-				inst.TCPRx, inst.TCPTx, inst.UDPRx, inst.UDPTx, inst.Restart)
-			if err != nil {
-				tx.Rollback()
+			// 检查隧道是否存在
+			var tunnel models.Tunnel
+			err := tx.Where("instance_id = ?", inst.ID).First(&tunnel).Error
+			if err != nil && err != gorm.ErrRecordNotFound {
 				return err
 			}
-			log.Infof("[API] 端点 %d 更新：插入新隧道 %v", endpointID, inst.ID)
-		} else {
-			// 更新已有隧道 - 如果有 alias 则更新 name，同时更新 restart 字段
-			var namePart string
-			var nameParam interface{}
 
-			if inst.Alias != "" {
-				namePart = "name = ?,"
-				nameParam = inst.Alias
-				log.Infof("[API] 端点 %d 更新：使用别名更新隧道名称: %s -> %s", endpointID, inst.ID, inst.Alias)
+			if err == gorm.ErrRecordNotFound {
+				// 插入新隧道 - 如果有 alias 则使用 alias，否则使用自动生成的名称
+				name := fmt.Sprintf("auto-%s", inst.ID)
+				if inst.Alias != "" {
+					name = inst.Alias
+					log.Infof("[API] 端点 %d 更新：使用别名作为隧道名称: %s -> %s", endpointID, inst.ID, name)
+				}
+
+				// 创建新隧道记录
+				newTunnel := models.Tunnel{
+					InstanceID:    &inst.ID,
+					Name:          name,
+					EndpointID:    endpointID,
+					Mode:          models.TunnelMode(inst.Type),
+					TunnelAddress: parsed.TunnelAddress,
+					TunnelPort:    fmt.Sprintf("%d", convPort(parsed.TunnelPort)),
+					TargetAddress: parsed.TargetAddress,
+					TargetPort:    fmt.Sprintf("%d", convPort(parsed.TargetPort)),
+					TLSMode:       models.TLSMode(parsed.TLSMode),
+					LogLevel:      models.LogLevel(parsed.LogLevel),
+					CommandLine:   inst.URL,
+					Status:        models.TunnelStatus(inst.Status),
+					TCPRx:         inst.TCPRx,
+					TCPTx:         inst.TCPTx,
+					UDPRx:         inst.UDPRx,
+					UDPTx:         inst.UDPTx,
+					Restart:       inst.Restart,
+				}
+
+				// 处理可选字段
+				if parsed.CertPath != "" {
+					newTunnel.CertPath = &parsed.CertPath
+				}
+				if parsed.KeyPath != "" {
+					newTunnel.KeyPath = &parsed.KeyPath
+				}
+				if parsed.Password != "" {
+					newTunnel.Password = &parsed.Password
+				}
+				if minVal := convInt(parsed.Min); minVal != nil {
+					if minInt64, ok := minVal.(int64); ok {
+						newTunnel.Min = &minInt64
+					}
+				}
+				if maxVal := convInt(parsed.Max); maxVal != nil {
+					if maxInt64, ok := maxVal.(int64); ok {
+						newTunnel.Max = &maxInt64
+					}
+				}
+
+				err = tx.Create(&newTunnel).Error
+				if err != nil {
+					return err
+				}
+				log.Infof("[API] 端点 %d 更新：插入新隧道 %v", endpointID, inst.ID)
 			} else {
-				namePart = ""
-				nameParam = nil
-			}
+				// 更新已有隧道 - 如果有 alias 则更新 name，同时更新 restart 字段
+				var nameParam interface{}
 
-			if nameParam != nil {
-				_, err = tx.Exec(`UPDATE "Tunnel" SET 
-					`+namePart+` mode = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?,
-					tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, password = ?, status = ?,
-					min = ?, max = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, restart = ?, updatedAt = CURRENT_TIMESTAMP
-					WHERE id = ?`,
-					nameParam, inst.Type, parsed.TunnelAddress, convPort(parsed.TunnelPort), parsed.TargetAddress, convPort(parsed.TargetPort),
-					parsed.TLSMode, parsed.CertPath, parsed.KeyPath, parsed.LogLevel, inst.URL, parsed.Password, inst.Status,
-					convInt(parsed.Min), convInt(parsed.Max), inst.TCPRx, inst.TCPTx, inst.UDPRx, inst.UDPTx, inst.Restart, tunnelID)
-			} else {
-				_, err = tx.Exec(`UPDATE "Tunnel" SET 
-					mode = ?, tunnelAddress = ?, tunnelPort = ?, targetAddress = ?, targetPort = ?,
-					tlsMode = ?, certPath = ?, keyPath = ?, logLevel = ?, commandLine = ?, password = ?, status = ?,
-					min = ?, max = ?, tcpRx = ?, tcpTx = ?, udpRx = ?, udpTx = ?, restart = ?, updatedAt = CURRENT_TIMESTAMP
-					WHERE id = ?`,
-					inst.Type, parsed.TunnelAddress, convPort(parsed.TunnelPort), parsed.TargetAddress, convPort(parsed.TargetPort),
-					parsed.TLSMode, parsed.CertPath, parsed.KeyPath, parsed.LogLevel, inst.URL, parsed.Password, inst.Status,
-					convInt(parsed.Min), convInt(parsed.Max), inst.TCPRx, inst.TCPTx, inst.UDPRx, inst.UDPTx, inst.Restart, tunnelID)
-			}
+				if inst.Alias != "" {
+					nameParam = inst.Alias
+					log.Infof("[API] 端点 %d 更新：使用别名更新隧道名称: %s -> %s", endpointID, inst.ID, inst.Alias)
+				} else {
+					nameParam = nil
+				}
 
-			if err != nil {
-				tx.Rollback()
-				return err
-			}
-			log.Infof("[API] 端点 %d 更新：更新隧道信息 %v", endpointID, inst.ID)
-		}
-	}
+				// 准备更新数据
+				updateData := map[string]interface{}{
+					"mode":           models.TunnelMode(inst.Type),
+					"tunnel_address": parsed.TunnelAddress,
+					"tunnel_port":    fmt.Sprintf("%d", convPort(parsed.TunnelPort)),
+					"target_address": parsed.TargetAddress,
+					"target_port":    fmt.Sprintf("%d", convPort(parsed.TargetPort)),
+					"tls_mode":       models.TLSMode(parsed.TLSMode),
+					"log_level":      models.LogLevel(parsed.LogLevel),
+					"command_line":   inst.URL,
+					"status":         models.TunnelStatus(inst.Status),
+					"tcp_rx":         inst.TCPRx,
+					"tcp_tx":         inst.TCPTx,
+					"udp_rx":         inst.UDPRx,
+					"udp_tx":         inst.UDPTx,
+					"restart":        inst.Restart,
+				}
 
-	// 删除已不存在的隧道
-	rows, err := tx.Query(`SELECT id, instanceId FROM "Tunnel" WHERE endpointId = ?`, endpointID)
-	if err != nil {
-		tx.Rollback()
-		return err
-	}
-	defer rows.Close()
+				// 处理可选字段
+				if parsed.CertPath != "" {
+					updateData["cert_path"] = parsed.CertPath
+				} else {
+					updateData["cert_path"] = nil
+				}
+				if parsed.KeyPath != "" {
+					updateData["key_path"] = parsed.KeyPath
+				} else {
+					updateData["key_path"] = nil
+				}
+				if parsed.Password != "" {
+					updateData["password"] = parsed.Password
+				} else {
+					updateData["password"] = nil
+				}
+				if minVal := convInt(parsed.Min); minVal != nil {
+					updateData["min"] = minVal
+				} else {
+					updateData["min"] = nil
+				}
+				if maxVal := convInt(parsed.Max); maxVal != nil {
+					updateData["max"] = maxVal
+				} else {
+					updateData["max"] = nil
+				}
 
-	for rows.Next() {
-		var id int64
-		var iid string
-		if err := rows.Scan(&id, &iid); err == nil {
-			if _, ok := instanceIDSet[iid]; !ok {
-				if _, err := tx.Exec(`DELETE FROM "Tunnel" WHERE id = ?`, id); err != nil {
+				// 如果有别名，则更新名称
+				if nameParam != nil {
+					updateData["name"] = nameParam
+				}
+
+				err = tx.Model(&models.Tunnel{}).Where("id = ?", tunnel.ID).Updates(updateData).Error
+
+				if err != nil {
 					tx.Rollback()
 					return err
 				}
-				log.Infof("[API] 端点 %d 更新：删除隧道 %v", endpointID, id)
+				log.Infof("[API] 端点 %d 更新：更新隧道信息 %v", endpointID, inst.ID)
 			}
 		}
+
+		// 删除已不存在的隧道
+		var existingTunnels []models.Tunnel
+		err = tx.Select("id, instance_id").Where("endpoint_id = ?", endpointID).Find(&existingTunnels).Error
+		if err != nil {
+			return err
+		}
+
+		for _, tunnel := range existingTunnels {
+			if tunnel.InstanceID != nil {
+				if _, ok := instanceIDSet[*tunnel.InstanceID]; !ok {
+					err = tx.Delete(&models.Tunnel{}, tunnel.ID).Error
+					if err != nil {
+						return err
+					}
+					log.Infof("[API] 端点 %d 更新：删除隧道 %v", endpointID, tunnel.ID)
+				}
+			}
+		}
+
+		// 移除同步隧道计数更新，改为异步处理避免死锁
+		log.Infof("[API] 端点 %d 更新：将异步更新隧道数量", endpointID)
+		return nil
+	})
+
+	// 如果事务成功，异步更新隧道计数
+	if err == nil {
+		go func(id int64) {
+			time.Sleep(50 * time.Millisecond)
+			// 调用端点服务的隧道计数更新方法
+			updateEndpointTunnelCount(id)
+		}(endpointID)
 	}
 
-	// 更新端点隧道数量
-	_, _ = tx.Exec(`UPDATE "Endpoint" SET tunnelCount = (SELECT COUNT(*) FROM "Tunnel" WHERE endpointId = ?) WHERE id = ?`, endpointID, endpointID)
-	log.Infof("[API] 端点 %d 更新：更新隧道数量", endpointID)
-	return tx.Commit()
+	return err
 }
 
 // parseInstanceURL 解析隧道 URL，逻辑与 tunnel 包保持一致（简化复制）
@@ -1495,14 +1597,49 @@ func (h *EndpointHandler) HandleGetEndpointInfo(w http.ResponseWriter, r *http.R
 		}
 
 		infoResponse := endpoint.NodePassInfo{
-			OS:     ep.OS,
-			Arch:   ep.Arch,
-			Ver:    ep.Ver,
-			Name:   ep.Name,
-			Log:    ep.Log,
-			TLS:    ep.TLS,
-			Crt:    ep.Crt,
-			Key:    ep.KeyPath,
+			OS: func() string {
+				if ep.OS != nil {
+					return *ep.OS
+				}
+				return ""
+			}(),
+			Arch: func() string {
+				if ep.Arch != nil {
+					return *ep.Arch
+				}
+				return ""
+			}(),
+			Ver: func() string {
+				if ep.Ver != nil {
+					return *ep.Ver
+				}
+				return ""
+			}(),
+			Name: ep.Name,
+			Log: func() string {
+				if ep.Log != nil {
+					return *ep.Log
+				}
+				return ""
+			}(),
+			TLS: func() string {
+				if ep.TLS != nil {
+					return *ep.TLS
+				}
+				return ""
+			}(),
+			Crt: func() string {
+				if ep.Crt != nil {
+					return *ep.Crt
+				}
+				return ""
+			}(),
+			Key: func() string {
+				if ep.KeyPath != nil {
+					return *ep.KeyPath
+				}
+				return ""
+			}(),
 			Uptime: storedUptime,
 		}
 
@@ -1750,25 +1887,26 @@ func (h *EndpointHandler) HandleEndpointStats(w http.ResponseWriter, r *http.Req
 
 // getTunnelStats 获取隧道数量和流量统计
 func (h *EndpointHandler) getTunnelStats(endpointID int64) (int, int64, int64, int64, int64, error) {
-	query := `
+	var result struct {
+		Count  int   `json:"count"`
+		TcpIn  int64 `json:"tcp_in"`
+		TcpOut int64 `json:"tcp_out"`
+		UdpIn  int64 `json:"udp_in"`
+		UdpOut int64 `json:"udp_out"`
+	}
+
+	err := h.endpointService.DB().Raw(`
 		SELECT 
 			COUNT(*) as count,
-			COALESCE(SUM(tcpRx), 0) as tcpIn,
-			COALESCE(SUM(tcpTx), 0) as tcpOut,
-			COALESCE(SUM(udpRx), 0) as udpIn,
-			COALESCE(SUM(udpTx), 0) as udpOut
-		FROM Tunnel 
-		WHERE endpointId = ?
-	`
+			COALESCE(SUM(tcp_rx), 0) as tcp_in,
+			COALESCE(SUM(tcp_tx), 0) as tcp_out,
+			COALESCE(SUM(udp_rx), 0) as udp_in,
+			COALESCE(SUM(udp_tx), 0) as udp_out
+		FROM tunnels 
+		WHERE endpoint_id = ?
+	`, endpointID).Scan(&result).Error
 
-	var count int
-	var tcpIn, tcpOut, udpIn, udpOut int64
-
-	err := h.endpointService.DB().QueryRow(query, endpointID).Scan(
-		&count, &tcpIn, &tcpOut, &udpIn, &udpOut,
-	)
-
-	return count, tcpIn, tcpOut, udpIn, udpOut, err
+	return result.Count, result.TcpIn, result.TcpOut, result.UdpIn, result.UdpOut, err
 }
 
 // getFileLogStats 获取文件日志统计
@@ -1809,4 +1947,18 @@ func (h *EndpointHandler) calculateDirStats(dirPath string) (int, int64) {
 	})
 
 	return fileCount, totalSize
+}
+
+// updateEndpointTunnelCount 更新端点的隧道计数，使用重试机制避免死锁
+func updateEndpointTunnelCount(endpointID int64) {
+	err := db.ExecuteWithRetry(func(db *gorm.DB) error {
+		return db.Model(&models.Endpoint{}).Where("id = ?", endpointID).
+			Update("tunnel_count", gorm.Expr("(SELECT COUNT(*) FROM tunnels WHERE endpoint_id = ?)", endpointID)).Error
+	})
+
+	if err != nil {
+		log.Errorf("[API]更新端点 %d 隧道计数失败: %v", endpointID, err)
+	} else {
+		log.Debugf("[API]端点 %d 隧道计数已更新", endpointID)
+	}
 }

@@ -67,11 +67,18 @@ const (
 type OperationAction string
 
 const (
-	OperationActionCreated   OperationAction = "created"
-	OperationActionDeleted   OperationAction = "deleted"
-	OperationActionStarted   OperationAction = "started"
-	OperationActionStopped   OperationAction = "stopped"
-	OperationActionRestarted OperationAction = "restarted"
-	OperationActionRenamed   OperationAction = "renamed"
-	OperationActionError     OperationAction = "error"
+	OperationActionCreate       OperationAction = "create"
+	OperationActionCreated      OperationAction = "created"
+	OperationActionDelete       OperationAction = "delete"
+	OperationActionDeleted      OperationAction = "deleted"
+	OperationActionStart        OperationAction = "start"
+	OperationActionStarted      OperationAction = "started"
+	OperationActionStop         OperationAction = "stop"
+	OperationActionStopped      OperationAction = "stopped"
+	OperationActionRestart      OperationAction = "restart"
+	OperationActionRestarted    OperationAction = "restarted"
+	OperationActionRename       OperationAction = "rename"
+	OperationActionRenamed      OperationAction = "renamed"
+	OperationActionResetTraffic OperationAction = "reset_traffic"
+	OperationActionError        OperationAction = "error"
 )

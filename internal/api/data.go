@@ -1,23 +1,35 @@
 package api
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
 	"time"
 
+	"NodePassDash/internal/db"
+	"NodePassDash/internal/endpoint"
 	log "NodePassDash/internal/log"
+	"NodePassDash/internal/models"
 	"NodePassDash/internal/sse"
+	"NodePassDash/internal/tunnel"
+
+	"gorm.io/gorm"
 )
 
 // DataHandler 负责导入/导出数据
 type DataHandler struct {
-	db         *sql.DB
-	sseManager *sse.Manager
+	db              *gorm.DB
+	sseManager      *sse.Manager
+	endpointService *endpoint.Service
+	tunnelService   *tunnel.Service
 }
 
-func NewDataHandler(db *sql.DB, mgr *sse.Manager) *DataHandler {
-	return &DataHandler{db: db, sseManager: mgr}
+func NewDataHandler(db *gorm.DB, mgr *sse.Manager, endpointService *endpoint.Service, tunnelService *tunnel.Service) *DataHandler {
+	return &DataHandler{
+		db:              db,
+		sseManager:      mgr,
+		endpointService: endpointService,
+		tunnelService:   tunnelService,
+	}
 }
 
 // EndpointExport 导出端点结构（简化版，仅包含基本配置信息）
@@ -65,29 +77,36 @@ func (h *DataHandler) HandleExport(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 查询端点（仅导出基本配置信息，不包括状态和隧道信息）
-	rows, err := h.db.Query(`SELECT name, url, apiPath, apiKey, COALESCE(color, '') as color FROM "Endpoint" ORDER BY id`)
+	// 使用服务层获取所有端点
+	endpoints, err := h.endpointService.GetEndpoints()
 	if err != nil {
 		log.Errorf("export query endpoints: %v", err)
 		http.Error(w, "export failed", http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
 
-	var endpoints []EndpointExport
-	for rows.Next() {
-		var ep EndpointExport
-		if err := rows.Scan(&ep.Name, &ep.URL, &ep.APIPath, &ep.APIKey, &ep.Color); err != nil {
-			continue
+	var exportEndpoints []EndpointExport
+	for _, ep := range endpoints {
+		exportEp := EndpointExport{
+			Name:    ep.Name,
+			URL:     ep.URL,
+			APIPath: ep.APIPath,
+			APIKey:  ep.APIKey,
 		}
-		endpoints = append(endpoints, ep)
+
+		// 设置颜色（如果有）
+		if ep.Color != nil {
+			exportEp.Color = *ep.Color
+		}
+
+		exportEndpoints = append(exportEndpoints, exportEp)
 	}
 
 	payload := map[string]interface{}{
 		"version":   "2.0", // 更新版本号以表示新的简化格式
 		"timestamp": time.Now().Format(time.RFC3339),
 		"data": map[string]interface{}{
-			"endpoints": endpoints,
+			"endpoints": exportEndpoints,
 		},
 	}
 
@@ -129,7 +148,6 @@ func (h *DataHandler) handleImportV1(w http.ResponseWriter, r *http.Request, bas
 	Data      interface{} `json:"data"`
 }) {
 	// 重新解析完整的v1格式数据
-	r.Body.Close()
 	var importDataV1 struct {
 		Version   string `json:"version"`
 		Timestamp string `json:"timestamp"`
@@ -147,14 +165,7 @@ func (h *DataHandler) handleImportV1(w http.ResponseWriter, r *http.Request, bas
 
 	var skippedEndpoints, importedEndpoints, importedTunnels int
 
-	tx, err := h.db.Begin()
-	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
-		return
-	}
-	defer tx.Rollback()
-
-	// 存储新创建的端点信息，用于后续启动SSE
+	// 存储新创建的端点信息，用于后续启动SSE和异步更新隧道计数
 	var newEndpoints []struct {
 		ID      int64
 		URL     string
@@ -162,101 +173,180 @@ func (h *DataHandler) handleImportV1(w http.ResponseWriter, r *http.Request, bas
 		APIKey  string
 	}
 
-	for _, ep := range importDataV1.Data.Endpoints {
-		var endpointID int64
+	// 使用GORM事务
+	err := h.db.Transaction(func(tx *gorm.DB) error {
 
-		// 检查端点是否已存在
-		if err := tx.QueryRow(`SELECT id FROM "Endpoint" WHERE url = ? AND apiPath = ?`, ep.URL, ep.APIPath).Scan(&endpointID); err != nil {
-			if err == sql.ErrNoRows {
-				// 端点不存在，创建新端点
-				status := ep.Status
-				if status == "" {
-					status = "OFFLINE"
+		for _, ep := range importDataV1.Data.Endpoints {
+			// 检查端点是否已存在
+			var existingEndpoint models.Endpoint
+			err := tx.Where("url = ? AND api_path = ?", ep.URL, ep.APIPath).First(&existingEndpoint).Error
+
+			if err == nil {
+				// 端点已存在，跳过
+				skippedEndpoints++
+				continue
+			} else if err != gorm.ErrRecordNotFound {
+				// 查询出错
+				log.Errorf("查询端点失败: %v", err)
+				continue
+			}
+
+			// 端点不存在，创建新端点
+			status := models.EndpointStatusOffline
+			if ep.Status != "" {
+				switch ep.Status {
+				case "ONLINE":
+					status = models.EndpointStatusOnline
+				case "OFFLINE":
+					status = models.EndpointStatusOffline
+				}
+			}
+
+			newEndpoint := models.Endpoint{
+				Name:      ep.Name,
+				URL:       ep.URL,
+				APIPath:   ep.APIPath,
+				APIKey:    ep.APIKey,
+				Status:    status,
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+
+			if err := tx.Create(&newEndpoint).Error; err != nil {
+				log.Errorf("插入端点失败: %v", err)
+				continue
+			}
+
+			// 保存端点信息用于后续启动SSE
+			newEndpoints = append(newEndpoints, struct {
+				ID      int64
+				URL     string
+				APIPath string
+				APIKey  string
+			}{
+				ID:      newEndpoint.ID,
+				URL:     ep.URL,
+				APIPath: ep.APIPath,
+				APIKey:  ep.APIKey,
+			})
+
+			importedEndpoints++
+
+			// 导入该端点的隧道数据
+			for _, tunnel := range ep.Tunnels {
+				// 检查隧道是否已存在
+				var existingTunnel models.Tunnel
+				instanceID := tunnel.InstanceID
+				if instanceID != "" {
+					err := tx.Where("endpoint_id = ? AND instance_id = ?", newEndpoint.ID, instanceID).First(&existingTunnel).Error
+					if err == nil {
+						// 隧道已存在，跳过
+						continue
+					}
 				}
 
-				result, err := tx.Exec(`INSERT INTO "Endpoint" (name, url, apiPath, apiKey, status, tunnelCount, createdAt, updatedAt) VALUES (?, ?, ?, ?, ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-					ep.Name, ep.URL, ep.APIPath, ep.APIKey, status)
-				if err != nil {
-					log.Errorf("insert endpoint failed: %v", err)
+				// 创建新隧道
+				tunnelStatus := models.TunnelStatusStopped
+				switch tunnel.Status {
+				case "running":
+					tunnelStatus = models.TunnelStatusRunning
+				case "stopped":
+					tunnelStatus = models.TunnelStatusStopped
+				case "error":
+					tunnelStatus = models.TunnelStatusError
+				case "offline":
+					tunnelStatus = models.TunnelStatusOffline
+				}
+
+				tunnelMode := models.TunnelModeClient
+				if tunnel.Mode == "server" {
+					tunnelMode = models.TunnelModeServer
+				}
+
+				tlsMode := models.TLSModeInherit
+				switch tunnel.TLSMode {
+				case "mode0":
+					tlsMode = models.TLSMode0
+				case "mode1":
+					tlsMode = models.TLSMode1
+				case "mode2":
+					tlsMode = models.TLSMode2
+				}
+
+				logLevel := models.LogLevelInherit
+				switch tunnel.LogLevel {
+				case "debug":
+					logLevel = models.LogLevelDebug
+				case "info":
+					logLevel = models.LogLevelInfo
+				case "warn":
+					logLevel = models.LogLevelWarn
+				case "error":
+					logLevel = models.LogLevelError
+				}
+
+				newTunnel := models.Tunnel{
+					Name:          tunnel.Name,
+					EndpointID:    newEndpoint.ID,
+					Mode:          tunnelMode,
+					Status:        tunnelStatus,
+					TunnelAddress: tunnel.TunnelAddress,
+					TunnelPort:    tunnel.TunnelPort,
+					TargetAddress: tunnel.TargetAddress,
+					TargetPort:    tunnel.TargetPort,
+					TLSMode:       tlsMode,
+					LogLevel:      logLevel,
+					CommandLine:   tunnel.CommandLine,
+					CreatedAt:     time.Now(),
+					UpdatedAt:     time.Now(),
+				}
+
+				if instanceID != "" {
+					newTunnel.InstanceID = &instanceID
+				}
+
+				if err := tx.Create(&newTunnel).Error; err != nil {
+					log.Errorf("插入隧道失败: %v", err)
 					continue
 				}
 
-				// 获取新创建的端点ID
-				endpointID, err = result.LastInsertId()
-				if err != nil {
-					log.Errorf("get last insert id failed: %v", err)
-					continue
-				}
-
-				// 保存端点信息用于后续启动SSE
-				newEndpoints = append(newEndpoints, struct {
-					ID      int64
-					URL     string
-					APIPath string
-					APIKey  string
-				}{
-					ID:      endpointID,
-					URL:     ep.URL,
-					APIPath: ep.APIPath,
-					APIKey:  ep.APIKey,
-				})
-
-				importedEndpoints++
-			} else {
-				log.Errorf("check endpoint exists failed: %v", err)
-				continue
+				importedTunnels++
 			}
-		} else {
-			// 端点已存在
-			skippedEndpoints++
+
+			// 端点隧道计数将在事务完成后异步更新
 		}
 
-		// 无论端点是否存在，都要处理隧道数据
-		for _, tunnel := range ep.Tunnels {
-			// 检查隧道是否已存在（通过端点ID和隧道名称）
-			var tunnelExists bool
-			if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM "Tunnel" WHERE endpointId = ? AND name = ?)`, endpointID, tunnel.Name).Scan(&tunnelExists); err != nil {
-				log.Errorf("check tunnel exists failed: %v", err)
-				continue
+		// 将newEndpoints存储到外部作用域，这里需要用一个技巧
+		// 由于Go的闭包特性，我们可以修改外部的变量
+		// 为每个新导入的端点启动SSE监听
+		if h.sseManager != nil {
+			for _, ep := range newEndpoints {
+				go func(endpointID int64, url, apiPath, apiKey string) {
+					log.Infof("[Master-%v] v1数据导入成功，准备启动 SSE 监听", endpointID)
+					if err := h.sseManager.ConnectEndpoint(endpointID, url, apiPath, apiKey); err != nil {
+						log.Errorf("[Master-%v] 启动 SSE 监听失败: %v", endpointID, err)
+					}
+				}(ep.ID, ep.URL, ep.APIPath, ep.APIKey)
 			}
-			if tunnelExists {
-				log.Infof("隧道 %s 已存在于端点 %d，跳过导入", tunnel.Name, endpointID)
-				continue
-			}
-
-			// 插入隧道数据（确保tunnel.Name被正确导入，包含commandLine字段）
-			_, err := tx.Exec(`INSERT INTO "Tunnel" (
-				name, endpointId, mode, tunnelAddress, tunnelPort, targetAddress, targetPort,
-				tlsMode, logLevel, commandLine, instanceId, createdAt, updatedAt
-			) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-				tunnel.Name, endpointID, tunnel.Mode, tunnel.TunnelAddress, tunnel.TunnelPort,
-				tunnel.TargetAddress, tunnel.TargetPort, tunnel.TLSMode, tunnel.LogLevel, tunnel.CommandLine, tunnel.InstanceID)
-
-			if err != nil {
-				log.Errorf("insert tunnel failed: %v", err)
-				continue
-			}
-
-			log.Infof("成功导入隧道: %s 到端点 %d", tunnel.Name, endpointID)
-			importedTunnels++
 		}
-	}
 
-	if err := tx.Commit(); err != nil {
-		http.Error(w, "commit failed", http.StatusInternalServerError)
+		return nil
+	})
+
+	if err != nil {
+		log.Errorf("v1导入事务失败: %v", err)
+		http.Error(w, "导入失败", http.StatusInternalServerError)
 		return
 	}
 
-	// 为每个新导入的端点启动SSE监听
-	if h.sseManager != nil {
-		for _, ep := range newEndpoints {
-			go func(endpointID int64, url, apiPath, apiKey string) {
-				log.Infof("[Master-%v] v1数据导入成功，准备启动 SSE 监听", endpointID)
-				if err := h.sseManager.ConnectEndpoint(endpointID, url, apiPath, apiKey); err != nil {
-					log.Errorf("[Master-%v] 启动 SSE 监听失败: %v", endpointID, err)
-				}
-			}(ep.ID, ep.URL, ep.APIPath, ep.APIKey)
-		}
+	// 异步更新所有新导入端点的隧道计数
+	if len(newEndpoints) > 0 {
+		go func() {
+			time.Sleep(100 * time.Millisecond) // 稍作延迟确保事务提交完成
+			for _, ep := range newEndpoints {
+				updateEndpointTunnelCountForData(ep.ID)
+			}
+		}()
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -292,77 +382,80 @@ func (h *DataHandler) handleImportV2(w http.ResponseWriter, r *http.Request, bas
 	var skippedEndpoints int
 	var importedEndpoints int
 
-	tx, err := h.db.Begin()
-	if err != nil {
-		http.Error(w, "db error", http.StatusInternalServerError)
-		return
-	}
-	defer tx.Rollback()
-
-	// 存储新创建的端点信息，用于后续启动SSE
-	var newEndpoints []struct {
-		ID      int64
-		URL     string
-		APIPath string
-		APIKey  string
-	}
-
-	for _, ep := range importDataV2.Data.Endpoints {
-		var exists bool
-		if err := tx.QueryRow(`SELECT EXISTS(SELECT 1 FROM "Endpoint" WHERE url = ? AND apiPath = ?)`, ep.URL, ep.APIPath).Scan(&exists); err != nil {
-			continue
-		}
-		if exists {
-			skippedEndpoints++
-			continue
-		}
-
-		// 插入端点，设置默认状态为 OFFLINE
-		result, err := tx.Exec(`INSERT INTO "Endpoint" (name, url, apiPath, apiKey, status, color, tunnelCount, createdAt, updatedAt) VALUES (?, ?, ?, ?, 'OFFLINE', ?, 0, CURRENT_TIMESTAMP, CURRENT_TIMESTAMP)`,
-			ep.Name, ep.URL, ep.APIPath, ep.APIKey, ep.Color)
-		if err != nil {
-			log.Errorf("insert endpoint failed: %v", err)
-			continue
-		}
-
-		// 获取新创建的端点ID
-		endpointID, err := result.LastInsertId()
-		if err != nil {
-			log.Errorf("get last insert id failed: %v", err)
-			continue
-		}
-
-		// 保存端点信息用于后续启动SSE
-		newEndpoints = append(newEndpoints, struct {
+	// 使用GORM事务
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		// 存储新创建的端点信息，用于后续启动SSE
+		var newEndpoints []struct {
 			ID      int64
 			URL     string
 			APIPath string
 			APIKey  string
-		}{
-			ID:      endpointID,
-			URL:     ep.URL,
-			APIPath: ep.APIPath,
-			APIKey:  ep.APIKey,
-		})
-
-		importedEndpoints++
-	}
-
-	if err := tx.Commit(); err != nil {
-		http.Error(w, "commit failed", http.StatusInternalServerError)
-		return
-	}
-
-	// 为每个新导入的端点启动SSE监听
-	if h.sseManager != nil {
-		for _, ep := range newEndpoints {
-			go func(endpointID int64, url, apiPath, apiKey string) {
-				log.Infof("[Master-%v] v2数据导入成功，准备启动 SSE 监听", endpointID)
-				if err := h.sseManager.ConnectEndpoint(endpointID, url, apiPath, apiKey); err != nil {
-					log.Errorf("[Master-%v] 启动 SSE 监听失败: %v", endpointID, err)
-				}
-			}(ep.ID, ep.URL, ep.APIPath, ep.APIKey)
 		}
+
+		for _, ep := range importDataV2.Data.Endpoints {
+			// 检查端点是否已存在
+			var existingEndpoint models.Endpoint
+			if err := tx.Where("url = ? AND api_path = ?", ep.URL, ep.APIPath).First(&existingEndpoint).Error; err == nil {
+				skippedEndpoints++
+				continue
+			}
+
+			// 插入端点，设置默认状态为 OFFLINE
+			newEndpoint := models.Endpoint{
+				Name:      ep.Name,
+				URL:       ep.URL,
+				APIPath:   ep.APIPath,
+				APIKey:    ep.APIKey,
+				Status:    models.EndpointStatusOffline,
+				LastCheck: time.Now(), // 添加 LastCheck 默认值
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+
+			if ep.Color != "" {
+				newEndpoint.Color = &ep.Color
+			}
+
+			if err := tx.Create(&newEndpoint).Error; err != nil {
+				log.Errorf("插入端点失败: %v", err)
+				continue
+			}
+
+			// 保存端点信息用于后续启动SSE
+			newEndpoints = append(newEndpoints, struct {
+				ID      int64
+				URL     string
+				APIPath string
+				APIKey  string
+			}{
+				ID:      newEndpoint.ID,
+				URL:     ep.URL,
+				APIPath: ep.APIPath,
+				APIKey:  ep.APIKey,
+			})
+
+			importedEndpoints++
+		}
+
+		// 为每个新导入的端点启动SSE监听
+		if h.sseManager != nil {
+			for _, ep := range newEndpoints {
+				go func(endpointID int64, url, apiPath, apiKey string) {
+					log.Infof("[Master-%v] v2数据导入成功，准备启动 SSE 监听", endpointID)
+					if err := h.sseManager.ConnectEndpoint(endpointID, url, apiPath, apiKey); err != nil {
+						log.Errorf("[Master-%v] 启动 SSE 监听失败: %v", endpointID, err)
+					}
+				}(ep.ID, ep.URL, ep.APIPath, ep.APIKey)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Errorf("v2导入事务失败: %v", err)
+		http.Error(w, "导入失败", http.StatusInternalServerError)
+		return
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -371,4 +464,18 @@ func (h *DataHandler) handleImportV2(w http.ResponseWriter, r *http.Request, bas
 		"importedEndpoints": importedEndpoints,
 		"skippedEndpoints":  skippedEndpoints,
 	})
+}
+
+// updateEndpointTunnelCountForData 更新端点的隧道计数，用于数据导入后的异步更新
+func updateEndpointTunnelCountForData(endpointID int64) {
+	err := db.ExecuteWithRetry(func(db *gorm.DB) error {
+		return db.Model(&models.Endpoint{}).Where("id = ?", endpointID).
+			Update("tunnel_count", gorm.Expr("(SELECT COUNT(*) FROM tunnels WHERE endpoint_id = ?)", endpointID)).Error
+	})
+
+	if err != nil {
+		log.Errorf("[数据导入]更新端点 %d 隧道计数失败: %v", endpointID, err)
+	} else {
+		log.Debugf("[数据导入]端点 %d 隧道计数已更新", endpointID)
+	}
 }

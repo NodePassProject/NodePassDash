@@ -158,6 +158,10 @@ export default function TunnelsPage() {
   // 是否移入回收站
   const [moveToRecycle, setMoveToRecycle] = useState(false);
 
+  // 分页信息
+  const [totalItems, setTotalItems] = useState(0);
+  const [totalPages, setTotalPages] = useState(1);
+
   // 编辑模态控制
   const [editModalOpen,setEditModalOpen]=useState(false);
   const [editTunnel,setEditTunnel]=useState<Tunnel|null>(null);
@@ -196,13 +200,51 @@ export default function TunnelsPage() {
   };
 
   // 获取实例列表
-  const fetchTunnels = async () => {
+  const fetchTunnels = useCallback(async () => {
     try {
       setLoading(true);
-      const response = await fetch(buildApiUrl('/api/tunnels'));
+      
+      // 构建查询参数
+      const params = new URLSearchParams();
+      
+      // 筛选参数
+      if (filterValue) {
+        params.append('search', filterValue);
+      }
+      if (statusFilter && statusFilter !== "all") {
+        params.append('status', statusFilter);
+      }
+      if (endpointFilter && endpointFilter !== "all") {
+        params.append('endpoint_id', endpointFilter);
+      }
+      if (tagFilter && tagFilter !== "all") {
+        params.append('tag_id', tagFilter);
+      }
+      
+      // 分页参数
+      params.append('page', page.toString());
+      params.append('page_size', rowsPerPage.toString());
+      
+      // 排序参数
+      if (sortDescriptor.column) {
+        params.append('sort_by', sortDescriptor.column);
+        params.append('sort_order', sortDescriptor.direction === 'ascending' ? 'asc' : 'desc');
+      }
+      
+      const url = buildApiUrl('/api/tunnels') + '?' + params.toString();
+      const response = await fetch(url);
       if (!response.ok) throw new Error('获取实例列表失败');
-      const data = await response.json();
-      setTunnels(data);
+      const result = await response.json();
+      
+      // 更新数据和分页信息
+      setTunnels(result.data || []);
+      setTotalItems(result.total || 0);
+      setTotalPages(result.total_pages || 1);
+      
+      // 如果总页数发生变化，可能需要调整当前页
+      if (page > (result.total_pages || 1) && (result.total_pages || 1) > 0) {
+        setPage(result.total_pages || 1);
+      }
     } catch (error) {
       console.error('获取实例列表失败:', error);
       addToast({
@@ -213,7 +255,7 @@ export default function TunnelsPage() {
     } finally {
       setLoading(false);
     }
-  };
+  }, [filterValue, statusFilter, endpointFilter, tagFilter, page, rowsPerPage, sortDescriptor]);
 
   // 获取主控列表
   const fetchEndpoints = async () => {
@@ -772,6 +814,11 @@ export default function TunnelsPage() {
     fetchTags();
   }, []);
 
+  // 监听过滤参数变化，重新获取数据
+  React.useEffect(() => {
+    fetchTunnels();
+  }, [filterValue, statusFilter, endpointFilter, tagFilter, page, rowsPerPage, sortDescriptor]);
+
 
 
   const columns = [
@@ -981,83 +1028,13 @@ export default function TunnelsPage() {
     fetchTags();
   };
 
+  // 由于筛选和排序已移到后端，这里直接返回隧道列表
   const filteredItems = React.useMemo(() => {
-    let filtered = [...tunnels];
+    return tunnels;
+  }, [tunnels]);
 
-    if (filterValue) {
-      filtered = filtered.filter(item =>
-        item.name.toLowerCase().includes(filterValue.toLowerCase()) ||
-        item.tunnelAddress.toLowerCase().includes(filterValue.toLowerCase()) ||
-        item.targetAddress.toLowerCase().includes(filterValue.toLowerCase())
-      );
-    }
-
-    if (statusFilter !== "all") {
-      filtered = filtered.filter(item => {
-        switch (statusFilter) {
-          case "running":
-            return item.status.type === "success";
-          case "stopped":
-            return item.status.type === "danger";
-          case "error":
-            return item.status.type === "warning";
-          case "offline":
-            return item.status.text === "离线";
-          default:
-            return true;
-        }
-      });
-    }
-
-    if (endpointFilter !== "all") {
-      filtered = filtered.filter(item => {
-        return String(item.endpointId) === String(endpointFilter);
-      });
-    }
-
-    if (tagFilter !== "all") {
-      filtered = filtered.filter(item => {
-        if (tagFilter === "untagged") {
-          return !item.tag;
-        }
-        return item.tag && String(item.tag.id) === String(tagFilter);
-      });
-    }
-
-    // 添加排序逻辑
-    if (sortDescriptor.column) {
-      filtered.sort((a, b) => {
-        let first: string | number = "";
-        let second: string | number = "";
-
-        // 特殊处理name字段的排序
-        if (sortDescriptor.column === "name") {
-          first = (a.name || "").toLowerCase();
-          second = (b.name || "").toLowerCase();
-        } else {
-          // 其他字段可以在这里扩展
-          const aVal = a[sortDescriptor.column as keyof Tunnel];
-          const bVal = b[sortDescriptor.column as keyof Tunnel];
-          first = String(aVal || "").toLowerCase();
-          second = String(bVal || "").toLowerCase();
-        }
-
-        const cmp = first < second ? -1 : first > second ? 1 : 0;
-
-        return sortDescriptor.direction === "descending" ? -cmp : cmp;
-      });
-    }
-
-    return filtered;
-  }, [tunnels, filterValue, statusFilter, endpointFilter, tagFilter, sortDescriptor]);
-
-  const pages = Math.ceil(filteredItems.length / rowsPerPage);
-  const items = React.useMemo(() => {
-    const start = (page - 1) * rowsPerPage;
-    const end = start + rowsPerPage;
-
-    return filteredItems.slice(start, end);
-  }, [page, filteredItems, rowsPerPage]);
+  const pages = totalPages;
+  const items = filteredItems; // 后端已经处理了分页，直接使用返回的数据
 
 
 
@@ -1612,11 +1589,11 @@ export default function TunnelsPage() {
           </Box>
           
           {/* 分页器 - 响应式优化 */}
-          {!loading && !error && filteredItems.length > 0 && (
+          {!loading && !error && totalItems > 0 && (
             <Flex justify="between" align="center" className="w-full px-3 md:px-4 py-3 gap-2 md:gap-4 flex-col lg:flex-row">
               {/* 左侧：统计信息 */}
               <Box className="text-xs md:text-sm text-default-500 order-3 lg:order-1">
-                <span>共 {filteredItems.length} 个实例</span>
+                <span>共 {totalItems} 个实例</span>
               </Box>
               
               {/* 中间：分页器 */}
@@ -1657,6 +1634,7 @@ export default function TunnelsPage() {
                   <SelectItem key="20">20</SelectItem>
                   <SelectItem key="50">50</SelectItem>
                   <SelectItem key="100">100</SelectItem>
+                  <SelectItem key="500">500</SelectItem>
                 </Select>
               </div>
             </Flex>

@@ -1,57 +1,42 @@
 package api
 
 import (
-	"database/sql"
+	"NodePassDash/internal/models"
 	"encoding/json"
 	"net/http"
 	"strconv"
 	"time"
 
-	"NodePassDash/internal/models"
-
 	"github.com/gorilla/mux"
+	"gorm.io/gorm"
 )
 
 // GroupHandler 分组处理器
 type GroupHandler struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
 // NewGroupHandler 创建分组处理器
-func NewGroupHandler(db *sql.DB) *GroupHandler {
+func NewGroupHandler(db *gorm.DB) *GroupHandler {
 	return &GroupHandler{db: db}
 }
 
 // HandleGetGroups 获取所有分组
 func (h *GroupHandler) HandleGetGroups(w http.ResponseWriter, r *http.Request) {
-	// 查询所有分组
-	query := `
-		SELECT id, name, description, type, color, created_at, updated_at 
-		FROM tunnel_groups 
-		ORDER BY created_at DESC`
-
-	rows, err := h.db.Query(query)
-	if err != nil {
+	// 使用GORM查询所有分组
+	var groups []models.TunnelGroup
+	if err := h.db.Order("created_at DESC").Find(&groups).Error; err != nil {
 		http.Error(w, `{"error": "查询分组失败"}`, http.StatusInternalServerError)
 		return
 	}
-	defer rows.Close()
 
 	// 初始化为空数组而不是 nil 切片，确保 JSON 序列化时返回 [] 而不是 null
-	groups := make([]models.TunnelGroupWithMembers, 0)
+	groupsWithMembers := make([]models.TunnelGroupWithMembers, 0)
 
-	for rows.Next() {
-		var group models.TunnelGroup
-		err := rows.Scan(&group.ID, &group.Name, &group.Description, &group.Type,
-			&group.Color, &group.CreatedAt, &group.UpdatedAt)
-		if err != nil {
-			http.Error(w, `{"error": "扫描分组数据失败"}`, http.StatusInternalServerError)
-			return
-		}
-
-		// 查询分组成员
-		members, err := h.getTunnelGroupMembers(group.ID)
-		if err != nil {
+	for _, group := range groups {
+		// 查询该分组的成员
+		var members []models.TunnelGroupMember
+		if err := h.db.Where("group_id = ?", group.ID).Find(&members).Error; err != nil {
 			http.Error(w, `{"error": "查询分组成员失败"}`, http.StatusInternalServerError)
 			return
 		}
@@ -60,14 +45,18 @@ func (h *GroupHandler) HandleGetGroups(w http.ResponseWriter, r *http.Request) {
 			TunnelGroup: group,
 			Members:     members,
 		}
-		groups = append(groups, groupWithMembers)
+
+		groupsWithMembers = append(groupsWithMembers, groupWithMembers)
 	}
 
 	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(groups)
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    groupsWithMembers,
+	})
 }
 
-// HandleCreateGroup 创建新分组
+// HandleCreateGroup 创建分组
 func (h *GroupHandler) HandleCreateGroup(w http.ResponseWriter, r *http.Request) {
 	var req models.CreateTunnelGroupRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -75,56 +64,46 @@ func (h *GroupHandler) HandleCreateGroup(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// 验证分组类型
-	if req.Type != "single" && req.Type != "double" && req.Type != "intranet" && req.Type != "custom" {
-		http.Error(w, `{"error": "无效的分组类型"}`, http.StatusBadRequest)
-		return
-	}
+	// 使用GORM事务
+	var groupID int
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		// 创建分组
+		group := models.TunnelGroup{
+			Name:        req.Name,
+			Description: req.Description,
+			Type:        req.Type,
+			Color:       "#3B82F6",
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
 
-	// 开始事务
-	tx, err := h.db.Begin()
-	if err != nil {
-		http.Error(w, `{"error": "开始事务失败"}`, http.StatusInternalServerError)
-		return
-	}
-	defer tx.Rollback()
+		if err := tx.Create(&group).Error; err != nil {
+			return err
+		}
 
-	// 插入分组记录
-	insertGroupQuery := `
-		INSERT INTO tunnel_groups (name, description, type, color, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)`
+		groupID = group.ID
 
-	now := time.Now()
-	result, err := tx.Exec(insertGroupQuery, req.Name, req.Description, req.Type, "#3B82F6", now, now)
-	if err != nil {
-		http.Error(w, `{"error": "创建分组失败"}`, http.StatusInternalServerError)
-		return
-	}
+		// 添加分组成员
+		if len(req.TunnelIDs) > 0 {
+			for _, tunnelID := range req.TunnelIDs {
+				member := models.TunnelGroupMember{
+					GroupID:   group.ID,
+					TunnelID:  strconv.Itoa(tunnelID),
+					Role:      "member",
+					CreatedAt: time.Now(),
+				}
 
-	groupID, err := result.LastInsertId()
-	if err != nil {
-		http.Error(w, `{"error": "获取分组ID失败"}`, http.StatusInternalServerError)
-		return
-	}
-
-	// 添加分组成员
-	if len(req.TunnelIDs) > 0 {
-		insertMemberQuery := `
-			INSERT INTO tunnel_group_members (group_id, tunnel_id, role, created_at)
-			VALUES (?, ?, ?, ?)`
-
-		for _, tunnelID := range req.TunnelIDs {
-			_, err := tx.Exec(insertMemberQuery, groupID, strconv.Itoa(tunnelID), "member", now)
-			if err != nil {
-				http.Error(w, `{"error": "添加分组成员失败"}`, http.StatusInternalServerError)
-				return
+				if err := tx.Create(&member).Error; err != nil {
+					return err
+				}
 			}
 		}
-	}
 
-	// 提交事务
-	if err := tx.Commit(); err != nil {
-		http.Error(w, `{"error": "提交事务失败"}`, http.StatusInternalServerError)
+		return nil
+	})
+
+	if err != nil {
+		http.Error(w, `{"error": "创建分组失败"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -153,56 +132,49 @@ func (h *GroupHandler) HandleUpdateGroup(w http.ResponseWriter, r *http.Request)
 		return
 	}
 
-	// 开始事务
-	tx, err := h.db.Begin()
-	if err != nil {
-		http.Error(w, `{"error": "开始事务失败"}`, http.StatusInternalServerError)
-		return
-	}
-	defer tx.Rollback()
-
-	// 更新分组信息
-	updateGroupQuery := `
-		UPDATE tunnel_groups 
-		SET name = ?, description = ?, type = ?, updated_at = ?
-		WHERE id = ?`
-
-	_, err = tx.Exec(updateGroupQuery, req.Name, req.Description, req.Type, time.Now(), groupID)
-	if err != nil {
-		http.Error(w, `{"error": "更新分组失败"}`, http.StatusInternalServerError)
-		return
-	}
-
-	// 如果提供了隧道ID列表，则更新成员关系
-	if req.TunnelIDs != nil {
-		// 先删除现有成员
-		deleteQuery := "DELETE FROM tunnel_group_members WHERE group_id = ?"
-		_, err = tx.Exec(deleteQuery, groupID)
-		if err != nil {
-			http.Error(w, `{"error": "删除现有成员失败"}`, http.StatusInternalServerError)
-			return
+	// 使用GORM事务
+	err = h.db.Transaction(func(tx *gorm.DB) error {
+		// 更新分组信息
+		updates := models.TunnelGroup{
+			Name:        req.Name,
+			Description: req.Description,
+			Type:        req.Type,
+			UpdatedAt:   time.Now(),
 		}
 
-		// 重新添加成员
-		if len(req.TunnelIDs) > 0 {
-			insertMemberQuery := `
-				INSERT INTO tunnel_group_members (group_id, tunnel_id, role, created_at)
-				VALUES (?, ?, ?, ?)`
+		if err := tx.Model(&models.TunnelGroup{}).Where("id = ?", groupID).Updates(updates).Error; err != nil {
+			return err
+		}
 
-			now := time.Now()
-			for _, tunnelID := range req.TunnelIDs {
-				_, err := tx.Exec(insertMemberQuery, groupID, strconv.Itoa(tunnelID), "member", now)
-				if err != nil {
-					http.Error(w, `{"error": "添加分组成员失败"}`, http.StatusInternalServerError)
-					return
+		// 如果提供了隧道ID列表，则更新成员关系
+		if req.TunnelIDs != nil {
+			// 先删除现有成员
+			if err := tx.Where("group_id = ?", groupID).Delete(&models.TunnelGroupMember{}).Error; err != nil {
+				return err
+			}
+
+			// 重新添加成员
+			if len(req.TunnelIDs) > 0 {
+				for _, tunnelID := range req.TunnelIDs {
+					member := models.TunnelGroupMember{
+						GroupID:   groupID,
+						TunnelID:  strconv.Itoa(tunnelID),
+						Role:      "member",
+						CreatedAt: time.Now(),
+					}
+
+					if err := tx.Create(&member).Error; err != nil {
+						return err
+					}
 				}
 			}
 		}
-	}
 
-	// 提交事务
-	if err := tx.Commit(); err != nil {
-		http.Error(w, `{"error": "提交事务失败"}`, http.StatusInternalServerError)
+		return nil
+	})
+
+	if err != nil {
+		http.Error(w, `{"error": "更新分组失败"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -225,21 +197,14 @@ func (h *GroupHandler) HandleDeleteGroup(w http.ResponseWriter, r *http.Request)
 	}
 
 	// 删除分组（CASCADE 会自动删除成员关系）
-	deleteQuery := "DELETE FROM tunnel_groups WHERE id = ?"
-	result, err := h.db.Exec(deleteQuery, groupID)
-	if err != nil {
+	if err := h.db.Delete(&models.TunnelGroup{}, groupID).Error; err != nil {
 		http.Error(w, `{"error": "删除分组失败"}`, http.StatusInternalServerError)
 		return
 	}
 
-	rowsAffected, err := result.RowsAffected()
-	if err != nil {
-		http.Error(w, `{"error": "获取影响行数失败"}`, http.StatusInternalServerError)
-		return
-	}
-
-	if rowsAffected == 0 {
-		http.Error(w, `{"error": "分组不存在"}`, http.StatusNotFound)
+	// 使用GORM删除相关成员
+	if err := h.db.Where("group_id = ?", groupID).Delete(&models.TunnelGroupMember{}).Error; err != nil {
+		http.Error(w, `{"error": "删除分组成员失败"}`, http.StatusInternalServerError)
 		return
 	}
 
@@ -253,28 +218,14 @@ func (h *GroupHandler) HandleDeleteGroup(w http.ResponseWriter, r *http.Request)
 
 // getTunnelGroupMembers 获取分组成员
 func (h *GroupHandler) getTunnelGroupMembers(groupID int) ([]models.TunnelGroupMember, error) {
-	query := `
-		SELECT id, group_id, tunnel_id, role, created_at 
-		FROM tunnel_group_members 
-		WHERE group_id = ? 
-		ORDER BY created_at ASC`
-
-	rows, err := h.db.Query(query, groupID)
-	if err != nil {
+	var members []models.TunnelGroupMember
+	if err := h.db.Where("group_id = ?", groupID).Order("created_at ASC").Find(&members).Error; err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
-	// 初始化为空数组而不是 nil 切片，确保 JSON 序列化时返回 [] 而不是 null
-	members := make([]models.TunnelGroupMember, 0)
-	for rows.Next() {
-		var member models.TunnelGroupMember
-		err := rows.Scan(&member.ID, &member.GroupID, &member.TunnelID,
-			&member.Role, &member.CreatedAt)
-		if err != nil {
-			return nil, err
-		}
-		members = append(members, member)
+	// 确保返回空数组而不是nil
+	if members == nil {
+		members = []models.TunnelGroupMember{}
 	}
 
 	return members, nil
@@ -313,64 +264,56 @@ func (h *GroupHandler) HandleCreateGroupFromTemplate(w http.ResponseWriter, r *h
 		return
 	}
 
-	// 开始事务
-	tx, err := h.db.Begin()
-	if err != nil {
-		http.Error(w, `{"error": "开始事务失败"}`, http.StatusInternalServerError)
-		return
-	}
-	defer tx.Rollback()
+	// 使用GORM事务
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		// 创建分组
+		group := models.TunnelGroup{
+			Name:        groupName,
+			Description: description,
+			Type:        groupType,
+			Color:       "#3B82F6",
+			CreatedAt:   time.Now(),
+			UpdatedAt:   time.Now(),
+		}
 
-	// 插入分组记录
-	insertGroupQuery := `
-		INSERT INTO tunnel_groups (name, description, type, color, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)`
+		if err := tx.Create(&group).Error; err != nil {
+			return err
+		}
 
-	now := time.Now()
-	result, err := tx.Exec(insertGroupQuery, groupName, description, groupType, "#3B82F6", now, now)
-	if err != nil {
-		http.Error(w, `{"error": "创建分组失败"}`, http.StatusInternalServerError)
-		return
-	}
+		// 添加分组成员
+		for i, tunnelIDStr := range req.TunnelIDs {
+			role := "member"
+			// 对于双端模式和内网穿透模式，设置角色
+			if (groupType == "double" || groupType == "intranet") && len(req.TunnelIDs) == 2 {
+				if i == 0 {
+					role = "source"
+				} else {
+					role = "target"
+				}
+			}
 
-	groupID, err := result.LastInsertId()
-	if err != nil {
-		http.Error(w, `{"error": "获取分组ID失败"}`, http.StatusInternalServerError)
-		return
-	}
+			member := models.TunnelGroupMember{
+				GroupID:   group.ID,
+				TunnelID:  tunnelIDStr,
+				Role:      role,
+				CreatedAt: time.Now(),
+			}
 
-	// 添加分组成员
-	insertMemberQuery := `
-		INSERT INTO tunnel_group_members (group_id, tunnel_id, role, created_at)
-		VALUES (?, ?, ?, ?)`
-
-	for i, tunnelID := range req.TunnelIDs {
-		role := "member"
-		// 对于双端模式和内网穿透模式，设置角色
-		if (groupType == "double" || groupType == "intranet") && len(req.TunnelIDs) == 2 {
-			if i == 0 {
-				role = "source"
-			} else {
-				role = "target"
+			if err := tx.Create(&member).Error; err != nil {
+				return err
 			}
 		}
 
-		_, err := tx.Exec(insertMemberQuery, groupID, tunnelID, role, now)
-		if err != nil {
-			http.Error(w, `{"error": "添加分组成员失败"}`, http.StatusInternalServerError)
-			return
-		}
-	}
+		return nil
+	})
 
-	// 提交事务
-	if err := tx.Commit(); err != nil {
-		http.Error(w, `{"error": "提交事务失败"}`, http.StatusInternalServerError)
+	if err != nil {
+		http.Error(w, `{"error": "创建模板分组失败"}`, http.StatusInternalServerError)
 		return
 	}
 
 	response := map[string]interface{}{
 		"success": true,
-		"id":      groupID,
 		"message": "模板分组创建成功",
 	}
 	w.Header().Set("Content-Type", "application/json")

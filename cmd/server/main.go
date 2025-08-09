@@ -4,13 +4,13 @@ import (
 	"NodePassDash/internal/api"
 	"NodePassDash/internal/auth"
 	"NodePassDash/internal/dashboard"
+	dbPkg "NodePassDash/internal/db"
 	"NodePassDash/internal/endpoint"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
 	"archive/zip"
 	"context"
-	"database/sql"
 	"embed"
 	"flag"
 	"fmt"
@@ -25,7 +25,6 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 // Version 会在构建时通过 -ldflags "-X main.Version=xxx" 注入
@@ -142,6 +141,18 @@ func main() {
 	tlsKeyFlag := flag.String("key", "", "TLS 私钥文件路径")
 	// 禁用用户名密码登录参数
 	disableLoginFlag := flag.Bool("disable-login", false, "禁用用户名密码登录，仅允许 OAuth2 登录")
+
+	// 数据库相关参数
+	// flag.String("db-host", "localhost", "MySQL主机地址")
+	// flag.String("db-port", "3306", "MySQL端口")
+	// flag.String("db-user", "nodepass", "MySQL用户名")
+	// flag.String("db-password", "nodepass123", "MySQL密码")
+	// flag.String("db-name", "nodepass_dashboard", "MySQL数据库名")
+	// flag.String("db-charset", "utf8mb4", "MySQL字符集")
+	// flag.Int("db-max-open", 100, "最大打开连接数")
+	// flag.Int("db-max-idle", 10, "最大空闲连接数")
+	// flag.String("db-log-level", "info", "数据库日志级别")
+
 	flag.Parse()
 
 	// 设置日志级别
@@ -150,7 +161,7 @@ func main() {
 		logLevel = os.Getenv("LOG-LEVEL")
 	}
 	if logLevel == "" {
-		logLevel = "debug"
+		logLevel = "info"
 	}
 	if err := log.SetLogLevel(logLevel); err != nil {
 		log.Errorf("设置日志级别失败: %v", err)
@@ -178,47 +189,45 @@ func main() {
 	}
 	// 如果指定了 --resetpwd，则进入密码重置流程后退出
 	if *resetPwdCmd {
-		// 打开数据库
-		db, err := sql.Open("sqlite3", "file:public/sqlite.db?_journal_mode=WAL&_busy_timeout=5000&_fk=1")
-		if err != nil {
-			log.Errorf("连接数据库失败: %v", err)
-		}
-		defer db.Close()
-
-		authService := auth.NewService(db)
+		// 获取GORM数据库连接
+		gormDB := dbPkg.GetDB()
+		authService := auth.NewService(gormDB)
 		if _, _, err := authService.ResetAdminPassword(); err != nil {
 			log.Errorf("重置密码失败: %v", err)
 		}
 		return
 	}
 
-	// 打开数据库连接
-	db, err := sql.Open("sqlite3", "file:public/sqlite.db?_journal_mode=WAL&_busy_timeout=10000&_fk=1&_sync=NORMAL&_cache_size=1000000")
-	if err != nil {
-		log.Errorf("连接数据库失败: %v", err)
-	}
-	defer db.Close()
+	// 获取GORM数据库连接
+	gormDB := dbPkg.GetDB()
+	defer func() {
+		if err := dbPkg.Close(); err != nil {
+			log.Errorf("关闭数据库连接失败: %v", err)
+		}
+	}()
 
-	// 优化连接池配置，避免过多并发连接
-	db.SetMaxOpenConns(6)
-	db.SetMaxIdleConns(3)
-	db.SetConnMaxLifetime(0)               // 连接不过期
-	db.SetConnMaxIdleTime(5 * time.Minute) // 空闲连接5分钟后关闭
-
-	// 初始化数据库表结构
-	if err := initDatabase(db); err != nil {
-		log.Errorf("初始化数据库失败: %v", err)
-	}
+	log.Info("数据库连接成功，表结构已自动迁移")
 
 	// 初始化服务
-	authService := auth.NewService(db)
-	endpointService := endpoint.NewService(db)
-	tunnelService := tunnel.NewService(db)
-	dashboardService := dashboard.NewService(db)
+	authService := auth.NewService(gormDB)
+	endpointService := endpoint.NewService(gormDB)
+	tunnelService := tunnel.NewService(gormDB)
+	dashboardService := dashboard.NewService(gormDB)
+
+	// 初始化流量调度器（用于优化流量数据查询性能）
+	trafficScheduler := dashboard.NewTrafficScheduler(gormDB)
+	trafficScheduler.Start()
+	log.Info("流量数据优化调度器已启动")
 
 	// 创建SSE服务和管理器（需先于处理器创建）
-	sseService := sse.NewService(db, endpointService)
-	sseManager := sse.NewManager(db, sseService)
+	sseService := sse.NewService(gormDB, endpointService)
+	// 临时解决方案：从GORM获取底层的sql.DB用于SSE Manager
+	sqlDB, err := gormDB.DB()
+	if err != nil {
+		log.Errorf("获取底层sql.DB失败: %v", err)
+		return
+	}
+	sseManager := sse.NewManager(sqlDB, sseService)
 
 	// 设置Manager引用到Service（避免循环依赖）
 	sseService.SetManager(sseManager)
@@ -233,17 +242,11 @@ func main() {
 	// 启动SSE守护进程（自动重连功能）
 	sseManager.StartDaemon()
 
-	// 初始化处理器
-	authHandler := api.NewAuthHandler(authService)
-	endpointHandler := api.NewEndpointHandler(endpointService, sseManager)
-	tunnelHandler := api.NewTunnelHandler(tunnelService, sseManager)
-	dashboardHandler := api.NewDashboardHandler(dashboardService)
-
 	// 设置版本号到 API 包
 	api.SetVersion(Version)
 
 	// 创建API路由器 (仅处理 /api/*)
-	apiRouter := api.NewRouter(db, sseService, sseManager)
+	apiRouter := api.NewRouter(gormDB, sseService, sseManager)
 
 	// 顶层路由器，用于同时处理 API 和静态资源
 	rootRouter := mux.NewRouter()
@@ -314,14 +317,14 @@ func main() {
 
 	// 始终设置 disable_login 配置以确保状态一致性
 	if shouldDisableLogin {
-		if err := authService.SetSystemConfig("disable_login", "true", "禁用用户名密码登录"); err != nil {
+		if err := authService.SetSystemConfig("disable_login", "true"); err != nil {
 			log.Errorf("设置 disable-login 配置失败: %v", err)
 		} else {
 			log.Infof("已启用 disable-login 模式，仅允许 OAuth2 登录")
 		}
 	} else {
 		// 如果没有启用 disable-login，确保数据库中的值为 false
-		if err := authService.SetSystemConfig("disable_login", "false", "允许用户名密码登录"); err != nil {
+		if err := authService.SetSystemConfig("disable_login", "false"); err != nil {
 			log.Errorf("重置 disable-login 配置失败: %v", err)
 		}
 	}
@@ -354,10 +357,13 @@ func main() {
 	}()
 
 	// 记录未使用的变量以避免编译错误
-	_ = authHandler
-	_ = endpointHandler
-	_ = tunnelHandler
-	_ = dashboardHandler
+	_ = authService
+	_ = endpointService
+	_ = tunnelService
+	_ = dashboardService
+	_ = sseService
+	_ = sseManager
+	_ = trafficScheduler
 	_ = ctx
 
 	// 等待中断信号
@@ -367,6 +373,9 @@ func main() {
 
 	// 关闭服务
 	log.Infof("正在关闭服务器...")
+
+	// 关闭流量调度器
+	trafficScheduler.Stop()
 
 	// 关闭SSE系统
 	sseManager.Close()
@@ -383,352 +392,11 @@ func main() {
 	log.Infof("服务器已关闭")
 }
 
-// initDatabase 创建必须的表结构（如不存在）
-func initDatabase(db *sql.DB) error {
-	createEndpointsTable := `
-	CREATE TABLE IF NOT EXISTS "Endpoint" (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL UNIQUE,
-		url TEXT NOT NULL UNIQUE,
-		apiPath TEXT NOT NULL,
-		apiKey TEXT NOT NULL,
-		status TEXT NOT NULL DEFAULT 'OFFLINE',
-		color TEXT DEFAULT 'default',
-		lastCheck DATETIME DEFAULT CURRENT_TIMESTAMP,
-		createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		tunnelCount INTEGER DEFAULT 0,
-		os TEXT DEFAULT '',
-		arch TEXT DEFAULT '',
-		ver TEXT DEFAULT '',
-		log TEXT DEFAULT '',
-		tls TEXT DEFAULT '',
-		crt TEXT DEFAULT '',
-		key_path TEXT DEFAULT '',
-		uptime INTEGER DEFAULT NULL
-	);`
-
-	createTunnelTable := `
-	CREATE TABLE IF NOT EXISTS "Tunnel" (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL,
-		endpointId INTEGER NOT NULL,
-		mode TEXT NOT NULL,
-		status TEXT NOT NULL DEFAULT 'stopped',
-		tunnelAddress TEXT NOT NULL,
-		tunnelPort TEXT NOT NULL,
-		targetAddress TEXT NOT NULL,
-		targetPort TEXT NOT NULL,
-		tlsMode TEXT NOT NULL,
-		certPath TEXT,
-		keyPath TEXT,
-		logLevel TEXT NOT NULL DEFAULT 'info',
-		commandLine TEXT NOT NULL,
-		instanceId TEXT,
-		password TEXT DEFAULT '',
-		tcpRx INTEGER DEFAULT 0,
-		tcpTx INTEGER DEFAULT 0,
-		udpRx INTEGER DEFAULT 0,
-		udpTx INTEGER DEFAULT 0,
-		min INTEGER,
-		max INTEGER,
-		restart BOOLEAN DEFAULT FALSE,
-		createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		lastEventTime DATETIME
-	);`
-
-	createTunnelRecycleTable := `
-	CREATE TABLE IF NOT EXISTS "TunnelRecycle" (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL,
-		endpointId INTEGER NOT NULL,
-		mode TEXT NOT NULL,
-		tunnelAddress TEXT NOT NULL,
-		tunnelPort TEXT NOT NULL,
-		targetAddress TEXT NOT NULL,
-		targetPort TEXT NOT NULL,
-		tlsMode TEXT NOT NULL,
-		certPath TEXT,
-		keyPath TEXT,
-		logLevel TEXT NOT NULL DEFAULT 'info',
-		commandLine TEXT NOT NULL,
-		instanceId TEXT,
-		password TEXT DEFAULT '',
-		tcpRx INTEGER DEFAULT 0,
-		tcpTx INTEGER DEFAULT 0,
-		udpRx INTEGER DEFAULT 0,
-		udpTx INTEGER DEFAULT 0,
-		min INTEGER,
-		max INTEGER
-	);`
-
-	createEndpointSSE := `
-	CREATE TABLE IF NOT EXISTS "EndpointSSE" (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		eventType TEXT NOT NULL,
-		pushType TEXT NOT NULL,
-		eventTime DATETIME NOT NULL,
-		endpointId INTEGER NOT NULL,
-		instanceId TEXT NOT NULL,
-		instanceType TEXT,
-		status TEXT,
-		url TEXT,
-		tcpRx INTEGER DEFAULT 0,
-		tcpTx INTEGER DEFAULT 0,
-		udpRx INTEGER DEFAULT 0,
-		udpTx INTEGER DEFAULT 0,
-		logs TEXT,
-		createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-	);`
-
-	createTunnelLog := `
-	CREATE TABLE IF NOT EXISTS "TunnelOperationLog" (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		tunnelId INTEGER,
-		tunnelName TEXT NOT NULL,
-		action TEXT NOT NULL,
-		status TEXT NOT NULL,
-		message TEXT,
-		createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-	);`
-
-	createSystemConfig := `
-	CREATE TABLE IF NOT EXISTS "SystemConfig" (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		KEY TEXT NOT NULL UNIQUE,
-		value TEXT NOT NULL,
-		description TEXT,
-		createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		updatedAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-	);`
-
-	createUserSession := `
-	CREATE TABLE IF NOT EXISTS "UserSession" (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		sessionId TEXT NOT NULL UNIQUE,
-		username TEXT NOT NULL,
-		createdAt DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		expiresAt DATETIME NOT NULL,
-		isActive BOOLEAN NOT NULL DEFAULT 1
-	);`
-
-	// 创建隧道分组表
-	// createTunnelGroups := `
-	// CREATE TABLE IF NOT EXISTS tunnel_groups (
-	// 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	// 	name TEXT NOT NULL UNIQUE,
-	// 	description TEXT,
-	// 	type TEXT NOT NULL DEFAULT 'custom',
-	// 	color TEXT DEFAULT '#3B82F6',
-	// 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	// 	updated_at DATETIME DEFAULT CURRENT_TIMESTAMP
-	// );`
-
-	// 创建隧道分组成员表
-	// createTunnelGroupMembers := `
-	// CREATE TABLE IF NOT EXISTS tunnel_group_members (
-	// 	id INTEGER PRIMARY KEY AUTOINCREMENT,
-	// 	group_id INTEGER NOT NULL,
-	// 	tunnel_id TEXT NOT NULL,
-	// 	role TEXT DEFAULT 'member',
-	// 	created_at DATETIME DEFAULT CURRENT_TIMESTAMP,
-	// 	FOREIGN KEY (group_id) REFERENCES tunnel_groups(id) ON DELETE CASCADE,
-	// 	UNIQUE(group_id, tunnel_id)
-	// );`
-
-	// 创建标签表
-	createTagsTable := `
-	CREATE TABLE IF NOT EXISTS Tags (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		name TEXT NOT NULL UNIQUE,
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		updated_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP
-	);`
-
-	// 创建隧道标签关联表
-	createTunnelTagsTable := `
-	CREATE TABLE IF NOT EXISTS TunnelTags (
-		id INTEGER PRIMARY KEY AUTOINCREMENT,
-		tunnel_id INTEGER NOT NULL,
-		tag_id INTEGER NOT NULL,
-		created_at DATETIME NOT NULL DEFAULT CURRENT_TIMESTAMP,
-		FOREIGN KEY (tunnel_id) REFERENCES "Tunnel"(id) ON DELETE CASCADE,
-		FOREIGN KEY (tag_id) REFERENCES Tags(id) ON DELETE CASCADE,
-		UNIQUE(tunnel_id, tag_id)
-	);`
-
-	// 依次执行创建表 SQL
-	if _, err := db.Exec(createEndpointsTable); err != nil {
-		return err
-	}
-	if _, err := db.Exec(createTunnelTable); err != nil {
-		return err
-	}
-	if _, err := db.Exec(createTunnelRecycleTable); err != nil {
-		return err
-	}
-	if _, err := db.Exec(createEndpointSSE); err != nil {
-		return err
-	}
-	if _, err := db.Exec(createTunnelLog); err != nil {
-		return err
-	}
-	if _, err := db.Exec(createSystemConfig); err != nil {
-		return err
-	}
-	if _, err := db.Exec(createUserSession); err != nil {
-		return err
-	}
-	// if _, err := db.Exec(createTunnelGroups); err != nil {
-	// 	return err
-	// }
-	// if _, err := db.Exec(createTunnelGroupMembers); err != nil {
-	// 	return err
-	// }
-	if _, err := db.Exec(createTagsTable); err != nil {
-		return err
-	}
-	if _, err := db.Exec(createTunnelTagsTable); err != nil {
-		return err
-	}
-
-	// ---- 旧库兼容：为 Tunnel 表添加 min / max 列 ----
-	if err := ensureColumn(db, "Tunnel", "min", "INTEGER"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Tunnel", "max", "INTEGER"); err != nil {
-		return err
-	}
-
-	// ---- 为 Tunnel 表添加密码字段 ----
-	if err := ensureColumn(db, "Tunnel", "password", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-
-	// ---- 为 TunnelRecycle 表添加密码字段 ----
-	if err := ensureColumn(db, "TunnelRecycle", "password", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-
-	// ---- 为 Endpoint 表添加系统信息字段 ----
-	if err := ensureColumn(db, "Endpoint", "os", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Endpoint", "arch", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Endpoint", "ver", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Endpoint", "log", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Endpoint", "tls", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Endpoint", "crt", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Endpoint", "key_path", "TEXT DEFAULT ''"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Endpoint", "uptime", "INTEGER DEFAULT NULL"); err != nil {
-		return err
-	}
-
-	// ---- 为 Tunnel 表添加 restart 字段 ----
-	if err := ensureColumn(db, "Tunnel", "restart", "BOOLEAN DEFAULT FALSE"); err != nil {
-		return err
-	}
-
-	// ---- 为 TunnelRecycle 表添加 restart 字段 ----
-	if err := ensureColumn(db, "TunnelRecycle", "restart", "BOOLEAN DEFAULT FALSE"); err != nil {
-		return err
-	}
-
-	// ---- 为 EndpointSSE 表添加 alias 和 restart 字段 ----
-	if err := ensureColumn(db, "EndpointSSE", "alias", "TEXT"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "EndpointSSE", "restart", "BOOLEAN"); err != nil {
-		return err
-	}
-
-	// ---- 为 Tunnel 表添加 pool 和 ping 字段 ----
-	if err := ensureColumn(db, "Tunnel", "pool", "INTEGER DEFAULT 0"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "Tunnel", "ping", "INTEGER DEFAULT 0"); err != nil {
-		return err
-	}
-
-	// ---- 为 EndpointSSE 表添加 pool 和 ping 字段 ----
-	if err := ensureColumn(db, "EndpointSSE", "pool", "INTEGER DEFAULT 0"); err != nil {
-		return err
-	}
-	if err := ensureColumn(db, "EndpointSSE", "ping", "INTEGER DEFAULT 0"); err != nil {
-		return err
-	}
-
-	// ---- 创建分组表索引 ----
-	groupIndexes := []string{
-		// `CREATE INDEX IF NOT EXISTS idx_tunnel_groups_name ON tunnel_groups(name)`,
-		// `CREATE INDEX IF NOT EXISTS idx_tunnel_groups_type ON tunnel_groups(type)`,
-		// `CREATE INDEX IF NOT EXISTS idx_tunnel_groups_created_at ON tunnel_groups(created_at)`,
-		// `CREATE INDEX IF NOT EXISTS idx_tunnel_group_members_group_id ON tunnel_group_members(group_id)`,
-		// `CREATE INDEX IF NOT EXISTS idx_tunnel_group_members_tunnel_id ON tunnel_group_members(tunnel_id)`,
-		// `CREATE INDEX IF NOT EXISTS idx_tunnel_group_members_role ON tunnel_group_members(role)`,
-		`CREATE INDEX IF NOT EXISTS idx_tags_name ON Tags(name)`,
-		`CREATE INDEX IF NOT EXISTS idx_tags_created_at ON Tags(created_at)`,
-		`CREATE INDEX IF NOT EXISTS idx_tunnel_tags_tunnel_id ON TunnelTags(tunnel_id)`,
-		`CREATE INDEX IF NOT EXISTS idx_tunnel_tags_tag_id ON TunnelTags(tag_id)`,
-	}
-
-	for _, indexSQL := range groupIndexes {
-		if _, err := db.Exec(indexSQL); err != nil {
-			log.Errorf("创建分组表索引失败: %v", err)
-			// 索引创建失败不影响程序运行，只记录日志
-		}
-	}
-
-	return nil
-}
-
 // ensureDir 确保目录存在，如果不存在则创建
 func ensureDir(dir string) error {
 	if _, err := os.Stat(dir); os.IsNotExist(err) {
 		log.Infof("创建目录: %s", dir)
 		return os.MkdirAll(dir, 0755)
-	}
-	return nil
-}
-
-// ensureColumn 若列不存在则 ALTER TABLE 添加，幂等安全
-func ensureColumn(db *sql.DB, table, column, typ string) error {
-	rows, err := db.Query(`PRAGMA table_info(` + table + `)`)
-	if err != nil {
-		return err
-	}
-	defer rows.Close()
-
-	var exists bool
-	for rows.Next() {
-		var cid int
-		var name, ctype string
-		var notnull int
-		var dfltValue interface{}
-		var pk int
-		_ = rows.Scan(&cid, &name, &ctype, &notnull, &dfltValue, &pk)
-		if name == column {
-			exists = true
-			break
-		}
-	}
-
-	if !exists {
-		_, err := db.Exec(`ALTER TABLE "` + table + `" ADD COLUMN ` + column + ` ` + typ)
-		return err
 	}
 	return nil
 }

@@ -81,8 +81,8 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// 创建用户会话
-	sessionID, err := h.authService.CreateUserSession(req.Username)
+	// 创建用户会话 (24小时有效期)
+	sessionID, err := h.authService.CreateSession(req.Username, 24*time.Hour)
 	if err != nil {
 		w.WriteHeader(http.StatusInternalServerError)
 		json.NewEncoder(w).Encode(auth.LoginResponse{
@@ -507,8 +507,8 @@ func (h *AuthHandler) handleGitHubOAuth(w http.ResponseWriter, r *http.Request, 
 		return
 	}
 
-	// 创建会话
-	sessionID, err := h.authService.CreateUserSession(username)
+	// 创建会话 (24小时有效期)
+	sessionID, err := h.authService.CreateSession(username, 24*time.Hour)
 	if err != nil {
 		http.Error(w, "创建会话失败", http.StatusInternalServerError)
 		return
@@ -705,8 +705,8 @@ func (h *AuthHandler) handleCloudflareOAuth(w http.ResponseWriter, r *http.Reque
 		return
 	}
 
-	// 创建会话
-	sessionID, err := h.authService.CreateUserSession(username)
+	// 创建会话 (24小时有效期)
+	sessionID, err := h.authService.CreateSession(username, 24*time.Hour)
 	if err != nil {
 		http.Error(w, "创建会话失败", http.StatusInternalServerError)
 		return
@@ -801,18 +801,18 @@ func (h *AuthHandler) HandleOAuth2Config(w http.ResponseWriter, r *http.Request)
 		}
 
 		cfgBytes, _ := json.Marshal(req.Config)
-		if err := h.authService.SetSystemConfig("oauth2_config", string(cfgBytes), "OAuth2 配置"); err != nil {
+		if err := h.authService.SetSystemConfig("oauth2_config", string(cfgBytes)); err != nil {
 			http.Error(w, "save config failed", http.StatusInternalServerError)
 			return
 		}
-		_ = h.authService.SetSystemConfig("oauth2_provider", req.Provider, "当前 OAuth2 提供者")
+		_ = h.authService.SetSystemConfig("oauth2_provider", req.Provider)
 
 		json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
 
 	case http.MethodDelete:
 		// 解绑：统一清空配置和用户信息
-		_ = h.authService.SetSystemConfig("oauth2_config", "", "清空 OAuth2 配置")
-		_ = h.authService.SetSystemConfig("oauth2_provider", "", "解绑 OAuth2")
+		_ = h.authService.SetSystemConfig("oauth2_config", "")
+		_ = h.authService.SetSystemConfig("oauth2_provider", "")
 		// 清空所有 OAuth 用户信息
 		if err := h.authService.DeleteAllOAuthUsers(); err != nil {
 			fmt.Printf("⚠️ 清空 OAuth 用户信息失败: %v\n", err)

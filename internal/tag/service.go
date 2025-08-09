@@ -1,17 +1,20 @@
 package tag
 
 import (
-	"database/sql"
 	"errors"
 	"strings"
 	"time"
+
+	"NodePassDash/internal/models"
+
+	"gorm.io/gorm"
 )
 
 type Service struct {
-	db *sql.DB
+	db *gorm.DB
 }
 
-func NewService(db *sql.DB) *Service {
+func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
 }
 
@@ -22,52 +25,50 @@ func (s *Service) CreateTag(req *CreateTagRequest) (*Tag, error) {
 	}
 
 	// 检查标签名是否已存在
-	var exists int
-	err := s.db.QueryRow("SELECT 1 FROM Tags WHERE name = ?", req.Name).Scan(&exists)
+	var existingTag models.Tag
+	err := s.db.Where("name = ?", req.Name).First(&existingTag).Error
 	if err == nil {
 		return nil, errors.New("标签名已存在")
-	} else if err != sql.ErrNoRows {
+	} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 		return nil, err
 	}
 
-	// 插入标签
-	result, err := s.db.Exec(
-		"INSERT INTO Tags (name, created_at, updated_at) VALUES (?, ?, ?)",
-		req.Name, time.Now(), time.Now(),
-	)
-	if err != nil {
-		return nil, err
+	// 创建标签
+	tag := models.Tag{
+		Name:      req.Name,
+		CreatedAt: time.Now(),
+		UpdatedAt: time.Now(),
 	}
 
-	id, err := result.LastInsertId()
+	err = s.db.Create(&tag).Error
 	if err != nil {
 		return nil, err
 	}
 
 	return &Tag{
-		ID:        id,
-		Name:      req.Name,
-		CreatedAt: time.Now(),
-		UpdatedAt: time.Now(),
+		ID:        tag.ID,
+		Name:      tag.Name,
+		CreatedAt: tag.CreatedAt,
+		UpdatedAt: tag.UpdatedAt,
 	}, nil
 }
 
 // GetTags 获取所有标签
 func (s *Service) GetTags() ([]*Tag, error) {
-	rows, err := s.db.Query("SELECT id, name, created_at, updated_at FROM Tags ORDER BY name")
+	var modelTags []models.Tag
+	err := s.db.Order("name").Find(&modelTags).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var tags []*Tag
-	for rows.Next() {
-		var tag Tag
-		err := rows.Scan(&tag.ID, &tag.Name, &tag.CreatedAt, &tag.UpdatedAt)
-		if err != nil {
-			return nil, err
-		}
-		tags = append(tags, &tag)
+	for _, modelTag := range modelTags {
+		tags = append(tags, &Tag{
+			ID:        modelTag.ID,
+			Name:      modelTag.Name,
+			CreatedAt: modelTag.CreatedAt,
+			UpdatedAt: modelTag.UpdatedAt,
+		})
 	}
 
 	return tags, nil
@@ -75,15 +76,21 @@ func (s *Service) GetTags() ([]*Tag, error) {
 
 // GetTagByID 根据ID获取标签
 func (s *Service) GetTagByID(id int64) (*Tag, error) {
-	var tag Tag
-	err := s.db.QueryRow(
-		"SELECT id, name, created_at, updated_at FROM Tags WHERE id = ?",
-		id,
-	).Scan(&tag.ID, &tag.Name, &tag.CreatedAt, &tag.UpdatedAt)
+	var modelTag models.Tag
+	err := s.db.Where("id = ?", id).First(&modelTag).Error
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("标签不存在")
+		}
 		return nil, err
 	}
-	return &tag, nil
+
+	return &Tag{
+		ID:        modelTag.ID,
+		Name:      modelTag.Name,
+		CreatedAt: modelTag.CreatedAt,
+		UpdatedAt: modelTag.UpdatedAt,
+	}, nil
 }
 
 // UpdateTag 更新标签
@@ -100,11 +107,11 @@ func (s *Service) UpdateTag(req *UpdateTagRequest) (*Tag, error) {
 
 	// 如果更新名称，检查是否与其他标签重名
 	if req.Name != "" && req.Name != existingTag.Name {
-		var exists int
-		err := s.db.QueryRow("SELECT 1 FROM Tags WHERE name = ? AND id != ?", req.Name, req.ID).Scan(&exists)
+		var duplicateTag models.Tag
+		err := s.db.Where("name = ? AND id != ?", req.Name, req.ID).First(&duplicateTag).Error
 		if err == nil {
 			return nil, errors.New("标签名已存在")
-		} else if err != sql.ErrNoRows {
+		} else if !errors.Is(err, gorm.ErrRecordNotFound) {
 			return nil, err
 		}
 	}
@@ -115,10 +122,12 @@ func (s *Service) UpdateTag(req *UpdateTagRequest) (*Tag, error) {
 		name = existingTag.Name
 	}
 
-	_, err = s.db.Exec(
-		"UPDATE Tags SET name = ?, updated_at = ? WHERE id = ?",
-		name, time.Now(), req.ID,
-	)
+	// 使用GORM更新
+	updateData := map[string]interface{}{
+		"name":       name,
+		"updated_at": time.Now(),
+	}
+	err = s.db.Model(&models.Tag{}).Where("id = ?", req.ID).Updates(updateData).Error
 	if err != nil {
 		return nil, err
 	}
@@ -139,15 +148,20 @@ func (s *Service) DeleteTag(id int64) error {
 		return err
 	}
 
-	// 先删除关联的隧道标签记录
-	_, err = s.db.Exec("DELETE FROM TunnelTags WHERE tag_id = ?", id)
-	if err != nil {
-		return err
-	}
+	// 使用事务删除标签和相关联的隧道标签记录
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 先删除关联的隧道标签记录
+		if err := tx.Where("tag_id = ?", id).Delete(&models.TunnelTag{}).Error; err != nil {
+			return err
+		}
 
-	// 删除标签
-	_, err = s.db.Exec("DELETE FROM Tags WHERE id = ?", id)
-	return err
+		// 删除标签
+		if err := tx.Where("id = ?", id).Delete(&models.Tag{}).Error; err != nil {
+			return err
+		}
+
+		return nil
+	})
 }
 
 // AssignTagToTunnel 为隧道分配标签
@@ -156,66 +170,76 @@ func (s *Service) AssignTagToTunnel(req *AssignTagRequest) error {
 		return errors.New("隧道ID无效")
 	}
 
-	// 先删除现有的标签关联
-	_, err := s.db.Exec("DELETE FROM TunnelTags WHERE tunnel_id = ?", req.TunnelId)
-	if err != nil {
-		return err
-	}
-
-	// 如果TagID为0，表示清除标签，只删除不插入
-	if req.TagID <= 0 {
-		return nil
-	}
-
-	// 验证标签是否存在
-	var exists int
-	err = s.db.QueryRow("SELECT 1 FROM Tags WHERE id = ?", req.TagID).Scan(&exists)
-	if err != nil {
-		if err == sql.ErrNoRows {
-			return errors.New("指定的标签不存在")
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 先删除现有的标签关联
+		if err := tx.Where("tunnel_id = ?", req.TunnelId).Delete(&models.TunnelTag{}).Error; err != nil {
+			return err
 		}
-		return err
-	}
 
-	// 添加新的标签关联
-	_, err = s.db.Exec(
-		"INSERT INTO TunnelTags (tunnel_id, tag_id, created_at) VALUES (?, ?, ?)",
-		req.TunnelId, req.TagID, time.Now(),
-	)
-	return err
+		// 如果TagID为0，表示清除标签，只删除不插入
+		if req.TagID <= 0 {
+			return nil
+		}
+
+		// 验证标签是否存在
+		var tag models.Tag
+		err := tx.Where("id = ?", req.TagID).First(&tag).Error
+		if err != nil {
+			if errors.Is(err, gorm.ErrRecordNotFound) {
+				return errors.New("指定的标签不存在")
+			}
+			return err
+		}
+
+		// 添加新的标签关联
+		tunnelTag := models.TunnelTag{
+			TunnelID:  req.TunnelId,
+			TagID:     req.TagID,
+			CreatedAt: time.Now(),
+		}
+		return tx.Create(&tunnelTag).Error
+	})
 }
 
 // GetTunnelTag 获取隧道的标签
 func (s *Service) GetTunnelTag(tunnelID int64) (*Tag, error) {
-	var tag Tag
-	err := s.db.QueryRow(`
-		SELECT t.id, t.name, t.created_at, t.updated_at 
-		FROM Tags t 
-		JOIN TunnelTags tt ON t.id = tt.tag_id 
-		WHERE tt.tunnel_id = ?
-	`, tunnelID).Scan(&tag.ID, &tag.Name, &tag.CreatedAt, &tag.UpdatedAt)
+	var result struct {
+		models.Tag
+		models.TunnelTag
+	}
+
+	err := s.db.Table("Tags t").
+		Select("t.id, t.name, t.created_at, t.updated_at").
+		Joins("JOIN TunnelTags tt ON t.id = tt.tag_id").
+		Where("tt.tunnel_id = ?", tunnelID).
+		First(&result).Error
+
 	if err != nil {
+		if errors.Is(err, gorm.ErrRecordNotFound) {
+			return nil, errors.New("该隧道没有分配标签")
+		}
 		return nil, err
 	}
-	return &tag, nil
+
+	return &Tag{
+		ID:        result.Tag.ID,
+		Name:      result.Tag.Name,
+		CreatedAt: result.Tag.CreatedAt,
+		UpdatedAt: result.Tag.UpdatedAt,
+	}, nil
 }
 
 // GetTunnelsByTag 根据标签获取隧道列表
 func (s *Service) GetTunnelsByTag(tagID int64) ([]int64, error) {
-	rows, err := s.db.Query("SELECT tunnel_id FROM TunnelTags WHERE tag_id = ?", tagID)
+	var tunnelTags []models.TunnelTag
+	err := s.db.Where("tag_id = ?", tagID).Find(&tunnelTags).Error
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	var tunnelIDs []int64
-	for rows.Next() {
-		var tunnelID int64
-		err := rows.Scan(&tunnelID)
-		if err != nil {
-			return nil, err
-		}
-		tunnelIDs = append(tunnelIDs, tunnelID)
+	for _, tunnelTag := range tunnelTags {
+		tunnelIDs = append(tunnelIDs, tunnelTag.TunnelID)
 	}
 
 	return tunnelIDs, nil
@@ -223,25 +247,23 @@ func (s *Service) GetTunnelsByTag(tagID int64) ([]int64, error) {
 
 // GetTagStats 获取标签统计信息
 func (s *Service) GetTagStats() (map[int64]int, error) {
-	rows, err := s.db.Query(`
-		SELECT tag_id, COUNT(*) as count 
-		FROM TunnelTags 
-		GROUP BY tag_id
-	`)
+	var results []struct {
+		TagID int64 `json:"tag_id"`
+		Count int   `json:"count"`
+	}
+
+	err := s.db.Table("TunnelTags").
+		Select("tag_id, COUNT(*) as count").
+		Group("tag_id").
+		Find(&results).Error
+
 	if err != nil {
 		return nil, err
 	}
-	defer rows.Close()
 
 	stats := make(map[int64]int)
-	for rows.Next() {
-		var tagID int64
-		var count int
-		err := rows.Scan(&tagID, &count)
-		if err != nil {
-			return nil, err
-		}
-		stats[tagID] = count
+	for _, result := range results {
+		stats[result.TagID] = result.Count
 	}
 
 	return stats, nil

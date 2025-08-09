@@ -1,25 +1,26 @@
 package api
 
 import (
-	"database/sql"
 	"encoding/json"
 	"net/http"
+	"strconv"
 	"strings"
 
+	"NodePassDash/internal/endpoint"
 	"NodePassDash/internal/instance"
 )
 
 // InstanceHandler 实例相关的处理器
 type InstanceHandler struct {
-	db              *sql.DB
 	instanceService *instance.Service
+	endpointService *endpoint.Service
 }
 
 // NewInstanceHandler 创建实例处理器
-func NewInstanceHandler(db *sql.DB, instanceService *instance.Service) *InstanceHandler {
+func NewInstanceHandler(instanceService *instance.Service, endpointService *endpoint.Service) *InstanceHandler {
 	return &InstanceHandler{
-		db:              db,
 		instanceService: instanceService,
+		endpointService: endpointService,
 	}
 }
 
@@ -31,38 +32,32 @@ func (h *InstanceHandler) HandleGetInstances(w http.ResponseWriter, r *http.Requ
 	}
 
 	// 从URL中获取端点ID
-	endpointID := r.URL.Query().Get("endpointId")
-	if endpointID == "" {
+	endpointIDStr := r.URL.Query().Get("endpointId")
+	if endpointIDStr == "" {
 		// 尝试从路径 /api/endpoints/{endpointId}/instances 提取
 		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
 		// 期望格式: api, endpoints, {endpointId}, instances
 		if len(parts) >= 4 {
-			endpointID = parts[2]
+			endpointIDStr = parts[2]
 		}
 	}
 
-	if endpointID == "" {
+	if endpointIDStr == "" {
 		http.Error(w, "Missing endpointId parameter", http.StatusBadRequest)
 		return
 	}
 
-	// 获取端点信息
-	var endpoint struct {
-		URL     string
-		APIPath string
-		APIKey  string
-	}
-	err := h.db.QueryRow(`
-		SELECT url, apiPath, apiKey
-		FROM "Endpoint"
-		WHERE id = ?
-	`, endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
+	// 解析端点ID
+	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			http.Error(w, "Endpoint not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		http.Error(w, "Invalid endpointId parameter", http.StatusBadRequest)
+		return
+	}
+
+	// 使用服务层获取端点信息
+	endpoint, err := h.endpointService.GetEndpointByID(endpointID)
+	if err != nil {
+		http.Error(w, "Endpoint not found", http.StatusNotFound)
 		return
 	}
 
@@ -91,26 +86,20 @@ func (h *InstanceHandler) HandleGetInstance(w http.ResponseWriter, r *http.Reque
 		http.Error(w, "Invalid URL", http.StatusBadRequest)
 		return
 	}
-	endpointID := parts[3]
+	endpointIDStr := parts[3]
 	instanceID := parts[4]
 
-	// 获取端点信息
-	var endpoint struct {
-		URL     string
-		APIPath string
-		APIKey  string
-	}
-	err := h.db.QueryRow(`
-		SELECT url, apiPath, apiKey
-		FROM "Endpoint"
-		WHERE id = ?
-	`, endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
+	// 解析端点ID
+	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			http.Error(w, "Endpoint not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		http.Error(w, "Invalid endpointId parameter", http.StatusBadRequest)
+		return
+	}
+
+	// 使用服务层获取端点信息
+	endpoint, err := h.endpointService.GetEndpointByID(endpointID)
+	if err != nil {
+		http.Error(w, "Endpoint not found", http.StatusNotFound)
 		return
 	}
 
@@ -139,7 +128,7 @@ func (h *InstanceHandler) HandleControlInstance(w http.ResponseWriter, r *http.R
 		http.Error(w, "Invalid URL", http.StatusBadRequest)
 		return
 	}
-	endpointID := parts[3]
+	endpointIDStr := parts[3]
 	instanceID := parts[4]
 
 	// 解析请求体
@@ -157,23 +146,17 @@ func (h *InstanceHandler) HandleControlInstance(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// 获取端点信息
-	var endpoint struct {
-		URL     string
-		APIPath string
-		APIKey  string
-	}
-	err := h.db.QueryRow(`
-		SELECT url, apiPath, apiKey
-		FROM "Endpoint"
-		WHERE id = ?
-	`, endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey)
+	// 解析端点ID
+	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
 	if err != nil {
-		if err == sql.ErrNoRows {
-			http.Error(w, "Endpoint not found", http.StatusNotFound)
-			return
-		}
-		http.Error(w, "Internal server error", http.StatusInternalServerError)
+		http.Error(w, "Invalid endpointId parameter", http.StatusBadRequest)
+		return
+	}
+
+	// 使用服务层获取端点信息
+	endpoint, err := h.endpointService.GetEndpointByID(endpointID)
+	if err != nil {
+		http.Error(w, "Endpoint not found", http.StatusNotFound)
 		return
 	}
 
