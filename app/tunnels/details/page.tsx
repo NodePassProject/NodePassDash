@@ -38,11 +38,11 @@ import { useRouter } from "next/navigation";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
 import CellValue from "./cell-value";
-import { FlowTrafficChart } from "@/components/ui/flow-traffic-chart";
+import { EnhancedMetricsChart } from "@/components/ui/enhanced-metrics-chart";
 import { useSearchParams } from 'next/navigation';
 import { FileLogViewer } from "@/components/ui/file-log-viewer";
 import { useTunnelSSE } from "@/lib/hooks/use-sse";
-import { DualAxisChart } from "@/components/ui/dual-axis-chart";
+import { useMetricsTrend } from "@/lib/hooks/use-metrics-trend";
 
 interface TunnelInfo {
   id: string;
@@ -209,24 +209,32 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   const [tunnelInfo, setTunnelInfo] = React.useState<TunnelInfo | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [trafficData, setTrafficData] = React.useState<FlowTrafficData[]>([]);
-  const [trafficTrend, setTrafficTrend] = React.useState<TrafficTrendData[]>([]);
   const [initialDataLoaded, setInitialDataLoaded] = React.useState(false);
   const [refreshLoading, setRefreshLoading] = React.useState(false);
-  const [trafficRefreshLoading, setTrafficRefreshLoading] = React.useState(false);
   const [trafficTimeRange, setTrafficTimeRange] = React.useState<"1h" | "6h" | "12h" | "24h">("24h");
-  // 延迟趋势相关状态
-  const [pingTrend, setPingTrend] = React.useState<PingTrendData[]>([]);
-  const [pingRefreshLoading, setPingRefreshLoading] = React.useState(false);
   const [pingTimeRange, setPingTimeRange] = React.useState<"1h" | "6h" | "12h" | "24h">("24h");
-  // 连接池趋势相关状态
-  const [poolTrend, setPoolTrend] = React.useState<PoolTrendData[]>([]);
-  const [poolRefreshLoading, setPoolRefreshLoading] = React.useState(false);
-  const [poolTimeRange, setPoolTimeRange] = React.useState<"1h" | "6h" | "12h" | "24h">("24h");
   const [isPasswordVisible, setIsPasswordVisible] = React.useState(false);
-  // 编辑实例模态控制
-  const [editModalOpen, setEditModalOpen] = React.useState(false);
+
+  // 获取隧道ID参数
   const searchParams = useSearchParams();
   const resolvedId = searchParams.get('id');
+
+  // 使用统一的 metrics 趋势 hook (15秒轮询)
+  const {
+    data: metricsData,
+    loading: metricsLoading,
+    error: metricsError,
+    refresh: refreshMetrics,
+    isAutoRefreshEnabled: isMetricsAutoRefreshEnabled,
+    toggleAutoRefresh: toggleMetricsAutoRefresh
+  } = useMetricsTrend({
+    tunnelId: tunnelInfo?.instanceId || "", // 使用instanceId作为参数，传递给后端
+    autoRefresh: !!tunnelInfo?.instanceId, // 只有当有有效 instanceId 时才启用自动刷新
+    refreshInterval: 15000 // 15秒轮询，后端固定返回24小时数据
+  });
+  
+  // 编辑实例模态控制
+  const [editModalOpen, setEditModalOpen] = React.useState(false);
 
   // 是否移入回收站
   const [moveToRecycle, setMoveToRecycle] = React.useState(false);
@@ -436,32 +444,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         setTunnelInfo(detailsData.tunnelInfo);
       }
 
-      // 获取流量趋势数据
-      const trafficResponse = await fetch(`/api/tunnels/${resolvedId}/traffic-trend`);
-      if (trafficResponse.ok) {
-        const trafficData = await trafficResponse.json();
-        if (trafficData.trafficTrend && Array.isArray(trafficData.trafficTrend)) {
-          setTrafficTrend(trafficData.trafficTrend);
-        }
-      }
-
-      // 获取延迟趋势数据
-      const pingResponse = await fetch(`/api/tunnels/${resolvedId}/ping-trend`);
-      if (pingResponse.ok) {
-        const pingData = await pingResponse.json();
-        if (pingData.pingTrend && Array.isArray(pingData.pingTrend)) {
-          setPingTrend(pingData.pingTrend);
-        }
-      }
-
-      // 获取连接池趋势数据
-      const poolResponse = await fetch(`/api/tunnels/${resolvedId}/pool-trend`);
-      if (poolResponse.ok) {
-        const poolData = await poolResponse.json();
-        if (poolData.poolTrend && Array.isArray(poolData.poolTrend)) {
-          setPoolTrend(poolData.poolTrend);
-        }
-      }
+      // 注意：趋势数据现在通过统一的 metrics-trend API 和 15秒轮询获取
+      // 这里不再需要手动获取趋势数据
       
       // 刷新文件日志 - 直接更新trigger而不依赖handleLogRefresh
       setLogRefreshTrigger(prev => prev + 1);
@@ -527,118 +511,16 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     }
   }, [resolvedId]);
 
-  // 获取流量趋势数据
-  const fetchTrafficTrend = React.useCallback(async () => {
-    try {
-      setTrafficRefreshLoading(true);
-      
-      const response = await fetch(`/api/tunnels/${resolvedId}/traffic-trend`);
-      if (!response.ok) {
-        throw new Error('获取流量趋势失败');
-      }
-      
-      const data = await response.json();
-      
-      // 设置流量趋势数据
-      if (data.trafficTrend && Array.isArray(data.trafficTrend)) {
-        setTrafficTrend(data.trafficTrend);
-        console.log('[流量趋势] 数据获取成功', {
-          数据点数: data.trafficTrend.length,
-          最新数据: data.trafficTrend[data.trafficTrend.length - 1] || null
-        });
-      } else {
-        console.log('[流量趋势] 数据为空或格式错误', { trafficTrend: data.trafficTrend });
-        setTrafficTrend([]);
-      }
-    } catch (error) {
-      console.error('获取流量趋势失败:', error);
-      addToast({
-        title: "获取流量趋势失败",
-        description: error instanceof Error ? error.message : "未知错误",
-        color: "danger",
-      });
-    } finally {
-      setTrafficRefreshLoading(false);
-    }
-  }, [resolvedId]);
 
-  // 获取延迟趋势数据
-  const fetchPingTrend = React.useCallback(async () => {
-    try {
-      setPingRefreshLoading(true);
-      
-      const response = await fetch(`/api/tunnels/${resolvedId}/ping-trend`);
-      if (!response.ok) {
-        throw new Error('获取延迟趋势失败');
-      }
-      
-      const data = await response.json();
-      
-      // 设置延迟趋势数据
-      if (data.pingTrend && Array.isArray(data.pingTrend)) {
-        setPingTrend(data.pingTrend);
-        console.log('[延迟趋势] 数据获取成功', {
-          数据点数: data.pingTrend.length,
-          最新数据: data.pingTrend[data.pingTrend.length - 1] || null
-        });
-      } else {
-        console.log('[延迟趋势] 数据为空或格式错误', { pingTrend: data.pingTrend });
-        setPingTrend([]);
-      }
-    } catch (error) {
-      console.error('获取延迟趋势失败:', error);
-      addToast({
-        title: "获取延迟趋势失败",
-        description: error instanceof Error ? error.message : "未知错误",
-        color: "danger",
-      });
-    } finally {
-      setPingRefreshLoading(false);
-    }
-  }, [resolvedId]);
 
-  // 获取连接池趋势数据
-  const fetchPoolTrend = React.useCallback(async () => {
-    try {
-      setPoolRefreshLoading(true);
-      
-      const response = await fetch(`/api/tunnels/${resolvedId}/pool-trend`);
-      if (!response.ok) {
-        throw new Error('获取连接池趋势失败');
-      }
-      
-      const data = await response.json();
-      
-      // 设置连接池趋势数据
-      if (data.poolTrend && Array.isArray(data.poolTrend)) {
-        setPoolTrend(data.poolTrend);
-        console.log('[连接池趋势] 数据获取成功', {
-          数据点数: data.poolTrend.length,
-          最新数据: data.poolTrend[data.poolTrend.length - 1] || null
-        });
-      } else {
-        console.log('[连接池趋势] 数据为空或格式错误', { poolTrend: data.poolTrend });
-        setPoolTrend([]);
-      }
-    } catch (error) {
-      console.error('获取连接池趋势失败:', error);
-      addToast({
-        title: "获取连接池趋势失败",
-        description: error instanceof Error ? error.message : "未知错误",
-        color: "danger",
-      });
-    } finally {
-      setPoolRefreshLoading(false);
-    }
-  }, [resolvedId]);
+
+
+
 
   // 初始加载数据
   React.useEffect(() => {
     fetchTunnelDetails();
-    fetchTrafficTrend();
-    fetchPingTrend();
-    fetchPoolTrend();
-  }, [fetchTunnelDetails, fetchTrafficTrend, fetchPingTrend, fetchPoolTrend]);
+  }, [fetchTunnelDetails]);
 
   // SSE监听逻辑
   useTunnelSSE(tunnelInfo?.instanceId || "", {
@@ -661,14 +543,9 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         console.log('[隧道详情] 收到update事件，刷新数据');
         // 刷新隧道详情
         fetchTunnelDetails();
-        // 刷新流量趋势
-        fetchTrafficTrend();
-        // 刷新延迟趋势
-        fetchPingTrend();
-        // 刷新连接池趋势
-        fetchPoolTrend();
         // 刷新日志（通过触发器）
         setLogRefreshTrigger(prev => prev + 1);
+        // 注意：metrics数据通过15秒轮询自动更新，无需手动刷新
         
         // 如果数据中包含状态更新，立即更新本地状态
         if (data.status && tunnelInfo) {
@@ -1332,35 +1209,33 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         </AccordionItem>
       </Accordion>
 
-      {/* 流量趋势图 - 响应式高度 */}
+      {/* 流量趋势图 - 使用统一接口，15秒轮询 */}
       <Card className="p-2">
-        <CardHeader className="flex items-center  justify-between">
+        <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-semibold">流量趋势</h3>              
-              <Tooltip content="需要日志级别设为debug才会有流量变化推送" placement="right">
+              <Tooltip content="基于 Nezha 风格分钟级聚合数据，每15秒自动刷新" placement="right">
                 <FontAwesomeIcon 
                   icon={faQuestionCircle} 
                   className="text-default-400 hover:text-default-600 cursor-help text-xs"
                 />
               </Tooltip>
             </div>
-            
-           
-            
           </div>
           <div className="flex items-center gap-2">
-           {/* 刷新按钮 */}
+           {/* 手动刷新按钮 */}
            <Button
               size="sm"
               variant="flat"
               isIconOnly
-              onPress={fetchTrafficTrend}
-              isLoading={trafficRefreshLoading}
+              onPress={refreshMetrics}
+              isLoading={metricsLoading}
               className="h-7 w-7 min-w-0"
             >
                 <FontAwesomeIcon icon={faRefresh} className="text-xs" />
             </Button>
+            
            {/* 时间范围选择 */}
            <Tabs 
               selectedKey={trafficTimeRange}
@@ -1378,375 +1253,89 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
               <Tab key="12h" title="12小时" />
               <Tab key="24h" title="24小时" />
             </Tabs>
-            </div>
+          </div>
         </CardHeader>
         <CardBody>
           <div className="h-[250px] md:h-[300px]">
-            {loading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="space-y-4 text-center">
-                  <div className="flex justify-center">
-                    <div className="relative w-8 h-8">
-                      <div className="absolute inset-0 rounded-full border-4 border-default-200 border-t-primary animate-spin" />
-                    </div>
-                  </div>
-                  <p className="text-default-500 animate-pulse text-sm md:text-base">加载流量数据中...</p>
-                </div>
-              </div>
-            ) : (() => {
-              // 检查原始数据是否为空
-              if (!trafficTrend || !Array.isArray(trafficTrend) || trafficTrend.length === 0) {
-                return true; // 显示占位符
-              }
-              
-              // 检查过滤后的数据是否为空
-              const filteredData = filterDataByTimeRange(trafficTrend, trafficTimeRange);
-              return filteredData.length === 0;
-            })() ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <p className="text-default-500 text-base md:text-lg">暂无流量数据</p>
-                  <p className="text-default-400 text-xs md:text-sm mt-2">
-                    {!trafficTrend || trafficTrend.length === 0 
-                      ? "当实例运行时，流量趋势数据将在此显示" 
-                      : `在过去${trafficTimeRange === "1h" ? "1小时" : trafficTimeRange === "6h" ? "6小时" : trafficTimeRange === "12h" ? "12小时" : "24小时"}内暂无流量数据`
-                    }
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <FlowTrafficChart 
-                key={`${trafficTimeRange}-${trafficTrend?.length || 0}`} // 强制重新渲染
-                timeRange={trafficTimeRange}
-                data={(() => {
-                  // 安全检查
-                  if (!trafficTrend || !Array.isArray(trafficTrend) || trafficTrend.length === 0) {
-                    return [];
-                  }
-                  
-                  // 首先根据时间范围过滤数据 - 后端已经返回差值数据
-                  const filteredData = filterDataByTimeRange(trafficTrend, trafficTimeRange);
-                  
-                  if (filteredData.length === 0) return [];
-                  
-                  // 收集所有差值数据，找到最合适的统一单位
-                  const allValues: number[] = [];
-                  filteredData.forEach((item: TrafficTrendData) => {
-                    // 安全检查数据字段
-                    const tcpRxDiff = Number(item.tcpRxDiff) || 0;
-                    const tcpTxDiff = Number(item.tcpTxDiff) || 0;
-                    const udpRxDiff = Number(item.udpRxDiff) || 0;
-                    const udpTxDiff = Number(item.udpTxDiff) || 0;
-                    
-                    allValues.push(tcpRxDiff, tcpTxDiff, udpRxDiff, udpTxDiff);
-                  });
-                  
-                  const { unit: commonUnit, divisor } = getBestUnit(allValues);
-                  
-                  const chartData = [
-                    {
-                      id: `TCP接收`,
-                      data: filteredData.map((item: TrafficTrendData) => ({
-                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
-                        y: parseFloat(((Number(item.tcpRxDiff) || 0) / divisor).toFixed(2)),
-                        unit: commonUnit
-                      }))
-                    },
-                    {
-                      id: `TCP发送`,
-                      data: filteredData.map((item: TrafficTrendData) => ({
-                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
-                        y: parseFloat(((Number(item.tcpTxDiff) || 0) / divisor).toFixed(2)),
-                        unit: commonUnit
-                      }))
-                    },
-                    {
-                      id: `UDP接收`,
-                      data: filteredData.map((item: TrafficTrendData) => ({
-                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
-                        y: parseFloat(((Number(item.udpRxDiff) || 0) / divisor).toFixed(2)),
-                        unit: commonUnit
-                      }))
-                    },
-                    {
-                      id: `UDP发送`,
-                      data: filteredData.map((item: TrafficTrendData) => ({
-                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
-                        y: parseFloat(((Number(item.udpTxDiff) || 0) / divisor).toFixed(2)),
-                        unit: commonUnit
-                      }))
-                    },
-
-
-                  ];
-                  
-                  return chartData;
-                })()}
-                unit={(() => {
-                  // 使用过滤后的数据计算单位 - 后端已经返回差值数据
-                  if (!trafficTrend || !Array.isArray(trafficTrend) || trafficTrend.length === 0) {
-                    return 'B';
-                  }
-                  
-                  const filteredData = filterDataByTimeRange(trafficTrend, trafficTimeRange);
-                  if (filteredData.length === 0) return 'B';
-                  
-                  const allValues: number[] = [];
-                  filteredData.forEach((item: TrafficTrendData) => {
-                    const tcpRxDiff = Number(item.tcpRxDiff) || 0;
-                    const tcpTxDiff = Number(item.tcpTxDiff) || 0;
-                    const udpRxDiff = Number(item.udpRxDiff) || 0;
-                    const udpTxDiff = Number(item.udpTxDiff) || 0;
-                    allValues.push(tcpRxDiff, tcpTxDiff, udpRxDiff, udpTxDiff);
-                  });
-                  
-                  const { unit } = getBestUnit(allValues);
-                  return unit;
-                })()}
-              />
-            )}
+            <EnhancedMetricsChart
+              apiData={metricsData?.data || null}
+              type="traffic"
+              height={0} // 使用css高度
+              timeRange={trafficTimeRange}
+              showLegend={true}
+              loading={metricsLoading && !metricsData}
+              error={metricsError || undefined}
+              className="h-full w-full"
+              maxDataPoints={500}
+            />
           </div>
         </CardBody>
       </Card>
-      
-      {/* 连接池变化 - 独立Card - 只有当traffic.pool不为null时才显示 */}
-      {false && (
-      <Card className="p-2">
-        <CardHeader className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold">连接池变化</h3>              
-              <Tooltip content="显示隧道连接池数量的变化趋势" placement="right">
-                <FontAwesomeIcon 
-                  icon={faQuestionCircle} 
-                  className="text-default-400 hover:text-default-600 cursor-help text-xs"
-                />
-              </Tooltip>
-            </div>
-          </div>
-          <div className="flex items-center gap-2">
-           {/* 刷新按钮 */}
-           <Button
-              size="sm"
-              variant="flat"
-              isIconOnly
-              onPress={fetchPoolTrend}
-              isLoading={poolRefreshLoading}
-              className="h-7 w-7 min-w-0"
-            >
-                <FontAwesomeIcon icon={faRefresh} className="text-xs" />
-            </Button>
-           {/* 时间范围选择 */}
-           <Tabs 
-              selectedKey={poolTimeRange}
-              onSelectionChange={(key) => setPoolTimeRange(key as "1h" | "6h" | "12h" | "24h")}
-              size="sm"
-              variant="light"
-              classNames={{
-                tabList: "gap-1",
-                tab: "text-xs px-2 py-1 min-w-0 h-7",
-                tabContent: "text-xs"
-              }}
-            >
-              <Tab key="1h" title="1小时" />
-              <Tab key="6h" title="6小时" />
-              <Tab key="12h" title="12小时" />
-              <Tab key="24h" title="24小时" />
-            </Tabs>
-          </div>
-        </CardHeader>
-        <CardBody>
-          <div className="h-[250px] md:h-[300px]">
-            {loading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="space-y-4 text-center">
-                  <div className="flex justify-center">
-                    <div className="relative w-8 h-8">
-                      <div className="absolute inset-0 rounded-full border-4 border-default-200 border-t-primary animate-spin" />
-                    </div>
-                  </div>
-                  <p className="text-default-500 animate-pulse text-sm md:text-base">加载连接池数据中...</p>
-                </div>
-              </div>
-            ) : (() => {
-              // 检查原始数据是否为空
-              if (!poolTrend || !Array.isArray(poolTrend) || poolTrend.length === 0) {
-                return true; // 显示占位符
-              }
-              
-              // 检查过滤后的数据是否为空
-              const filteredData = filterPoolDataByTimeRange(poolTrend, poolTimeRange);
-              return filteredData.length === 0;
-            })() ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <p className="text-default-500 text-base md:text-lg">暂无连接池数据</p>
-                  <p className="text-default-400 text-xs md:text-sm mt-2">
-                    {!poolTrend || poolTrend.length === 0 
-                      ? "当实例运行时，连接池变化数据将在此显示" 
-                      : `在过去${poolTimeRange === "1h" ? "1小时" : poolTimeRange === "6h" ? "6小时" : poolTimeRange === "12h" ? "12小时" : "24小时"}内暂无连接池数据`
-                    }
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <FlowTrafficChart 
-                key={`pool-${poolTimeRange}-${poolTrend?.length || 0}`} // 强制重新渲染
-                timeRange={poolTimeRange}
-                showLegend={false}
-                data={(() => {
-                  // 安全检查
-                  if (!poolTrend || !Array.isArray(poolTrend) || poolTrend.length === 0) {
-                    return [];
-                  }
-                  
-                  // 首先根据时间范围过滤数据
-                  const filteredData = filterPoolDataByTimeRange(poolTrend, poolTimeRange);
-                  
-                  if (filteredData.length === 0) return [];
-                  
-                  const chartData = [
-                    {
-                      id: `连接池`,
-                      data: filteredData.map((item: PoolTrendData) => ({
-                        x: item.eventTime || '', // 直接使用后端返回的格式 "2025-06-26 18:40"
-                        y: Number(item.pool) || 0,
-                        unit: '个'
-                      }))
-                    }
-                  ];
-                  
-                  return chartData;
-                })()}
-                unit="个"
-              />
-            )}
-                     </div>
-         </CardBody>
-       </Card>
-       )}
 
-    {/* 延迟变化 - 独立Card - 只有当traffic.ping不为null时才显示 */}
-    {(tunnelInfo.traffic.ping !== null || tunnelInfo.traffic.pool !== null) && (
+      {/* 连接质量 - 延迟和连接池，使用统一接口 */}
+      {(tunnelInfo?.traffic.ping !== null || tunnelInfo?.traffic.pool !== null) && (
         <Card className="p-2">
-        <CardHeader className="flex items-center justify-between">
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold">连接质量</h3>              
-              <Tooltip content="显示隧道连接的延迟变化趋势" placement="right">
-                <FontAwesomeIcon 
-                  icon={faQuestionCircle} 
-                  className="text-default-400 hover:text-default-600 cursor-help text-xs"
-                />
-              </Tooltip>
+          <CardHeader className="flex items-center justify-between">
+            <div className="flex items-center gap-3">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold">连接质量</h3>              
+                <Tooltip content="基于 Nezha 风格分钟级聚合数据，显示延迟和连接池变化" placement="right">
+                  <FontAwesomeIcon 
+                    icon={faQuestionCircle} 
+                    className="text-default-400 hover:text-default-600 cursor-help text-xs"
+                  />
+                </Tooltip>
+              </div>
             </div>
-          </div>
-          <div className="flex items-center gap-2">
-           {/* 刷新按钮 */}
-           <Button
-              size="sm"
-              variant="flat"
-              isIconOnly
-              onPress={() => { fetchPingTrend(); fetchPoolTrend(); }}
-              isLoading={pingRefreshLoading || poolRefreshLoading}
-              className="h-7 w-7 min-w-0"
-            >
-                <FontAwesomeIcon icon={faRefresh} className="text-xs" />
-            </Button>
-           {/* 时间范围选择 */}
-           <Tabs 
-              selectedKey={pingTimeRange}
-              onSelectionChange={(key) => setPingTimeRange(key as "1h" | "6h" | "12h" | "24h")}
-              size="sm"
-              variant="light"
-              classNames={{
-                tabList: "gap-1",
-                tab: "text-xs px-2 py-1 min-w-0 h-7",
-                tabContent: "text-xs"
-              }}
-            >
-              <Tab key="1h" title="1小时" />
-              <Tab key="6h" title="6小时" />
-              <Tab key="12h" title="12小时" />
-              <Tab key="24h" title="24小时" />
-            </Tabs>
-          </div>
-        </CardHeader>
-        <CardBody>
-          <div className="h-[250px] md:h-[300px]">
-            {loading ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="space-y-4 text-center">
-                  <div className="flex justify-center">
-                    <div className="relative w-8 h-8">
-                      <div className="absolute inset-0 rounded-full border-4 border-default-200 border-t-primary animate-spin" />
-                    </div>
-                  </div>
-                  <p className="text-default-500 animate-pulse text-sm md:text-base">加载延迟数据中...</p>
-                </div>
-              </div>
-            ) : (() => {
-              // 检查原始数据是否为空
-              if (!pingTrend || !Array.isArray(pingTrend) || pingTrend.length === 0) {
-                return true; // 显示占位符
-              }
+            <div className="flex items-center gap-2">
+             {/* 手动刷新按钮 */}
+             <Button
+                size="sm"
+                variant="flat"
+                isIconOnly
+                onPress={refreshMetrics}
+                isLoading={metricsLoading}
+                className="h-7 w-7 min-w-0"
+              >
+                  <FontAwesomeIcon icon={faRefresh} className="text-xs" />
+              </Button>
               
-              // 检查过滤后的数据是否为空
-              const filteredData = filterPingDataByTimeRange(pingTrend, pingTimeRange);
-              return filteredData.length === 0;
-            })() ? (
-              <div className="flex items-center justify-center h-full">
-                <div className="text-center">
-                  <p className="text-default-500 text-base md:text-lg">暂无延迟数据</p>
-                  <p className="text-default-400 text-xs md:text-sm mt-2">
-                    {!pingTrend || pingTrend.length === 0 
-                      ? "当实例运行时，延迟变化数据将在此显示" 
-                      : `在过去${pingTimeRange === "1h" ? "1小时" : pingTimeRange === "6h" ? "6小时" : pingTimeRange === "12h" ? "12小时" : "24小时"}内暂无延迟数据`
-                    }
-                  </p>
-                </div>
-              </div>
-            ) : (
-              <DualAxisChart 
-                key={`dual-${pingTimeRange}-${pingTrend?.length || 0}-${poolTrend?.length || 0}`}
+             {/* 时间范围选择 */}
+             <Tabs 
+                selectedKey={pingTimeRange}
+                onSelectionChange={(key) => setPingTimeRange(key as "1h" | "6h" | "12h" | "24h")}
+                size="sm"
+                variant="light"
+                classNames={{
+                  tabList: "gap-1",
+                  tab: "text-xs px-2 py-1 min-w-0 h-7",
+                  tabContent: "text-xs"
+                }}
+              >
+                <Tab key="1h" title="1小时" />
+                <Tab key="6h" title="6小时" />
+                <Tab key="12h" title="12小时" />
+                <Tab key="24h" title="24小时" />
+              </Tabs>
+            </div>
+          </CardHeader>
+          <CardBody>
+            <div className="h-[250px] md:h-[300px]">
+              <EnhancedMetricsChart
+                apiData={metricsData?.data || null}
+                type="quality"
+                height={0} // 使用css高度
                 timeRange={pingTimeRange}
                 showLegend={true}
-                leftUnit="个"
-                rightUnit="ms"
-                datasets={(() => {
-                  const result: any[] = [];
-
-                  if (poolTrend && Array.isArray(poolTrend) && poolTrend.length > 0) {
-                    const filteredPool = filterPoolDataByTimeRange(poolTrend, pingTimeRange);
-                    if (filteredPool.length > 0) {
-                      result.push({
-                        id: '池连接数',
-                        axis: 'left',
-                        data: filteredPool.map((item: PoolTrendData) => ({ x: item.eventTime || '', y: Number(item.pool) || 0 }))
-                      });
-                    }
-                  }
-
-                  if (pingTrend && Array.isArray(pingTrend) && pingTrend.length > 0) {
-                    const filteredPing = filterPingDataByTimeRange(pingTrend, pingTimeRange);
-                    if (filteredPing.length > 0) {
-                      result.push({
-                        id: '端内延迟',
-                        axis: 'right',
-                        data: filteredPing.map((item: PingTrendData) => ({ x: item.eventTime || '', y: Number(item.ping) || 0 }))
-                      });
-                    }
-                  }
-
-                  return result;
-                })()}
+                loading={metricsLoading && !metricsData}
+                error={metricsError || undefined}
+                className="h-full w-full"
+                maxDataPoints={500}
               />
-            )}
-          </div>
-        </CardBody>
-      </Card>
+            </div>
+          </CardBody>
+        </Card>
       )}
-
 
       {/* 日志 - 独立Card */}
       <Card className="p-2">
