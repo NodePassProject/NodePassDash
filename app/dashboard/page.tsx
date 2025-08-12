@@ -32,7 +32,15 @@ import {
 import React, { useState, useEffect } from "react";
 
 import { Icon } from "@iconify/react";
-import { FlowTrafficChart } from "@/components/ui/flow-traffic-chart";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import { 
+  faRocket,
+  faPlay,
+  faStop,
+  faExclamationTriangle,
+  faRecycle
+} from "@fortawesome/free-solid-svg-icons";
+import { TrafficOverviewChart } from "@/components/ui/traffic-overview-chart";
 import { useRouter } from "next/navigation";
 import { useGlobalSSE } from '@/lib/hooks/use-sse';
 import { formatDistanceToNow } from 'date-fns';
@@ -95,57 +103,30 @@ interface TrafficTrendData {
   recordCount: number;
 }
 
-// 添加流量单位转换函数
-const formatTrafficValue = (bytes: number) => {
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  let value = Math.abs(bytes);
-  let unitIndex = 0;
-  
-  while (value >= 1024 && unitIndex < units.length - 1) {
-    value /= 1024;
-    unitIndex++;
-  }
-  
-  return {
-    value: value.toFixed(2),
-    unit: units[unitIndex]
-  };
-};
 
-// 根据数据选择最合适的统一单位
-const getBestUnit = (values: number[]) => {
-  if (values.length === 0) return { unit: 'B', divisor: 1 };
-  
-  const maxValue = Math.max(...values);
-  const units = ['B', 'KB', 'MB', 'GB', 'TB'];
-  const divisors = [1, 1024, 1024*1024, 1024*1024*1024, 1024*1024*1024*1024];
-  
-  let unitIndex = 0;
-  let testValue = maxValue;
-  
-  while (testValue >= 1024 && unitIndex < units.length - 1) {
-    testValue /= 1024;
-    unitIndex++;
-  }
-  
-  return {
-    unit: units[unitIndex],
-    divisor: divisors[unitIndex]
-  };
-};
+
+
 
 /**
  * 仪表盘页面 - 显示系统概览和状态信息
  */
 export default function DashboardPage() {
   const router = useRouter();
-  const [stats, setStats] = useState<TunnelStats>({ total: 0, running: 0, stopped: 0, error: 0, offline: 0 });
+  const [overallStats, setOverallStats] = useState({
+    total_endpoints: 0,
+    total_tunnels: 0,
+    total_traffic: 0,
+    current_speed: 0
+  });
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [operationLogs, setOperationLogs] = useState<OperationLog[]>([]);
   const [trafficTrend, setTrafficTrend] = useState<TrafficTrendData[]>([]);
   const [trafficLoading, setTrafficLoading] = useState(true);
   const [visibleUrls, setVisibleUrls] = useState<Set<number>>(new Set());
+  
+  // 添加tunnel统计数据状态
+  const [tunnelStats, setTunnelStats] = useState<TunnelStats>({ total: 0, running: 0, stopped: 0, error: 0, offline: 0 });
 
   // 清空日志确认模态框控制
   const { isOpen: isClearOpen, onOpen: onClearOpen, onClose: onClearClose } = useDisclosure();
@@ -241,24 +222,22 @@ export default function DashboardPage() {
     { key: "status", label: "状态" },
   ];
 
-  // 获取实例统计数据
-  const fetchTunnelStats = async () => {
+  // 获取总体统计数据
+  const fetchOverallStats = async () => {
     try {
-      const response = await fetch(buildApiUrl('/api/tunnels/simple'));
-      if (!response.ok) throw new Error('获取实例数据失败');
-      const tunnels: TunnelInstance[] = await response.json();
-      
-      const newStats = {
-        total: tunnels.length,
-        running: tunnels.filter(t => t.status.type === 'success').length,
-        stopped: tunnels.filter(t => t.status.type === 'danger').length,
-        error: tunnels.filter(t => t.status.type === 'warning').length,
-        offline: tunnels.filter(t => t.status.text === '离线').length,
-      };
-      
-      setStats(newStats);
+      const response = await fetch(buildApiUrl('/api/dashboard/overall-stats'));
+      if (!response.ok) throw new Error('获取总体统计数据失败');
+      const data = await response.json();
+      if (data.success && data.data) {
+        setOverallStats(data.data);
+      }
     } catch (error) {
-      console.error('获取实例统计数据失败:', error);
+      console.error('获取总体统计数据失败:', error);
+      addToast({
+        title: '错误',
+        description: '获取总体统计数据失败',
+        color: 'danger'
+      });
     }
   };
 
@@ -311,6 +290,26 @@ export default function DashboardPage() {
     }
   };
 
+  // 获取tunnel统计数据
+  const fetchTunnelStats = async () => {
+    try {
+      const response = await fetch(buildApiUrl('/api/dashboard/tunnel-stats'));
+      if (!response.ok) throw new Error('获取tunnel统计数据失败');
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setTunnelStats(result.data);
+      }
+    } catch (error) {
+      console.error('获取tunnel统计数据失败:', error);
+      addToast({
+        title: '错误',
+        description: '获取tunnel统计数据失败',
+        color: 'danger'
+      });
+    }
+  };
+
   // 使用全局SSE监听页面刷新事件
   // useGlobalSSE({
   //   onMessage: (data) => {
@@ -344,8 +343,9 @@ export default function DashboardPage() {
       // 优先加载核心统计数据，快速显示基本信息
       try {
         await Promise.all([
-          fetchTunnelStats(), 
-          fetchEndpoints()
+          fetchOverallStats(), 
+          fetchEndpoints(),
+          fetchTunnelStats()
         ]);
       } catch (error) {
         console.error('加载核心数据失败:', error);
@@ -371,8 +371,8 @@ export default function DashboardPage() {
 
   return (
     <div className="space-y-4 md:space-y-6 p-4 md:p-0">
-      {/* 顶部统计卡片 - 响应式网格布局 */}
-      <div className="grid grid-cols-2 lg:grid-cols-5 gap-3 md:gap-4">
+      {/* 顶部统计卡片 - 从tunnels页面移过来的5个统计卡片 */}
+      <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card 
           className="p-3 md:p-4 bg-gradient-to-br from-primary-50 to-primary-100/50 dark:from-primary-900/20 dark:to-primary-900/10 cursor-pointer transition-transform hover:scale-[1.02]"
           isPressable
@@ -382,10 +382,10 @@ export default function DashboardPage() {
             <div className="flex justify-between items-center">
               <div className="flex flex-col gap-1">
                 <span className="text-default-600 text-xs md:text-sm">总实例</span>
-                <span className="text-xl md:text-2xl font-semibold">{loading ? "--" : stats.total}</span>
+                <span className="text-xl md:text-2xl font-semibold text-primary">{loading ? "--" : tunnelStats.total}</span>
               </div>
               <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg bg-primary/10 text-primary">
-                <Icon icon="solar:server-2-bold" width={20} className="md:w-6 md:h-6" />
+                <FontAwesomeIcon icon={faRocket} className="w-5 h-5 md:w-6 md:h-6" />
               </div>
             </div>
           </CardBody>
@@ -394,16 +394,16 @@ export default function DashboardPage() {
         <Card 
           className="p-3 md:p-4 bg-gradient-to-br from-success-50 to-success-100/50 dark:from-success-900/20 dark:to-success-900/10 cursor-pointer transition-transform hover:scale-[1.02]"
           isPressable
-          onPress={() => router.push("/tunnels?status=running")}
+          onPress={() => router.push("/tunnels")}
         >
           <CardBody className="p-0">
             <div className="flex justify-between items-center">
               <div className="flex flex-col gap-1">
                 <span className="text-default-600 text-xs md:text-sm">运行中</span>
-                <span className="text-xl md:text-2xl font-semibold text-success">{loading ? "--" : stats.running}</span>
+                <span className="text-xl md:text-2xl font-semibold text-success">{loading ? "--" : tunnelStats.running}</span>
               </div>
               <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg bg-success/10 text-success">
-                <Icon icon="solar:play-circle-bold" width={20} className="md:w-6 md:h-6" />
+                <FontAwesomeIcon icon={faPlay} className="w-5 h-5 md:w-6 md:h-6" />
               </div>
             </div>
           </CardBody>
@@ -412,16 +412,16 @@ export default function DashboardPage() {
         <Card 
           className="p-3 md:p-4 bg-gradient-to-br from-danger-50 to-danger-100/50 dark:from-danger-900/20 dark:to-danger-900/10 cursor-pointer transition-transform hover:scale-[1.02]"
           isPressable
-          onPress={() => router.push("/tunnels?status=stopped")}
+          onPress={() => router.push("/tunnels")}
         >
           <CardBody className="p-0">
             <div className="flex justify-between items-center">
               <div className="flex flex-col gap-1">
                 <span className="text-default-600 text-xs md:text-sm">已停止</span>
-                <span className="text-xl md:text-2xl font-semibold text-danger">{loading ? "--" : stats.stopped}</span>
+                <span className="text-xl md:text-2xl font-semibold text-danger">{loading ? "--" : tunnelStats.stopped}</span>
               </div>
               <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg bg-danger/10 text-danger">
-                <Icon icon="solar:stop-circle-bold" width={20} className="md:w-6 md:h-6" />
+                <FontAwesomeIcon icon={faStop} className="w-5 h-5 md:w-6 md:h-6" />
               </div>
             </div>
           </CardBody>
@@ -430,16 +430,16 @@ export default function DashboardPage() {
         <Card 
           className="p-3 md:p-4 bg-gradient-to-br from-warning-50 to-warning-100/50 dark:from-warning-900/20 dark:to-warning-900/10 cursor-pointer transition-transform hover:scale-[1.02]"
           isPressable
-          onPress={() => router.push("/tunnels?status=error")}
+          onPress={() => router.push("/tunnels")}
         >
           <CardBody className="p-0">
             <div className="flex justify-between items-center">
               <div className="flex flex-col gap-1">
-                <span className="text-default-600 text-xs md:text-sm">错误</span>
-                <span className="text-xl md:text-2xl font-semibold text-warning">{loading ? "--" : stats.error}</span>
+                <span className="text-default-600 text-xs md:text-sm">有错误</span>
+                <span className="text-xl md:text-2xl font-semibold text-warning">{loading ? "--" : tunnelStats.error}</span>
               </div>
               <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg bg-warning/10 text-warning">
-                <Icon icon="solar:danger-triangle-bold" width={20} className="md:w-6 md:h-6" />
+                <FontAwesomeIcon icon={faExclamationTriangle} className="w-5 h-5 md:w-6 md:h-6" />
               </div>
             </div>
           </CardBody>
@@ -448,16 +448,16 @@ export default function DashboardPage() {
         <Card 
           className="p-3 md:p-4 bg-gradient-to-br from-default-50 to-default-100/50 dark:from-default-900/20 dark:to-default-900/10 cursor-pointer transition-transform hover:scale-[1.02]"
           isPressable
-          onPress={() => router.push("/tunnels?status=offline")}
+          onPress={() => router.push("/tunnels")}
         >
           <CardBody className="p-0">
             <div className="flex justify-between items-center">
               <div className="flex flex-col gap-1">
-                <span className="text-default-600 text-xs md:text-sm">离线</span>
-                <span className="text-xl md:text-2xl font-semibold text-default-500">{loading ? "--" : stats.offline}</span>
+                <span className="text-default-600 text-xs md:text-sm">已离线</span>
+                <span className="text-xl md:text-2xl font-semibold text-default-600">{loading ? "--" : tunnelStats.offline}</span>
               </div>
-              <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg bg-default/40 text-default-500">
-                <Icon icon="solar:adhesive-plaster-bold-duotone" width={20} className="md:w-6 md:h-6" />
+              <div className="flex items-center justify-center w-8 h-8 md:w-10 md:h-10 rounded-lg bg-default/10 text-default-600">
+                <FontAwesomeIcon icon={faRecycle} className="w-5 h-5 md:w-6 md:h-6" />
               </div>
             </div>
           </CardBody>
@@ -467,84 +467,24 @@ export default function DashboardPage() {
       {/* 中间内容区域 - 响应式布局 */}
       <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 md:gap-6">
         {/* 流量概览 - 在移动端占满宽度，桌面端占2列 */}
-        <Card className="lg:col-span-2 min-h-[350px] lg:h-[400px]">
-          <CardHeader className="font-bold text-sm md:text-base px-4 md:px-6 pb-3">流量总耗</CardHeader>
-          <CardBody className="h-full px-4 md:px-6 pb-4 md:pb-6">
-            <div className="h-[280px] lg:h-[300px]">
-              {trafficLoading ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="space-y-4 text-center">
-                    <div className="flex justify-center">
-                      <div className="relative w-8 h-8">
-                        <div className="absolute inset-0 rounded-full border-4 border-default-200 border-t-primary animate-spin" />
-                      </div>
-                    </div>
-                    <p className="text-default-500 animate-pulse text-sm md:text-base">加载流量数据中...</p>
-                  </div>
-                </div>
-              ) : trafficTrend.length === 0 ? (
-                <div className="flex items-center justify-center h-full">
-                  <div className="text-center">
-                    <p className="text-default-500 text-base md:text-lg">暂无流量数据</p>
-                    <p className="text-default-400 text-xs md:text-sm mt-2">当有实例运行时，流量趋势数据将在此显示</p>
-                  </div>
-                </div>
-              ) : (
-                <FlowTrafficChart 
-                  data={(() => {
-                    // 收集所有流量数据，找到最合适的统一单位
-                    const allValues: number[] = [];
-                    trafficTrend.forEach(item => {
-                      allValues.push(item.tcpRx, item.tcpTx, item.udpRx, item.udpTx);
-                    });
-                    
-                    const { unit: commonUnit, divisor } = getBestUnit(allValues);
-                    
-                    return [
-                      {
-                        id: `TCP接收`,
-                        data: trafficTrend.map((item) => ({
-                          x: item.hourDisplay,
-                          y: parseFloat((item.tcpRx / divisor).toFixed(2))
-                        }))
-                      },
-                      {
-                        id: `TCP发送`,
-                        data: trafficTrend.map((item) => ({
-                          x: item.hourDisplay,
-                          y: parseFloat((item.tcpTx / divisor).toFixed(2))
-                        }))
-                      },
-                      {
-                        id: `UDP接收`,
-                        data: trafficTrend.map((item) => ({
-                          x: item.hourDisplay,
-                          y: parseFloat((item.udpRx / divisor).toFixed(2))
-                        }))
-                      },
-                      {
-                        id: `UDP发送`,
-                        data: trafficTrend.map((item) => ({
-                          x: item.hourDisplay,
-                          y: parseFloat((item.udpTx / divisor).toFixed(2))
-                        }))
-                      }
-                    ];
-                  })()}
-                  unit={(() => {
-                    const allValues: number[] = [];
-                    trafficTrend.forEach(item => {
-                      allValues.push(item.tcpRx, item.tcpTx, item.udpRx, item.udpTx);
-                    });
-                    
-                    const { unit } = getBestUnit(allValues);
-                    return unit;
-                  })()}
-                />
-              )}
-            </div>
-          </CardBody>
-        </Card>
+        <div className="lg:col-span-2">
+          <TrafficOverviewChart 
+            data={trafficTrend.map(item => ({
+              time: item.hourTime,
+              tcpIn: item.tcpRx,
+              tcpOut: item.tcpTx,
+              udpIn: item.udpRx,
+              udpOut: item.udpTx,
+            }))}
+            loading={trafficLoading}
+            timeRange="24Hours"
+            onTimeRangeChange={(range) => {
+              console.log('时间范围变化:', range);
+              // 这里可以根据时间范围重新获取数据
+              // fetchTrafficTrend(range);
+            }}
+          />
+        </div>
 
         {/* API 主控列表 - 在移动端独占一行，桌面端占1列 */}
         <Card className="min-h-[300px] lg:h-[400px]">
