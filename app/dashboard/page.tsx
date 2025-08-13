@@ -41,6 +41,11 @@ import {
   faRecycle
 } from "@fortawesome/free-solid-svg-icons";
 import { TrafficOverviewChart } from "@/components/ui/traffic-overview-chart";
+import { TodayTrafficChart } from "../../components/ui/today-traffic-chart";
+import { ServerIcon } from "@/components/ui/server-icon";
+import { ServerIconRed } from "@/components/ui/server-red-icon";
+import { QuickEntryCard } from "@/components/ui/quick-entry-card";
+import { FlexBox } from "@/components";
 import { useRouter } from "next/navigation";
 import { useGlobalSSE } from '@/lib/hooks/use-sse';
 import { formatDistanceToNow } from 'date-fns';
@@ -94,7 +99,7 @@ interface OperationLog {
 
 // 添加流量趋势数据类型
 interface TrafficTrendData {
-  hourTime: string;
+  hourTime: number; // Unix时间戳（秒）
   hourDisplay: string;
   tcpRx: number;
   tcpTx: number;
@@ -127,6 +132,15 @@ export default function DashboardPage() {
   
   // 添加tunnel统计数据状态
   const [tunnelStats, setTunnelStats] = useState<TunnelStats>({ total: 0, running: 0, stopped: 0, error: 0, offline: 0 });
+
+  // 今日流量数据状态
+  const [todayTrafficData, setTodayTrafficData] = useState<{
+    tcpIn: number;
+    tcpOut: number;
+    udpIn: number;
+    udpOut: number;
+    total: number;
+  }>({ tcpIn: 0, tcpOut: 0, udpIn: 0, udpOut: 0, total: 0 });
 
   // 清空日志确认模态框控制
   const { isOpen: isClearOpen, onOpen: onClearOpen, onClose: onClearClose } = useDisclosure();
@@ -275,6 +289,8 @@ export default function DashboardPage() {
       const result = await response.json();
       if (result.success) {
         setTrafficTrend(result.data);
+        // 处理今日流量数据
+        processTodayTrafficData(result.data);
         console.log('[仪表盘前端] 流量趋势数据获取成功:', {
           数据条数: result.data.length,
           示例数据: result.data.slice(0, 3)
@@ -308,6 +324,82 @@ export default function DashboardPage() {
         color: 'danger'
       });
     }
+  };
+
+  // 格式化字节数
+  const formatBytes = (bytes: number): string => {
+    if (bytes === 0) return "0 B";
+    const k = 1024;
+    const sizes = ["B", "KB", "MB", "GB", "TB"];
+    const i = Math.floor(Math.log(bytes) / Math.log(k));
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+  };
+
+  // 处理今日流量数据
+  const processTodayTrafficData = (trafficData: TrafficTrendData[]) => {
+    const today = new Date();
+    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
+    const todayStartTimestamp = Math.floor(todayStart.getTime() / 1000); // 转换为秒级时间戳
+    
+    console.log('[今日流量筛选] 开始处理数据:', {
+      总数据条数: trafficData.length,
+      今日开始时间戳: todayStartTimestamp,
+      今日开始时间: todayStart.toISOString(),
+      当前时间: today.toISOString(),
+      示例数据: trafficData.slice(0, 3).map(item => ({
+        hourTime: item.hourTime,
+        parsedDate: new Date(item.hourTime * 1000).toISOString(),
+        tcpRx: item.tcpRx,
+        tcpTx: item.tcpTx,
+        udpRx: item.udpRx,
+        udpTx: item.udpTx
+      }))
+    });
+    
+    // 筛选今日的数据
+    const todayData = trafficData.filter(item => {
+      const isToday = item.hourTime >= todayStartTimestamp;
+      
+      // 调试信息
+      if (trafficData.length <= 10) { // 只在数据量少时输出调试信息
+        console.log('[今日流量筛选] 检查数据项:', {
+          hourTime: item.hourTime,
+          parsedDate: new Date(item.hourTime * 1000).toISOString(),
+          isToday: isToday,
+          tcpRx: item.tcpRx,
+          tcpTx: item.tcpTx,
+          udpRx: item.udpRx,
+          udpTx: item.udpTx
+        });
+      }
+      
+      return isToday;
+    });
+
+    console.log('[今日流量筛选] 筛选结果:', {
+      今日数据条数: todayData.length,
+      筛选出的数据: todayData.map(item => ({
+        hourTime: item.hourTime,
+        parsedDate: new Date(item.hourTime * 1000).toISOString(),
+        tcpRx: item.tcpRx,
+        tcpTx: item.tcpTx,
+        udpRx: item.udpRx,
+        udpTx: item.udpTx
+      }))
+    });
+
+    // 计算今日总流量
+    const todayTraffic = todayData.reduce((acc, item) => {
+      acc.tcpIn += item.tcpRx;
+      acc.tcpOut += item.tcpTx;
+      acc.udpIn += item.udpRx;
+      acc.udpOut += item.udpTx;
+      acc.total += item.tcpRx + item.tcpTx + item.udpRx + item.udpTx;
+      return acc;
+    }, { tcpIn: 0, tcpOut: 0, udpIn: 0, udpOut: 0, total: 0 });
+
+    console.log('[今日流量筛选] 计算结果:', todayTraffic);
+    setTodayTrafficData(todayTraffic);
   };
 
   // 使用全局SSE监听页面刷新事件
@@ -465,12 +557,12 @@ export default function DashboardPage() {
       </div>
 
       {/* 中间内容区域 - 响应式布局 */}
-      <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 md:gap-6">
+      <div className="flex flex-col lg:grid lg:grid-cols-3 gap-4 md:gap-6" style={{ minHeight: '400px' }}>
         {/* 流量概览 - 在移动端占满宽度，桌面端占2列 */}
-        <div className="lg:col-span-2">
+        <div className="lg:col-span-2 lg:h-full">
           <TrafficOverviewChart 
             data={trafficTrend.map(item => ({
-              time: item.hourTime,
+              time: new Date(item.hourTime * 1000).toISOString(), // 将时间戳转换为ISO字符串
               tcpIn: item.tcpRx,
               tcpOut: item.tcpTx,
               udpIn: item.udpRx,
@@ -486,179 +578,224 @@ export default function DashboardPage() {
           />
         </div>
 
-        {/* API 主控列表 - 在移动端独占一行，桌面端占1列 */}
-        <Card className="min-h-[300px] lg:h-[400px]">
-          <CardHeader className="font-bold text-sm md:text-base px-4 md:px-6 pb-3">API 主控</CardHeader>
-          <CardBody className="pt-0 px-4 md:px-6 pb-4 md:pb-6">
-            <div className="h-full max-h-[240px] lg:max-h-[320px] overflow-y-auto space-y-3 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              {loading ? (
-                <div className="space-y-3">
-                  {[1, 2, 3].map((i) => (
-                    <div key={i} className="p-3 rounded-lg border border-default-200 bg-default-50/50">
-                      <div className="space-y-2">
-                        <div className="flex items-center gap-2">
-                          <div className="w-2 h-2 rounded-full bg-default-300 animate-pulse" />
-                          <div className="h-4 bg-default-300 rounded animate-pulse flex-1" />
-                        </div>
-                        <div className="h-3 bg-default-200 rounded animate-pulse w-3/4" />
-                        <div className="h-3 bg-default-200 rounded animate-pulse w-1/2" />
+        {/* 右侧卡片区域 - 快捷按钮和今日统计 */}
+        <div className="flex flex-col gap-4 md:gap-6 lg:h-full">
+          {/* 快捷操作组件 */}
+          {/* <QuickActions /> */}
+          <div className="lg:flex-shrink-0">
+            <QuickEntryCard />
+          </div>
+          {/* 今日流量统计图表 */}
+          <div className="lg:flex-1 lg:min-h-0">
+            <TodayTrafficChart
+              title="今日统计"
+              value={formatBytes(todayTrafficData.total)}
+              unit="总流量"
+              color="primary"
+              categories={["TCP入站", "TCP出站", "UDP入站", "UDP出站"]}
+              chartData={[
+                { name: "tcp入站", value: todayTrafficData.tcpIn },
+                { name: "tcp出站", value: todayTrafficData.tcpOut },
+                { name: "udp入站", value: todayTrafficData.udpIn },
+                { name: "udp出站", value: todayTrafficData.udpOut },
+              ]}
+              loading={trafficLoading}
+            />
+          </div>
+        </div>
+      </div>
+
+      {/* 主控状态卡片行 - 横向滚动 */}
+      <div className="space-y-3">
+        {/* <div className="flex items-center justify-between">
+          <h3 className="text-lg font-semibold text-foreground">主控状态</h3>
+          <Button
+            size="sm"
+            variant="light"
+            onPress={() => router.push("/endpoints")}
+            startContent={<FontAwesomeIcon icon={faServer} className="w-4 h-4" />}
+          >
+            管理主控
+          </Button>
+        </div> */}
+        <div className="overflow-x-auto scrollbar-hide bg-transparent">
+          <div className="flex gap-4 pb-2" style={{ minWidth: 'max-content' }}>
+            {loading ? (
+              // 加载状态骨架屏
+              [1, 2, 3, 4, 5].map((i) => (
+                <Card key={i} className="w-[260px] h-[80px] flex-shrink-0 bg-white dark:bg-default-50">
+                  <CardBody className="p-4">
+                    <div className="flex items-center gap-4 h-full">
+                      {/* 左侧：SVG图标骨架 */}
+                      <div className="w-8 h-8 bg-default-300 rounded animate-pulse flex-shrink-0" />
+                      
+                      {/* 右侧：信息骨架 */}
+                      <div className="flex flex-col justify-center gap-1 flex-1">
+                        <div className="w-20 h-4 bg-default-300 rounded animate-pulse" />
+                        <div className="w-32 h-3 bg-default-300 rounded animate-pulse" />
+                        <div className="w-16 h-3 bg-default-200 rounded animate-pulse" />
                       </div>
                     </div>
-                  ))}
-                </div>
-              ) : endpoints.length === 0 ? (
-                <div className="text-center py-8">
-                  <p className="text-default-500 text-xs md:text-sm">暂无主控数据</p>
-                </div>
-              ) : (
-                endpoints.map((endpoint) => (
-                  <div 
-                    key={endpoint.id} 
-                    className="p-3 rounded-lg border border-default-200 bg-gradient-to-r from-default-50/50 to-default-100/30 hover:from-default-100/70 hover:to-default-200/50 transition-all duration-200 hover:shadow-sm"
-                  >
-                    <div className="space-y-2">
-                      {/* 状态和名称行 */}
-                      <div className="flex items-center gap-2 min-w-0">
-                        <span 
-                          className={cn(
-                            "w-2 h-2 rounded-full inline-block flex-shrink-0",
-                            endpoint.status === 'ONLINE' ? "bg-success-500" : "bg-danger-500"
-                          )}
-                        />
-                        <h4 className="font-normal text-xs md:text-sm truncate flex-1">{endpoint.name}</h4>
-                        <Badge 
-                          content={endpoint.tunnelCount} 
-                          color="default" 
-                          size="sm"
-                          classNames={{
-                            badge: "text-[10px] min-w-4 h-4 px-1"
-                          }}
-                        >
-                          <Icon icon="solar:server-2-bold" className="w-3.5 h-3.5 text-default-400" />
-                        </Badge>
+                  </CardBody>
+                </Card>
+              ))
+            ) :  (
+              // 主控卡片
+              endpoints.map((endpoint) => (
+                <Card 
+                  key={endpoint.id} 
+                  className="w-[260px] h-[80px] flex-shrink-0  shadow-none border-2 border-default-200 bg-white dark:bg-default-50"
+                >
+                  <CardBody className="p-4">
+                    <div className="flex items-center h-full">
+                      {/* 左侧：大号服务器图标 */}
+                      <div className="flex-shrink-0 -ml-1">
+                        {endpoint.status === 'ONLINE' ? (
+                          <ServerIcon size={64} className="text-default-400" />
+                        ) : (
+                          <ServerIconRed size={64} className="text-default-400" />
+                        )}
                       </div>
                       
-                      {/* URL地址行 - 仿HTML效果 */}
-                      <div className="flex items-center gap-2">
-                        <div 
-                          className={cn(
-                            "text-xs text-default-600 font-mono cursor-pointer transition-all duration-300 flex-1 truncate rounded-md px-1 py-0.5",
-                            !visibleUrls.has(endpoint.id) && "blur-[4px] hover:blur-none",
-                            "hover:text-primary"
-                          )}
+                      {/* 右侧：主控信息 */}
+                      <div className="flex flex-col justify-center gap-1 flex-1 min-w-0">
+                        {/* 主控名称和实例数量 */}
+                        <div className="flex items-center gap-1 min-w-0">
+                          <h4 className="font-medium text-sm text-foreground truncate">{endpoint.name}</h4>
+                          <Chip 
+                            size="sm" 
+                            variant="flat" 
+                            color="default"
+                            classNames={{
+                              base: "text-xs",
+                              content: "text-xs"
+                            }}
+                          >
+                            {endpoint.tunnelCount || 0} 个实例
+                          </Chip>
+                        </div>
+                        
+                        {/* 主控地址 - 仅支持点击脱敏 */}
+                        <p 
+                          className="text-xs text-default-500 truncate font-mono cursor-pointer hover:text-primary transition-colors"
                           onClick={() => toggleUrlVisibility(endpoint.id)}
                           title="点击切换显示完整地址"
                         >
                           {visibleUrls.has(endpoint.id) ? endpoint.url : maskIpAddress(endpoint.url)}
-                        </div>
-                        
-                        {/* 眼睛按钮 */}
-                        <Button
-                          isIconOnly
-                          size="sm"
-                          variant="light"
-                          className="min-w-6 w-6 h-6 text-default-400 hover:text-primary"
-                          onClick={() => toggleUrlVisibility(endpoint.id)}
-                        >
-                          <Icon 
-                            icon={visibleUrls.has(endpoint.id) ? "solar:eye-bold" : "solar:eye-closed-bold"} 
-                            className="w-3 h-3" 
-                          />
-                        </Button>
+                        </p>
                       </div>
                     </div>
-                  </div>
-                ))
-              )}
-            </div>
-          </CardBody>
-        </Card>
+                  </CardBody>
+                </Card>
+              ))
+            )}
+          </div>
+        </div>
       </div>
 
-      {/* 最近活动 - 响应式高度和滚动 */}
-      <Card className="min-h-[300px] lg:h-[400px]">
-        <CardHeader className="flex items-center justify-between gap-2 px-4 md:px-6">
-          <span className="font-bold text-sm md:text-base">最近活动</span>
-          {operationLogs.length > 0 && (
-            <Button
-              isIconOnly
-              size="sm"
-              variant="light"
-              className="text-default-400 hover:text-danger"
-              onPress={onClearOpen}
-              title="清空最近活动"
-            >
-              <Icon icon="solar:trash-bin-minimalistic-bold" className="w-4 h-4" />
-            </Button>
-          )}
-        </CardHeader>
-        <Divider />
-        <CardBody className="p-0 overflow-hidden">
-          <div className="h-[240px] lg:h-[320px] overflow-y-auto px-4 md:px-6 [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-            <Table 
-              aria-label="最近活动列表"
-              removeWrapper
-              hideHeader
-              classNames={{
-                base: "overflow-visible",
-                table: operationLogs.length === 0 ? "min-h-[120px]" : "", // 只在无数据时设置最小高度
-                tbody: "[&>tr]:border-b [&>tr]:border-divider last:[&>tr]:border-0",
-                tr: "hover:bg-default-50 transition-colors",
-                td: "py-3 text-xs md:text-sm"
-              }}
-            >
-              <TableHeader>
-                {columns.map((column) => (
-                  <TableColumn key={column.key}>
-                    {column.label}
-                  </TableColumn>
-                ))}
-              </TableHeader>
-              <TableBody 
-                emptyContent={
-                  <div className="text-center py-8">
-                    <span className="text-default-500 text-xs md:text-sm">
-                      {loading ? "加载中..." : "暂无操作记录"}
-                    </span>
-                  </div>
-                }
+                  {/* 最近活动 - 完全按照data-table.tsx的样式 */}
+      <Card isHoverable className="min-h-[400px]">
+        <CardHeader className="p-5">
+          <div className="flex flex-col items-start gap-1 w-full">
+            <div className="flex items-center justify-between w-full">
+              <div className="flex flex-col items-start gap-0">
+                  <span className="text-base font-semibold text-foreground">最近活动</span>
+                  <span className="text-sm text-default-500">
+                    {loading ? "加载中..." : `筛选最近1000条记录`}
+                  </span>
+              </div>
+              <Button
+                isIconOnly
+                size="sm"
+                variant="light"
+                className="text-default-400 hover:text-danger"
+                onPress={onClearOpen}
+                title="清空最近活动"
               >
-                {operationLogs.map((log) => (
-                  <TableRow key={log.id}>
-                    <TableCell className="min-w-0">
-                      <div className="text-xs md:text-sm">
-                        {new Date(log.time).toLocaleString('zh-CN', {
-                          month: '2-digit',
-                          day: '2-digit',
-                          hour: '2-digit',
-                          minute: '2-digit'
-                        })}
-                      </div>
+                <Icon icon="solar:trash-bin-minimalistic-bold" className="w-4 h-4" />
+              </Button>
+            </div>
+            
+          </div>
+        </CardHeader>
+        <CardBody className="p-4 pt-0">
+          <div className="">
+            <div className="h-[400px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              <Table
+                selectionMode="none"
+                removeWrapper
+                classNames={{
+                  base: "overflow-visible",
+                  table: operationLogs.length === 0 ? "min-h-[200px]" : "",
+                  thead: "text-white border-none",
+                  tbody: "",
+                  tr: "",
+                  td: "text-xs md:text-sm border-none"
+                }}
+              >
+            <TableHeader columns={columns}>
+              {(column) => (
+                <TableColumn
+                  key={column.key}
+                  hideHeader={false}
+                  align="start"
+                  className="bg-primary text-white border-none"
+                >
+                  {column.label}
+                </TableColumn>
+              )}
+            </TableHeader>
+            <TableBody 
+              items={operationLogs}
+              emptyContent={
+                <div className="text-center py-8">
+                  <span className="text-default-400 text-xs md:text-sm">
+                    {loading ? "加载中..." : "暂无操作记录"}
+                  </span>
+                </div>
+              }
+            >
+              {(log) => (
+                <TableRow>
+                  {(columnKey) => (
+                    <TableCell>
+                      {columnKey === "time" && (
+                        <div className="text-xs md:text-sm">
+                          {new Date(log.time).toLocaleString('zh-CN', {
+                            month: '2-digit',
+                            day: '2-digit',
+                            hour: '2-digit',
+                            minute: '2-digit'
+                          })}
+                        </div>
+                      )}
+                      {columnKey === "action" && (
+                        <div className="truncate text-xs md:text-sm">{log.action}</div>
+                      )}
+                      {columnKey === "instance" && (
+                        <div className="truncate text-xs md:text-sm">{log.instance}</div>
+                      )}
+                      {columnKey === "status" && (
+                        <Chip
+                          color={log.status.type}
+                          size="sm"
+                          variant="flat"
+                          startContent={<Icon icon={log.status.icon} width={12} className="md:w-3.5 md:h-3.5" />}
+                          classNames={{
+                            base: "text-xs max-w-full",
+                            content: "truncate"
+                          }}
+                        >
+                          {log.status.text}
+                        </Chip>
+                      )}
                     </TableCell>
-                    <TableCell className="min-w-0">
-                      <div className="truncate text-xs md:text-sm">{log.action}</div>
-                    </TableCell>
-                    <TableCell className="min-w-0">
-                      <div className="truncate text-xs md:text-sm">{log.instance}</div>
-                    </TableCell>
-                    <TableCell className="min-w-0">
-                      <Chip
-                        color={log.status.type}
-                        size="sm"
-                        variant="flat"
-                        startContent={<Icon icon={log.status.icon} width={12} className="md:w-3.5 md:h-3.5" />}
-                        classNames={{
-                          base: "text-xs max-w-full",
-                          content: "truncate"
-                        }}
-                      >
-                        {log.status.text}
-                      </Chip>
-                    </TableCell>
-                  </TableRow>
-                ))}
-              </TableBody>
-            </Table>
+                  )}
+                </TableRow>
+              )}
+            </TableBody>
+          </Table>
+            </div>
           </div>
         </CardBody>
       </Card>

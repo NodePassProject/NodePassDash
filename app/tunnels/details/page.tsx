@@ -18,7 +18,6 @@ import {
   Tooltip,
   Accordion,
   AccordionItem,
-  Snippet,
   Switch, 
   cn,
   Select,
@@ -28,17 +27,23 @@ import {
   PopoverContent,
   Spinner
 } from "@heroui/react";
+import { Snippet } from "@/components/ui/snippet";
 import React, { useEffect } from "react";
 // 引入 QuickCreateTunnelModal 组件
 import QuickCreateTunnelModal from "../components/quick-create-tunnel-modal";
+import { FullscreenChartModal } from "./fullscreen-chart-modal";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh,faStop, faQuestionCircle, faEye, faEyeSlash, faArrowDown, faDownload, faPen, faRecycle } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faPlay, faPause, faRotateRight, faTrash, faRefresh,faStop, faQuestionCircle, faEye, faEyeSlash, faArrowDown, faDownload, faPen, faRecycle, faExpand, faHammer } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
 import { addToast } from "@heroui/toast";
 import CellValue from "./cell-value";
 import { EnhancedMetricsChart } from "@/components/ui/enhanced-metrics-chart";
+import { TrafficUsageChart } from "@/components/ui/traffic-usage-chart";
+import { SpeedChart } from "@/components/ui/speed-chart";
+import { PoolChart } from "@/components/ui/pool-chart";
+import { LatencyChart } from "@/components/ui/latency-chart";
 import { useSearchParams } from 'next/navigation';
 import { FileLogViewer } from "@/components/ui/file-log-viewer";
 import { useTunnelSSE } from "@/lib/hooks/use-sse";
@@ -253,6 +258,18 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
   const [resetModalOpen, setResetModalOpen] = React.useState(false);
   const [resetLoading, setResetLoading] = React.useState(false);
 
+  // 全屏图表模态状态
+  const [fullscreenModalOpen, setFullscreenModalOpen] = React.useState(false);
+  const [fullscreenChartType, setFullscreenChartType] = React.useState<"traffic" | "speed" | "pool" | "latency">("traffic");
+  const [fullscreenChartTitle, setFullscreenChartTitle] = React.useState("");
+
+  // 打开全屏图表的函数
+  const openFullscreenChart = (type: "traffic" | "speed" | "pool" | "latency", title: string) => {
+    setFullscreenChartType(type);
+    setFullscreenChartTitle(title);
+    setFullscreenModalOpen(true);
+  };
+
 
   // 根据时间范围过滤数据
   const filterDataByTimeRange = React.useCallback((data: TrafficTrendData[], timeRange: "1h" | "6h" | "12h" | "24h") => {
@@ -361,6 +378,135 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
     });
     
     return filteredData;
+  }, []);
+
+  // 数据转换函数 - 将API数据转换为新图表组件需要的格式
+  const transformTrafficData = React.useCallback((apiData: any) => {
+    // 调试信息
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[transformTrafficData] API数据:', apiData);
+    }
+
+    if (!apiData?.traffic?.created_at || !apiData?.traffic?.avg_delay) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[transformTrafficData] 缺少流量数据');
+      }
+      return [];
+    }
+    
+    const result = apiData.traffic.created_at.map((timestamp: number, index: number) => ({
+      timeStamp: new Date(timestamp).toISOString(),
+      traffic: apiData.traffic.avg_delay[index] || 0,
+    }));
+
+    // 调试信息
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[transformTrafficData] 转换结果:', result.length, '条记录');
+    }
+
+    return result;
+  }, []);
+
+  const transformSpeedData = React.useCallback((apiData: any) => {
+    // 调试信息
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[transformSpeedData] API数据:', apiData);
+    }
+
+    const speedInTimestamps = apiData?.speed_in?.created_at || [];
+    const speedInValues = apiData?.speed_in?.avg_delay || []; // 使用正确的字段名
+    const speedOutTimestamps = apiData?.speed_out?.created_at || [];
+    const speedOutValues = apiData?.speed_out?.avg_delay || []; // 使用正确的字段名
+
+    // 调试信息
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[transformSpeedData] 入站数据:', { 
+        timestamps: speedInTimestamps.length, 
+        values: speedInValues.length,
+        sampleValues: speedInValues.slice(0, 3) // 显示前3个值
+      });
+      console.log('[transformSpeedData] 出站数据:', { 
+        timestamps: speedOutTimestamps.length, 
+        values: speedOutValues.length,
+        sampleValues: speedOutValues.slice(0, 3) // 显示前3个值
+      });
+    }
+
+    // 合并时间戳
+    const allTimestamps = [...new Set([...speedInTimestamps, ...speedOutTimestamps])].sort();
+
+    const result = allTimestamps.map((timestamp: number) => {
+      const speedInIndex = speedInTimestamps.indexOf(timestamp);
+      const speedOutIndex = speedOutTimestamps.indexOf(timestamp);
+      
+      return {
+        timeStamp: new Date(timestamp).toISOString(),
+        speed_in: speedInIndex >= 0 ? speedInValues[speedInIndex] || 0 : 0,
+        speed_out: speedOutIndex >= 0 ? speedOutValues[speedOutIndex] || 0 : 0,
+      };
+    });
+
+    // 调试信息
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[transformSpeedData] 转换结果:', result.length, '条记录');
+      if (result.length > 0) {
+        console.log('[transformSpeedData] 样本数据:', result.slice(0, 2));
+      }
+    }
+
+    return result;
+  }, []);
+
+  const transformPoolData = React.useCallback((apiData: any) => {
+    // 调试信息
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[transformPoolData] API数据:', apiData);
+    }
+
+    if (!apiData?.pool?.created_at || !apiData?.pool?.avg_delay) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[transformPoolData] 缺少连接池数据');
+      }
+      return [];
+    }
+    
+    const result = apiData.pool.created_at.map((timestamp: number, index: number) => ({
+      timeStamp: new Date(timestamp).toISOString(),
+      pool: Math.round(apiData.pool.avg_delay[index] || 0),
+    }));
+
+    // 调试信息
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[transformPoolData] 转换结果:', result.length, '条记录');
+    }
+
+    return result;
+  }, []);
+
+  const transformLatencyData = React.useCallback((apiData: any) => {
+    // 调试信息
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[transformLatencyData] API数据:', apiData);
+    }
+
+    if (!apiData?.ping?.created_at || !apiData?.ping?.avg_delay) {
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[transformLatencyData] 缺少延迟数据');
+      }
+      return [];
+    }
+    
+    const result = apiData.ping.created_at.map((timestamp: number, index: number) => ({
+      timeStamp: new Date(timestamp).toISOString(),
+      latency: apiData.ping.avg_delay[index] || 0,
+    }));
+
+    // 调试信息
+    if (process.env.NODE_ENV === 'development') {
+      console.log('[transformLatencyData] 转换结果:', result.length, '条记录');
+    }
+
+    return result;
   }, []);
 
   // 文件日志控制函数
@@ -784,8 +930,8 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
           </Chip>
         </div>
         
-        {/* 操作按钮组 - 移动端优化 */}
-        <div className="flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
+        {/* 操作按钮组 - 桌面端显示 */}
+        <div className="hidden sm:flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
           <Button
             variant="flat"
             color={tunnelInfo.status.type === "success" ? "warning" : "success"}
@@ -793,7 +939,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
             onClick={handleToggleStatus}
             className="flex-shrink-0"
           >
-            <span className="hidden sm:inline">{tunnelInfo.status.type === "success" ? "停止" : "启动"}</span>
+            {tunnelInfo.status.type === "success" ? "停止" : "启动"}
           </Button>
           <Button
             variant="flat"
@@ -803,7 +949,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
             isDisabled={tunnelInfo.status.type !== "success"}
             className="flex-shrink-0"
           >
-            <span className="hidden sm:inline">重启</span>
+            重启
           </Button>
           <Button
             variant="flat"
@@ -812,7 +958,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
             onClick={handleDeleteClick}
             className="flex-shrink-0"
           >
-            <span className="hidden sm:inline">删除</span>
+            删除
           </Button>
           <Button
             variant="flat"
@@ -822,19 +968,53 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
             isDisabled={refreshLoading}
             className="flex-shrink-0"
           >
-            <span className="hidden sm:inline">刷新</span>
+            刷新
+          </Button>
+        </div>
+        {/* 操作按钮组 - 移动端显示 */}
+        <div className="sm:hidden flex items-center gap-2 overflow-x-auto pb-2 md:pb-0">
+          <Button
+            variant="flat"
+            color={tunnelInfo.status.type === "success" ? "warning" : "success"}
+            startContent={<FontAwesomeIcon icon={tunnelInfo.status.type === "success" ? faStop : faPlay} />}
+            onClick={handleToggleStatus}
+            className="flex-shrink-0"
+            size="sm"
+          >
+            {tunnelInfo.status.type === "success" ? "停止" : "启动"}
           </Button>
           <Button
             variant="flat"
-            color="secondary"
-            startContent={<FontAwesomeIcon icon={faRecycle} />}
-            onClick={() => setResetModalOpen(true)}
-            isDisabled={resetLoading}
+            color="primary"
+            startContent={<FontAwesomeIcon icon={faRotateRight} />}
+            onClick={handleRestart}
+            isDisabled={tunnelInfo.status.type !== "success"}
             className="flex-shrink-0"
+            size="sm"
           >
-            <span className="hidden sm:inline">重置</span>
+            重启
           </Button>
-          
+          <Button
+            variant="flat"
+            color="danger"
+            startContent={<FontAwesomeIcon icon={faTrash} />}
+            onClick={handleDeleteClick}
+            className="flex-shrink-0"
+            size="sm"
+          >
+            删除
+          </Button>
+          <Button
+            variant="flat"
+            color="default"
+            startContent={<FontAwesomeIcon icon={faRefresh} />}
+            onClick={handleRefresh}
+            isDisabled={refreshLoading}
+            className="flex-shrink-0"
+            size="sm"
+          >
+            刷新
+          </Button>
         </div>
       </div>
 
@@ -1020,7 +1200,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
 
       {/* 实例信息 - 合并配置信息 */}
       <Card className="p-2">
-        <CardHeader className="flex items-center  justify-between">
+        <CardHeader className="flex items-center  justify-between pb-0">
           <div className="flex items-center gap-2">
             <h3 className="text-lg font-semibold">实例信息</h3>              
           </div>
@@ -1085,10 +1265,17 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                 <CellValue
                   label="连接池大小"
                   value={
-                    <span className="font-mono text-sm">
-                      {tunnelInfo.config.min !== undefined && tunnelInfo.config.min !== null ? tunnelInfo.config.min.toString() : '64'}<span className="text-default-400 text-xs">(min)</span>~
-                      {tunnelInfo.config.max !== undefined && tunnelInfo.config.max !== null ? tunnelInfo.config.max.toString() : '1024'}<span className="text-default-400 text-xs">(max)</span>
-                    </span>
+                    (() => {
+                      const min = tunnelInfo.config.min !== undefined && tunnelInfo.config.min !== null ? tunnelInfo.config.min : 64;
+                      const max = tunnelInfo.config.max !== undefined && tunnelInfo.config.max !== null ? tunnelInfo.config.max : 1024;
+                      
+                      return (
+                        <span className="font-mono text-sm">
+                          {min}<span className="text-default-400 text-xs">(min)</span>~
+                          {max}<span className="text-default-400 text-xs">(max)</span>
+                        </span>
+                      );
+                    })()
                   }
                 />
               )}
@@ -1148,18 +1335,78 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
               )}
               
 
+
+            </div>
+          </div>
+        </CardBody>
+      </Card>
+
+      {/* 实例设置 */}
+      <Card className="p-2">
+        <CardHeader className="flex items-center justify-between pb-0">
+          <div className="flex items-center gap-2">
+            <h3 className="text-lg font-semibold">实例设置</h3>              
+          </div>
+          <Tooltip content="重置实例" placement="top">
+            <Button
+              isIconOnly
+              variant="light"
+              size="sm"
+              onClick={() => setResetModalOpen(true)}
+              isDisabled={resetLoading}
+              startContent={<FontAwesomeIcon icon={faHammer} className="text-xs" />}
+            />
+          </Tooltip>
+        </CardHeader>
+        <CardBody>
+          <div className="space-y-4">
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-3 md:gap-4">
               {/* 自动重启配置 */}
-              {tunnelInfo.endpointVersion && 
+              {tunnelInfo.endpointVersion && (
                 <CellValue 
                   label="自动重启" 
                   value={
+                    <div className="flex items-center justify-center">
+                      <Switch
+                        size="sm"
+                        isSelected={tunnelInfo.config.restart}
+                        onValueChange={handleRestartToggle}
+                        isDisabled={isUpdatingRestart}
+                        endContent={<span className="text-xs text-default-600">禁用</span>}
+                        startContent={<span className="text-xs text-default-600">启用</span>}
+                        classNames={{
+                          base: cn(
+                            "inline-flex flex-row-reverse w-full max-w-md items-center",
+                            "justify-between"
+                          ),
+                          wrapper: "p-0 h-6 w-14 overflow-visible",
+                          thumb: cn(
+                            "w-6 h-6 border-2 shadow-lg",
+                            "group-data-[hover=true]:border-primary",
+                            //selected
+                            "group-data-[selected=true]:ms-8",
+                            // pressed
+                            "group-data-[pressed=true]:w-16",
+                            "group-data-[selected]:group-data-[pressed]:ms-4",
+                          ),
+                        }}
+                      />
+                    </div>
+                  } 
+                />
+              )}
+
+              {/* 图表自动刷新 */}
+              <CellValue 
+                label="图表刷新" 
+                value={
+                  <div className="flex items-center justify-center">
                     <Switch
                       size="sm"
-                      isSelected={tunnelInfo.config.restart}
-                      onValueChange={handleRestartToggle}
-                      isDisabled={isUpdatingRestart}
-                      endContent={<span className="text-xs text-default-600">禁用</span>}
-                      startContent={<span className="text-xs text-default-600">启用</span>}
+                      isSelected={isMetricsAutoRefreshEnabled}
+                      onValueChange={toggleMetricsAutoRefresh}
+                      endContent={<span className="text-xs text-default-600">关闭</span>}
+                      startContent={<span className="text-xs text-default-600">开启</span>}
                       classNames={{
                         base: cn(
                           "inline-flex flex-row-reverse w-full max-w-md items-center",
@@ -1177,9 +1424,73 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                         ),
                       }}
                     />
-                  } 
-                />
-              }
+                  </div>
+                } 
+              />
+
+              {/* 保存Log日志 */}
+              <CellValue 
+                label="保存Log日志" 
+                value={
+                  <div className="flex items-center justify-center">
+                    <Switch
+                      size="sm"
+                      isSelected={true}
+                      isDisabled={true}
+                      endContent={<span className="text-xs text-default-600">关闭</span>}
+                      startContent={<span className="text-xs text-default-600">开启</span>}
+                      classNames={{
+                        base: cn(
+                          "inline-flex flex-row-reverse w-full max-w-md items-center",
+                          "justify-between"
+                        ),
+                        wrapper: "p-0 h-6 w-14 overflow-visible",
+                        thumb: cn(
+                          "w-6 h-6 border-2 shadow-lg",
+                          "group-data-[hover=true]:border-primary",
+                          //selected
+                          "group-data-[selected=true]:ms-8",
+                          // pressed
+                          "group-data-[pressed=true]:w-16",
+                          "group-data-[selected]:group-data-[pressed]:ms-4",
+                        ),
+                      }}
+                    />
+                  </div>
+                } 
+              />
+
+              {/* 保存SSE推送记录 */}
+              <CellValue 
+                label="保存SSE记录" 
+                value={
+                  <div className="flex items-center justify-center">
+                    <Switch
+                      size="sm"
+                      isSelected={true}
+                      isDisabled={true}
+                      endContent={<span className="text-xs text-default-600">关闭</span>}
+                      startContent={<span className="text-xs text-default-600">开启</span>}
+                      classNames={{
+                        base: cn(
+                          "inline-flex flex-row-reverse w-full max-w-md items-center",
+                          "justify-between"
+                        ),
+                        wrapper: "p-0 h-6 w-14 overflow-visible",
+                        thumb: cn(
+                          "w-6 h-6 border-2 shadow-lg",
+                          "group-data-[hover=true]:border-primary",
+                          //selected
+                          "group-data-[selected=true]:ms-8",
+                          // pressed
+                          "group-data-[pressed=true]:w-16",
+                          "group-data-[selected]:group-data-[pressed]:ms-4",
+                        ),
+                      }}
+                    />
+                  </div>
+                } 
+              />
             </div>
           </div>
         </CardBody>
@@ -1198,10 +1509,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
             <Snippet 
               hideCopyButton={false}
               hideSymbol={true}
-              classNames={{
-                base: "w-full",
-                content: "text-xs font-mono break-all whitespace-pre-wrap"
-              }}
             >
               {tunnelInfo.commandLine}
             </Snippet>
@@ -1209,8 +1516,136 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         </AccordionItem>
       </Accordion>
 
-      {/* 流量趋势图 - 使用统一接口，15秒轮询 */}
-      <Card className="p-2">
+      {/* 迷你指标图表 - 两行布局 */}
+      <div className="space-y-3">
+        {/* 第一行：流量用量和速率 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* 流量趋势 */}
+          <Card className="p-2">
+            <CardHeader className="pb-1 pt-2 px-2 flex items-center justify-between">
+              <h4 className="text-sm font-semibold">流量累计</h4>
+              <Button
+                size="sm"
+                variant="light"
+                isIconOnly
+                onPress={() => openFullscreenChart("traffic", "流量累计")}
+                className="h-6 w-6 min-w-0"
+              >
+                <FontAwesomeIcon icon={faExpand} className="text-xs" />
+              </Button>
+            </CardHeader>
+            <CardBody className="pt-0 px-2 pb-2">
+              <div className="h-[140px]">
+                <TrafficUsageChart
+                  data={transformTrafficData(metricsData?.data)}
+                  height={140}
+                  loading={metricsLoading && !metricsData}
+                  error={metricsError || undefined}
+                  className="h-full w-full"
+                />
+              </div>
+            </CardBody>
+          </Card>
+
+          {/* 速度趋势 */}
+          <Card className="p-2">
+            <CardHeader className="pb-1 pt-2 px-2 flex items-center justify-between">
+              <div className="flex items-center gap-3">
+                <h4 className="text-sm font-semibold">传输速率</h4>
+                <div className="flex items-center gap-2">
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "hsl(220 70% 50%)" }}></div>
+                    <span className="text-xs text-default-600">上传</span>
+                  </div>
+                  <div className="flex items-center gap-1">
+                    <div className="w-2 h-2 rounded-full" style={{ backgroundColor: "hsl(280 65% 60%)" }}></div>
+                    <span className="text-xs text-default-600">下载</span>
+                  </div>
+                </div>
+              </div>
+              <Button
+                size="sm"
+                variant="light"
+                isIconOnly
+                onPress={() => openFullscreenChart("speed", "传输速率")}
+                className="h-6 w-6 min-w-0"
+              >
+                <FontAwesomeIcon icon={faExpand} className="text-xs" />
+              </Button>
+            </CardHeader>
+            <CardBody className="pt-0 px-2 pb-2">
+              <div className="h-[140px]">
+                <SpeedChart
+                  data={transformSpeedData(metricsData?.data)}
+                  height={140}
+                  loading={metricsLoading && !metricsData}
+                  error={metricsError || undefined}
+                  className="h-full w-full"
+                />
+              </div>
+            </CardBody>
+          </Card>
+        </div>
+
+        {/* 第二行：延迟和连接池 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+          {/* 连接池趋势 */}
+          <Card className="p-2">
+            <CardHeader className="pb-1 pt-2 px-2 flex items-center justify-between">
+              <h4 className="text-sm font-semibold">池连接数</h4>
+              <Button
+                size="sm"
+                variant="light"
+                isIconOnly
+                onPress={() => openFullscreenChart("pool", "池连接数")}
+                className="h-6 w-6 min-w-0"
+              >
+                <FontAwesomeIcon icon={faExpand} className="text-xs" />
+              </Button>
+            </CardHeader>
+            <CardBody className="pt-0 px-2 pb-2">
+              <div className="h-[140px]">
+                <PoolChart
+                  data={transformPoolData(metricsData?.data)}
+                  height={140}
+                  loading={metricsLoading && !metricsData}
+                  error={metricsError || undefined}
+                  className="h-full w-full"
+                />
+              </div>
+            </CardBody>
+          </Card>
+          {/* 延迟 */}
+          <Card className="p-2">
+            <CardHeader className="pb-1 pt-2 px-2 flex items-center justify-between">
+              <h4 className="text-sm font-semibold">端内延迟</h4>
+              <Button
+                size="sm"
+                variant="light"
+                isIconOnly
+                onPress={() => openFullscreenChart("latency", "端内延迟")}
+                className="h-6 w-6 min-w-0"
+              >
+                <FontAwesomeIcon icon={faExpand} className="text-xs" />
+              </Button>
+            </CardHeader>
+            <CardBody className="pt-0 px-2 pb-2">
+              <div className="h-[140px]">
+                <LatencyChart
+                  data={transformLatencyData(metricsData?.data)}
+                  height={140}
+                  loading={metricsLoading && !metricsData}
+                  error={metricsError || undefined}
+                  className="h-full w-full"
+                />
+              </div>
+            </CardBody>
+          </Card>
+        </div>
+      </div>
+
+      {/* 流量趋势图 - 暂时隐藏 */}
+      {/* <Card className="p-2">
         <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
@@ -1224,7 +1659,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
             </div>
           </div>
           <div className="flex items-center gap-2">
-           {/* 手动刷新按钮 */}
            <Button
               size="sm"
               variant="flat"
@@ -1236,7 +1670,6 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
                 <FontAwesomeIcon icon={faRefresh} className="text-xs" />
             </Button>
             
-           {/* 时间范围选择 */}
            <Tabs 
               selectedKey={trafficTimeRange}
               onSelectionChange={(key) => setTrafficTimeRange(key as "1h" | "6h" | "12h" | "24h")}
@@ -1260,7 +1693,7 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
             <EnhancedMetricsChart
               apiData={metricsData?.data || null}
               type="traffic"
-              height={0} // 使用css高度
+              height={0}
               timeRange={trafficTimeRange}
               showLegend={true}
               loading={metricsLoading && !metricsData}
@@ -1270,76 +1703,25 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
             />
           </div>
         </CardBody>
-      </Card>
+      </Card> */}
 
-      {/* 连接质量 - 延迟和连接池，使用统一接口 */}
-      {(tunnelInfo?.traffic.ping !== null || tunnelInfo?.traffic.pool !== null) && (
-        <Card className="p-2">
-          <CardHeader className="flex items-center justify-between">
-            <div className="flex items-center gap-3">
-              <div className="flex items-center gap-2">
-                <h3 className="text-lg font-semibold">连接质量</h3>              
-                <Tooltip content="基于 Nezha 风格分钟级聚合数据，显示延迟和连接池变化" placement="right">
-                  <FontAwesomeIcon 
-                    icon={faQuestionCircle} 
-                    className="text-default-400 hover:text-default-600 cursor-help text-xs"
-                  />
-                </Tooltip>
-              </div>
-            </div>
-            <div className="flex items-center gap-2">
-             {/* 手动刷新按钮 */}
-             <Button
-                size="sm"
-                variant="flat"
-                isIconOnly
-                onPress={refreshMetrics}
-                isLoading={metricsLoading}
-                className="h-7 w-7 min-w-0"
-              >
-                  <FontAwesomeIcon icon={faRefresh} className="text-xs" />
-              </Button>
-              
-             {/* 时间范围选择 */}
-             <Tabs 
-                selectedKey={pingTimeRange}
-                onSelectionChange={(key) => setPingTimeRange(key as "1h" | "6h" | "12h" | "24h")}
-                size="sm"
-                variant="light"
-                classNames={{
-                  tabList: "gap-1",
-                  tab: "text-xs px-2 py-1 min-w-0 h-7",
-                  tabContent: "text-xs"
-                }}
-              >
-                <Tab key="1h" title="1小时" />
-                <Tab key="6h" title="6小时" />
-                <Tab key="12h" title="12小时" />
-                <Tab key="24h" title="24小时" />
-              </Tabs>
-            </div>
-          </CardHeader>
-          <CardBody>
-            <div className="h-[250px] md:h-[300px]">
-              <EnhancedMetricsChart
-                apiData={metricsData?.data || null}
-                type="quality"
-                height={0} // 使用css高度
-                timeRange={pingTimeRange}
-                showLegend={true}
-                loading={metricsLoading && !metricsData}
-                error={metricsError || undefined}
-                className="h-full w-full"
-                maxDataPoints={500}
-              />
-            </div>
-          </CardBody>
-        </Card>
-      )}
+      {/* 端内延迟 - 使用 Nezha 风格图表 - 暂时隐藏 */}
+      {/* <LatencyChart
+        apiData={metricsData?.data || null}
+        loading={metricsLoading && !metricsData}
+        error={metricsError || undefined}
+        height={250}
+        title="延迟"
+        className="w-full"
+        onRefresh={refreshMetrics}
+        refreshLoading={metricsLoading}
+        timeRange={pingTimeRange}
+        onTimeRangeChange={setPingTimeRange}
+      /> */}
 
       {/* 日志 - 独立Card */}
       <Card className="p-2">
-      <CardHeader className="flex items-center  justify-between">
+      <CardHeader className="flex items-center  justify-between pb-0">
            <div className="flex items-center gap-3">
             <div className="flex items-center gap-2">
               <h3 className="text-lg font-semibold">日志</h3>              
@@ -1514,6 +1896,21 @@ export default function TunnelDetailPage({ params }: { params: Promise<PageParam
         }}
       />
     )}
+
+    {/* 全屏图表模态 */}
+    <FullscreenChartModal
+      isOpen={fullscreenModalOpen}
+      onOpenChange={setFullscreenModalOpen}
+      chartType={fullscreenChartType}
+      title={fullscreenChartTitle}
+      trafficData={transformTrafficData(metricsData?.data)}
+      speedData={transformSpeedData(metricsData?.data)}
+      poolData={transformPoolData(metricsData?.data)}
+      latencyData={transformLatencyData(metricsData?.data)}
+      loading={metricsLoading}
+      error={metricsError || undefined}
+      onRefresh={refreshMetrics}
+    />
     </>
   );
 } 

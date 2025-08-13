@@ -14,7 +14,11 @@ export interface MetricsAPIResponse {
     avg_delay: number[];
     created_at: number[];
   };
-  speed?: {
+  speed_in?: {
+    avg_delay: number[];
+    created_at: number[];
+  };
+  speed_out?: {
     avg_delay: number[];
     created_at: number[];
   };
@@ -83,26 +87,7 @@ const transformAPIDataToChartData = (
   }
 
   if (type === 'quality') {
-    // 处理连接池数据
-    if (apiData.pool) {
-      const timestamps = apiData.pool.created_at;
-      const values = apiData.pool.avg_delay;
-
-      timestamps.forEach((timestamp, index) => {
-        const existingPoint = chartData.find(point => point.timestamp === timestamp);
-        if (existingPoint) {
-          existingPoint.pool = Math.round(values[index] || 0);
-        } else {
-          chartData.push({
-            timestamp,
-            time: formatTime(timestamp),
-            pool: Math.round(values[index] || 0),
-          });
-        }
-      });
-    }
-
-    // 处理延迟数据
+    // 只处理延迟数据
     if (apiData.ping) {
       const timestamps = apiData.ping.created_at;
       const values = apiData.ping.avg_delay;
@@ -235,25 +220,18 @@ export const EnhancedMetricsChart: React.FC<EnhancedMetricsChartProps> = ({
           name: '总流量速率',
           color: CHART_COLORS.traffic,
           unit: 'B/s',
-          yAxisId: 'left',
+          yAxisId: 'left' as const,
         },
       ];
     } else {
-      // quality 类型 - 双轴显示
+      // quality 类型 - 只显示延迟数据
       return [
-        {
-          key: 'pool',
-          name: '池连接数',
-          color: CHART_COLORS.pool,
-          unit: '个',
-          yAxisId: 'left',
-        },
         {
           key: 'ping',
           name: '端内延迟',
           color: CHART_COLORS.ping,
           unit: 'ms',
-          yAxisId: 'right',
+          yAxisId: 'left' as const,
         },
       ].filter(series => {
         // 只显示有数据的系列
@@ -289,7 +267,7 @@ export const EnhancedMetricsChart: React.FC<EnhancedMetricsChartProps> = ({
     return <EmptyState type={type} height={height} className={className} />;
   }
 
-  const isDualAxis = type === 'quality' && dataSeries.length > 1;
+  const isDualAxis = false; // 现在只有单轴显示
 
   return (
     <RealtimeLineChart
@@ -300,8 +278,8 @@ export const EnhancedMetricsChart: React.FC<EnhancedMetricsChartProps> = ({
       timeRange={timeRange}
       showLegend={showLegend}
       isDualAxis={isDualAxis}
-      leftYAxisLabel={type === 'traffic' ? '流量速率' : '连接数'}
-      rightYAxisLabel={type === 'quality' ? '延迟' : ''}
+      leftYAxisLabel={type === 'traffic' ? '流量速率' : '延迟'}
+      rightYAxisLabel=""
       className={className}
     />
   );

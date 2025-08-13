@@ -12,9 +12,9 @@ import {
   Select,
   SelectItem,
   Skeleton,
-  Snippet,
   Spinner
 } from "@heroui/react";
+import { Snippet } from "@/components/ui/snippet";
 import { useState, useEffect } from "react";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";

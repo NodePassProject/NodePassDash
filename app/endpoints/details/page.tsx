@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useCallback, useEffect, useRef, useState } from "react";
+import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
 import {
   Button,
   Card,
@@ -149,6 +149,12 @@ export default function EndpointDetailPage() {
     }
   }, []);
 
+  const scrollToTop = useCallback(() => {
+    if (logContainerRef.current) {
+      logContainerRef.current.scrollTop = 0;
+    }
+  }, []);
+
   // 获取主控详情数据
   const fetchEndpointDetail = useCallback(async () => {
     if (!endpointId) return;
@@ -254,40 +260,65 @@ export default function EndpointDetailPage() {
     }
   }, [endpointId]);
 
-  // NodePass SSE监听
-  const { isConnected, isConnecting, error, reconnect } = useNodePassSSE(
-    endpointDetail ? {
+  // 使用useMemo稳定endpoint对象，避免频繁重新创建
+  const endpoint = useMemo(() => {
+    console.log('[Endpoint Detail] 构建endpoint对象:', endpointDetail);
+    if (!endpointDetail) {
+      console.log('[Endpoint Detail] endpointDetail为空，返回null');
+      return null;
+    }
+
+    const endpointObj = {
       url: endpointDetail.url,
       apiPath: endpointDetail.apiPath,
       apiKey: endpointDetail.apiKey
-    } : null,
+    };
+
+    console.log('[Endpoint Detail] 构建的endpoint对象:', endpointObj);
+    return endpointObj;
+  }, [endpointDetail?.url, endpointDetail?.apiPath, endpointDetail?.apiKey]);
+
+  // NodePass SSE监听 - 手动模式
+  const { isConnected, isConnecting, error, connect, disconnect, reconnect } = useNodePassSSE(
+    endpoint,
     {
-      autoReconnect: false, // 禁用自动重连
+      autoReconnect: false, // 禁用自动重连，手动控制
       onConnected: () => {
-        console.log('[Endpoint SSE] 连接到NodePass成功');
-        addToast({
-          title: "实时连接已建立",
-          description: "正在监听NodePass实时日志",
-          color: "success",
-        });
+        console.log('[Endpoint SSE] 连接成功');
+        // 移除弹窗通知，避免频繁打扰
+        // addToast({
+        //   title: "实时连接成功",
+        //   description: "已连接到NodePass主控，开始接收实时日志",
+        //   color: "success",
+        // });
       },
       onMessage: (data) => {
-        console.log('🔥🔥🔥 [Endpoint SSE] 收到消息 - 类型:', typeof data, '数据:', data);
-        console.log('🔥🔥🔥 [Endpoint SSE] onMessage 回调被调用了！');
+        console.log('[Endpoint SSE] 收到消息:', data);
         
-        // 将收到的数据直接格式化为日志消息
+        // 处理所有类型的消息，不仅仅是log类型
         let logMessage = '';
         
-        if (typeof data === 'string') {
+        if (data.type === 'log') {
+          // 直接日志消息
+          logMessage = data.message;
+        } else if (data.type === 'instance') {
+          // 实例消息，格式化为可读的日志
+          logMessage = `[实例] ${JSON.stringify(data, null, 2)}`;
+        } else if (data.type === 'tunnel') {
+          // 隧道消息
+          logMessage = `[隧道] ${JSON.stringify(data, null, 2)}`;
+        } else if (data.type === 'stats') {
+          // 统计消息
+          logMessage = `[统计] ${JSON.stringify(data, null, 2)}`;
+        } else if (data.message) {
+          // 其他有message字段的消息
+          logMessage = data.message;
+        } else if (typeof data === 'string') {
+          // 纯字符串消息
           logMessage = data;
-          console.log('[Endpoint SSE] 处理为字符串:', logMessage);
-        } else if (data && typeof data === 'object') {
-          // 将对象格式化为JSON字符串显示
-          logMessage = JSON.stringify(data, null, 2);
-          console.log('[Endpoint SSE] 处理为JSON对象:', logMessage);
         } else {
-          logMessage = String(data);
-          console.log('[Endpoint SSE] 转换为字符串:', logMessage);
+          // 其他类型的消息，转换为JSON字符串
+          logMessage = JSON.stringify(data, null, 2);
         }
         
         // 添加到日志列表
@@ -310,19 +341,19 @@ export default function EndpointDetailPage() {
             return updatedLogs;
           });
           
-          // 自动滚动到底部
-          setTimeout(scrollToBottom, 50);
+          // LogViewer组件会自动滚动到底部
         } else {
           console.log('[Endpoint SSE] 空消息，跳过');
         }
       },
       onError: (error) => {
         console.error('[Endpoint SSE] 连接错误:', error);
-        addToast({
-          title: "实时连接失败",
-          description: "无法连接到NodePass，请检查主控状态。如需重连请手动点击重连按钮。",
-          color: "danger",
-        });
+        // 移除弹窗通知，避免频繁打扰
+        // addToast({
+        //   title: "实时连接失败",
+        //   description: "无法连接到NodePass，请检查主控状态。如需重连请手动点击重连按钮。",
+        //   color: "danger",
+        // });
       },
       onDisconnected: () => {
         console.log('[Endpoint SSE] 连接已断开');
@@ -330,28 +361,27 @@ export default function EndpointDetailPage() {
     }
   );
 
-  useEffect(() => {
-    fetchEndpointDetail();
-  }, [fetchEndpointDetail]);
+  // 使用useCallback优化函数引用，添加正确的依赖项
+  const memoizedFetchEndpointDetail = useCallback(fetchEndpointDetail, [endpointId]);
+  const memoizedFetchRecycleCount = useCallback(fetchRecycleCount, [endpointId]);
+  const memoizedFetchEndpointStats = useCallback(fetchEndpointStats, [endpointId]);
+  const memoizedFetchInstances = useCallback(fetchInstances, [endpointId]);
+
+  // 初始化数据加载 - 只在组件挂载时执行一次，使用ref避免重复执行
+  const hasInitializedRef = useRef(false);
 
   useEffect(() => {
-    fetchRecycleCount();
-  }, [fetchRecycleCount]);
-
-  useEffect(() => {
-    fetchEndpointStats();
-  }, [fetchEndpointStats]);
-
-  useEffect(() => {
-    fetchInstances();
-  }, [fetchInstances]);
-
-  // 滚动效果
-  useEffect(() => {
-    if (logs.length > 0) {
-      setTimeout(scrollToBottom, 50);
+    if (!hasInitializedRef.current) {
+      console.log('[Endpoint Detail] 组件初始化，加载数据');
+      hasInitializedRef.current = true;
+      memoizedFetchEndpointDetail();
+      memoizedFetchRecycleCount();
+      memoizedFetchEndpointStats();
+      memoizedFetchInstances();
     }
-  }, [logs, scrollToBottom]);
+  }, [memoizedFetchEndpointDetail, memoizedFetchRecycleCount, memoizedFetchEndpointStats, memoizedFetchInstances]);
+
+  // LogViewer组件会自动处理滚动
 
   return (
     <div className="space-y-6 p-4 md:p-6">
@@ -628,6 +658,7 @@ export default function EndpointDetailPage() {
         <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h3 className="text-lg font-semibold">主控实例</h3>
+            {/* <span className="text-sm text-default-500">({instances.length} 个实例)</span> */}
              {/* 类型提示圆点 */}
               {/* <div className="flex items-center gap-1 text-tiny text-default-500">
                 <span className="w-2 h-2 rounded-full bg-primary inline-block"></span> 服务端
@@ -647,17 +678,19 @@ export default function EndpointDetailPage() {
           ) : instances.length === 0 ? (
             <div className="text-default-500 text-sm">暂无实例数据</div>
           ) : (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-              {instances.map((ins) => (
-                <div key={ins.instanceId} className="flex gap-1 text-xs">
-                  <Chip radius="sm" variant="flat" className="max-w-full truncate">
-                    {ins.instanceId}
-                  </Chip>
-                  <Code color={ins.type === 'server' ? 'primary' : 'secondary'} className="whitespace-pre-wrap break-all w-full">
-                    {ins.commandLine}
-                  </Code>
-                </div>
-              ))}
+            <div className="max-h-[400px] overflow-y-auto">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {instances.map((ins) => (
+                  <div key={ins.instanceId} className="flex gap-1 text-xs">
+                    <Chip radius="sm" variant="flat" className="max-w-full truncate">
+                      {ins.instanceId}
+                    </Chip>
+                    <Code color={ins.type === 'server' ? 'primary' : 'secondary'} className="whitespace-pre-wrap break-all w-full">
+                      {ins.commandLine}
+                    </Code>
+                  </div>
+                ))}
+              </div>
             </div>
           )}
         </CardBody>
@@ -677,11 +710,39 @@ export default function EndpointDetailPage() {
               <span className="text-sm text-default-500">
                 {isConnected ? '已连接' : 
                  isConnecting ? '连接中...' : 
-                 error ? '连接失败（需手动重连）' : '未连接'}
+                 error ? '连接失败' : '未连接'}
               </span>
             </div>
           </div>
           <div className="flex items-center gap-2">
+            {/* 手动连接/断开按钮 */}
+            {!isConnected && !isConnecting ? (
+              <Button
+                size="sm"
+                color="success"
+                variant="flat"
+                isDisabled={!endpointDetail}
+                onPress={connect}
+                startContent={
+                  <FontAwesomeIcon icon={faWifi} />
+                }
+              >
+                连接
+              </Button>
+            ) : (
+              <Button
+                size="sm"
+                color="danger"
+                variant="flat"
+                onPress={disconnect}
+                startContent={
+                  <FontAwesomeIcon icon={faTrash} />
+                }
+              >
+                断开
+              </Button>
+            )}
+
             {/* 清空日志按钮 */}
             <Button
               size="sm"
@@ -697,8 +758,9 @@ export default function EndpointDetailPage() {
             >
               清空日志
             </Button>
-            {/* 重连按钮 */}
-            {!isConnected && !isConnecting && (
+
+            {/* 重连按钮 - 仅在连接失败时显示 */}
+            {error && !isConnecting && (
               <Button
                 size="sm"
                 color="secondary"
@@ -712,16 +774,28 @@ export default function EndpointDetailPage() {
                 重连
               </Button>
             )}
-            {/* 滚动到底部按钮 */}
-            <Button
-              size="sm"
-              color="primary"
-              variant="flat"
-              onPress={scrollToBottom}
-              startContent={<FontAwesomeIcon icon={faArrowDown} />}
-            >
-              底部
-            </Button>
+
+                         {/* 滚动到顶部按钮 */}
+             <Button
+               size="sm"
+               color="primary"
+               variant="flat"
+               onPress={scrollToTop}
+               startContent={<FontAwesomeIcon icon={faArrowUp} />}
+             >
+               顶部
+             </Button>
+
+             {/* 滚动到底部按钮 */}
+             <Button
+               size="sm"
+               color="primary"
+               variant="flat"
+               onPress={scrollToBottom}
+               startContent={<FontAwesomeIcon icon={faArrowDown} />}
+             >
+               底部
+             </Button>
           </div>
         </CardHeader>
         <CardBody>

@@ -2,6 +2,8 @@
 
 import {
   Button,
+  Card,
+  CardBody,
   Chip,
   Modal,
   ModalBody,
@@ -154,6 +156,7 @@ export default function TunnelsPage() {
   const [error, setError] = useState<string | null>(null);
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [endpointsLoading, setEndpointsLoading] = useState(true);
+  const [stats, setStats] = useState({ total: 0, running: 0, stopped: 0, error: 0, offline: 0 });
 
   // 是否移入回收站
   const [moveToRecycle, setMoveToRecycle] = useState(false);
@@ -231,8 +234,7 @@ export default function TunnelsPage() {
         params.append('sort_order', sortDescriptor.direction === 'ascending' ? 'asc' : 'desc');
       }
       
-      const url = buildApiUrl('/api/tunnels') + '?' + params.toString();
-      const response = await fetch(url);
+      const response = await fetch(buildApiUrl('/api/tunnels') + '?' + params.toString());
       if (!response.ok) throw new Error('获取实例列表失败');
       const result = await response.json();
       
@@ -249,13 +251,33 @@ export default function TunnelsPage() {
       console.error('获取实例列表失败:', error);
       addToast({
         title: '错误',
-        description: '获取实例列表失败',
+        description: error instanceof Error ? error.message : '获取实例列表失败',
         color: 'danger'
       });
     } finally {
       setLoading(false);
     }
   }, [filterValue, statusFilter, endpointFilter, tagFilter, page, rowsPerPage, sortDescriptor]);
+
+  // 获取统计数据
+  const fetchStats = useCallback(async () => {
+    try {
+      const response = await fetch(buildApiUrl('/api/dashboard/tunnel-stats'));
+      if (!response.ok) throw new Error('获取统计数据失败');
+      const result = await response.json();
+      
+      if (result.success && result.data) {
+        setStats(result.data);
+      }
+    } catch (error) {
+      console.error('获取统计数据失败:', error);
+      addToast({
+        title: '错误',
+        description: error instanceof Error ? error.message : '获取统计数据失败',
+        color: 'danger'
+      });
+    }
+  }, []);
 
   // 获取主控列表
   const fetchEndpoints = async () => {
@@ -812,6 +834,7 @@ export default function TunnelsPage() {
     fetchTunnels();
     fetchEndpoints();
     fetchTags();
+    fetchStats();
   }, []);
 
   // 监听过滤参数变化，重新获取数据
@@ -1093,9 +1116,6 @@ export default function TunnelsPage() {
   return (
     <>
       <div className="p-4 md:p-0">
-        {/* 页面顶部：标题 */}
-        <div className="mb-6">
-        </div>
 
         <Flex direction="col" className="border border-default-200 rounded-lg transition-all duration-300 hover:shadow-sm">
           <TunnelToolBox 

@@ -41,6 +41,8 @@ export interface RealtimeLineChartProps {
   rightYAxisLabel?: string;
   isDualAxis?: boolean;
   className?: string;
+  // 小图表专用配置
+  isMiniChart?: boolean;
 }
 
 // 时间格式化函数 - 参考 nezha-dash 的实现
@@ -168,6 +170,7 @@ export const RealtimeLineChart: React.FC<RealtimeLineChartProps> = ({
   rightYAxisLabel = '',
   isDualAxis = false,
   className = '',
+  isMiniChart = false,
 }) => {
   const { theme } = useTheme();
   const isDark = theme === 'dark';
@@ -259,7 +262,15 @@ export const RealtimeLineChart: React.FC<RealtimeLineChartProps> = ({
   return (
     <div className={`w-full ${className}`} style={height ? { height } : {}}>
       <ResponsiveContainer width="100%" height="100%">
-        <LineChart data={processedData} margin={{ top: 5, right: 15, left: 5, bottom: 5 }}>
+        <LineChart 
+          data={processedData} 
+          margin={{ 
+            top: isMiniChart ? 3 : 5, 
+            right: isMiniChart ? 10 : 15, 
+            left: isMiniChart ? 3 : 5, 
+            bottom: isMiniChart ? 2 : 5 
+          }}
+        >
           <CartesianGrid 
             strokeDasharray="3 3" 
             stroke={colors.grid}
@@ -288,14 +299,14 @@ export const RealtimeLineChart: React.FC<RealtimeLineChartProps> = ({
             tickLine={false}
             tick={{ 
               fill: colors.text,
-              fontSize: 12,
+              fontSize: isMiniChart ? 10 : 12,
+              textAnchor: isMiniChart ? 'start' : 'end',
             }}
             tickFormatter={(value) => {
               const leftSeries = series.find(s => !s.yAxisId || s.yAxisId === 'left');
               return formatYAxisLabel(value, leftSeries?.key);
             }}
-            minTickGap={20}
-            width={45}
+            minTickGap={isMiniChart ? 15 : 20}
           />
           
           {/* 右Y轴（双轴模式时） */}
@@ -307,14 +318,13 @@ export const RealtimeLineChart: React.FC<RealtimeLineChartProps> = ({
               tickLine={false}
               tick={{ 
                 fill: colors.text,
-                fontSize: 12,
+                fontSize: isMiniChart ? 10 : 12,
               }}
               tickFormatter={(value) => {
                 const rightSeries = series.find(s => s.yAxisId === 'right');
                 return formatYAxisLabel(value, rightSeries?.key);
               }}
-              minTickGap={20}
-              width={45}
+              minTickGap={isMiniChart ? 15 : 20}
             />
           )}
 

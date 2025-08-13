@@ -7,7 +7,6 @@ import {
   Button,
   Chip,
   Divider,
-  Snippet,
   Modal,
   ModalContent,
   ModalHeader,
@@ -16,6 +15,7 @@ import {
   useDisclosure,
   Spacer,
 } from "@heroui/react";
+import { Snippet } from "@/components/ui/snippet";
 import { Icon } from "@iconify/react";
 import { addToast } from "@heroui/toast";
 import { useState, useEffect } from "react";
@@ -307,10 +307,6 @@ export default function VersionSettings() {
             </div>
             <Snippet 
               hideSymbol
-              classNames={{
-                pre: "text-xs",
-                base: "w-full"
-              }}
             >
               docker pull your-registry/nodepass-webui:latest && docker-compose restart
             </Snippet>
