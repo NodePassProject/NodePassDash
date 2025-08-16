@@ -317,7 +317,7 @@ export default function TagManagementModal({
                   <Spinner size="lg" />
                 </div>
               ) : (
-                <Table aria-label="标签列表">
+                <Table aria-label="标签列表" shadow='none'>
                   <TableHeader>
                     <TableColumn>标签名称</TableColumn>
                     <TableColumn>操作</TableColumn>

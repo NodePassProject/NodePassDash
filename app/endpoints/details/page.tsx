@@ -191,17 +191,6 @@ export default function EndpointDetailPage() {
     });
   }, []);
 
-  // 获取回收站数量
-  const fetchRecycleCount = useCallback(async()=>{
-    if(!endpointId) return;
-    try{
-      const res = await fetch(buildApiUrl(`/api/endpoints/${endpointId}/recycle/count`));
-      if(!res.ok) throw new Error("获取回收站数量失败");
-      const data = await res.json();
-      setRecycleCount(data.count || 0);
-    }catch(e){ console.error(e); }
-  },[endpointId]);
-
   // 获取端点统计信息
   const fetchEndpointStats = useCallback(async () => {
     if (!endpointId) return;
@@ -363,7 +352,6 @@ export default function EndpointDetailPage() {
 
   // 使用useCallback优化函数引用，添加正确的依赖项
   const memoizedFetchEndpointDetail = useCallback(fetchEndpointDetail, [endpointId]);
-  const memoizedFetchRecycleCount = useCallback(fetchRecycleCount, [endpointId]);
   const memoizedFetchEndpointStats = useCallback(fetchEndpointStats, [endpointId]);
   const memoizedFetchInstances = useCallback(fetchInstances, [endpointId]);
 
@@ -375,11 +363,10 @@ export default function EndpointDetailPage() {
       console.log('[Endpoint Detail] 组件初始化，加载数据');
       hasInitializedRef.current = true;
       memoizedFetchEndpointDetail();
-      memoizedFetchRecycleCount();
       memoizedFetchEndpointStats();
       memoizedFetchInstances();
     }
-  }, [memoizedFetchEndpointDetail, memoizedFetchRecycleCount, memoizedFetchEndpointStats, memoizedFetchInstances]);
+  }, [memoizedFetchEndpointDetail,   memoizedFetchEndpointStats, memoizedFetchInstances]);
 
   // LogViewer组件会自动处理滚动
 
@@ -658,39 +645,85 @@ export default function EndpointDetailPage() {
         <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h3 className="text-lg font-semibold">主控实例</h3>
-            {/* <span className="text-sm text-default-500">({instances.length} 个实例)</span> */}
-             {/* 类型提示圆点 */}
-              {/* <div className="flex items-center gap-1 text-tiny text-default-500">
+            <span className="text-sm text-default-500">({instances.length} 个实例)</span>
+            {/* 类型提示 */}
+            <div className="flex items-center gap-3 text-tiny">
+              <div className="flex items-center gap-1 text-default-500">
                 <span className="w-2 h-2 rounded-full bg-primary inline-block"></span> 服务端
               </div>
-              <div className="flex items-center gap-1 text-tiny text-default-500">
+              <div className="flex items-center gap-1 text-default-500">
                 <span className="w-2 h-2 rounded-full bg-secondary inline-block"></span> 客户端
-              </div> */}
+              </div>
+            </div>
           </div>
-          <div className="flex items-center gap-4">
-            {/* <Button size="sm" color="primary" variant="flat" onPress={() => setExtractOpen(true)}>提取</Button>
-            <Button size="sm" color="secondary" variant="flat" onPress={() => setImportOpen(true)}>导入</Button> */}
+          <div className="flex items-center gap-2">
+            <Button size="sm" color="primary" variant="flat" onPress={() => setExtractOpen(true)}>提取</Button>
+            <Button size="sm" color="secondary" variant="flat" onPress={() => setImportOpen(true)}>导入</Button>
           </div>
         </CardHeader>
         <CardBody>
           {instancesLoading ? (
-            <div className="text-default-500 text-sm">加载中...</div>
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {Array.from({ length: 6 }, (_, index) => (
+                <Card key={index} className="h-[100px]">
+                  <CardBody className="p-3 flex flex-col items-center justify-center">
+                    <Skeleton className="w-8 h-8 rounded-full mb-2" />
+                    <Skeleton className="h-3 w-16 mb-1" />
+                    <Skeleton className="h-2 w-12" />
+                  </CardBody>
+                </Card>
+              ))}
+            </div>
           ) : instances.length === 0 ? (
-            <div className="text-default-500 text-sm">暂无实例数据</div>
+            <div className="text-center py-8">
+              <p className="text-default-500 text-sm">暂无实例数据</p>
+            </div>
           ) : (
-            <div className="max-h-[400px] overflow-y-auto">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                {instances.map((ins) => (
-                  <div key={ins.instanceId} className="flex gap-1 text-xs">
-                    <Chip radius="sm" variant="flat" className="max-w-full truncate">
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {instances.map((ins) => (
+                <Card 
+                  key={ins.instanceId} 
+                  className="h-[100px] hover:shadow-md transition-all cursor-pointer"
+                  isPressable
+                  onPress={() => {
+                    // 复制实例ID到剪贴板
+                    navigator.clipboard.writeText(ins.instanceId);
+                    addToast({
+                      title: "已复制",
+                      description: `实例ID: ${ins.instanceId}`,
+                      color: "success"
+                    });
+                  }}
+                >
+                  <CardBody className="p-3 flex flex-col items-center justify-center text-center">
+                    {/* 实例类型图标 */}
+                    <div className={`w-8 h-8 rounded-full flex items-center justify-center mb-2 ${
+                      ins.type === 'server' ? 'bg-primary-100 text-primary' : 'bg-secondary-100 text-secondary'
+                    }`}>
+                      <FontAwesomeIcon 
+                        icon={ins.type === 'server' ? faServer : faDesktop} 
+                        className="text-sm" 
+                      />
+                    </div>
+                    
+                    
+                    {/* 实例ID */}
+                    <p className="text-xs font-medium truncate w-full" title={ins.instanceId}>
                       {ins.instanceId}
+                    </p>
+                    
+                    {/* 类型标签 */}
+                    <Chip 
+                      size="sm" 
+                      variant="flat" 
+                      color={ins.type === 'server' ? 'primary' : 'secondary'}
+                      className="text-xs h-5 mt-1"
+                    >
+                      {ins.type === 'server' ? '服务端' : '客户端'}
                     </Chip>
-                    <Code color={ins.type === 'server' ? 'primary' : 'secondary'} className="whitespace-pre-wrap break-all w-full">
-                      {ins.commandLine}
-                    </Code>
-                  </div>
-                ))}
-              </div>
+                  </CardBody>
+                </Card>
+              ))}
             </div>
           )}
         </CardBody>

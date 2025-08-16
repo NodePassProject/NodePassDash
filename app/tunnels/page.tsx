@@ -89,6 +89,7 @@ interface Tunnel {
   name: string;
   endpoint: string;
   endpointId: string;
+  version?: string; // 主控版本信息
   tunnelAddress: string;
   tunnelPort: string;
   targetAddress: string;
@@ -907,7 +908,25 @@ export default function TunnelsPage() {
               </Chip>
             </div>
             <div className="space-y-1 text-xs text-default-600">
-              <div>主控: {tunnel.endpoint}</div>
+              <div className="flex items-center gap-1">
+                <span>主控:</span>
+                <Tooltip
+                  content={
+                    <div className="text-xs">
+                      <div className="font-medium">{tunnel.endpoint}</div>
+                      {tunnel.version && (
+                        <div className="text-default-400">版本: {tunnel.version}</div>
+                      )}
+                    </div>
+                  }
+                  size="sm"
+                  placement="top"
+                >
+                  <span className="cursor-help hover:text-default-800">
+                    {tunnel.endpoint}
+                  </span>
+                </Tooltip>
+              </div>
               <div>
                 隧道: {formatAddress(tunnel.tunnelAddress, tunnel.tunnelPort)}
               </div>
@@ -2027,9 +2046,27 @@ export default function TunnelsPage() {
 
                         {/* 主控列 */}
                         <TableCell>
-                          <Chip variant="bordered" color="default" size="sm">
-                            {tunnel.endpoint}
-                          </Chip>
+                          <Tooltip
+                            content={
+                              <div className="text-xs">
+                                <div className="font-medium">{tunnel.endpoint}</div>
+                                {tunnel.version && (
+                                  <div className="text-default-400">版本: {tunnel.version}</div>
+                                )}
+                              </div>
+                            }
+                            size="sm"
+                            placement="top"
+                          >
+                            <Chip 
+                              variant="bordered" 
+                              color="default" 
+                              size="sm"
+                              className="cursor-help hover:opacity-80"
+                            >
+                              {tunnel.endpoint}
+                            </Chip>
+                          </Tooltip>
                         </TableCell>
 
                         {/* 隧道地址列 */}
@@ -2098,8 +2135,8 @@ export default function TunnelsPage() {
                               <Button
                                 isIconOnly
                                 variant="light"
-                                size="sm"
                                 color="primary"
+                                size="sm"
                                 onClick={() =>
                                   router.push(
                                     `/tunnels/details?id=${tunnel.id}`
@@ -2108,7 +2145,7 @@ export default function TunnelsPage() {
                                 startContent={
                                   <FontAwesomeIcon
                                     icon={faEye}
-                                    className="text-xs"
+                                    className="text-xs "
                                   />
                                 }
                               />

@@ -20,42 +20,25 @@ import {
 } from '@heroui/react';
 import { FontAwesomeIcon } from '@fortawesome/react-fontawesome';
 import {
-  faTrashCan,
   faGears,
-  faChartLine,
   faPlay,
   faDatabase,
-  faCloudArrowDown,
   faCheck,
   faExclamationTriangle,
   faRefresh,
-  faBroadcastTower,
-  faTrash,
+  faClock,
+  faFileLines,
 } from '@fortawesome/free-solid-svg-icons';
 import { addToast } from '@heroui/toast';
 
 interface LogCleanupStats {
-  totalLogRecords: number; // 数据库中的非日志事件数量
-  retentionDays: number;
-  cleanupInterval: string;
-  maxRecordsPerDay: number;
-  cleanupEnabled: boolean;
-  oldestDbEventAge?: string;
-  fileLogStats?: {
-    totalFiles: number;
-    totalSize: number;
-    retentionDays: number;
-    oldestLogAge?: string;
-    newestLogAge?: string;
-  };
-  logStorageMode?: string;
-}
-
-interface EndpointSSEStats {
-  totalEvents: number;
-  oldestEvent?: string;
-  newestEvent?: string;
-  lastUpdated: string;
+  enabled: boolean;
+  retention_days: number;
+  cleanup_interval: string;
+  max_records_per_day: number;
+  last_cleanup_time: string;
+  log_file_count: number;
+  log_file_size: number;
 }
 
 interface LogCleanupConfig {
@@ -68,14 +51,11 @@ interface LogCleanupConfig {
 export default function LogCleanupSettings() {
   const [stats, setStats] = useState<LogCleanupStats | null>(null);
   const [config, setConfig] = useState<LogCleanupConfig | null>(null);
-  const [endpointSSEStats, setEndpointSSEStats] = useState<EndpointSSEStats | null>(null);
   const [loading, setLoading] = useState(true);
   const [updating, setUpdating] = useState(false);
   const [triggering, setTriggering] = useState(false);
   const [refreshing, setRefreshing] = useState(false);
-  const [clearingSSE, setClearingSSE] = useState(false);
   const { isOpen, onOpen, onClose } = useDisclosure();
-  const { isOpen: isClearSSEOpen, onOpen: onClearSSEOpen, onClose: onClearSSEClose } = useDisclosure();
 
   // 表单状态
   const [formConfig, setFormConfig] = useState<LogCleanupConfig>({
@@ -116,8 +96,16 @@ export default function LogCleanupSettings() {
       const response = await fetch('/api/sse/log-cleanup/config');
       const data = await response.json();
       if (data.success && data.data) {
-        setConfig(data.data);
-        setFormConfig(data.data);
+        const configData = data.data;
+        setConfig(configData);
+        // 根据API返回的字段名设置表单配置
+        setFormConfig({
+          retentionDays: configData.retentionDays || configData.retention_days || 7,
+          cleanupInterval: configData.cleanupInterval || configData.cleanup_interval || "24h",
+          maxRecordsPerDay: configData.maxRecordsPerDay || configData.max_records_per_day || 10000,
+          cleanupEnabled: configData.cleanupEnabled !== undefined ? configData.cleanupEnabled : 
+                         configData.enabled !== undefined ? configData.enabled : true,
+        });
       } else {
         console.error('获取配置失败:', data.error);
         addToast({
@@ -136,71 +124,13 @@ export default function LogCleanupSettings() {
     }
   };
 
-  // 获取EndpointSSE统计信息
-  const fetchEndpointSSEStats = async () => {
-    try {
-      const response = await fetch('/api/sse/endpoint-stats');
-      const data = await response.json();
-      if (data.success && data.data) {
-        setEndpointSSEStats(data.data);
-      } else {
-        console.error('获取EndpointSSE统计失败:', data.error);
-        addToast({
-          title: "获取EndpointSSE统计失败",
-          description: data.error || "无法获取EndpointSSE统计信息",
-          color: "danger",
-        });
-      }
-    } catch (error) {
-      console.error('获取EndpointSSE统计失败:', error);
-      addToast({
-        title: "网络错误",
-        description: "获取EndpointSSE统计信息失败，请检查网络连接",
-        color: "danger",
-      });
-    }
-  };
 
-  // 清空EndpointSSE数据
-  const handleClearEndpointSSE = async () => {
-    setClearingSSE(true);
-    try {
-      const response = await fetch('/api/sse/endpoint-clear', {
-        method: 'DELETE',
-      });
-      
-      const data = await response.json();
-      if (data.success) {
-        await fetchEndpointSSEStats(); // 刷新统计信息
-        onClearSSEClose();
-        addToast({
-          title: "清空成功",
-          description: `已清空 ${data.deletedCount} 条EndpointSSE记录`,
-          color: "success",
-        });
-      } else {
-        addToast({
-          title: "清空失败",
-          description: data.error || "清空EndpointSSE失败",
-          color: "danger",
-        });
-      }
-    } catch (error) {
-      console.error('清空EndpointSSE失败:', error);
-      addToast({
-        title: "网络错误",
-        description: "清空EndpointSSE失败，请检查网络连接",
-        color: "danger",
-      });
-    }
-    setClearingSSE(false);
-  };
 
   // 刷新数据
   const refreshData = async () => {
     setRefreshing(true);
     try {
-      await Promise.all([fetchStats(), fetchConfig(), fetchEndpointSSEStats()]);
+      await Promise.all([fetchStats(), fetchConfig()]);
       addToast({
         title: "刷新成功",
         description: "统计数据已更新",
@@ -217,7 +147,7 @@ export default function LogCleanupSettings() {
   useEffect(() => {
     const loadData = async () => {
       setLoading(true);
-      await Promise.all([fetchStats(), fetchConfig(), fetchEndpointSSEStats()]);
+      await Promise.all([fetchStats(), fetchConfig()]);
       setLoading(false);
     };
     loadData();
@@ -225,7 +155,6 @@ export default function LogCleanupSettings() {
     // 定期刷新统计信息
     const interval = setInterval(() => {
       fetchStats();
-      fetchEndpointSSEStats();
     }, 60000); // 每60秒刷新一次
     return () => clearInterval(interval);
   }, []);
@@ -306,7 +235,10 @@ export default function LogCleanupSettings() {
   };
 
   // 格式化数字
-  const formatNumber = (num: number): string => {
+  const formatNumber = (num: number | null | undefined): string => {
+    if (num === null || num === undefined || isNaN(num)) {
+      return '0';
+    }
     if (num >= 1000000) {
       return (num / 1000000).toFixed(1) + 'M';
     } else if (num >= 1000) {
@@ -316,7 +248,10 @@ export default function LogCleanupSettings() {
   };
 
   // 计算文件大小格式化
-  const formatFileSize = (bytes: number): string => {
+  const formatFileSize = (bytes: number | null | undefined): string => {
+    if (bytes === null || bytes === undefined || isNaN(bytes)) {
+      return '0 B';
+    }
     if (bytes >= 1024 * 1024 * 1024) {
       return (bytes / (1024 * 1024 * 1024)).toFixed(1) + ' GB';
     } else if (bytes >= 1024 * 1024) {
@@ -353,8 +288,8 @@ export default function LogCleanupSettings() {
       <Card className="mt-5 p-2">
         <CardHeader className="flex gap-3">
           <div className="flex flex-col flex-1">
-            <p className="text-lg font-semibold">日志存储统计</p>
-            <p className="text-sm text-default-500">当前日志数据库使用情况</p>
+            <p className="text-lg font-semibold">日志清理统计</p>
+            <p className="text-sm text-default-500">当前日志清理系统状态</p>
           </div>
           <Button
             color="default"
@@ -370,57 +305,40 @@ export default function LogCleanupSettings() {
         <Divider />
         <CardBody>
           {stats ? (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg">
-                <FontAwesomeIcon icon={faBroadcastTower} className="text-primary text-xl" />
+                <FontAwesomeIcon 
+                  icon={stats.enabled ? faCheck : faExclamationTriangle} 
+                  className={`text-xl ${stats.enabled ? 'text-success' : 'text-warning'}`} 
+                />
                 <div>
-                  <p className="text-xs text-default-600">推送事件总数</p>
+                  <p className="text-xs text-default-600">清理状态</p>
                   <p className="text-xl font-bold text-primary">
-                    {endpointSSEStats ? formatNumber(endpointSSEStats.totalEvents) : formatNumber(stats.totalLogRecords || 0)}
+                    {stats.enabled ? '已启用' : '已禁用'}
                   </p>
-                  <p className="text-xs text-default-500">SSE记录</p>
-                </div>
-              </div>
-              
-              <div className="flex items-center gap-3 p-4 bg-secondary/10 rounded-lg">
-                <FontAwesomeIcon icon={faCloudArrowDown} className="text-secondary text-xl" />
-                <div>
-                  <p className="text-xs text-default-600">文件日志数量</p>
-                  <p className="text-xl font-bold text-secondary">
-                    {stats.fileLogStats ? formatNumber(stats.fileLogStats.totalFiles) : '0'}
-                  </p>
-                  <p className="text-xs text-default-500">日志文件</p>
+                  <p className="text-xs text-default-500">自动清理</p>
                 </div>
               </div>
 
-              <div className="flex items-center gap-3 p-4 bg-warning/10 rounded-lg">
-                <FontAwesomeIcon icon={faChartLine} className="text-warning text-xl" />
+              <div className="flex items-center gap-3 p-4 bg-secondary/10 rounded-lg">
+                <FontAwesomeIcon icon={faFileLines} className="text-secondary text-xl" />
                 <div>
-                  <p className="text-xs text-default-600">文件日志大小</p>
-                  <p className="text-xl font-bold text-warning">
-                    {stats.fileLogStats ? formatFileSize(stats.fileLogStats.totalSize) : '0 B'}
+                  <p className="text-xs text-default-600">日志文件数</p>
+                  <p className="text-xl font-bold text-secondary">
+                    {formatNumber(stats.log_file_count || 0)}
                   </p>
-                  <p className="text-xs text-default-500">磁盘占用</p>
+                  <p className="text-xs text-default-500">文件数量</p>
                 </div>
               </div>
               
               <div className="flex items-center gap-3 p-4 bg-success/10 rounded-lg">
-                <FontAwesomeIcon 
-                  icon={stats.cleanupEnabled ? faCheck : faExclamationTriangle} 
-                  className={`text-xl ${stats.cleanupEnabled ? 'text-success' : 'text-warning'}`} 
-                />
+                <FontAwesomeIcon icon={faDatabase} className="text-success text-xl" />
                 <div>
-                  <p className="text-xs text-default-600">存储模式</p>
-                  <Chip 
-                    color="success"
-                    variant="flat"
-                    size="sm"
-                  >
-                    {stats.logStorageMode === 'hybrid' ? '混合存储' : '数据库存储'}
-                  </Chip>
-                  <p className="text-xs text-default-500">
-                    {stats.cleanupEnabled ? '自动清理已启用' : '自动清理已禁用'}
+                  <p className="text-xs text-default-600">日志文件大小</p>
+                  <p className="text-xl font-bold text-success">
+                    {formatFileSize(stats.log_file_size || 0)}
                   </p>
+                  <p className="text-xs text-default-500">磁盘占用</p>
                 </div>
               </div>
             </div>
@@ -454,18 +372,6 @@ export default function LogCleanupSettings() {
               <span className="sm:hidden">配置</span>
             </Button>
             <Button
-              color="danger"
-              variant="ghost"
-              size="sm"
-              className="sm:size-md"
-              isLoading={clearingSSE}
-              startContent={<FontAwesomeIcon icon={faTrash} />}
-              onPress={onClearSSEOpen}
-            >
-              <span className="hidden sm:inline">清空SSE记录</span>
-              <span className="sm:hidden">清空SSE</span>
-            </Button>
-            <Button
               color="secondary"
               size="sm"
               className="sm:size-md"
@@ -473,7 +379,7 @@ export default function LogCleanupSettings() {
               startContent={<FontAwesomeIcon icon={faPlay} />}
               onPress={handleTriggerCleanup}
             >
-              <span className="hidden sm:inline">清理日志</span>
+              <span className="hidden sm:inline">手动清理</span>
               <span className="sm:hidden">清理</span>
             </Button>
           </div>
@@ -481,52 +387,47 @@ export default function LogCleanupSettings() {
         <Divider />
         <CardBody>
           {config ? (
-            <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-              <div className="space-y-4">
-                <h4 className="text-sm font-semibold text-default-700 mb-3">数据库配置</h4>
+            <div className="space-y-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">事件保留天数</span>
-                  <Chip color="primary" variant="flat">{config.retentionDays} 天</Chip>
+                  <span className="text-sm font-medium">保留天数</span>
+                  <Chip color="primary" variant="flat">
+                    {config.retentionDays || stats?.retention_days || 7} 天
+                  </Chip>
                 </div>
                 
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">清理间隔</span>
-                  <Chip color="secondary" variant="flat">{config.cleanupInterval}</Chip>
+                  <Chip color="secondary" variant="flat">
+                    {config.cleanupInterval || stats?.cleanup_interval || '24h'}
+                  </Chip>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">每日最大事件数</span>
+                  <span className="text-sm font-medium">每日最大记录数</span>
                   <Chip color="warning" variant="flat">
-                    {config.maxRecordsPerDay === 0 ? '无限制' : formatNumber(config.maxRecordsPerDay)}
-                  </Chip>
-                </div>
-              </div>
-              
-              <div className="space-y-4">
-                <h4 className="text-sm font-semibold text-default-700 mb-3">文件日志配置</h4>
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">文件日志保留</span>
-                  <Chip color="success" variant="flat">
-                    {stats?.fileLogStats?.retentionDays || 7} 天
+                    {(config.maxRecordsPerDay || stats?.max_records_per_day) === 0 ? '无限制' : 
+                     formatNumber(config.maxRecordsPerDay || stats?.max_records_per_day || 10000)}
                   </Chip>
                 </div>
                 
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">自动清理状态</span>
                   <Chip 
-                    color={getStatusColor(config.cleanupEnabled)}
+                    color={getStatusColor(config.cleanupEnabled ?? stats?.enabled ?? true)}
                     variant="flat"
                   >
-                    {config.cleanupEnabled ? '已启用' : '已禁用'}
+                    {(config.cleanupEnabled ?? stats?.enabled ?? true) ? '已启用' : '已禁用'}
                   </Chip>
                 </div>
-
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">存储方式</span>
-                  <Chip color="default" variant="flat">
-                    事件→数据库 | 日志→文件
-                  </Chip>
-                </div>
+              </div>
+              
+              <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
+                <p className="text-xs text-blue-600 dark:text-blue-400">
+                  💡 <strong>日志清理说明：</strong> 
+                  系统会定期清理超过保留天数的日志记录，保持数据库性能。
+                  清理任务会自动在后台执行，也可以手动触发清理。
+                </p>
               </div>
             </div>
           ) : (
@@ -534,84 +435,9 @@ export default function LogCleanupSettings() {
               <p className="text-default-500">无法获取配置数据</p>
             </div>
           )}
-          
-          {stats && (
-            <div className="mt-6 pt-4 border-t border-divider">
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4 text-sm text-default-600">
-                {stats.oldestDbEventAge && (
-                  <div className="flex items-center gap-2">
-                    <FontAwesomeIcon icon={faDatabase} />
-                    <span>最早数据库事件: {stats.oldestDbEventAge} 前</span>
-                  </div>
-                )}
-                {stats.fileLogStats?.oldestLogAge && (
-                  <div className="flex items-center gap-2">
-                    <FontAwesomeIcon icon={faChartLine} />
-                    <span>最早文件日志: {stats.fileLogStats.oldestLogAge} 前</span>
-                  </div>
-                )}
-              </div>
-              
-              <div className="mt-3 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
-                <p className="text-xs text-blue-600 dark:text-blue-400">
-                  💡 <strong>混合存储模式说明：</strong> 
-                  系统自动将日志内容存储到文件系统中（按端点/实例/日期分类），
-                  其他事件（创建、更新、删除等）存储在数据库中。
-                  这样可以提高日志查询性能，同时减少数据库大小。
-                </p>
-              </div>
-            </div>
-          )}
         </CardBody>
       </Card>
 
-      {/* 清空EndpointSSE确认对话框 */}
-      <Modal isOpen={isClearSSEOpen} onClose={onClearSSEClose}>
-        <ModalContent>
-          <ModalHeader className="flex flex-col gap-1">
-            <div className="flex items-center gap-2">
-              <FontAwesomeIcon icon={faExclamationTriangle} className="text-warning" />
-              确认清空EndpointSSE数据
-            </div>
-          </ModalHeader>
-          <ModalBody>
-            <div className="space-y-4">
-              <p className="text-sm">
-                您即将清空所有的EndpointSSE推送事件记录。此操作将删除数据库中的所有EndpointSSE数据。
-              </p>
-              
-              {endpointSSEStats && (
-                <div className="p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
-                  <p className="text-xs text-warning-600 dark:text-warning-400">
-                    <strong>即将删除：</strong> {formatNumber(endpointSSEStats.totalEvents)} 条EndpointSSE记录
-                  </p>
-                </div>
-              )}
-              
-              <div className="p-3 bg-danger-50 dark:bg-danger-900/20 rounded-lg">
-                <p className="text-xs text-danger-600 dark:text-danger-400">
-                  ⚠️ <strong>注意：</strong>
-                  此操作不可撤销，清空后的数据无法恢复。
-                  请确认您真的要执行这个操作。
-                </p>
-              </div>
-            </div>
-          </ModalBody>
-          <ModalFooter>
-            <Button color="default" variant="light" onPress={onClearSSEClose}>
-              取消
-            </Button>
-            <Button 
-              color="danger" 
-              onPress={handleClearEndpointSSE}
-              isLoading={clearingSSE}
-              startContent={<FontAwesomeIcon icon={faTrash} />}
-            >
-              确认清空
-            </Button>
-          </ModalFooter>
-        </ModalContent>
-      </Modal>
 
       {/* 配置模态框 */}
       <Modal isOpen={isOpen} onClose={onClose} size="2xl">
@@ -630,7 +456,7 @@ export default function LogCleanupSettings() {
                   <p className="text-xs text-default-500">开启后将按照配置规则定期清理过期日志</p>
                 </div>
                 <Switch
-                  isSelected={formConfig.cleanupEnabled}
+                  isSelected={formConfig.cleanupEnabled || false}
                   onValueChange={(value) => 
                     setFormConfig(prev => ({ ...prev, cleanupEnabled: value }))
                   }
@@ -641,7 +467,7 @@ export default function LogCleanupSettings() {
                 label="日志保留天数"
                 description="超过此天数的数据库事件将被删除"
                 type="number"
-                value={formConfig.retentionDays.toString()}
+                value={(formConfig.retentionDays || 7).toString()}
                 onChange={(e) => 
                   setFormConfig(prev => ({ 
                     ...prev, 
@@ -655,7 +481,7 @@ export default function LogCleanupSettings() {
               <Input
                 label="清理间隔"
                 description="清理任务执行间隔，格式如: 24h, 12h, 6h"
-                value={formConfig.cleanupInterval}
+                value={formConfig.cleanupInterval || "24h"}
                 onChange={(e) => 
                   setFormConfig(prev => ({ 
                     ...prev, 
@@ -669,7 +495,7 @@ export default function LogCleanupSettings() {
                 label="每日最大记录数"
                 description="每个端点每天保留的最大数据库事件记录数，0表示无限制"
                 type="number"
-                value={formConfig.maxRecordsPerDay.toString()}
+                value={(formConfig.maxRecordsPerDay || 0).toString()}
                 onChange={(e) => 
                   setFormConfig(prev => ({ 
                     ...prev, 
@@ -682,8 +508,8 @@ export default function LogCleanupSettings() {
               <div className="p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
                 <p className="text-xs text-warning-600 dark:text-warning-400">
                   ⚠️ <strong>注意：</strong>
-                  文件日志由文件日志管理器自动管理，保留天数固定为7天。
-                  这里的配置仅影响数据库中的事件记录清理。
+                  日志清理功能会影响系统日志的保留时间，清理后的日志无法恢复。
+                  建议根据实际需要合理设置保留天数。
                 </p>
               </div>
             </div>

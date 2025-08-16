@@ -16,6 +16,7 @@ import { NavbarMenu as DesktopNavbarMenu } from "./navbar-menu";
 import { NavbarSocial } from "./navbar-social";
 import { NavbarActions } from "./navbar-actions";
 import { NavbarMobileMenu } from "./navbar-mobile";
+import { SettingsButton } from "./settings-button";
 
 /**
  * 主导航栏组件
@@ -60,11 +61,14 @@ export const Navbar = () => {
           {/* 社交链接 */}
           <NavbarSocial />
           
-          {/* 语言切换 */}
+          {/* 语言切换 */} 
           {/* <LocaleSwitch /> */}
-          
+
           {/* 主题切换 */}
-          <ThemeSwitch />
+          {/* <ThemeSwitch /> */}
+          
+          {/* 个性化设置按钮 */}
+          <SettingsButton />
 
           {/* 退出登录图标按钮 */}
           <NavbarActions />
@@ -76,8 +80,9 @@ export const Navbar = () => {
 
       {/* 右侧工具栏 - 移动端 */}
       <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
-        <LocaleSwitch />
+        {/* <LocaleSwitch /> */}
         <ThemeSwitch />
+        <NavbarActions />
         {/* <NavbarUser /> */}
       </NavbarContent>
 

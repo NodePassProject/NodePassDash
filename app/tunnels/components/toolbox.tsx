@@ -33,10 +33,11 @@ import {
 import { useRouter } from "next/navigation";
 import { Box, Flex } from "@/components";
 import { addToast } from "@heroui/toast";
-import QuickCreateTunnelModal from "./quick-create-tunnel-modal";
+import SimpleCreateTunnelModal from "./simple-create-tunnel-modal";
 import BatchCreateModal from "./batch-create-modal";
 import { ButtonGroup } from "@heroui/react";
-import ManualCreateTunnelModal from "./manual-create-tunnel-modal";
+import BatchUrlCreateTunnelModal from "./batch-url-create-tunnel-modal";
+import { useSettings } from "@/components/providers/settings-provider";
 
 type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL';
 
@@ -83,6 +84,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
   onTagManagement,
 }) => {
   const router = useRouter();
+  const { settings } = useSettings();
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
   const [endpointsLoading, setEndpointsLoading] = useState(true);
 
@@ -93,7 +95,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
   const [isBatchOpen, setIsBatchOpen] = useState(false);
 
   // 手搓创建模态控制
-  const [manualCreateOpen, setManualCreateOpen] = useState(false);
+  const [manualCreateOpen, setUrlCreateOpen] = useState(false);
 
   useEffect(() => {
     const fetchEndpoints = async () => {
@@ -290,7 +292,13 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
               color="primary" 
               className="md:text-sm"
               startContent={loading ? <Spinner size="sm" /> : <FontAwesomeIcon icon={faPlus} />}
-              onClick={() => router.push("/tunnels/create")}
+              onClick={() => {
+                if (settings.isBeginnerMode) {
+                  router.push("/tunnels/create");
+                } else {
+                  setIsNormalOpen(true);
+                }
+              }}
               isDisabled={loading}
             >
               <span className="hidden sm:inline">创建实例</span>
@@ -311,10 +319,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
                 onAction={(key) => {
                   switch(key) {
                     case 'manual':
-                      setManualCreateOpen(true);
-                      break;
-                    case 'normal':
-                      setIsNormalOpen(true);
+                      setUrlCreateOpen(true);
                       break;
                     case 'batch':
                       setIsBatchOpen(true);
@@ -539,7 +544,13 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
             <Button 
               color="primary" 
               startContent={loading ? <Spinner size="sm" /> : <FontAwesomeIcon icon={faPlus} />}
-              onClick={() => router.push("/tunnels/create")}
+              onClick={() => {
+                if (settings.isBeginnerMode) {
+                  router.push("/tunnels/create");
+                } else {
+                  setUrlCreateOpen(true);
+                }
+              }}
               isDisabled={loading}
               className="flex-1"
             >
@@ -560,7 +571,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
                 onAction={(key) => {
                   switch(key) {
                     case 'manual':
-                      setManualCreateOpen(true);
+                      setUrlCreateOpen(true);
                       break;
                     case 'normal':
                       setIsNormalOpen(true);
@@ -593,7 +604,7 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
       </div>
 
       {/* 快速创建实例弹窗 */}
-      <QuickCreateTunnelModal
+      <SimpleCreateTunnelModal
         isOpen={isNormalOpen}
         onOpenChange={setIsNormalOpen}
         onSaved={onRefresh}
@@ -607,9 +618,9 @@ export const TunnelToolBox: React.FC<TunnelToolBoxProps> = ({
       />
       
       {/* 手搓创建模态框 */}
-      <ManualCreateTunnelModal
+      <BatchUrlCreateTunnelModal
         isOpen={manualCreateOpen}
-        onOpenChange={setManualCreateOpen}
+        onOpenChange={setUrlCreateOpen}
         onSaved={onRefresh}
       />
     </div>

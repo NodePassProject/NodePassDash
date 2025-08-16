@@ -70,7 +70,7 @@ import EditApiKeyModal from "./components/edit-apikey-modal";
 import { buildApiUrl } from '@/lib/utils';
 import { copyToClipboard } from '@/lib/utils/clipboard';
 import ManualCopyModal from '@/components/ui/manual-copy-modal';
-import { useGlobalVisibility } from '@/lib/hooks/use-global-visibility';
+import { useSettings } from '@/components/providers/settings-provider';
 // 本地定义 EndpointStatus 枚举，后端通过 API 返回字符串
 type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL' | 'DISCONNECT';
 // 后端返回的 Endpoint 基础结构
@@ -119,10 +119,9 @@ export default function EndpointsPage() {
   const [loading, setLoading] = useState(true);
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
   const [deleteModalEndpoint, setDeleteModalEndpoint] = useState<FormattedEndpoint | null>(null);
-  const [showApiKey, setShowApiKey] = useState<{[key: string]: boolean}>({});
   
-  // 使用全局可见性Hook
-  const globalVisibility = useGlobalVisibility();
+  // 使用全局设置Hook
+  const { settings } = useSettings();
   const { isOpen: isImportOpen, onOpen: onImportOpen, onOpenChange: onImportOpenChange } = useDisclosure();
 
 
@@ -179,6 +178,18 @@ export default function EndpointsPage() {
     
     startupEndpoints();
   }, []);
+
+  // 格式化URL显示（处理脱敏逻辑）
+  const formatUrl = (url: string, apiPath: string) => {
+    const fullUrl = `${url}${apiPath}`;
+    // 如果隐私模式关闭，显示完整URL
+    if (!settings.isPrivacyMode) {
+      return fullUrl;
+    }
+    
+    // 隐私模式开启时显示脱敏URL
+    return '••••••••••••••••••••••••••';
+  };
 
   const handleAddEndpoint = async (data: EndpointFormData) => {
     try {
@@ -250,12 +261,7 @@ export default function EndpointsPage() {
     setExpandedCard(prev => prev === endpointId ? null : endpointId);
   };
 
-  const toggleApiKeyVisibility = (endpointId: number) => {
-    setShowApiKey(prev => ({
-      ...prev,
-      [endpointId]: !prev[endpointId]
-    }));
-  };
+
 
   const handleReconnect = async (endpointId: number) => {
     try {
@@ -510,13 +516,13 @@ export default function EndpointsPage() {
             </div>
             <div>
               <label className="text-small text-default-500 mb-2 block">API Key</label>
-              <Input
-                value={endpoint.apiKey}
-                isReadOnly
-                variant="bordered"
-                size="sm"
-                type={showApiKey[endpoint.id] ? "text" : "password"}
-              />
+                             <Input
+                 value={endpoint.apiKey}
+                 isReadOnly
+                 variant="bordered"
+                 size="sm"
+                 type={settings.isPrivacyMode ? "password" : "text"}
+               />
             </div>
             
             {/* 连接状态和操作 */}
@@ -1030,17 +1036,10 @@ export default function EndpointsPage() {
                       <span className="text-small truncate">{endpoint.url}{endpoint.apiPath}</span>
                     </div>
                     <div className="flex items-center gap-2 text-default-400">
-                      <FontAwesomeIcon 
-                        icon={showApiKey[endpoint.id] ? faEyeSlash : faEye} 
-                        className="text-xs cursor-pointer hover:text-primary w-4"
-                        onClick={(e) => {
-                          e.stopPropagation();
-                          toggleApiKeyVisibility(endpoint.id);
-                        }}
-                      />
-                      <span className="text-small font-mono flex-1 truncate">
-                        {showApiKey[endpoint.id] ? endpoint.apiKey : "•••••••••••••••••••••••••••••••••"}
-                      </span>
+                      <FontAwesomeIcon icon={faKey} />
+                       <span className="text-small font-mono flex-1 truncate">
+                         {settings.isPrivacyMode ? "•••••••••••••••••••••••••••••••••" : endpoint.apiKey}
+                       </span>
                     </div>
                   </div>
                 </CardBody>
@@ -1088,26 +1087,8 @@ export default function EndpointsPage() {
             <TableColumn key="id">ID</TableColumn>
             <TableColumn key="name" className="min-w-[140px]">名称</TableColumn>
             <TableColumn key="version" className="w-24">版本</TableColumn>
-            <TableColumn key="url" className="min-w-[200px]">
-              <div className="flex items-center gap-1">
-                <span>URL</span>
-                <FontAwesomeIcon 
-                  icon={globalVisibility.endpoints.showUrlAll ? faEyeSlash : faEye}
-                  className="text-xs cursor-pointer hover:text-primary" 
-                  onClick={globalVisibility.endpoints.toggleShowUrlAll}
-                />
-              </div>
-            </TableColumn>
-            <TableColumn key="apikey" className="min-w-[220px]">
-              <div className="flex items-center gap-1">
-                <span>API Key</span>
-                <FontAwesomeIcon 
-                  icon={globalVisibility.endpoints.showApiKeyAll ? faEyeSlash : faEye}
-                  className="text-xs cursor-pointer hover:text-primary" 
-                  onClick={globalVisibility.endpoints.toggleShowApiKeyAll}
-                />
-              </div>
-            </TableColumn>
+            <TableColumn key="url" className="min-w-[200px]">URL</TableColumn>
+            <TableColumn key="apikey" className="min-w-[220px]">API Key</TableColumn>
             <TableColumn key="actions" className="w-52">操作</TableColumn>
           </TableHeader>
           <TableBody>
@@ -1170,13 +1151,12 @@ export default function EndpointsPage() {
                       {ep.ver ?ep.ver:"unknown"}
                       </Chip> 
                     </TableCell>
-                    <TableCell className="truncate min-w-[200px]">{globalVisibility.endpoints.showUrlAll ? `${ep.url}${ep.apiPath}` : '••••••••••••••••••••••••••'}
-                    </TableCell>
-                    <TableCell>
-                      <span className="font-mono truncate">
-                        {globalVisibility.endpoints.showApiKeyAll ? ep.apiKey : '•••••••••••••••••••••••••••••••••'}
-                      </span>
-                    </TableCell>
+                    <TableCell className="truncate min-w-[200px]">{formatUrl(ep.url, ep.apiPath)}</TableCell>
+                                         <TableCell>
+                       <span className="font-mono truncate">
+                         {settings.isPrivacyMode ? '•••••••••••••••••••••••••••••••••' : ep.apiKey}
+                       </span>
+                     </TableCell>
                     <TableCell className="w-52">
                       <div className="flex items-center gap-1 justify-start">
                         {/* 查看详情 */}

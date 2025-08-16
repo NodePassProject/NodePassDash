@@ -12,6 +12,7 @@ import { useRouter } from "next/navigation";
 import { ThemeProvider as NextThemesProvider } from "next-themes";
 import { useEffect } from "react";
 import { LanguageProvider } from "@/components/providers/language-provider";
+import { SettingsProvider } from "@/components/providers/settings-provider";
 
 export interface ProvidersProps {
   children: React.ReactNode;
@@ -51,13 +52,15 @@ export function Providers({ children, themeProps }: ProvidersProps) {
     <HeroUIProvider navigate={router.push}>
       <LanguageProvider>
         <NextThemesProvider {...themeProps}>
-          <ToastProvider 
-            placement="top-center" 
-            toastOffset={80}
-            maxVisibleToasts={1}
-            toastProps={{ timeout: 1000 }}
-          />
-          {children}
+          <SettingsProvider>
+            <ToastProvider 
+              placement="top-center" 
+              toastOffset={80}
+              maxVisibleToasts={1}
+              toastProps={{ timeout: 1000 }}
+            />
+            {children}
+          </SettingsProvider>
         </NextThemesProvider>
       </LanguageProvider>
     </HeroUIProvider>

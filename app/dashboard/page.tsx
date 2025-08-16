@@ -29,7 +29,7 @@ import {
   useDisclosure,
   cn
 } from "@heroui/react";
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 
 import { Icon } from "@iconify/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -47,11 +47,13 @@ import { ServerIconRed } from "@/components/ui/server-red-icon";
 import { QuickEntryCard } from "@/components/ui/quick-entry-card";
 import { FlexBox } from "@/components";
 import { useRouter } from "next/navigation";
-import { useGlobalSSE } from '@/lib/hooks/use-sse';
+
+
 import { formatDistanceToNow } from 'date-fns';
 import { zhCN } from 'date-fns/locale';
 import { buildApiUrl } from '@/lib/utils';
 import { addToast } from "@heroui/toast";
+import { useSettings } from '@/components/providers/settings-provider';
 
 // Prisma 已移除，定义本地 EndpointStatus 枚举
 type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL';
@@ -108,15 +110,12 @@ interface TrafficTrendData {
   recordCount: number;
 }
 
-
-
-
-
 /**
  * 仪表盘页面 - 显示系统概览和状态信息
  */
 export default function DashboardPage() {
   const router = useRouter();
+  const { settings } = useSettings();
   const [overallStats, setOverallStats] = useState({
     total_endpoints: 0,
     total_tunnels: 0,
@@ -128,7 +127,6 @@ export default function DashboardPage() {
   const [operationLogs, setOperationLogs] = useState<OperationLog[]>([]);
   const [trafficTrend, setTrafficTrend] = useState<TrafficTrendData[]>([]);
   const [trafficLoading, setTrafficLoading] = useState(true);
-  const [visibleUrls, setVisibleUrls] = useState<Set<number>>(new Set());
   
   // 添加tunnel统计数据状态
   const [tunnelStats, setTunnelStats] = useState<TunnelStats>({ total: 0, running: 0, stopped: 0, error: 0, offline: 0 });
@@ -146,8 +144,27 @@ export default function DashboardPage() {
   const { isOpen: isClearOpen, onOpen: onClearOpen, onClose: onClearClose } = useDisclosure();
   const [clearingLogs, setClearingLogs] = useState(false);
 
+  // 添加组件挂载状态检查
+  const isMountedRef = useRef(true);
+  const mountCountRef = useRef(0);
+
+  // 组件挂载/卸载管理
+  useEffect(() => {
+    mountCountRef.current += 1;
+    isMountedRef.current = true; // 重置挂载状态
+    console.log(`[仪表盘] 组件挂载，第${mountCountRef.current}次`);
+    
+    return () => {
+      console.log(`[仪表盘] 组件卸载，第${mountCountRef.current}次`);
+      isMountedRef.current = false;
+      console.log('[仪表盘] 资源清理完成');
+    };
+  }, []);
+
+
+
   // 确认清空日志
-  const confirmClearLogs = async () => {
+  const confirmClearLogs = useCallback(async () => {
     if (operationLogs.length === 0) return;
     setClearingLogs(true);
     try {
@@ -156,7 +173,7 @@ export default function DashboardPage() {
       });
       const data = await response.json();
 
-      if (response.ok && data.success) {
+      if (response.ok && data.success && isMountedRef.current) {
         setOperationLogs([]);
         addToast({
           title: '清空成功',
@@ -164,7 +181,7 @@ export default function DashboardPage() {
           color: 'success',
         });
         onClearClose();
-      } else {
+      } else if (isMountedRef.current) {
         addToast({
           title: '清空失败',
           description: data.error || '无法清空日志',
@@ -172,19 +189,28 @@ export default function DashboardPage() {
         });
       }
     } catch (error) {
-      console.error('清空操作日志失败:', error);
-      addToast({
-        title: '清空失败',
-        description: '网络错误，请稍后重试',
-        color: 'danger',
-      });
+      if (isMountedRef.current) {
+        console.error('清空操作日志失败:', error);
+        addToast({
+          title: '清空失败',
+          description: '网络错误，请稍后重试',
+          color: 'danger',
+        });
+      }
     } finally {
-      setClearingLogs(false);
+      if (isMountedRef.current) {
+        setClearingLogs(false);
+      }
     }
-  };
+  }, [operationLogs.length, onClearClose]);
 
   // 处理IP地址隐藏的函数
-  const maskIpAddress = (url: string): string => {
+  const maskIpAddress = useCallback((url: string): string => {
+    // 如果隐私模式关闭，直接返回原始URL
+    if (!settings.isPrivacyMode) {
+      return url;
+    }
+    
     try {
       // IPv4 正则表达式：匹配 x.x.x.x 格式
       const ipv4Regex = /(\d{1,3}\.\d{1,3}\.)(\d{1,3}\.\d{1,3})/g;
@@ -214,20 +240,9 @@ export default function DashboardPage() {
       // 如果处理失败，返回原始URL
       return url;
     }
-  };
+  }, [settings.isPrivacyMode]);
 
-  // 切换URL显示状态
-  const toggleUrlVisibility = (endpointId: number) => {
-    setVisibleUrls(prev => {
-      const newSet = new Set(prev);
-      if (newSet.has(endpointId)) {
-        newSet.delete(endpointId);
-      } else {
-        newSet.add(endpointId);
-      }
-      return newSet;
-    });
-  };
+
 
   const columns = [
     { key: "time", label: "时间" },
@@ -237,12 +252,15 @@ export default function DashboardPage() {
   ];
 
   // 获取总体统计数据
-  const fetchOverallStats = async () => {
+  const fetchOverallStats = useCallback(async () => {
     try {
       const response = await fetch(buildApiUrl('/api/dashboard/overall-stats'));
+      
       if (!response.ok) throw new Error('获取总体统计数据失败');
       const data = await response.json();
+      
       if (data.success && data.data) {
+        console.log('[仪表盘] 总体统计数据:', data.data);
         setOverallStats(data.data);
       }
     } catch (error) {
@@ -253,41 +271,53 @@ export default function DashboardPage() {
         color: 'danger'
       });
     }
-  };
+  }, []);
 
   // 获取主控数据
-  const fetchEndpoints = async () => {
+  const fetchEndpoints = useCallback(async () => {
     try {
       const response = await fetch(buildApiUrl('/api/endpoints/simple'));
+      
       if (!response.ok) throw new Error('获取主控数据失败');
       const data: Endpoint[] = await response.json();
-      setEndpoints(data);
+      
+      if (isMountedRef.current) {
+        setEndpoints(data);
+      }
     } catch (error) {
-      console.error('获取主控数据失败:', error);
+      if (isMountedRef.current) {
+        console.error('获取主控数据失败:', error);
+      }
     }
-  };
+  }, []);
 
   // 获取操作日志数据
-  const fetchOperationLogs = async () => {
+  const fetchOperationLogs = useCallback(async () => {
     try {
-      const response = await fetch(buildApiUrl('/api/dashboard/logs?limit=50'));
+      const response = await fetch(buildApiUrl('/api/dashboard/logs?limit=1000'));
+      
       if (!response.ok) throw new Error('获取操作日志失败');
       const data: OperationLog[] = await response.json();
-      setOperationLogs(data);
+      
+      if (isMountedRef.current) {
+        setOperationLogs(data);
+      }
     } catch (error) {
-      console.error('获取操作日志失败:', error);
+      if (isMountedRef.current) {
+        console.error('获取操作日志失败:', error);
+      }
     }
-  };
+  }, []);
 
   // 获取流量趋势数据
-  const fetchTrafficTrend = async () => {
+  const fetchTrafficTrend = useCallback(async () => {
     try {
-      setTrafficLoading(true);
       const response = await fetch(buildApiUrl('/api/dashboard/traffic-trend'));
+      
       if (!response.ok) throw new Error('获取流量趋势数据失败');
       
       const result = await response.json();
-      if (result.success) {
+      if (result.success && isMountedRef.current) {
         setTrafficTrend(result.data);
         // 处理今日流量数据
         processTodayTrafficData(result.data);
@@ -295,48 +325,53 @@ export default function DashboardPage() {
           数据条数: result.data.length,
           示例数据: result.data.slice(0, 3)
         });
-      } else {
+      } else if (isMountedRef.current) {
         throw new Error(result.error || '获取流量趋势数据失败');
       }
     } catch (error) {
-      console.error('获取流量趋势数据失败:', error);
-      setTrafficTrend([]); // 设置为空数组，显示无数据状态
-    } finally {
-      setTrafficLoading(false);
+      if (isMountedRef.current) {
+        console.error('获取流量趋势数据失败:', error);
+        setTrafficTrend([]); // 设置为空数组，显示无数据状态
+      }
     }
-  };
+  }, []);
 
   // 获取tunnel统计数据
-  const fetchTunnelStats = async () => {
+  const fetchTunnelStats = useCallback(async () => {
     try {
       const response = await fetch(buildApiUrl('/api/dashboard/tunnel-stats'));
+      
       if (!response.ok) throw new Error('获取tunnel统计数据失败');
       const result = await response.json();
       
-      if (result.success && result.data) {
+      if (result.success && result.data && isMountedRef.current) {
         setTunnelStats(result.data);
       }
     } catch (error) {
-      console.error('获取tunnel统计数据失败:', error);
-      addToast({
-        title: '错误',
-        description: '获取tunnel统计数据失败',
-        color: 'danger'
-      });
+      if (isMountedRef.current) {
+        console.error('获取tunnel统计数据失败:', error);
+        addToast({
+          title: '错误',
+          description: '获取tunnel统计数据失败',
+          color: 'danger'
+        });
+      }
     }
-  };
+  }, []);
 
   // 格式化字节数
-  const formatBytes = (bytes: number): string => {
+  const formatBytes = useCallback((bytes: number): string => {
     if (bytes === 0) return "0 B";
     const k = 1024;
     const sizes = ["B", "KB", "MB", "GB", "TB"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
-  };
+  }, []);
 
   // 处理今日流量数据
-  const processTodayTrafficData = (trafficData: TrafficTrendData[]) => {
+  const processTodayTrafficData = useCallback((trafficData: TrafficTrendData[]) => {
+    if (!isMountedRef.current) return;
+    
     const today = new Date();
     const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
     const todayStartTimestamp = Math.floor(todayStart.getTime() / 1000); // 转换为秒级时间戳
@@ -399,63 +434,39 @@ export default function DashboardPage() {
     }, { tcpIn: 0, tcpOut: 0, udpIn: 0, udpOut: 0, total: 0 });
 
     console.log('[今日流量筛选] 计算结果:', todayTraffic);
-    setTodayTrafficData(todayTraffic);
-  };
+    
+    if (isMountedRef.current) {
+      setTodayTrafficData(todayTraffic);
+    }
+  }, []);
 
-  // 使用全局SSE监听页面刷新事件
-  // useGlobalSSE({
-  //   onMessage: (data) => {
-  //     // 处理页面刷新事件
-  //     if (data.type === 'refresh' && data.route === '/dashboard') {
-  //       router.refresh();
-  //       return;
-  //     }
 
-  //     // 处理实例更新事件
-  //     if (['create', 'update', 'delete'].includes(data.type)) {
-  //       console.log('[仪表盘] 收到实例更新事件:', data);
-  //       // 刷新实例统计数据
-  //       fetchTunnelStats();
-  //       // 如果是创建或删除事件，也刷新主控数据
-  //       if (data.type === 'create' || data.type === 'delete') {
-  //         fetchEndpoints();
-  //       }
-  //     }
-  //   },
-  //   onError: (error) => {
-  //     console.error('[仪表盘] SSE连接错误:', error);
-  //   }
-  // });
+
+
 
   // 初始化数据
   useEffect(() => {
     const fetchData = async () => {
+      console.log('[仪表盘] 开始加载数据');
       setLoading(true);
+      setTrafficLoading(true);
       
-      // 优先加载核心统计数据，快速显示基本信息
       try {
         await Promise.all([
           fetchOverallStats(), 
           fetchEndpoints(),
-          fetchTunnelStats()
+          fetchTunnelStats(),
+          fetchOperationLogs(),
+          fetchTrafficTrend()
         ]);
+        console.log('[仪表盘] 所有数据加载完成');
       } catch (error) {
-        console.error('加载核心数据失败:', error);
+        console.error('加载数据失败:', error);
       } finally {
+        console.log('[仪表盘] 设置加载状态为false');
         setLoading(false);
+        setTrafficLoading(false);
       }
-      
-      // 异步加载次要数据，不阻塞页面渲染
-      setTimeout(async () => {
-        try {
-          await Promise.all([
-            fetchOperationLogs(),
-            fetchTrafficTrend()
-          ]);
-        } catch (error) {
-          console.error('加载扩展数据失败:', error);
-        }
-      }, 100);
     };
     
     fetchData();
@@ -675,13 +686,9 @@ export default function DashboardPage() {
                           </Chip>
                         </div>
                         
-                        {/* 主控地址 - 仅支持点击脱敏 */}
-                        <p 
-                          className="text-xs text-default-500 truncate font-mono cursor-pointer hover:text-primary transition-colors"
-                          onClick={() => toggleUrlVisibility(endpoint.id)}
-                          title="点击切换显示完整地址"
-                        >
-                          {visibleUrls.has(endpoint.id) ? endpoint.url : maskIpAddress(endpoint.url)}
+                        {/* 主控地址 - 根据隐私模式显示 */}
+                        <p className="text-xs text-default-500 truncate font-mono">
+                          {maskIpAddress(endpoint.url)}
                         </p>
                       </div>
                     </div>
@@ -722,6 +729,7 @@ export default function DashboardPage() {
           <div className="">
             <div className="h-[400px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
               <Table
+                isHeaderSticky
                 selectionMode="none"
                 removeWrapper
                 classNames={{

@@ -14,7 +14,8 @@ const NodePassLogo = () => {
   
   // 根据主题选择颜色
   const isDark = !isSSR && theme === "dark";
-  const bgColor = isDark ? "#000000" : "#FFFFFF";
+  const bgColor = isDark ? "#FFFFFFFF" : "#FFFFFFFF";
+  // const bgColor = isDark ? "#000000" : "#FFFFFF";
   const pathColor = isDark ? "#FFFFFF" : "#000000";
 
   return (
@@ -24,7 +25,7 @@ const NodePassLogo = () => {
       className="w-8 h-8"
     >
       {/* Rounded Rectangle Background */}
-      <rect width="480" height="480" rx="24" ry="24" fill={bgColor}/>
+      {/* <rect width="480" height="480" rx="24" ry="24" fill={bgColor}/> */}
       
       {/* NodePass Logo */}
       <g transform="translate(64, 57.2)">
@@ -42,7 +43,7 @@ const NodePassLogo = () => {
 export const NavbarLogo = () => {
   return (
     <NavbarBrand as="li" className="gap-3 max-w-fit">
-      <NextLink className="flex justify-start items-center gap-2" href="/">
+      <NextLink className="flex justify-start items-center gap-2 " href="/">
         <NodePassLogo />
         <p className="font-bold text-inherit">NodePassDash</p>
       </NextLink>

@@ -35,6 +35,7 @@ import { useRouter } from "next/navigation";
 import { cn } from "@/lib/utils";
 import { addToast } from "@heroui/toast";
 import { buildApiUrl } from '@/lib/utils';
+import { motion, AnimatePresence } from "framer-motion";
 
 type EndpointStatus = 'ONLINE' | 'OFFLINE' | 'FAIL';
 
@@ -137,7 +138,7 @@ export default function CreateTunnelPage() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     apiEndpoint: "",
-    mode: "server",
+    type: "server", // 重命名：原本的mode改为type
     tunnelName: "",
     tunnelAddress: "",
     tunnelPort: "",
@@ -149,7 +150,12 @@ export default function CreateTunnelPage() {
     logLevel: "inherit",
     password: "",
     min: "",
-    max: ""
+    max: "",
+    // 新增字段
+    mode: "0", // 服务端/客户端模式：服务端默认0，客户端默认1
+    read: "", // 数据读取超时
+    readUnit: "s", // 数据读取超时单位
+    rate: "" // 速率限制
   });
 
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
@@ -205,10 +211,25 @@ export default function CreateTunnelPage() {
       if (!/^\d*$/.test(value)) return;
     }
 
+    // 对 read 仅允许数字
+    if (field === "read") {
+      if (!/^\d*$/.test(value)) return;
+    }
+
     // 当切换主控时，清除密码字段并重置密码可见性
     if (field === "apiEndpoint") {
       setFormData((prev) => ({ ...prev, [field]: value, password: "" }));
       setIsPasswordVisible(false);
+    } else if (field === "type") {
+      // 切换类型时自动设置默认模式，并清空连接池相关字段
+      const defaultMode = value === 'server' ? '0' : '1';
+      setFormData((prev) => ({ 
+        ...prev, 
+        [field]: value, 
+        mode: defaultMode,
+        min: "", // 清空连接池最小容量
+        max: ""  // 清空连接池最大容量
+      }));
     } else {
       setFormData((prev) => ({ ...prev, [field]: value }));
     }
@@ -229,8 +250,8 @@ export default function CreateTunnelPage() {
       return;
     }
 
-    // 如果是服务端模式且TLS模式为mode2，验证证书路径
-    if (formData.mode === 'server' && formData.tlsMode === 'mode2') {
+    // 如果是服务端模式且TLS模式为2，验证证书路径
+    if (formData.type === 'server' && formData.tlsMode === '2') {
       if (!formData.certPath || !formData.keyPath) {
         showToast('TLS模式2需要提供证书和密钥文件路径', 'warning');
         return;
@@ -247,29 +268,42 @@ export default function CreateTunnelPage() {
         body: JSON.stringify({
           name: formData.tunnelName,
           endpointId: formData.apiEndpoint,
-          mode: formData.mode,
+          type: formData.type, // 修复：使用正确的字段名
           tunnelAddress: formData.tunnelAddress,
           tunnelPort: formData.tunnelPort,
           targetAddress: formData.targetAddress,
           targetPort: formData.targetPort,
-          tlsMode: formData.mode === 'server' ? formData.tlsMode : undefined,
-          certPath: formData.mode === 'server' && formData.certPath && formData.tlsMode === 'mode2' ? formData.certPath : undefined,
-          keyPath: formData.mode === 'server' && formData.keyPath && formData.tlsMode === 'mode2' ? formData.keyPath : undefined,
+          tlsMode: formData.type === 'server' ? formData.tlsMode : undefined,
+          certPath: formData.type === 'server' && formData.certPath && formData.tlsMode === '2' ? formData.certPath : undefined,
+          keyPath: formData.type === 'server' && formData.keyPath && formData.tlsMode === '2' ? formData.keyPath : undefined,
           logLevel: formData.logLevel,
           password: (() => {
             const selectedEndpoint = endpoints.find(e => e.id === formData.apiEndpoint);
             const supportsPassword = selectedEndpoint ? isVersionSupportsPassword(selectedEndpoint.version) : false;
             return supportsPassword && formData.password ? formData.password : undefined;
           })(),
-          min: formData.mode === 'client' && formData.min ? formData.min : undefined,
-          max: formData.mode === 'client' && formData.max ? formData.max : undefined,
+          min: formData.type === 'client' && formData.min ? formData.min : undefined,
+          max: (() => {
+            if (formData.type === 'client' && formData.max !== '') return formData.max;
+            if (formData.type === 'server' && formData.max !== '') return formData.max;
+            return undefined;
+          })(),
+          // 新增字段
+          mode: formData.mode || undefined, // 修复：使用正确的字段名
+          read: (() => {
+            if (formData.read && formData.readUnit) {
+              return `${formData.read}${formData.readUnit}`;
+            }
+            return undefined;
+          })(),
+          rate: formData.rate || undefined,
         }),
       });
 
       const result = await response.json();
 
       if (response.ok) {
-        showToast('实例实例创建成功！', 'success');
+        showToast('实例创建成功！', 'success');
         // 延迟跳转，让用户看到成功提示
         setTimeout(() => {
           router.push('/tunnels');
@@ -278,7 +312,7 @@ export default function CreateTunnelPage() {
         throw new Error(result.error || '创建失败');
       }
     } catch (error) {
-      console.error('创建实例实例失败:', error);
+      console.error('创建实例失败:', error);
       showToast(`创建失败: ${error instanceof Error ? error.message : '未知错误'}`, 'error');
     } finally {
       setSubmitting(false);
@@ -427,7 +461,7 @@ export default function CreateTunnelPage() {
 
       <Card className="p-2 shadow-none border-2 border-default-200">
         <CardHeader>
-          <h2 className="text-xl font-semibold">实例模式</h2>
+          <h2 className="text-xl font-semibold">实例类型</h2>
         </CardHeader>
         <Divider />
         <CardBody className="p-6">
@@ -435,8 +469,8 @@ export default function CreateTunnelPage() {
             <Card
               isPressable
               isHoverable
-              className={`shadow-none border-2 ${formData.mode === "server" ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
-              onClick={() => handleInputChange("mode", "server")}
+              className={`shadow-none border-2 ${formData.type === "server" ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+              onClick={() => handleInputChange("type", "server")}
             >
               <CardBody className="flex items-center p-6">
                 <div className="w-8 h-8 flex items-center justify-center transition-all duration-300">
@@ -455,8 +489,8 @@ export default function CreateTunnelPage() {
             <Card
               isPressable
               isHoverable
-              className={`shadow-none border-2 ${formData.mode === "client" ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
-              onClick={() => handleInputChange("mode", "client")}
+              className={`shadow-none border-2 ${formData.type === "client" ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+              onClick={() => handleInputChange("type", "client")}
             >
               <CardBody className="flex items-center p-6">
                 <div className="w-8 h-8 flex items-center justify-center transition-all duration-300">
@@ -473,6 +507,78 @@ export default function CreateTunnelPage() {
               </CardBody>
             </Card>
           </div>
+        </CardBody>
+      </Card>
+
+      {/* 实例模式选择 */}
+      <Card className="p-2 shadow-none border-2 border-default-200">
+        <CardHeader>
+          <h2 className="text-xl font-semibold">实例模式</h2>
+        </CardHeader>
+        <Divider />
+        <CardBody className="p-6">
+          {formData.type === "server" ? (
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <Card
+                isPressable
+                isHoverable
+                className={`shadow-none border-2 ${formData.mode === "0" ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+                onClick={() => handleInputChange("mode", "0")}
+              >
+                <CardBody className="text-center p-4">
+                  <h3 className="font-semibold">模式0</h3>
+                  <p className="text-small text-default-500">自动流向检测</p>
+                </CardBody>
+              </Card>
+              <Card
+                isPressable
+                isHoverable
+                className={`shadow-none border-2 ${formData.mode === "1" ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+                onClick={() => handleInputChange("mode", "1")}
+              >
+                <CardBody className="text-center p-4">
+                  <h3 className="font-semibold">模式1</h3>
+                  <p className="text-small text-default-500">强制反向模式</p>
+                </CardBody>
+              </Card>
+              <Card
+                isPressable
+                isHoverable
+                className={`shadow-none border-2 ${formData.mode === "2" ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+                onClick={() => handleInputChange("mode", "2")}
+              >
+                <CardBody className="text-center p-4">
+                  <h3 className="font-semibold">模式2</h3>
+                  <p className="text-small text-default-500">强制正向模式</p>
+                </CardBody>
+              </Card>
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <Card
+                isPressable
+                isHoverable
+                className={`shadow-none border-2 ${formData.mode === "1" ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+                onClick={() => handleInputChange("mode", "1")}
+              >
+                <CardBody className="text-center p-4">
+                  <h3 className="font-semibold">模式1</h3>
+                  <p className="text-small text-default-500">强制单端转发模式</p>
+                </CardBody>
+              </Card>
+              <Card
+                isPressable
+                isHoverable
+                className={`shadow-none border-2 ${formData.mode === "2" ? "border-primary bg-primary-50 dark:bg-primary-900/30" : "border-default-200"}`}
+                onClick={() => handleInputChange("mode", "2")}
+              >
+                <CardBody className="text-center p-4">
+                  <h3 className="font-semibold">模式2</h3>
+                  <p className="text-small text-default-500">强制双端握手模式</p>
+                </CardBody>
+              </Card>
+            </div>
+          )}
         </CardBody>
       </Card>
 
@@ -613,8 +719,6 @@ export default function CreateTunnelPage() {
         </CardBody>
       </Card>
 
-
-
       <Card className="p-2 shadow-none border-2 border-default-200">
         <CardHeader>
           <h2 className="text-xl font-semibold">安全设置</h2>
@@ -653,7 +757,7 @@ export default function CreateTunnelPage() {
           })()}
           
           {/* TLS设置 - 仅在服务端模式时显示 */}
-          {formData.mode === "server" && (
+          {formData.type === "server" && (
             <>
               <RadioGroup
                 label="TLS 安全级别"
@@ -668,12 +772,12 @@ export default function CreateTunnelPage() {
                     return `继承主控${tlsText}: 使用主控配置的 TLS 设置`;
                   })()}
                 </Radio>
-                <Radio value="mode0">模式 0: 无 TLS 加密（明文 TCP/UDP）</Radio>
-                <Radio value="mode1">模式 1: 自签名证书（自动生成）</Radio>
-                <Radio value="mode2">模式 2: 自定义证书（需要 crt 和 key 参数）</Radio>
+                <Radio value="0">模式 0: 无 TLS 加密（明文 TCP/UDP）</Radio>
+                <Radio value="1">模式 1: 自签名证书（自动生成）</Radio>
+                <Radio value="2">模式 2: 自定义证书（需要 crt 和 key 参数）</Radio>
               </RadioGroup>
               
-              {formData.tlsMode === "mode2" && (
+              {formData.tlsMode === "2" && (
                 <>
                   <Input
                     label="证书文件路径"
@@ -694,31 +798,132 @@ export default function CreateTunnelPage() {
         </CardBody>
       </Card>
 
-      {/* 客户端专用设置 */}
-      {formData.mode === 'client' && (
-        <Card className="p-2 shadow-none border-2 border-default-200">
-          <CardHeader>
-            <h2 className="text-xl font-semibold">客户端参数</h2>
-          </CardHeader>
-          <Divider />
-          <CardBody className="p-6 space-y-6">
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-              <Input
-                label="连接池的最小容量"
-                placeholder="64"
-                value={formData.min}
-                onChange={(e) => handleInputChange('min', e.target.value)}
+      {/* 可选配置区域 */}
+      <Card className="p-2 shadow-none border-2 border-default-200">
+        <CardHeader>
+          <h2 className="text-xl font-semibold">可选配置</h2>
+        </CardHeader>
+        <Divider />
+        <CardBody className="p-6 space-y-6">
+          {/* 连接池配置 */}
+          {formData.type === 'server' ? (
+            // 服务端模式：三个input框并排
+            <div className="grid grid-cols-3 gap-4">
+              <Input 
+                label="连接池最大容量(可选)" 
+                value={formData.max} 
+                onChange={(e) => handleInputChange('max', e.target.value)} 
+                placeholder="1024(默认值)"
               />
-              <Input
-                label="连接池的最大容量"
-                placeholder="1024"
-                value={formData.max}
-                onChange={(e) => handleInputChange('max', e.target.value)}
+              <Input 
+                label="数据读取超时(可选)" 
+                value={formData.read} 
+                onChange={(e) => handleInputChange('read', e.target.value)} 
+                placeholder="10"
+                endContent={
+                  <Select
+                    aria-label="选择时间单位"
+                    selectedKeys={[formData.readUnit]}
+                    onChange={(e) => setFormData(prev => ({ ...prev, readUnit: e.target.value }))}
+                    className="w-20"
+                    size="sm"
+                  >
+                    <SelectItem key="s">s</SelectItem>
+                    <SelectItem key="m">m</SelectItem>
+                  </Select>
+                }
+              />
+              <Input 
+                label="速率限制(可选)" 
+                value={formData.rate} 
+                onChange={(e) => handleInputChange('rate', e.target.value)} 
+                placeholder="100"
+                endContent={
+                  <div className="pointer-events-none flex items-center">
+                    <span className="text-default-400 text-small">Mbps</span>
+                  </div>
+                }
               />
             </div>
-          </CardBody>
-        </Card>
-      )}
+          ) : (
+            // 客户端模式
+            formData.mode === '1' ? (
+              // 模式1：三个input框并排（最小容量、数据读取超时、速率限制）
+              <div className="grid grid-cols-3 gap-4">
+                <Input 
+                  label="连接池最小容量(可选)" 
+                  value={formData.min} 
+                  onChange={(e) => handleInputChange('min', e.target.value)} 
+                  placeholder="64(默认值)"
+                />
+                <Input 
+                  label="数据读取超时(可选)" 
+                  value={formData.read} 
+                  onChange={(e) => handleInputChange('read', e.target.value)} 
+                  placeholder="10"
+                  endContent={
+                    <Select
+                      aria-label="选择时间单位"
+                      selectedKeys={[formData.readUnit]}
+                      onChange={(e) => setFormData(prev => ({ ...prev, readUnit: e.target.value }))}
+                      className="w-20"
+                      size="sm"
+                    >
+                      <SelectItem key="s">s</SelectItem>
+                      <SelectItem key="m">m</SelectItem>
+                    </Select>
+                  }
+                />
+                <Input 
+                  label="速率限制(可选)" 
+                  value={formData.rate} 
+                  onChange={(e) => handleInputChange('rate', e.target.value)} 
+                  placeholder="100"
+                  endContent={
+                    <div className="pointer-events-none flex items-center">
+                      <span className="text-default-400 text-small">Mbps</span>
+                    </div>
+                  }
+                />
+              </div>
+            ) : (
+              // 模式2：两个input框并排
+              <div className="grid grid-cols-2 gap-4">
+                <Input 
+                  label="数据读取超时(可选)" 
+                  value={formData.read} 
+                  onChange={(e) => handleInputChange('read', e.target.value)} 
+                  placeholder="10"
+                  endContent={
+                    <Select
+                      aria-label="选择时间单位"
+                      selectedKeys={[formData.readUnit]}
+                      onChange={(e) => setFormData(prev => ({ ...prev, readUnit: e.target.value }))}
+                      className="w-20"
+                      size="sm"
+                    >
+                      <SelectItem key="s">s</SelectItem>
+                      <SelectItem key="m">m</SelectItem>
+                    </Select>
+                  }
+                />
+                <Input 
+                  label="速率限制(可选)" 
+                  value={formData.rate} 
+                  onChange={(e) => handleInputChange('rate', e.target.value)} 
+                  placeholder="100"
+                  endContent={
+                    <div className="pointer-events-none flex items-center">
+                      <span className="text-default-400 text-small">Mbps</span>
+                    </div>
+                  }
+                />
+              </div>
+            )
+          )}
+        </CardBody>
+      </Card>
+
       <Card className="p-2 shadow-none border-2 border-default-200">
         <CardHeader>
           <h2 className="text-xl font-semibold">配置摘要</h2>
@@ -730,18 +935,34 @@ export default function CreateTunnelPage() {
               <h3 className="text-lg font-semibold mb-4">请确认以下实例配置：</h3>
               <div className="space-y-2 text-sm">
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">API 主控：</span> {endpoints.find(e => e.id === formData.apiEndpoint)?.name} ({endpoints.find(e => e.id === formData.apiEndpoint)?.url})</p>
-                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例模式：</span> {formData.mode === "server" ? "服务端模式" : "客户端模式"}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例类型：</span> {formData.type === "server" ? "服务端模式" : "客户端模式"}</p>
+                <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例模式：</span> {(() => {
+                  if (formData.type === 'server') {
+                    switch(formData.mode) {
+                      case '0': return '模式0：自动流向检测';
+                      case '1': return '模式1：强制反向模式';
+                      case '2': return '模式2：强制正向模式';
+                      default: return '模式0：自动流向检测';
+                    }
+                  } else {
+                    switch(formData.mode) {
+                      case '1': return '模式1：强制单端转发模式';
+                      case '2': return '模式2：强制双端握手模式';
+                      default: return '模式1：强制单端转发模式';
+                    }
+                  }
+                })()}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">实例名称：</span> {formData.tunnelName}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道地址：</span> {formData.tunnelAddress}:{formData.tunnelPort}</p>
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">目标地址：</span> {formData.targetAddress}:{formData.targetPort}</p>
-                {formData.mode === "server" &&
+                {formData.type === "server" &&
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">TLS 安全级别：</span> {(() => {
                   if (formData.tlsMode === "inherit") {
                     const selectedEndpoint = endpoints.find(e => e.id === formData.apiEndpoint);
                     const masterTls = selectedEndpoint?.tls;
                     return masterTls ? `继承主控设置 (${masterTls.toUpperCase()})` : "继承主控设置";
                   }
-                  return formData.tlsMode === "mode0" ? "模式 0 (无 TLS 加密)" : formData.tlsMode === "mode1" ? "模式 1 (自签名证书)" : "模式 2 (自定义证书)";
+                  return formData.tlsMode === "0" ? "模式 0 (无 TLS 加密)" : formData.tlsMode === "1" ? "模式 1 (自签名证书)" : "模式 2 (自定义证书)";
                 })()}</p>
                 }
                 <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">日志级别：</span> {(() => {
@@ -755,8 +976,20 @@ export default function CreateTunnelPage() {
                 {formData.password && (
                   <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">隧道密码：</span> 已设置密码保护</p>
                 )}
-                {formData.mode === "client" && (formData.min || formData.max) && (
-                  <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">连接池容量：</span> {formData.min || '默认(64)'} ~ {formData.max || '默认(8192)'}</p>
+                {formData.type === "client" && formData.mode === "1" && formData.min && (
+                  <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">连接池最小容量：</span> {formData.min}</p>
+                )}
+                {formData.type === "client" && formData.mode === "2" && formData.min && (
+                  <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">连接池最小容量：</span> {formData.min}</p>
+                )}
+                {(formData.type === "client" || formData.type === "server") && formData.max && (
+                  <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">连接池最大容量：</span> {formData.max}</p>
+                )}
+                {formData.read && (
+                  <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">数据读取超时：</span> {formData.read}{formData.readUnit}</p>
+                )}
+                {formData.rate && (
+                  <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">速率限制：</span> {formData.rate} Mbps</p>
                 )}
               </div>
             </CardBody>
@@ -766,37 +999,59 @@ export default function CreateTunnelPage() {
               <h3 className="text-lg font-semibold mb-4">等效命令行</h3>
               <Snippet>
                 {(() => {
-                  let base = formData.mode + "://";
+                  let base = formData.type + "://";
                   if (formData.password) {
                     base += `${formData.password}@`;
                   }
                   base += `${formData.tunnelAddress}:${formData.tunnelPort}/${formData.targetAddress}:${formData.targetPort}`;
                   
-                  if (formData.mode === "server") {
-                    const params: string[] = [];
-                    if (formData.logLevel !== "inherit") params.push(`log=${formData.logLevel}`);
-                    if (formData.tlsMode !== "inherit") {
-                      params.push(`tls=${formData.tlsMode === "mode0" ? "0" : formData.tlsMode === "mode1" ? "1" : "2"}`);
-                      if (formData.tlsMode === "mode2") {
-                        params.push(`crt=${formData.certPath}`);
-                        params.push(`key=${formData.keyPath}`);
-                      }
-                    }
-                    return params.length ? `${base}?${params.join("&")}` : base;
-                  } else {
-                    const params: string[] = [];
-                    if (formData.logLevel !== "inherit") params.push(`log=${formData.logLevel}`);
-                    if (formData.min) params.push(`min=${formData.min}`);
-                    if (formData.max) params.push(`max=${formData.max}`);
-                    return params.length ? `${base}?${params.join("&")}` : base;
+                  const params: string[] = [];
+                  
+                  // 添加模式参数
+                  if (formData.mode && formData.mode !== '0') {
+                    params.push(`mode=${formData.mode}`);
                   }
+                  
+                  // 添加日志级别
+                  if (formData.logLevel !== "inherit") {
+                    params.push(`log=${formData.logLevel}`);
+                  }
+                  
+                  // 添加TLS设置
+                  if (formData.type === "server" && formData.tlsMode !== "inherit") {
+                    params.push(`tls=${formData.tlsMode}`);
+                    if (formData.tlsMode === "2") {
+                      params.push(`crt=${formData.certPath}`);
+                      params.push(`key=${formData.keyPath}`);
+                    }
+                  }
+                  
+                  // 添加连接池设置
+                  if (formData.type === "client" && formData.mode === "1" && formData.min) {
+                    params.push(`min=${formData.min}`);
+                  }
+                  if (formData.type === "client" && formData.mode === "2" && formData.min) {
+                    params.push(`min=${formData.min}`);
+                  }
+                  if (formData.max) {
+                    params.push(`max=${formData.max}`);
+                  }
+                  
+                  // 添加新增参数
+                  if (formData.read) {
+                    params.push(`read=${formData.read}`);
+                  }
+                  if (formData.rate) {
+                    params.push(`rate=${formData.rate}`);
+                  }
+                  
+                  return params.length ? `${base}?${params.join("&")}` : base;
                 })()}
               </Snippet>
             </CardBody>
           </Card>
         </CardBody>
       </Card>
-
 
       <div className="flex justify-end gap-3">
         <Button

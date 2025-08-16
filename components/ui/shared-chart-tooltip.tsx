@@ -184,4 +184,30 @@ export const LatencyTooltip = ({ active, payload, label }: any) => (
   />
 );
 
+// 新的延迟Tooltip组件，用于新的LatencyChart
+export const LatencyTooltipV2 = ({ active, payload, label }: any) => {
+  if (!active || !payload?.length) return null;
+  
+  const entry = payload[0];
+  const value = entry.value;
+  const timestamp = label;
+  
+  return (
+    <div className="bg-background border border-default-200 rounded-lg p-3 shadow-lg">
+      <p className="text-sm text-default-600 mb-1">
+        {timestamp ? new Date(timestamp).toLocaleString('zh-CN', {
+          month: '2-digit',
+          day: '2-digit',
+          hour: '2-digit',
+          minute: '2-digit',
+          second: '2-digit'
+        }) : ''}
+      </p>
+      <p className="text-sm font-semibold text-foreground">
+        延迟: <span className="text-warning">{value.toFixed(2)}ms</span>
+      </p>
+    </div>
+  );
+};
+
 export default SharedChartTooltip;
