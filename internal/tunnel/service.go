@@ -45,10 +45,13 @@ type parsedURL struct {
 	Password      string
 	Min           string
 	Max           string
+	Mode          string
+	Read          string
+	Rate          string
 }
 
 // parseInstanceURL 解析隧道实例 URL（简化实现，与 SSE 保持一致）
-func parseInstanceURL(raw, mode string) parsedURL {
+func parseInstanceURL(raw, tunnelType string) parsedURL {
 	// 默认值
 	res := parsedURL{
 		TLSMode:  "inherit",
@@ -179,14 +182,14 @@ func parseInstanceURL(raw, mode string) parsedURL {
 			key, val := parts[0], parts[1]
 			switch key {
 			case "tls":
-				if mode == "server" {
+				if tunnelType == "server" {
 					switch val {
 					case "0":
-						res.TLSMode = "mode0"
+						res.TLSMode = "0"
 					case "1":
-						res.TLSMode = "mode1"
+						res.TLSMode = "1"
 					case "2":
-						res.TLSMode = "mode2"
+						res.TLSMode = "2"
 					}
 				}
 			case "log":
@@ -209,6 +212,12 @@ func parseInstanceURL(raw, mode string) parsedURL {
 				res.Min = val
 			case "max":
 				res.Max = val
+			case "mode":
+				res.Mode = val
+			case "read":
+				res.Read = val
+			case "rate":
+				res.Rate = val
 			}
 		}
 	}
@@ -231,10 +240,11 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 
 	query := `
 		SELECT 
-			t.id, t.instance_id, t.name, t.endpoint_id, t.mode,
+			t.id, t.instance_id, t.name, t.endpoint_id, t.type,
 			t.tunnel_address, t.tunnel_port, t.target_address, t.target_port,
 			t.tls_mode, t.cert_path, t.key_path, t.log_level, t.command_line,
 			t.password, t.restart, t.status, t.min, t.max, t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.pool, t.ping,
+			t.mode, t.read, t.rate,
 			t.created_at, t.updated_at,
 			e.name AS endpoint_name,
 			tag.id AS tag_id, tag.name AS tag_name
@@ -254,7 +264,7 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 	var tunnels []TunnelWithStats
 	for rows.Next() {
 		var t TunnelWithStats
-		var modeStr, statusStr, tlsModeStr, logLevelStr string
+		var typeStr, statusStr, tlsModeStr, logLevelStr string
 		var instanceID sql.NullString
 		var certPathNS, keyPathNS, passwordNS sql.NullString
 		var endpointNameNS sql.NullString
@@ -264,10 +274,11 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		var poolNS, pingNS sql.NullInt64
 
 		err := rows.Scan(
-			&t.ID, &instanceID, &t.Name, &t.EndpointID, &modeStr,
+			&t.ID, &instanceID, &t.Name, &t.EndpointID, &typeStr,
 			&t.TunnelAddress, &t.TunnelPort, &t.TargetAddress, &t.TargetPort,
 			&tlsModeStr, &certPathNS, &keyPathNS, &logLevelStr, &t.CommandLine,
 			&passwordNS, &t.Restart, &statusStr, &minNS, &maxNS, &t.Traffic.TCPRx, &t.Traffic.TCPTx, &t.Traffic.UDPRx, &t.Traffic.UDPTx, &poolNS, &pingNS,
+			&t.Mode, &t.Read, &t.Rate,
 			&t.CreatedAt, &t.UpdatedAt,
 			&endpointNameNS,
 			&tagIDNS, &tagNameNS,
@@ -319,7 +330,7 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 			}
 		}
 
-		t.Mode = TunnelMode(modeStr)
+		t.Type = typeStr
 		t.Status = TunnelStatus(statusStr)
 		t.TLSMode = TLSMode(tlsModeStr)
 		t.LogLevel = LogLevel(logLevelStr)
@@ -334,13 +345,9 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		t.Traffic.Formatted.UDPTx = formatTrafficBytes(t.Traffic.UDPTx)
 		t.Traffic.Formatted.Total = formatTrafficBytes(t.Traffic.Total)
 
-		// 设置类型和头像
-		t.Type = string(t.Mode)
-		if t.Type == "server" {
-			t.Type = "服务端"
-		} else {
-			t.Type = "客户端"
-		}
+		// 设置类型和头像 - 统一返回英文类型
+		t.Type = string(t.Type)
+		// 保持英文类型，不再转换为中文
 		if len(t.EndpointName) > 0 {
 			t.Avatar = string([]rune(t.EndpointName)[0])
 		}
@@ -389,7 +396,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 	var commandLine string
 	if req.Password != "" {
 		commandLine = fmt.Sprintf("%s://%s@%s:%d/%s:%d",
-			req.Mode,
+			req.Type, // 修复：使用Type作为隧道类型
 			req.Password,
 			req.TunnelAddress,
 			req.TunnelPort,
@@ -398,7 +405,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		)
 	} else {
 		commandLine = fmt.Sprintf("%s://%s:%d/%s:%d",
-			req.Mode,
+			req.Type, // 修复：使用Type作为隧道类型
 			req.TunnelAddress,
 			req.TunnelPort,
 			req.TargetAddress,
@@ -415,19 +422,19 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		queryParams = append(queryParams, fmt.Sprintf("log=%s", req.LogLevel))
 	}
 
-	if req.Mode == "server" && req.TLSMode != TLSModeInherit {
+	if req.Type == "server" && req.TLSMode != TLSModeInherit {
 		var tlsModeNum string
 		switch req.TLSMode {
-		case TLSMode0:
+		case TLS0:
 			tlsModeNum = "0"
-		case TLSMode1:
+		case TLS1:
 			tlsModeNum = "1"
-		case TLSMode2:
+		case TLS2:
 			tlsModeNum = "2"
 		}
 		queryParams = append(queryParams, fmt.Sprintf("tls=%s", tlsModeNum))
 
-		if req.TLSMode == TLSMode2 && req.CertPath != "" && req.KeyPath != "" {
+		if req.TLSMode == TLS2 && req.CertPath != "" && req.KeyPath != "" {
 			queryParams = append(queryParams,
 				fmt.Sprintf("crt=%s", url.QueryEscape(req.CertPath)),
 				fmt.Sprintf("key=%s", url.QueryEscape(req.KeyPath)),
@@ -435,13 +442,24 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		}
 	}
 
-	if req.Mode == "client" {
+	if req.Type == "client" {
 		if req.Min != nil {
 			queryParams = append(queryParams, fmt.Sprintf("min=%d", *req.Min))
 		}
 		if req.Max != nil {
 			queryParams = append(queryParams, fmt.Sprintf("max=%d", *req.Max))
 		}
+	}
+
+	// 添加新的字段到命令行
+	if req.Mode != nil {
+		queryParams = append(queryParams, fmt.Sprintf("mode=%s", *req.Mode))
+	}
+	if req.Read != nil {
+		queryParams = append(queryParams, fmt.Sprintf("read=%s", *req.Read))
+	}
+	if req.Rate != nil {
+		queryParams = append(queryParams, fmt.Sprintf("rate=%s", *req.Rate))
 	}
 
 	if len(queryParams) > 0 {
@@ -472,7 +490,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 				InstanceID:    &instanceID,
 				Name:          req.Name,
 				EndpointID:    req.EndpointID,
-				Mode:          models.TunnelMode(req.Mode),
+				Type:          models.TunnelType(req.Type),
 				TunnelAddress: req.TunnelAddress,
 				TunnelPort:    strconv.Itoa(req.TunnelPort),
 				TargetAddress: req.TargetAddress,
@@ -480,7 +498,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 				TLSMode:       models.TLSMode(req.TLSMode),
 				LogLevel:      models.LogLevel(req.LogLevel),
 				CommandLine:   commandLine,
-				Restart:       req.Restart,
+				Restart:       &req.Restart,
 				Status:        models.TunnelStatusRunning,
 				CreatedAt:     now,
 				UpdatedAt:     now,
@@ -545,7 +563,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 			InstanceID:    &instanceID,
 			Name:          req.Name,
 			EndpointID:    req.EndpointID,
-			Mode:          TunnelMode(req.Mode),
+			Type:          TunnelType(req.Type),
 			Status:        TunnelStatus(remoteStatus),
 			TunnelAddress: req.TunnelAddress,
 			TunnelPort:    strconv.Itoa(req.TunnelPort),
@@ -554,7 +572,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 			TLSMode:       req.TLSMode,
 			LogLevel:      req.LogLevel,
 			CommandLine:   commandLine,
-			Restart:       req.Restart,
+			Restart:       &req.Restart,
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
@@ -901,7 +919,7 @@ func (s *Service) UpdateTunnel(req UpdateTunnelRequest) error {
 	tunnelPortInt, _ := strconv.Atoi(tunnelWithEndpoint.TunnelPort)
 	targetPortInt, _ := strconv.Atoi(tunnelWithEndpoint.TargetPort)
 	commandLine := fmt.Sprintf("%s://%s:%d/%s:%d",
-		tunnelWithEndpoint.Mode,
+		tunnelWithEndpoint.Type,
 		tunnelWithEndpoint.TunnelAddress,
 		tunnelPortInt,
 		tunnelWithEndpoint.TargetAddress,
@@ -915,19 +933,19 @@ func (s *Service) UpdateTunnel(req UpdateTunnelRequest) error {
 		queryParams = append(queryParams, fmt.Sprintf("log=%s", tunnelWithEndpoint.LogLevel))
 	}
 
-	if tunnelWithEndpoint.Mode == models.TunnelModeServer && tunnelWithEndpoint.TLSMode != models.TLSModeInherit {
+	if tunnelWithEndpoint.Type == models.TunnelModeServer && tunnelWithEndpoint.TLSMode != models.TLSModeInherit {
 		var tlsModeNum string
 		switch tunnelWithEndpoint.TLSMode {
-		case models.TLSMode0:
+		case models.TLS0:
 			tlsModeNum = "0"
-		case models.TLSMode1:
+		case models.TLS1:
 			tlsModeNum = "1"
-		case models.TLSMode2:
+		case models.TLS2:
 			tlsModeNum = "2"
 		}
 		queryParams = append(queryParams, fmt.Sprintf("tls=%s", tlsModeNum))
 
-		if tunnelWithEndpoint.TLSMode == models.TLSMode2 &&
+		if tunnelWithEndpoint.TLSMode == models.TLS2 &&
 			tunnelWithEndpoint.CertPath != nil && *tunnelWithEndpoint.CertPath != "" &&
 			tunnelWithEndpoint.KeyPath != nil && *tunnelWithEndpoint.KeyPath != "" {
 			queryParams = append(queryParams,
@@ -1068,7 +1086,7 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 		recycleRecord := models.TunnelRecycle{
 			Name:          tunnelWithEndpoint.Name,
 			EndpointID:    tunnelWithEndpoint.EndpointID,
-			Mode:          tunnelWithEndpoint.Mode,
+			Mode:          tunnelWithEndpoint.Type,
 			TunnelAddress: tunnelWithEndpoint.TunnelAddress,
 			TunnelPort:    tunnelWithEndpoint.TunnelPort,
 			TargetAddress: tunnelWithEndpoint.TargetAddress,
@@ -1080,7 +1098,7 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 			CommandLine:   tunnelWithEndpoint.CommandLine,
 			InstanceID:    tunnelWithEndpoint.InstanceID,
 			Password:      tunnelWithEndpoint.Password,
-			Restart:       tunnelWithEndpoint.Restart,
+			Restart:       *tunnelWithEndpoint.Restart,
 			TCPRx:         tunnelWithEndpoint.TCPRx,
 			TCPTx:         tunnelWithEndpoint.TCPTx,
 			UDPRx:         tunnelWithEndpoint.UDPRx,
@@ -1180,7 +1198,7 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 	var commandLine string
 	if req.Password != "" {
 		commandLine = fmt.Sprintf("%s://%s@%s:%d/%s:%d",
-			req.Mode,
+			req.Type, // 修复：使用Type作为隧道类型
 			req.Password,
 			req.TunnelAddress,
 			req.TunnelPort,
@@ -1189,7 +1207,7 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		)
 	} else {
 		commandLine = fmt.Sprintf("%s://%s:%d/%s:%d",
-			req.Mode,
+			req.Type, // 修复：使用Type作为隧道类型
 			req.TunnelAddress,
 			req.TunnelPort,
 			req.TargetAddress,
@@ -1202,26 +1220,26 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 	if req.LogLevel != LogLevelInherit {
 		queryParams = append(queryParams, fmt.Sprintf("log=%s", req.LogLevel))
 	}
-	if req.Mode == "server" && req.TLSMode != TLSModeInherit {
+	if req.Type == "server" && req.TLSMode != TLSModeInherit {
 		var tlsModeNum string
 		switch req.TLSMode {
-		case TLSMode0:
+		case TLS0:
 			tlsModeNum = "0"
-		case TLSMode1:
+		case TLS1:
 			tlsModeNum = "1"
-		case TLSMode2:
+		case TLS2:
 			tlsModeNum = "2"
 		}
 		queryParams = append(queryParams, fmt.Sprintf("tls=%s", tlsModeNum))
 
-		if req.TLSMode == TLSMode2 && req.CertPath != "" && req.KeyPath != "" {
+		if req.TLSMode == TLS2 && req.CertPath != "" && req.KeyPath != "" {
 			queryParams = append(queryParams,
 				fmt.Sprintf("crt=%s", url.QueryEscape(req.CertPath)),
 				fmt.Sprintf("key=%s", url.QueryEscape(req.KeyPath)),
 			)
 		}
 	}
-	if req.Mode == "client" {
+	if req.Type == "client" {
 		if req.Min != nil {
 			queryParams = append(queryParams, fmt.Sprintf("min=%d", *req.Min))
 		}
@@ -1229,6 +1247,17 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 			queryParams = append(queryParams, fmt.Sprintf("max=%d", *req.Max))
 		}
 	}
+	// 添加新的字段到命令行
+	if req.Mode != nil {
+		queryParams = append(queryParams, fmt.Sprintf("mode=%s", *req.Mode))
+	}
+	if req.Read != nil {
+		queryParams = append(queryParams, fmt.Sprintf("read=%s", *req.Read))
+	}
+	if req.Rate != nil {
+		queryParams = append(queryParams, fmt.Sprintf("rate=%s", *req.Rate))
+	}
+
 	if len(queryParams) > 0 {
 		commandLine += "?" + strings.Join(queryParams, "&")
 	}
@@ -1308,7 +1337,7 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 			InstanceID:    &instanceID,
 			Name:          req.Name,
 			EndpointID:    req.EndpointID,
-			Mode:          TunnelMode(req.Mode),
+			Type:          TunnelType(req.Type),
 			Status:        TunnelStatus(remoteStatus),
 			TunnelAddress: req.TunnelAddress,
 			TunnelPort:    strconv.Itoa(req.TunnelPort),
@@ -1317,7 +1346,7 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 			TLSMode:       req.TLSMode,
 			LogLevel:      req.LogLevel,
 			CommandLine:   commandLine,
-			Restart:       req.Restart,
+			Restart:       &req.Restart,
 			CreatedAt:     now,
 			UpdatedAt:     now,
 		}
@@ -1364,7 +1393,7 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 			InstanceID:    &instanceID,
 			Name:          req.Name,
 			EndpointID:    req.EndpointID,
-			Mode:          models.TunnelMode(req.Mode),
+			Type:          models.TunnelType(req.Type),
 			TunnelAddress: req.TunnelAddress,
 			TunnelPort:    strconv.Itoa(req.TunnelPort),
 			TargetAddress: req.TargetAddress,
@@ -1372,7 +1401,7 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 			TLSMode:       models.TLSMode(req.TLSMode),
 			LogLevel:      models.LogLevel(req.LogLevel),
 			CommandLine:   commandLine,
-			Restart:       req.Restart,
+			Restart:       &req.Restart,
 			Status:        models.TunnelStatusRunning,
 			CreatedAt:     now,
 			UpdatedAt:     now,
@@ -1445,7 +1474,7 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		InstanceID:    &instanceID,
 		Name:          req.Name,
 		EndpointID:    req.EndpointID,
-		Mode:          TunnelMode(req.Mode),
+		Type:          TunnelType(req.Type),
 		Status:        TunnelStatus(remoteStatus),
 		TunnelAddress: req.TunnelAddress,
 		TunnelPort:    strconv.Itoa(req.TunnelPort),
@@ -1454,7 +1483,7 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		TLSMode:       req.TLSMode,
 		LogLevel:      req.LogLevel,
 		CommandLine:   commandLine,
-		Restart:       req.Restart,
+		Restart:       &req.Restart,
 		CreatedAt:     now,
 		UpdatedAt:     now,
 	}
@@ -1683,8 +1712,8 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string
 	if idx == -1 {
 		return errors.New("无效的隧道URL")
 	}
-	mode := rawURL[:idx]
-	cfg := parseInstanceURL(rawURL, mode) // 复用 sse 里的同名私有函数，此处复制实现
+	typer := rawURL[:idx]
+	cfg := parseInstanceURL(rawURL, typer) // 复用 sse 里的同名私有函数，此处复制实现
 
 	// 端口转换
 	tp, _ := strconv.Atoi(cfg.TunnelPort)
@@ -1697,7 +1726,7 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string
 	req := CreateTunnelRequest{
 		Name:          finalName,
 		EndpointID:    endpointID,
-		Mode:          mode,
+		Type:          typer,
 		TunnelAddress: cfg.TunnelAddress,
 		TunnelPort:    tp,
 		TargetAddress: cfg.TargetAddress,
@@ -1727,6 +1756,38 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string
 			}
 			return &v
 		}(),
+		Mode: func() *TunnelMode {
+			if cfg.Mode == "" {
+				return nil
+			}
+			switch cfg.Mode {
+			case "0":
+				mode := models.Mode0
+				return &mode
+			case "1":
+				mode := models.Mode1
+				return &mode
+			case "2":
+				mode := models.Mode2
+				return &mode
+			default:
+				return nil
+			}
+		}(),
+		Read: func() *string {
+			if cfg.Read == "" {
+				return nil
+			}
+			return &cfg.Read
+		}(),
+		Rate: func() *string {
+			if cfg.Rate == "" {
+				return nil
+			}
+			return &cfg.Rate
+		}(),
+		EnableSSEStore: true,
+		EnableLogStore: true,
 	}
 	_, err := s.CreateTunnelAndWait(req, 3*time.Second)
 	return err
@@ -1739,8 +1800,8 @@ func (s *Service) QuickCreateTunnelAndWait(endpointID int64, rawURL string, name
 	if idx == -1 {
 		return errors.New("无效的隧道URL")
 	}
-	mode := rawURL[:idx]
-	cfg := parseInstanceURL(rawURL, mode) // 复用 sse 里的同名私有函数，此处复制实现
+	typer := rawURL[:idx]
+	cfg := parseInstanceURL(rawURL, typer) // 复用 sse 里的同名私有函数，此处复制实现
 
 	// 端口转换
 	tp, _ := strconv.Atoi(cfg.TunnelPort)
@@ -1764,21 +1825,52 @@ func (s *Service) QuickCreateTunnelAndWait(endpointID int64, rawURL string, name
 		}
 	}
 
+	// 处理新字段
+	var modeVal *TunnelMode
+	if cfg.Mode != "" {
+		switch cfg.Mode {
+		case "0":
+			mode := models.Mode0
+			modeVal = &mode
+		case "1":
+			mode := models.Mode1
+			modeVal = &mode
+		case "2":
+			mode := models.Mode2
+			modeVal = &mode
+		}
+	}
+
+	var readVal *string
+	if cfg.Read != "" {
+		readVal = &cfg.Read
+	}
+
+	var rateVal *string
+	if cfg.Rate != "" {
+		rateVal = &cfg.Rate
+	}
+
 	req := CreateTunnelRequest{
-		Name:          finalName,
-		EndpointID:    endpointID,
-		Mode:          mode,
-		TunnelAddress: cfg.TunnelAddress,
-		TunnelPort:    tp,
-		TargetAddress: cfg.TargetAddress,
-		TargetPort:    sp,
-		TLSMode:       TLSMode(cfg.TLSMode),
-		CertPath:      cfg.CertPath,
-		KeyPath:       cfg.KeyPath,
-		LogLevel:      LogLevel(cfg.LogLevel),
-		Password:      cfg.Password,
-		Min:           minVal,
-		Max:           maxVal,
+		Name:           finalName,
+		EndpointID:     endpointID,
+		Type:           typer,
+		TunnelAddress:  cfg.TunnelAddress,
+		TunnelPort:     tp,
+		TargetAddress:  cfg.TargetAddress,
+		TargetPort:     sp,
+		TLSMode:        TLSMode(cfg.TLSMode),
+		CertPath:       cfg.CertPath,
+		KeyPath:        cfg.KeyPath,
+		LogLevel:       LogLevel(cfg.LogLevel),
+		Password:       cfg.Password,
+		Min:            minVal,
+		Max:            maxVal,
+		Mode:           modeVal,
+		Read:           readVal,
+		Rate:           rateVal,
+		EnableSSEStore: true,
+		EnableLogStore: true,
 	}
 	_, err := s.CreateTunnelAndWait(req, timeout)
 	return err
@@ -1859,7 +1951,7 @@ func (s *Service) BatchCreateTunnels(req BatchCreateTunnelRequest) (*BatchCreate
 		createReq := CreateTunnelRequest{
 			Name:          tunnelName,
 			EndpointID:    item.EndpointID,
-			Mode:          "server", // 批量创建默认为服务端模式
+			Type:          "server", // 批量创建默认为服务端模式
 			TunnelAddress: "",       // 服务端模式下为空
 			TunnelPort:    item.InboundsPort,
 			TargetAddress: item.OutboundHost,
@@ -2118,7 +2210,7 @@ func (s *Service) NewBatchCreateTunnels(req NewBatchCreateRequest) (*NewBatchCre
 		createReq := CreateTunnelRequest{
 			Name:          tunnelName,
 			EndpointID:    item.EndpointID,
-			Mode:          "client", // 新的批量创建默认为客户端模式
+			Type:          "client", // 新的批量创建默认为客户端模式
 			TunnelAddress: "",       // 客户端模式下tunnel_address为空，生成client://:port/target:port格式
 			TunnelPort:    item.TunnelPort,
 			TargetAddress: item.TargetHost,
@@ -2498,10 +2590,8 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 			orderClause = fmt.Sprintf(" ORDER BY t.tunnel_address %s, t.tunnel_port %s", params.SortOrder, params.SortOrder)
 		case "targetAddress":
 			orderClause = fmt.Sprintf(" ORDER BY t.target_address %s, t.target_port %s", params.SortOrder, params.SortOrder)
-		case "mode":
-			orderClause = fmt.Sprintf(" ORDER BY t.mode %s", params.SortOrder)
 		case "type":
-			orderClause = fmt.Sprintf(" ORDER BY t.mode %s", params.SortOrder)
+			orderClause = fmt.Sprintf(" ORDER BY t.type %s", params.SortOrder)
 		case "updated_at":
 			orderClause = fmt.Sprintf(" ORDER BY t.updated_at %s", params.SortOrder)
 		default:
@@ -2519,10 +2609,10 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 	// 优化策略3：先查询主表数据，再批量获取关联数据
 	selectFields := `
 		SELECT 
-			t.id, t.name, t.endpoint_id, t.mode, t.tunnel_address, t.tunnel_port, 
+			t.id, t.name, t.endpoint_id, t.type, t.tunnel_address, t.tunnel_port, 
 			t.target_address, t.target_port, t.tls_mode, t.log_level, t.status, 
 			t.created_at, t.updated_at, t.min, t.max, t.password, t.restart, 
-			t.pool, t.ping, t.instance_id, t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx
+			t.pool, t.ping, t.instance_id, t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.mode, t.read, t.rate
 	`
 
 	// 执行主查询
@@ -2541,12 +2631,13 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 	for rows.Next() {
 		var tunnel TunnelWithStats
 		err := rows.Scan(
-			&tunnel.ID, &tunnel.Name, &tunnel.EndpointID, &tunnel.Mode,
+			&tunnel.ID, &tunnel.Name, &tunnel.EndpointID, &tunnel.Type,
 			&tunnel.TunnelAddress, &tunnel.TunnelPort, &tunnel.TargetAddress, &tunnel.TargetPort,
 			&tunnel.TLSMode, &tunnel.LogLevel, &tunnel.Status, &tunnel.CreatedAt, &tunnel.UpdatedAt,
 			&tunnel.Min, &tunnel.Max, &tunnel.Password, &tunnel.Restart,
 			&tunnel.Pool, &tunnel.Ping, &tunnel.InstanceID,
 			&tunnel.TCPRx, &tunnel.TCPTx, &tunnel.UDPRx, &tunnel.UDPTx,
+			&tunnel.Mode, &tunnel.Read, &tunnel.Rate,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("扫描隧道数据失败: %v", err)
@@ -2577,12 +2668,8 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 			tunnel.StatusInfo.Text = "离线"
 		}
 
-		// 设置类型
-		if tunnel.Mode == "server" {
-			tunnel.Type = "服务端"
-		} else {
-			tunnel.Type = "客户端"
-		}
+		// 设置类型 - 统一返回英文类型
+		// 保持英文类型，不再转换为中文
 
 		tunnels = append(tunnels, tunnel)
 		tunnelIDs = append(tunnelIDs, tunnel.ID)
@@ -2615,6 +2702,10 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 			// 填充endpoint信息
 			if endpoint, exists := endpointMap[tunnels[i].EndpointID]; exists {
 				tunnels[i].EndpointName = endpoint.Name
+				// 添加version字段到tunnel中
+				if tunnels[i].EndpointVersion == "" {
+					tunnels[i].EndpointVersion = endpoint.Version
+				}
 			}
 
 			// 填充标签信息
@@ -2640,15 +2731,17 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 
 // getEndpointsByIDs 批量获取主控信息
 func (s *Service) getEndpointsByIDs(endpointIDs []int64) (map[int64]struct {
-	ID     int64
-	Name   string
-	Status string
+	ID      int64
+	Name    string
+	Status  string
+	Version string
 }, error) {
 	if len(endpointIDs) == 0 {
 		return make(map[int64]struct {
-			ID     int64
-			Name   string
-			Status string
+			ID      int64
+			Name    string
+			Status  string
+			Version string
 		}), nil
 	}
 
@@ -2662,7 +2755,7 @@ func (s *Service) getEndpointsByIDs(endpointIDs []int64) (map[int64]struct {
 	placeholders = placeholders[:len(placeholders)-1] // 移除最后一个逗号
 
 	query := fmt.Sprintf(`
-		SELECT e.id, e.name, e.status
+		SELECT e.id, e.name, e.status, COALESCE(e.ver, '') as version
 		FROM endpoints e
 		WHERE e.id IN (%s)
 	`, placeholders)
@@ -2680,18 +2773,20 @@ func (s *Service) getEndpointsByIDs(endpointIDs []int64) (map[int64]struct {
 	defer rows.Close()
 
 	result := make(map[int64]struct {
-		ID     int64
-		Name   string
-		Status string
+		ID      int64
+		Name    string
+		Status  string
+		Version string
 	})
 
 	for rows.Next() {
 		var endpoint struct {
-			ID     int64
-			Name   string
-			Status string
+			ID      int64
+			Name    string
+			Status  string
+			Version string
 		}
-		err := rows.Scan(&endpoint.ID, &endpoint.Name, &endpoint.Status)
+		err := rows.Scan(&endpoint.ID, &endpoint.Name, &endpoint.Status, &endpoint.Version)
 		if err != nil {
 			return nil, err
 		}

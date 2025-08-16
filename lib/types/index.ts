@@ -40,9 +40,9 @@ export type TunnelModeType = typeof TunnelMode[keyof typeof TunnelMode];
 
 // TLS 模式枚举
 export const TLSMode = {
-  MODE0: 'mode0',
-  MODE1: 'mode1',
-  MODE2: 'mode2'
+  0: '0',
+  1: '1',
+  2: '2'
 } as const;
 
 export type TLSModeType = typeof TLSMode[keyof typeof TLSMode];
@@ -106,6 +106,7 @@ export interface TunnelConnection {
 export interface Endpoint {
   id: string;
   url: string;
+  ip: string;
   apiPath: string;
   apiKey: string;
   status: EndpointStatusType;

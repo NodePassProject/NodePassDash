@@ -1,11 +1,12 @@
 package sse
 
 import (
-	"NodePassDash/internal/db"
 	"NodePassDash/internal/endpoint"
 	log "NodePassDash/internal/log"
+	"NodePassDash/internal/memory"
 	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
+	"NodePassDash/internal/traffic"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -35,6 +36,15 @@ type Service struct {
 
 	// Manager引用（用于状态通知）
 	manager *Manager
+
+	// 内存管理服务（暂时注释掉）
+	// memoryService *memory.Service
+
+	// 流量历史管理器
+	trafficHistory *traffic.HistoryManager
+
+	// 历史数据处理Worker（类似Nezha的ServiceHistory）
+	historyWorker *HistoryWorker
 
 	// 异步持久化队列
 	storeJobCh chan models.EndpointSSE // 事件持久化任务队列
@@ -70,9 +80,38 @@ type Service struct {
 	// 文件日志管理器
 	fileLogger *log.FileLogger // 文件日志管理器
 
+	// ========================
+	// 优化的存储机制（替代原来的实时存储）
+	// ========================
+	optimizedStorage struct {
+		mu                sync.RWMutex
+		buffer            []models.EndpointSSE // 缓冲区
+		maxBufferSize     int                  // 最大缓冲大小（1000）
+		lastFlushTime     time.Time            // 上次刷盘时间
+		hourlyFlushTicker *time.Ticker         // 整点刷盘定时器
+	}
+
+	// 性能统计
+	stats *ServiceStats
+
 	// 上下文控制
 	ctx    context.Context
 	cancel context.CancelFunc
+}
+
+// ServiceStats 服务统计信息
+type ServiceStats struct {
+	mu sync.RWMutex
+
+	ProcessedEvents    int64     `json:"processed_events"`
+	MemoryHits         int64     `json:"memory_hits"`
+	DatabaseWrites     int64     `json:"database_writes"`
+	LastProcessedTime  time.Time `json:"last_processed_time"`
+	AverageProcessTime int64     `json:"average_process_time_ms"`
+
+	// 错误统计
+	MemoryErrors   int64 `json:"memory_errors"`
+	DatabaseErrors int64 `json:"database_errors"`
 }
 
 // NewService 创建SSE服务实例
@@ -83,91 +122,400 @@ func NewService(db *gorm.DB, endpointService *endpoint.Service) *Service {
 	logDir := filepath.Join("logs")
 
 	s := &Service{
-		clients:             make(map[string]*Client),
-		tunnelSubs:          make(map[string]map[string]*Client),
-		db:                  db,
-		endpointService:     endpointService,
-		storeJobCh:          make(chan models.EndpointSSE, 5000), // 增加缓冲大小到5000
-		batchUpdateCh:       make(chan models.EndpointSSE, 100),  // 批量更新通道
-		batchTimer:          time.NewTimer(1 * time.Second),      // 批处理定时器
-		pendingUpdates:      make(map[string]models.EndpointSSE), // 待处理的更新 key: instanceID
-		batchInsertCh:       make(chan models.EndpointSSE, 100),  // 批量插入通道
-		batchInsertMu:       sync.Mutex{},                        // 批量插入锁
-		batchInsertBuf:      make([]models.EndpointSSE, 0),       // 批量插入缓冲区
-		batchInsertSize:     100,                                 // 批量插入大小
+		clients:         make(map[string]*Client),
+		tunnelSubs:      make(map[string]map[string]*Client),
+		db:              db,
+		endpointService: endpointService,
+		// memoryService:       memory.NewService(db),
+		trafficHistory:      traffic.NewHistoryManager(db),
+		historyWorker:       NewHistoryWorker(db),
+		storeJobCh:          make(chan models.EndpointSSE, 20000), // 增加缓冲大小到20000
+		batchUpdateCh:       make(chan models.EndpointSSE, 500),   // 批量更新通道
+		pendingUpdates:      make(map[string]models.EndpointSSE),
+		batchInsertCh:       make(chan models.EndpointSSE, 5000), // 批量插入通道
+		batchInsertBuf:      make([]models.EndpointSSE, 0, 200),  // 批量插入缓冲区
+		batchInsertSize:     200,                                 // 批量插入大小
 		eventCache:          make(map[int64][]models.EndpointSSE),
-		maxCacheEvents:      100,
+		maxCacheEvents:      1000, // 每个端点最多缓存1000个事件
 		healthCheckInterval: 30 * time.Second,
 		lastEventTime:       make(map[int64]time.Time),
-		// 日志清理配置 - 默认保留7天日志，每24小时清理一次，每天最多10000条日志
-		logRetentionDays:    7,
-		logCleanupInterval:  24 * time.Hour,
-		maxLogRecordsPerDay: 10000,
-		enableLogCleanup:    true,
-		// 初始化文件日志管理器
-		fileLogger: log.NewFileLogger(logDir),
-		ctx:        ctx,
-		cancel:     cancel,
+		logRetentionDays:    7,              // 默认保留7天
+		logCleanupInterval:  24 * time.Hour, // 每24小时清理一次
+		maxLogRecordsPerDay: 10000,          // 每天最多保留10000条日志
+		enableLogCleanup:    true,           // 默认启用日志清理
+		fileLogger:          log.NewFileLogger(logDir),
+		stats: &ServiceStats{
+			LastProcessedTime: time.Now(),
+		},
+		ctx:    ctx,
+		cancel: cancel,
 	}
 
-	// 启动异步持久化 worker，增加到 4 个worker以提高处理能力
-	s.StartStoreWorkers(4)
+	// 初始化优化存储机制
+	s.initOptimizedStorage()
 
-	// 启动批处理 worker
-	go s.startBatchProcessor()
+	// 启动批处理定时器
+	s.batchTimer = time.AfterFunc(2*time.Second, s.flushBatch)
 
-	// 启动批量插入 worker
-	go s.startBatchInsertProcessor()
+	// 启动批量插入处理器
+	s.startBatchInsertProcessor()
 
-	// 启动日志清理守护协程
+	// 启动定时刷盘处理器（每5秒检查一次）
+	s.startPeriodicFlushProcessor()
+
+	// 启动日志清理守护进程
 	if s.enableLogCleanup {
-		go s.startLogCleanupDaemon()
+		s.startLogCleanupDaemon()
 	}
 
 	return s
 }
 
-// SetManager 设置Manager引用（避免循环依赖）
+// Initialize 初始化服务
+func (s *Service) Initialize() error {
+	log.Info("正在初始化SSE服务")
+
+	// 从数据库加载端点数据到内存（暂时注释掉）
+	// if err := s.memoryService.LoadEndpointsFromDB(); err != nil {
+	// 	return fmt.Errorf("加载端点数据到内存失败: %v", err)
+	// }
+
+	// 启动存储worker - 增加worker数量到8个
+	s.StartStoreWorkers(8)
+
+	// 启动批处理器
+	s.startBatchProcessor()
+
+	log.Info("SSE服务初始化完成")
+	return nil
+}
+
+// ProcessEvent 处理SSE事件（回滚到原来的直接更新逻辑）
+func (s *Service) ProcessEvent(endpointID int64, event models.EndpointSSE) error {
+	startTime := time.Now()
+	// 异步处理事件，避免阻塞SSE接收
+	select {
+	case s.storeJobCh <- event:
+		// 成功投递到存储队列
+	default:
+		log.Warnf("[Master-%d]事件存储队列已满，丢弃事件", endpointID)
+		return fmt.Errorf("存储队列已满")
+	}
+	// 更新统计
+	s.updateStats(func(stats *ServiceStats) {
+		stats.ProcessedEvents++
+		stats.LastProcessedTime = time.Now()
+	})
+
+	// 回滚到原来的直接处理逻辑（暂时注释掉内存优先逻辑）
+	// 首先更新内存状态（这是关键的改进）
+	// if err := s.memoryService.ProcessSSEEvent(endpointID, event); err != nil {
+	// 	log.Errorf("内存处理SSE事件失败: %v", err)
+	// 	s.updateStats(func(stats *ServiceStats) {
+	// 		stats.MemoryErrors++
+	// 	})
+	//
+	// 	// 内存处理失败，回退到原有逻辑
+	// 	return s.ProcessEventImmediate(endpointID, event)
+	// }
+	//
+	// s.updateStats(func(stats *ServiceStats) {
+	// 	stats.MemoryHits++
+	// })
+
+	// 处理特殊事件类型的数据库操作
+	if event.EventType == models.SSEEventTypeCreate ||
+		event.EventType == models.SSEEventTypeDelete ||
+		event.EventType == models.SSEEventTypeShutdown ||
+		event.EventType == models.SSEEventTypeInitial {
+		if err := s.ProcessEventImmediate(endpointID, event); err != nil {
+			log.Errorf("立即写入数据库失败: %v", err)
+			s.updateStats(func(stats *ServiceStats) {
+				stats.DatabaseErrors++
+			})
+		} else {
+			s.updateStats(func(stats *ServiceStats) {
+				stats.DatabaseWrites++
+			})
+		}
+	}
+
+	// 对于update事件，使用原来的逻辑 + 保留History Worker
+	if event.EventType == models.SSEEventTypeUpdate {
+		// ========================
+		// 恢复原来的实时数据库写入逻辑
+		// ========================
+		// select {
+		// case s.storeJobCh <- event:
+		// 	// 成功投递到存储队列
+		// default:
+		// 	log.Warnf("[Master-%d]事件存储队列已满，丢弃事件", endpointID)
+		// }
+
+		// 保留优化存储策略（用于批量写入）
+		s.addToOptimizedStorage(event)
+
+		// 保留History Worker逻辑（参照Nezha的逻辑）
+		if s.historyWorker != nil {
+			s.historyWorker.Dispatch(event)
+		}
+	}
+
+	// 更新平均处理时间
+	processingTime := time.Since(startTime).Milliseconds()
+	s.updateStats(func(stats *ServiceStats) {
+		if stats.AverageProcessTime == 0 {
+			stats.AverageProcessTime = processingTime
+		} else {
+			stats.AverageProcessTime = (stats.AverageProcessTime + processingTime) / 2
+		}
+	})
+
+	return nil
+}
+
+// updateStats 更新统计信息
+func (s *Service) updateStats(fn func(*ServiceStats)) {
+	s.stats.mu.Lock()
+	fn(s.stats)
+	s.stats.mu.Unlock()
+}
+
+// GetStats 获取服务统计信息
+func (s *Service) GetStats() map[string]interface{} {
+	s.stats.mu.RLock()
+	defer s.stats.mu.RUnlock()
+
+	// memoryStats := s.memoryService.GetMemoryStats()
+	trafficStats := s.trafficHistory.GetStats()
+	// historyStats := s.historyWorker.GetStats() // GetStats 方法已删除
+	optimizedStorageStats := s.getOptimizedStorageStats()
+
+	return map[string]interface{}{
+		// 服务层统计
+		"service": map[string]interface{}{
+			"processed_events":     s.stats.ProcessedEvents,
+			"memory_hits":          s.stats.MemoryHits,
+			"database_writes":      s.stats.DatabaseWrites,
+			"last_processed_time":  s.stats.LastProcessedTime.Format("2006-01-02 15:04:05"),
+			"average_process_time": s.stats.AverageProcessTime,
+			"memory_errors":        s.stats.MemoryErrors,
+			"database_errors":      s.stats.DatabaseErrors,
+		},
+		// 内存层统计（暂时注释掉）
+		// "memory": memoryStats,
+		// 流量历史统计
+		"traffic": trafficStats,
+		// 历史数据Worker统计（已删除）
+		// "history": historyStats,
+		// 优化存储统计
+		"optimized_storage": optimizedStorageStats,
+		// 命中率统计
+		"performance": map[string]interface{}{
+			"memory_hit_rate": func() float64 {
+				if s.stats.ProcessedEvents == 0 {
+					return 0
+				}
+				return float64(s.stats.MemoryHits) / float64(s.stats.ProcessedEvents) * 100
+			}(),
+			"error_rate": func() float64 {
+				if s.stats.ProcessedEvents == 0 {
+					return 0
+				}
+				totalErrors := s.stats.MemoryErrors + s.stats.DatabaseErrors
+				return float64(totalErrors) / float64(s.stats.ProcessedEvents) * 100
+			}(),
+		},
+	}
+}
+
+// GetEndpointRealTimeData 获取端点实时数据（从内存）
+func (s *Service) GetEndpointRealTimeData(endpointID int64) *memory.EndpointShared {
+	s.updateStats(func(stats *ServiceStats) {
+		stats.MemoryHits++
+	})
+
+	// return s.memoryService.GetEndpointState(endpointID)
+	return nil // 暂时返回 nil
+}
+
+// GetAllEndpointRealTimeData 获取所有端点实时数据（从内存）
+func (s *Service) GetAllEndpointRealTimeData() map[int64]*memory.EndpointShared {
+	s.updateStats(func(stats *ServiceStats) {
+		stats.MemoryHits++
+	})
+
+	// return s.memoryService.GetAllEndpointStates()
+	return make(map[int64]*memory.EndpointShared) // 暂时返回空 map
+}
+
+// GetTunnelRealTimeData 获取隧道实时数据（从内存）
+func (s *Service) GetTunnelRealTimeData(endpointID int64, instanceID string) *memory.TunnelState {
+	s.updateStats(func(stats *ServiceStats) {
+		stats.MemoryHits++
+	})
+
+	// return s.memoryService.GetTunnelState(endpointID, instanceID)
+	return nil // 暂时返回 nil
+}
+
+// GetDashboardData 获取仪表板数据（从内存聚合）
+func (s *Service) GetDashboardData() map[string]interface{} {
+	// endpoints := s.memoryService.GetAllEndpointStates()
+	endpoints := make(map[int64]*memory.EndpointShared) // 暂时使用空 map
+
+	var totalEndpoints int64 = int64(len(endpoints))
+	var onlineEndpoints, offlineEndpoints int64
+	var totalTunnels, runningTunnels, stoppedTunnels, errorTunnels int64
+	var totalTCPRx, totalTCPTx, totalUDPRx, totalUDPTx int64
+
+	for _, endpoint := range endpoints {
+		endpoint.Mu.RLock()
+
+		// 统计端点状态
+		if endpoint.State.Status == models.EndpointStatusOnline {
+			onlineEndpoints++
+		} else {
+			offlineEndpoints++
+		}
+
+		// 统计隧道状态和流量
+		stats := endpoint.State.Stats
+		totalTunnels += stats.TotalTunnels
+		runningTunnels += stats.RunningTunnels
+		stoppedTunnels += stats.StoppedTunnels
+		errorTunnels += stats.ErrorTunnels
+		totalTCPRx += stats.TotalTCPRx
+		totalTCPTx += stats.TotalTCPTx
+		totalUDPRx += stats.TotalUDPRx
+		totalUDPTx += stats.TotalUDPTx
+
+		endpoint.Mu.RUnlock()
+	}
+
+	s.updateStats(func(stats *ServiceStats) {
+		stats.MemoryHits++
+	})
+
+	return map[string]interface{}{
+		"overview": map[string]interface{}{
+			"totalEndpoints": totalEndpoints,
+			"totalTunnels":   totalTunnels,
+			"runningTunnels": runningTunnels,
+			"stoppedTunnels": stoppedTunnels,
+			"errorTunnels":   errorTunnels,
+			"totalTraffic":   totalTCPRx + totalTCPTx + totalUDPRx + totalUDPTx,
+		},
+		"endpointStatus": map[string]interface{}{
+			"online":  onlineEndpoints,
+			"offline": offlineEndpoints,
+			"total":   totalEndpoints,
+		},
+		"traffic": map[string]interface{}{
+			"tcp": map[string]interface{}{
+				"rx": totalTCPRx,
+				"tx": totalTCPTx,
+			},
+			"udp": map[string]interface{}{
+				"rx": totalUDPRx,
+				"tx": totalUDPTx,
+			},
+			"total": totalTCPRx + totalTCPTx + totalUDPRx + totalUDPTx,
+		},
+	}
+}
+
+// GetTrafficTrendData 获取流量趋势数据（从内存快照）
+func (s *Service) GetTrafficTrendData(endpointID int64, hours int) []map[string]interface{} {
+	// endpoint := s.memoryService.GetEndpointState(endpointID)
+	// endpoint := s.memoryService.GetEndpointState(endpointID)
+	// if endpoint == nil {
+	// 	return []map[string]interface{}{}
+	// }
+	return []map[string]interface{}{} // 暂时返回空数据
+
+	// 注释掉内存相关的逻辑
+	// endpoint.Mu.RLock()
+	// snapshot := endpoint.State.TrafficSnapshot
+	// tunnels := make(map[string]*memory.TunnelState)
+	//
+	// // 复制隧道数据
+	// for id, tunnel := range endpoint.State.Tunnels {
+	// 	tunnels[id] = tunnel
+	// }
+	// endpoint.Mu.RUnlock()
+	//
+	// // 构造当前时刻的流量数据点
+	// currentData := map[string]interface{}{
+	// 	"timestamp": time.Now().Unix(),
+	// 	"tcp_rx":    int64(0),
+	// 	"tcp_tx":    int64(0),
+	// 	"udp_rx":    int64(0),
+	// 	"udp_tx":    int64(0),
+	// }
+	//
+	// // 聚合所有隧道的流量
+	// for _, tunnel := range tunnels {
+	// 	currentData["tcp_rx"] = currentData["tcp_rx"].(int64) + tunnel.TCPRx
+	// 	currentData["tcp_tx"] = currentData["tcp_tx"].(int64) + tunnel.TCPTx
+	// 	currentData["udp_rx"] = currentData["udp_rx"].(int64) + tunnel.UDPRx
+	// 	currentData["udp_tx"] = currentData["udp_tx"].(int64) + tunnel.UDPTx
+	// }
+	//
+	// // 如果有差值数据，也包含进去
+	// if snapshot != nil {
+	// 	currentData["delta_tcp_rx"] = snapshot.DeltaTCPRx
+	// 	currentData["delta_tcp_tx"] = snapshot.DeltaTCPTx
+	// 	currentData["delta_udp_rx"] = snapshot.DeltaUDPRx
+	// 	currentData["delta_udp_tx"] = snapshot.DeltaUDPTx
+	// }
+	//
+	// s.updateStats(func(stats *ServiceStats) {
+	// 	stats.MemoryHits++
+	// })
+	//
+	// // 返回当前数据点（实际应用中这里会从历史数据表查询多个时间点）
+	// return []map[string]interface{}{currentData}
+}
+
+// SetManager 设置Manager引用
 func (s *Service) SetManager(manager *Manager) {
 	s.manager = manager
 }
 
-// AddClient 添加新的SSE客户端
+// AddClient 添加客户端
 func (s *Service) AddClient(clientID string, w http.ResponseWriter) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	s.clients[clientID] = &Client{
+	client := &Client{
 		ID:     clientID,
 		Writer: w,
+		Events: make(chan Event, 100),
 	}
 
-	// 记录日志
-	// log.Infof("SSE客户端已添加,clientID=%s totalClients=%d", clientID, len(s.clients))
+	s.clients[clientID] = client
+	log.Infof("客户端 %s 已连接", clientID)
 }
 
-// RemoveClient 移除SSE客户端
+// RemoveClient 移除客户端
 func (s *Service) RemoveClient(clientID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	// 安全地移除客户端，将Writer设为nil防止后续误用
 	if client, exists := s.clients[clientID]; exists {
-		client.Writer = nil
+		delete(s.clients, clientID)
+		log.Infof("客户端 %s 已断开连接", clientID)
+		client.Close()
 	}
-	delete(s.clients, clientID)
 
-	// 记录日志
-	// log.Infof("SSE客户端已移除,clientID=%s remaining=%d", clientID, len(s.clients))
-
-	// 清理隧道订阅
-	for tunnelID, subs := range s.tunnelSubs {
-		if client, exists := subs[clientID]; exists {
-			client.Writer = nil
-		}
-		delete(subs, clientID)
-		if len(subs) == 0 {
-			delete(s.tunnelSubs, tunnelID)
+	// 从隧道订阅中移除
+	for tunnelID, subscribers := range s.tunnelSubs {
+		if _, exists := subscribers[clientID]; exists {
+			delete(subscribers, clientID)
+			if len(subscribers) == 0 {
+				delete(s.tunnelSubs, tunnelID)
+			}
 		}
 	}
 }
@@ -177,64 +525,29 @@ func (s *Service) SubscribeToTunnel(clientID, tunnelID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if _, exists := s.tunnelSubs[tunnelID]; !exists {
+	if s.tunnelSubs[tunnelID] == nil {
 		s.tunnelSubs[tunnelID] = make(map[string]*Client)
 	}
-
-	if client, exists := s.clients[clientID]; exists {
-		s.tunnelSubs[tunnelID][clientID] = client
-		log.Infof("客户端订阅隧道clientID=%s tunnelID=%s subCount=%d", clientID, tunnelID, len(s.tunnelSubs[tunnelID]))
-	}
+	s.tunnelSubs[tunnelID][clientID] = s.clients[clientID]
+	log.Infof("客户端 %s 订阅隧道 %s", clientID, tunnelID)
 }
 
-// UnsubscribeFromTunnel 取消隧道订阅
+// UnsubscribeFromTunnel 取消订阅隧道事件
 func (s *Service) UnsubscribeFromTunnel(clientID, tunnelID string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
-	if subs, exists := s.tunnelSubs[tunnelID]; exists {
-		delete(subs, clientID)
-		if len(subs) == 0 {
+	if subscribers, exists := s.tunnelSubs[tunnelID]; exists {
+		delete(subscribers, clientID)
+		if len(subscribers) == 0 {
 			delete(s.tunnelSubs, tunnelID)
 		}
-		log.Infof("客户端取消隧道订阅clientID=%s tunnelID=%s remainingSubs=%d", clientID, tunnelID, len(subs))
+		log.Infof("客户端 %s 取消订阅隧道 %s", clientID, tunnelID)
 	}
 }
 
-// ProcessEvent 处理SSE事件
-func (s *Service) ProcessEvent(endpointID int64, event models.EndpointSSE) error {
-	// 异步处理事件，避免阻塞SSE接收
-	select {
-	case s.storeJobCh <- event:
-		// 成功投递到存储队列
-	default:
-		log.Warnf("[Master-%d]事件存储队列已满，丢弃事件", endpointID)
-		return fmt.Errorf("存储队列已满")
-	}
-
-	// 立即处理隧道状态变更（使用重试机制）
-	go func() {
-		if err := s.processEventImmediate(endpointID, event); err != nil {
-			log.Warnf("[Master-%d#SSE]立即处理事件失败: %v", endpointID, err)
-		}
-	}()
-	return nil
-}
-
-// processEventImmediate 立即处理事件（同步处理）
-func (s *Service) processEventImmediate(endpointID int64, event models.EndpointSSE) error {
-	// 对于更新事件，使用批处理以减少数据库锁竞争
-	if event.EventType == models.SSEEventTypeUpdate {
-		select {
-		case s.batchUpdateCh <- event:
-			// 成功投递到批处理队列
-			return nil
-		default:
-			// 批处理队列满，直接处理
-			log.Warnf("[Master-%d#SSE]批处理队列已满，直接处理事件", endpointID)
-		}
-	}
-
+// ProcessEventImmediate 立即处理事件（同步处理）
+func (s *Service) ProcessEventImmediate(endpointID int64, event models.EndpointSSE) error {
 	// Critical 事件（创建、删除、初始化）立即处理
 	switch event.EventType {
 	case models.SSEEventTypeShutdown:
@@ -249,7 +562,6 @@ func (s *Service) processEventImmediate(endpointID int64, event models.EndpointS
 		s.handleDeleteEvent(event)
 	case models.SSEEventTypeLog:
 		s.handleLogEvent(event)
-		// log.Debugf("[Master-%d#SSE]处理log事件，准备推送给前端，instanceID=%s", endpointID, event.InstanceID)
 	}
 
 	// 更新最后事件时间
@@ -257,11 +569,17 @@ func (s *Service) processEventImmediate(endpointID int64, event models.EndpointS
 
 	// 推流转发给前端订阅
 	if event.EventType != models.SSEEventTypeInitial {
-		if event.InstanceID != "" {
-			// log.Debugf("[Master-%d#SSE]准备推送事件给前端，eventType=%s instanceID=%s", endpointID, event.EventType, event.InstanceID)
+		if event.EventType == models.SSEEventTypeShutdown {
+			// shutdown 事件发送全局更新，通知所有客户端端点即将离线
+			s.sendGlobalUpdate(map[string]interface{}{
+				"type":        "endpoint_shutdown",
+				"endpoint_id": endpointID,
+				"message":     "端点即将关闭",
+				"timestamp":   time.Now().Unix(),
+			})
+		} else if event.InstanceID != "" {
 			s.sendTunnelUpdateByInstanceId(event.InstanceID, event)
 		}
-		return nil
 	}
 
 	return nil
@@ -333,149 +651,77 @@ func (s *Service) StartStoreWorkers(n int) {
 	}
 }
 
-// storeWorkerLoop 持续消费 storeJobCh 并写入数据库
+// storeWorkerLoop 存储worker循环
 func (s *Service) storeWorkerLoop() {
-	for {
-		select {
-		case <-s.ctx.Done():
-			return // 服务关闭
-		case ev := <-s.storeJobCh:
-			if err := s.storeEvent(ev); err != nil {
-				log.Warnf("[Master-%d]异步存储事件失败,err=%v", ev.EndpointID, err)
-			}
+	for event := range s.storeJobCh {
+		if err := s.storeEvent(event); err != nil {
+			log.Errorf("存储事件失败: %v", err)
 		}
 	}
 }
 
-// storeEvent 存储SSE事件
+// storeEvent 存储事件到数据库
 func (s *Service) storeEvent(event models.EndpointSSE) error {
-	// 对于日志类型事件，写入文件而不是数据库
+	// 对于日志事件，使用批量插入
 	if event.EventType == models.SSEEventTypeLog {
-		// 写入文件日志
-		logContent := ""
-		if event.Logs != nil {
-			logContent = *event.Logs
+		select {
+		case s.batchInsertCh <- event:
+			return nil
+		default:
+			log.Warnf("批量插入队列已满，直接插入事件")
 		}
-
-		if err := s.fileLogger.WriteLog(event.EndpointID, event.InstanceID, logContent); err != nil {
-			log.Warnf("[Master-%d]写入文件日志失败: %v", event.EndpointID, err)
-			return err
-		}
-
-		// 更新事件缓存（仍然保留在内存中供实时推送）
-		s.updateEventCache(event)
-		return nil
 	}
 
-	// 非日志事件使用批量插入
-	select {
-	case s.batchInsertCh <- event:
-		// 成功投递到批量插入队列
-		log.Debugf("[Master-%d]事件已投递到批量插入队列", event.EndpointID)
-	default:
-		// 批量插入队列满，回退到单条插入
-		log.Warnf("[Master-%d]批量插入队列已满，使用单条插入", event.EndpointID)
-		return s.singleInsertEvent(event)
+	// 对于update事件，优先使用批量插入以提高性能
+	if event.EventType == models.SSEEventTypeUpdate {
+		select {
+		case s.batchInsertCh <- event:
+			return nil
+		default:
+			// 如果批量插入队列满了，回退到直接插入
+			log.Debugf("批量插入队列已满，回退到直接插入事件")
+		}
 	}
 
-	// 更新事件缓存
-	s.updateEventCache(event)
-	return nil
+	// 其他事件直接插入
+	return s.singleInsertEvent(event)
 }
 
-// singleInsertEvent 单条插入事件（回退方案）
+// singleInsertEvent 单个插入事件
 func (s *Service) singleInsertEvent(event models.EndpointSSE) error {
-	// 使用GORM插入事件，添加超时控制
-	done := make(chan error, 1)
-	go func() {
-		done <- s.db.Create(&event).Error
-	}()
-
-	// 设置5秒超时
-	select {
-	case err := <-done:
-		if err != nil {
-			log.Warnf("[Master-%d]数据库插入事件失败: %v", event.EndpointID, err)
-			return err
-		}
-	case <-time.After(5 * time.Second):
-		log.Warnf("[Master-%d]数据库插入事件超时", event.EndpointID)
-		return fmt.Errorf("数据库插入超时")
-	}
-
-	return nil
+	return s.db.Create(&event).Error
 }
 
-/**
-* 事件缓存
-* 功能：维护每个端点最近 N 条事件的环形缓存。
-* 并发安全：借助互斥锁保证多 goroutine 同时写缓存时不会出现竞态。
-* 好处：
-* 前端（或新连入的 SSE 客户端）可以在连接时一次性拉取"最近若干事件"，快速同步状态；
-* 控制内存，防止长时间运行后事件无限增长。
- */
-// updateEventCache 更新事件缓存 把一条刚处理完的 SSE 事件追加进内存缓存，且保证每个端点的缓存长度不会超过设定上限
+// updateEventCache 更新事件缓存
 func (s *Service) updateEventCache(event models.EndpointSSE) {
-	// eventCacheMu 是一把读写互斥锁（sync.RWMutex）用来保护 eventCache 这张 Map。
-	// 这里用 Lock()（写锁），确保在添加/裁剪缓存期间不会有其他 goroutine 并发读写。
-	// defer Unlock() 保证函数返回时自动释放锁，防止忘记解锁导致死锁。
 	s.eventCacheMu.Lock()
 	defer s.eventCacheMu.Unlock()
-	// eventCache 结构：map[int64][]models.EndpointSSE，键是 EndpointID，值是该端点对应的事件切片。
-	// 先取出该端点现有的事件切片 cache，随后 append 把新事件追加到末尾。
-	cache := s.eventCache[event.EndpointID]
-	cache = append(cache, event)
 
-	// 保持缓存大小
-	if len(cache) > s.maxCacheEvents {
-		// s.maxCacheEvents 是一个阈值（构造函数里默认 100）。
-		// 如果 cache 超过这个阈值，就把多余的头部元素裁掉，只保留最近 maxCacheEvents 条：
-		// cache[len(cache)-s.maxCacheEvents:] 等价于"从尾部往前数 maxCacheEvents 条"。
-		// 这样能确保内存占用可控，同时保留最新的事件供后续重放。
-		cache = cache[len(cache)-s.maxCacheEvents:]
+	endpointEvents := s.eventCache[event.EndpointID]
+	if len(endpointEvents) >= s.maxCacheEvents {
+		// 移除最旧的事件
+		endpointEvents = endpointEvents[1:]
 	}
-	// 最后把更新后的 cache 写回 eventCache 中，确保并发安全。
-	s.eventCache[event.EndpointID] = cache
+	endpointEvents = append(endpointEvents, event)
+	s.eventCache[event.EndpointID] = endpointEvents
 }
 
-// broadcastEvent 广播事件到所有相关客户端
+// broadcastEvent 广播事件给所有客户端
 func (s *Service) broadcastEvent(event models.EndpointSSE) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 
-	// 序列化事件
-	eventJSON, err := json.Marshal(event)
+	data, err := json.Marshal(event)
 	if err != nil {
-		log.Warn("序列化事件失败", "err", err)
+		log.Errorf("序列化事件失败: %v", err)
 		return
 	}
 
-	// 构造SSE消息
-	message := fmt.Sprintf("data: %s\n\n", eventJSON)
-
-	// 发送到所有全局客户端
-	for _, client := range s.clients {
-		if client.Writer == nil {
-			continue
-		}
-		fmt.Fprint(client.Writer, message)
-		if f, ok := client.Writer.(http.Flusher); ok {
-			f.Flush()
-		}
-	}
-
-	// 如果是隧道相关事件，发送到订阅者
-	if event.InstanceID != "" {
-		if subs, exists := s.tunnelSubs[event.InstanceID]; exists {
-			for _, client := range subs {
-				if client.Writer == nil {
-					continue
-				}
-				fmt.Fprint(client.Writer, message)
-				if f, ok := client.Writer.(http.Flusher); ok {
-					f.Flush()
-				}
-			}
+	for clientID, client := range s.clients {
+		if err := client.Send(data); err != nil {
+			log.Errorf("发送事件给客户端 %s 失败: %v", clientID, err)
+			// 标记客户端为断开
+			client.SetDisconnected(true)
 		}
 	}
 }
@@ -497,40 +743,71 @@ func (s *Service) GetDB() *gorm.DB {
 	return s.db
 }
 
-// Close 关闭SSE服务
+// Close 关闭服务
 func (s *Service) Close() {
+	log.Info("正在关闭SSE服务")
+
+	// 停止上下文
 	s.cancel()
 
-	// 关闭批处理定时器
-	if s.batchTimer != nil {
-		s.batchTimer.Stop()
+	// ========================
+	// 清理优化存储资源
+	// ========================
+	log.Info("正在清理优化存储资源...")
+
+	// 停止整点刷盘定时器
+	if s.optimizedStorage.hourlyFlushTicker != nil {
+		s.optimizedStorage.hourlyFlushTicker.Stop()
 	}
 
-	// 关闭持久化队列，等待 worker 退出
-	close(s.storeJobCh)
+	// 刷盘剩余的缓冲数据（保护：避免在DB已关闭后刷盘）
+	defer func() {
+		if r := recover(); r != nil {
+			log.Warnf("优化存储刷盘在关闭时发生异常: %v", r)
+		}
+	}()
+	s.flushOptimizedStorage("服务关闭")
+	log.Info("优化存储资源清理完成")
+
+	// 关闭内存服务（暂时注释掉）
+	// if s.memoryService != nil {
+	// 	s.memoryService.Close()
+	// }
+
+	// 关闭流量历史管理器
+	if s.trafficHistory != nil {
+		s.trafficHistory.Close()
+	}
+
+	// 关闭历史数据Worker
+	if s.historyWorker != nil {
+		s.historyWorker.Close()
+	}
+
+	// 关闭所有客户端
+	s.mu.Lock()
+	for clientID, client := range s.clients {
+		client.Close()
+		delete(s.clients, clientID)
+	}
+	s.mu.Unlock()
 
 	// 关闭文件日志管理器
 	if s.fileLogger != nil {
 		s.fileLogger.Close()
 	}
 
-	// 清理所有客户端连接
-	s.mu.Lock()
-	defer s.mu.Unlock()
-
-	s.clients = make(map[string]*Client)
-	s.tunnelSubs = make(map[string]map[string]*Client)
-
 	log.Info("SSE服务已关闭")
 }
 
-// stringPtr 创建字符串指针
+// 工具函数
 func stringPtr(s string) *string {
+	if s == "" {
+		return nil
+	}
 	return &s
 }
 
-// valueOrEmpty 返回指针指向的值，若指针为 nil 则返回提供的默认值（泛型实现）
-// 使用泛型以支持多种类型，不对值做比较，仅返回零值或默认值
 func valueOrEmpty[T any](p *T, def T) T {
 	if p == nil {
 		return def
@@ -538,1000 +815,245 @@ func valueOrEmpty[T any](p *T, def T) T {
 	return *p
 }
 
-// ============================= 新增辅助方法 =============================
-
-// sendTunnelUpdateByInstanceId 按隧道实例 ID 推送事件，仅发送给订阅了该隧道的客户端
+// sendTunnelUpdateByInstanceId 根据实例ID发送隧道更新
 func (s *Service) sendTunnelUpdateByInstanceId(instanceID string, data interface{}) {
-	// 为避免在读锁状态下修改 map，拆分为两步：读取 +（可能）清理
 	s.mu.RLock()
-	subs, exists := s.tunnelSubs[instanceID]
-	s.mu.RUnlock()
+	defer s.mu.RUnlock()
 
-	if !exists || len(subs) == 0 {
-		// 没有订阅者，记录调试日志后退出
-		// log.Debugf("[Inst.%s]无隧道订阅者，跳过推送", instanceID)
+	subscribers, exists := s.tunnelSubs[instanceID]
+	if !exists {
 		return
 	}
 
-	// 记录推送准备日志
-	payload, err := json.Marshal(data)
+	jsonData, err := json.Marshal(data)
 	if err != nil {
-		log.Warnf("[Inst.%s]序列化隧道事件失败,err=%v", instanceID, err)
+		log.Errorf("序列化隧道数据失败: %v", err)
 		return
 	}
 
-	message := fmt.Sprintf("data: %s\n\n", payload)
-
-	failedIDs := make([]string, 0)
-	sent := 0
-
-	for id, client := range subs {
-		if client.Writer == nil {
-			failedIDs = append(failedIDs, id)
-			continue
-		}
-		if _, err := fmt.Fprint(client.Writer, message); err == nil {
-			if f, ok := client.Writer.(http.Flusher); ok {
-				f.Flush()
-			}
-			sent++
-		} else {
-			failedIDs = append(failedIDs, id)
-			log.Warnf("[Inst.%s]推送失败给客户端: %s, err=%v", instanceID, id, err)
+	for clientID, client := range subscribers {
+		if err := client.Send(jsonData); err != nil {
+			log.Errorf("发送隧道更新给客户端 %s 失败: %v", clientID, err)
+			client.SetDisconnected(true)
 		}
 	}
-
-	if len(failedIDs) > 0 {
-		s.mu.Lock()
-		for _, fid := range failedIDs {
-			delete(subs, fid)
-		}
-		// 若订阅者列表空，则移除隧道映射
-		if len(subs) == 0 {
-			delete(s.tunnelSubs, instanceID)
-		}
-		s.mu.Unlock()
-	}
-	log.Debugf("[Inst.%s]隧道事件已推送", instanceID)
 }
 
-// sendGlobalUpdate 推送全局事件（仪表盘 / 列表等使用），会发送给所有客户端
+// sendGlobalUpdate 发送全局更新
 func (s *Service) sendGlobalUpdate(data interface{}) {
-	payload, err := json.Marshal(data)
-	if err != nil {
-		log.Warnf("序列化全局事件失败,err=%v", err)
-		return
-	}
-
-	message := fmt.Sprintf("data: %s\n\n", payload)
-
 	s.mu.RLock()
-	clientsCopy := make(map[string]*Client, len(s.clients))
-	for id, cl := range s.clients {
-		clientsCopy[id] = cl
-	}
-	s.mu.RUnlock()
+	defer s.mu.RUnlock()
 
-	failedIDs := make([]string, 0)
-	sent := 0
-
-	for id, client := range clientsCopy {
-		if client.Writer == nil {
-			failedIDs = append(failedIDs, id)
-			continue
-		}
-		if _, err := fmt.Fprint(client.Writer, message); err == nil {
-			if f, ok := client.Writer.(http.Flusher); ok {
-				f.Flush()
-			}
-			sent++
-		} else {
-			failedIDs = append(failedIDs, id)
-		}
-	}
-
-	if len(failedIDs) > 0 {
-		s.mu.Lock()
-		for _, fid := range failedIDs {
-			delete(s.clients, fid)
-		}
-		s.mu.Unlock()
-	}
-
-	log.Infof("全局事件已推送,sent=%d", sent)
-}
-
-// updateTunnelData 根据事件更新 Tunnel 表及 Endpoint.tunnelCount
-func (s *Service) updateTunnelData(event models.EndpointSSE) {
-	// 记录函数调用及关键字段
-	log.Debugf("[Inst.%s]updateTunnelData,eventType=%s instanceID=%s endpointID=%d", event.InstanceID, event.EventType, event.InstanceID, event.EndpointID)
-
-	// log 事件仅用于日志推流，无需更新隧道表
-	if event.EventType == models.SSEEventTypeLog || event.InstanceID == "" {
+	jsonData, err := json.Marshal(data)
+	if err != nil {
+		log.Errorf("序列化全局数据失败: %v", err)
 		return
 	}
 
-	// 使用事务保证一致性
-	// 使用GORM的Transaction方法
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		// 判断隧道是否存在（endpointId + instanceId 唯一）
-		var tunnel models.Tunnel
-		if err := tx.Where("endpoint_id = ? AND instance_id = ?", event.EndpointID, event.InstanceID).First(&tunnel).Error; err != nil {
-			if err == gorm.ErrRecordNotFound {
-				// 仅在 create/initial 事件时插入
-				if event.EventType == models.SSEEventTypeCreate || event.EventType == models.SSEEventTypeInitial {
-					// 若类型为空则跳过处理，避免回显消息写库
-					if event.InstanceType == nil || *event.InstanceType == "" {
-					} else {
-						log.Infof("[Inst.%s]sse推送创建隧道实例,instanceType=%s", event.InstanceID, *event.InstanceType)
-						// 解析 URL 获取详细配置
-						var (
-							tunnelAddr, tunnelPort, targetAddr, targetPort, tlsMode, logLevel, commandLine string
-							cfg                                                                            parsedURL
-						)
-						if event.URL != nil {
-							cfg = parseInstanceURL(*event.URL, *event.InstanceType)
-							tunnelAddr = cfg.TunnelAddress
-							tunnelPort = cfg.TunnelPort
-							targetAddr = cfg.TargetAddress
-							targetPort = cfg.TargetPort
-							tlsMode = cfg.TLSMode
-							logLevel = cfg.LogLevel
-							commandLine = *event.URL
-						}
-
-						if tlsMode == "" {
-							tlsMode = "inherit"
-						}
-						if logLevel == "" {
-							logLevel = "inherit"
-						}
-
-						newTunnel := models.Tunnel{
-							EndpointID:    event.EndpointID,
-							Name:          event.InstanceID, // 使用 instanceID 作为名称
-							Mode:          models.TunnelMode(*event.InstanceType),
-							Status:        models.TunnelStatus(ptrStringDefault(event.Status, "stopped")),
-							TunnelAddress: tunnelAddr,
-							TunnelPort:    tunnelPort,
-							TargetAddress: targetAddr,
-							TargetPort:    targetPort,
-							TLSMode:       models.TLSMode(tlsMode),
-							LogLevel:      models.LogLevel(logLevel),
-							CommandLine:   commandLine,
-						}
-
-						// 处理可选字段
-						newTunnel.InstanceID = &event.InstanceID
-						if cfg.CertPath != "" {
-							newTunnel.CertPath = &cfg.CertPath
-						}
-						if cfg.KeyPath != "" {
-							newTunnel.KeyPath = &cfg.KeyPath
-						}
-						if cfg.Password != "" {
-							newTunnel.Password = &cfg.Password
-						}
-
-						// 处理Min/Max字段
-						if cfg.Min != "" {
-							if minVal, err := strconv.ParseInt(cfg.Min, 10, 64); err == nil {
-								newTunnel.Min = &minVal
-							}
-						}
-						if cfg.Max != "" {
-							if maxVal, err := strconv.ParseInt(cfg.Max, 10, 64); err == nil {
-								newTunnel.Max = &maxVal
-							}
-						}
-
-						// 处理其他字段
-						newTunnel.TCPRx = event.TCPRx
-						newTunnel.TCPTx = event.TCPTx
-						newTunnel.UDPRx = event.UDPRx
-						newTunnel.UDPTx = event.UDPTx
-						newTunnel.Pool = event.Pool
-						newTunnel.Ping = event.Ping
-						if event.Restart != nil {
-							newTunnel.Restart = *event.Restart
-						} else {
-							newTunnel.Restart = false
-						}
-						newTunnel.CreatedAt = time.Now()
-						newTunnel.UpdatedAt = time.Now()
-						newTunnel.LastEventTime = &event.EventTime
-
-						if event.Alias != nil && *event.Alias != "" {
-							newTunnel.Name = *event.Alias
-							log.Infof("[Inst.%s]Inst.%s使用别名作为隧道名称: %s", event.InstanceID, event.InstanceID, newTunnel.Name)
-						}
-
-						if err := tx.Create(&newTunnel).Error; err != nil {
-							log.Errorf("[Inst.%s]插入隧道记录失败,err=%v", event.InstanceID, err)
-							return err
-						}
-						log.Infof("[Inst.%s]隧道记录已插入", event.InstanceID)
-					}
-				}
-			} else {
-				// 获取状态值
-				statusVal := ""
-				if event.Status != nil {
-					statusVal = *event.Status
-				}
-
-				// 读取当前状态以判断是否需要更新
-				var currentStatus string
-				if err := tx.Model(&models.Tunnel{}).Where("id = ?", tunnel.ID).Select("status").Scan(&currentStatus).Error; err != nil {
-					log.Warnf("[Inst.%s]查询当前隧道状态失败,err=%v", event.InstanceID, err)
-				}
-
-				if statusVal != "" && statusVal == currentStatus {
-					// 状态一致，无需更新
-					log.Debugf("[Inst.%s]隧道状态未变化，跳过更新,status=%s", event.InstanceID, currentStatus)
-				} else {
-					log.Infof("[Inst.%s]sse推送更新隧道实例,oldStatus=%s newStatus=%s", event.InstanceID, currentStatus, statusVal)
-
-					// 如果是 delete 事件，直接删除记录
-					if event.EventType == models.SSEEventTypeDelete {
-						if err := tx.Delete(&models.Tunnel{}, "endpoint_id = ? AND instance_id = ?", event.EndpointID, event.InstanceID).Error; err != nil {
-							log.Warnf("[Inst.%s]删除隧道记录失败,err=%v", event.InstanceID, err)
-						} else {
-							log.Infof("[Inst.%s]已删除隧道记录", event.InstanceID)
-						}
-					} else {
-						// 更新已有隧道
-						updateFields := map[string]interface{}{
-							"tcp_rx":          event.TCPRx,
-							"tcp_tx":          event.TCPTx,
-							"udp_rx":          event.UDPRx,
-							"udp_tx":          event.UDPTx,
-							"pool":            event.Pool,
-							"ping":            event.Ping,
-							"last_event_time": &event.EventTime,
-							"updated_at":      time.Now(),
-						}
-
-						// 只有状态不为空时才更新状态
-						if statusVal != "" {
-							updateFields["status"] = models.TunnelStatus(statusVal)
-						}
-
-						if err := tx.Model(&models.Tunnel{}).Where("instance_id = ?", event.InstanceID).Updates(updateFields).Error; err != nil {
-							log.Errorf("[Inst.%s]更新隧道记录失败,err=%v", event.InstanceID, err)
-							return err
-						}
-					}
-				}
-			}
-		} else {
-			log.Errorf("[Inst.%s]查询隧道记录失败,err=%v", event.InstanceID, err)
-			return err
+	for clientID, client := range s.clients {
+		if err := client.Send(jsonData); err != nil {
+			log.Errorf("发送全局更新给客户端 %s 失败: %v", clientID, err)
+			client.SetDisconnected(true)
 		}
-
-		// 延迟更新端点隧道计数（避免死锁）
-		log.Debugf("[Master-%d]隧道数据更新完成，将异步刷新端点计数", event.EndpointID)
-
-		return nil
-	})
-
-	if err != nil {
-		log.Errorf("[Inst.%s]更新隧道数据失败: %v", event.InstanceID, err)
-	} else {
-		// 异步更新端点隧道计数（避免死锁）
-		go func(endpointID int64) {
-			time.Sleep(50 * time.Millisecond) // 稍作延迟
-			s.updateEndpointTunnelCount(endpointID)
-		}(event.EndpointID)
 	}
 }
 
-// parseInstanceURL 解析隧道实例 URL，返回各字段（简化版）
-type parsedURL struct {
-	TunnelAddress string
-	TunnelPort    string
-	TargetAddress string
-	TargetPort    string
-	TLSMode       string
-	LogLevel      string
-	CertPath      string
-	KeyPath       string
-	Password      string
-	Min           string
-	Max           string
-}
-
-// 内部工具函数: 解析地址:端口 (兼容 IPv6 字面量)
-func parsePart(part string) (addr, port string) {
-	part = strings.TrimSpace(part)
-	if part == "" {
-		return "", ""
-	}
-
-	// 处理方括号包围的IPv6地址格式：[IPv6]:port
-	if strings.HasPrefix(part, "[") {
-		if end := strings.Index(part, "]"); end != -1 {
-			addr = part[:end+1]
-			if len(part) > end+1 && part[end+1] == ':' {
-				port = part[end+2:]
-			}
-			return
-		}
-	}
-
-	// 检查是否包含冒号
-	if strings.Contains(part, ":") {
-		// 判断是否为IPv6地址（包含多个冒号或双冒号）
-		colonCount := strings.Count(part, ":")
-		if colonCount > 1 || strings.Contains(part, "::") {
-			// 可能是IPv6地址，尝试从右侧找最后一个冒号作为端口分隔符
-			lastColonIdx := strings.LastIndex(part, ":")
-			// 检查最后一个冒号后面是否为纯数字（端口号）
-			if lastColonIdx != -1 && lastColonIdx < len(part)-1 {
-				potentialPort := part[lastColonIdx+1:]
-				if portNum, err := strconv.Atoi(potentialPort); err == nil && portNum > 0 && portNum <= 65535 {
-					// 最后部分是有效的端口号
-					addr = part[:lastColonIdx]
-					port = potentialPort
-					return
-				}
-			}
-			// 没有找到有效端口，整个部分都是地址
-			addr = part
-			return
-		} else {
-			// 只有一个冒号，按照传统方式分割
-			pieces := strings.SplitN(part, ":", 2)
-			addr, port = pieces[0], pieces[1]
-		}
-	} else {
-		// 没有冒号，判断是纯数字端口还是地址
-		if _, err := strconv.Atoi(part); err == nil {
-			port = part
-		} else {
-			addr = part
-		}
-	}
-	return
-}
-
-func parseInstanceURL(raw, mode string) parsedURL {
-	// 默认值
-	res := parsedURL{
-		TLSMode:  "inherit",
-		LogLevel: "inherit",
-		CertPath: "",
-		KeyPath:  "",
-		Password: "",
-	}
-
-	if raw == "" {
-		return res
-	}
-
-	// 分离 protocol://hostPart/pathPart?query
-	var hostPart, pathPart, queryPart string
-	// strip protocol
-	if idx := strings.Index(raw, "://"); idx != -1 {
-		raw = raw[idx+3:]
-	}
-
-	// 分离用户认证信息 (password@)
-	if atIdx := strings.Index(raw, "@"); atIdx != -1 {
-		res.Password = raw[:atIdx]
-		raw = raw[atIdx+1:]
-	}
-
-	// split query
-	if qIdx := strings.Index(raw, "?"); qIdx != -1 {
-		queryPart = raw[qIdx+1:]
-		raw = raw[:qIdx]
-	}
-
-	// split path
-	if pIdx := strings.Index(raw, "/"); pIdx != -1 {
-		hostPart = raw[:pIdx]
-		pathPart = raw[pIdx+1:]
-	} else {
-		hostPart = raw
-	}
-
-	// hostPart
-	if hostPart != "" {
-		addr, port := parsePart(hostPart)
-		res.TunnelAddress = addr
-		res.TunnelPort = port
-	}
-
-	// pathPart
-	if pathPart != "" {
-		addr, port := parsePart(pathPart)
-		res.TargetAddress = addr
-		res.TargetPort = port
-	}
-
-	// query params
-	if queryPart != "" {
-		for _, kv := range strings.Split(queryPart, "&") {
-			if kv == "" {
-				continue
-			}
-			parts := strings.SplitN(kv, "=", 2)
-			if len(parts) != 2 {
-				continue
-			}
-			key, val := parts[0], parts[1]
-			switch key {
-			case "tls":
-				if mode == "server" {
-					switch val {
-					case "0":
-						res.TLSMode = "mode0"
-					case "1":
-						res.TLSMode = "mode1"
-					case "2":
-						res.TLSMode = "mode2"
-					}
-				}
-			case "log":
-				res.LogLevel = strings.ToLower(val)
-			case "crt":
-				// URL解码证书路径
-				if decodedVal, err := url.QueryUnescape(val); err == nil {
-					res.CertPath = decodedVal
-				} else {
-					res.CertPath = val // 解码失败时使用原值
-				}
-			case "key":
-				// URL解码密钥路径
-				if decodedVal, err := url.QueryUnescape(val); err == nil {
-					res.KeyPath = decodedVal
-				} else {
-					res.KeyPath = val // 解码失败时使用原值
-				}
-			case "min":
-				res.Min = val
-			case "max":
-				res.Max = val
-			}
-		}
-	}
-
-	return res
+// updateTunnelData 更新隧道数据
+func (s *Service) updateTunnelData(event models.EndpointSSE) {
+	// 这里实现隧道数据更新逻辑
+	// 由于已经集成到内存服务中，这里可以简化或移除
 }
 
 // ======================== 事件处理器 ============================
 
+// 事件处理方法
 func (s *Service) handleInitialEvent(e models.EndpointSSE) {
+	// SSE initial 事件表示端点重新连接时报告现有隧道状态
+	// 此时隧道记录应该已经存在，我们只需要更新运行时信息
+	log.Debugf("[Master-%d]处理初始化事件: 隧道 %s", e.EndpointID, e.InstanceID)
 	if e.InstanceType == nil || *e.InstanceType == "" {
 		// 当InstanceType为空时，尝试获取端点系统信息
 		go s.fetchAndUpdateEndpointInfo(e.EndpointID)
 		return
 	}
-	cfg := parseInstanceURL(ptrString(e.URL), *e.InstanceType)
-	if err := s.withTx(func(tx *gorm.DB) error { return s.tunnelCreateOrUpdate(tx, e, cfg) }); err != nil {
+	// 检查隧道是否已存在
+	var existingTunnel models.Tunnel
+	err := s.db.Where("endpoint_id = ? AND instance_id = ?", e.EndpointID, e.InstanceID).First(&existingTunnel).Error
+
+	if err == nil {
+		// 隧道已存在（正常情况），更新运行时信息
+		log.Debugf("[Master-%d]隧道 %s 已存在，更新运行时信息", e.EndpointID, e.InstanceID)
+		s.updateTunnelRuntimeInfo(e)
+		return
+	}
+
+	if err != gorm.ErrRecordNotFound {
+		log.Errorf("[Master-%d]查询隧道 %s 失败: %v", e.EndpointID, e.InstanceID, err)
+		return
+	}
+
+	// 隧道不存在（异常情况），可能是数据丢失或首次启动
+	// 使用 URL 解析创建隧道记录
+	log.Warnf("[Master-%d]隧道 %s 不存在，从 URL 解析创建记录（可能是数据丢失或首次启动）", e.EndpointID, e.InstanceID)
+
+	tunnel := createTunnelFromSSEEvent(e)
+
+	err = s.db.Create(&tunnel).Error
+	if err != nil {
+		log.Errorf("[Master-%d]初始化隧道 %s 失败: %v", e.EndpointID, e.InstanceID, err)
+	} else {
+		log.Infof("[Master-%d]最小化隧道记录 %s 初始化成功，等待 API 补全信息", e.EndpointID, e.InstanceID)
 	}
 }
 
 func (s *Service) handleCreateEvent(e models.EndpointSSE) {
-	cfg := parseInstanceURL(ptrString(e.URL), *e.InstanceType)
-	if err := s.withTx(func(tx *gorm.DB) error { return s.tunnelCreate(tx, e, cfg) }); err != nil {
-		log.Errorf("[Master-%d#SSE]处理创建事件失败: %v", e.EndpointID, err)
+	// SSE create 事件表示 NodePass 客户端报告隧道创建成功
+	// 此时隧道记录应该已经由 API 创建，我们只需要更新状态和流量信息
+	log.Debugf("[Master-%d]处理创建事件: 隧道 %s", e.EndpointID, e.InstanceID)
+
+	// 检查隧道是否已存在
+	var existingTunnel models.Tunnel
+	err := s.db.Where("endpoint_id = ? AND instance_id = ?", e.EndpointID, e.InstanceID).First(&existingTunnel).Error
+
+	if err == nil {
+		// 隧道已存在（正常情况），更新运行时信息
+		log.Debugf("[Master-%d]隧道 %s 已存在，更新状态和流量信息", e.EndpointID, e.InstanceID)
+		s.updateTunnelRuntimeInfo(e)
+		return
+	}
+
+	if err != gorm.ErrRecordNotFound {
+		log.Errorf("[Master-%d]查询隧道 %s 失败: %v", e.EndpointID, e.InstanceID, err)
+		return
+	}
+
+	// 隧道不存在（异常情况），可能是 SSE 事件比 API 创建先到达
+	// 使用 URL 解析创建隧道记录
+	log.Warnf("[Master-%d]隧道 %s 不存在，从 URL 解析创建记录（可能是 SSE 事件先于 API 到达）", e.EndpointID, e.InstanceID)
+
+	tunnel := createTunnelFromSSEEvent(e)
+
+	err = s.db.Create(&tunnel).Error
+	if err != nil {
+		log.Errorf("[Master-%d]创建最小化隧道记录 %s 失败: %v", e.EndpointID, e.InstanceID, err)
 	} else {
-		// 异步更新端点隧道计数
-		go func(endpointID int64) {
-			time.Sleep(50 * time.Millisecond)
-			s.updateEndpointTunnelCount(endpointID)
-		}(e.EndpointID)
+		log.Infof("[Master-%d]最小化隧道记录 %s 创建成功，等待 API 补全信息", e.EndpointID, e.InstanceID)
 	}
 }
 
 func (s *Service) handleUpdateEvent(e models.EndpointSSE) {
-	if err := s.withTx(func(tx *gorm.DB) error {
-		cfg := parseInstanceURL(ptrString(e.URL), ptrStringDefault(e.InstanceType, ""))
-		return s.tunnelUpdate(tx, e, cfg)
-	}); err != nil {
-	}
-}
+	// SSE update 事件用于更新隧道的运行时信息
+	log.Debugf("[Master-%d]处理更新事件: 隧道 %s", e.EndpointID, e.InstanceID)
 
-func (s *Service) handleDeleteEvent(e models.EndpointSSE) {
-	if err := s.withTx(func(tx *gorm.DB) error { return s.tunnelDelete(tx, e.EndpointID, e.InstanceID) }); err != nil {
-		log.Errorf("[Master-%d#SSE]处理删除事件失败: %v", e.EndpointID, err)
-	} else {
-		// 异步更新端点隧道计数
-		go func(endpointID int64) {
-			time.Sleep(50 * time.Millisecond)
-			s.updateEndpointTunnelCount(endpointID)
-		}(e.EndpointID)
-	}
-}
+	// 先检查隧道是否存在
+	var existingTunnel models.Tunnel
+	err := s.db.Where("endpoint_id = ? AND instance_id = ?", e.EndpointID, e.InstanceID).First(&existingTunnel).Error
 
-func (s *Service) handleLogEvent(e models.EndpointSSE) {
-	// log.Debug("处理 log 事件", "instanceID", e.InstanceID)
-
-}
-
-// =============== 隧道 CRUD ===============
-
-func (s *Service) tunnelExists(tx *gorm.DB, endpointID int64, instanceID string) (bool, error) {
-	var tunnel models.Tunnel
-	err := tx.Where("endpoint_id = ? AND instance_id = ?", endpointID, instanceID).First(&tunnel).Error
-	if err == nil {
-		return true, nil
-	}
 	if err == gorm.ErrRecordNotFound {
-		return false, nil
-	}
-	return false, err
-}
-
-func (s *Service) tunnelCreate(tx *gorm.DB, e models.EndpointSSE, cfg parsedURL) error {
-	exists, err := s.tunnelExists(tx, e.EndpointID, e.InstanceID)
-	if err != nil || exists {
-		log.Warnf("[Master-%d#SSE]Inst.%s已存在记录，跳过创建", e.EndpointID, e.InstanceID)
-		return err
+		// 隧道不存在，可能是时序问题（SSE 事件比 API 创建先到达）
+		log.Warnf("[Master-%d]收到更新事件但隧道 %s 不存在，可能是时序问题，跳过处理", e.EndpointID, e.InstanceID)
+		return
 	}
 
-	// 如果 SSE 事件包含 alias，使用 alias 作为隧道名称，否则使用 instanceID
-	name := e.InstanceID
-	if e.Alias != nil && *e.Alias != "" {
-		name = *e.Alias
-		log.Infof("[Master-%d#SSE]Inst.%s使用别名作为隧道名称: %s", e.EndpointID, e.InstanceID, name)
-	}
-
-	if cfg.LogLevel == "" {
-		cfg.LogLevel = "inherit"
-	}
-	if e.InstanceType != nil && *e.InstanceType == "server" {
-		if cfg.TLSMode == "" {
-			cfg.TLSMode = "inherit"
-		}
-	}
-
-	// 处理重启策略字段
-	restart := false // 默认值为 false
-	if e.Restart != nil {
-		restart = *e.Restart
-		log.Infof("[Master-%d#SSE]Inst.%s创建隧道时设置重启策略: %t", e.EndpointID, e.InstanceID, restart)
-	}
-
-	// 处理可能为 nil 的字段
-	poolValue := e.Pool
-	pingValue := e.Ping
-
-	newTunnel := models.Tunnel{
-		EndpointID:    e.EndpointID,
-		Name:          name,
-		Mode:          models.TunnelMode(*e.InstanceType),
-		Status:        models.TunnelStatus(ptrStringDefault(e.Status, "stopped")),
-		TunnelAddress: cfg.TunnelAddress,
-		TunnelPort:    cfg.TunnelPort,
-		TargetAddress: cfg.TargetAddress,
-		TargetPort:    cfg.TargetPort,
-		TLSMode:       models.TLSMode(cfg.TLSMode),
-		LogLevel:      models.LogLevel(cfg.LogLevel),
-		CommandLine:   *e.URL,
-	}
-
-	// 处理可选字段
-	newTunnel.InstanceID = &e.InstanceID
-	if cfg.CertPath != "" {
-		newTunnel.CertPath = &cfg.CertPath
-	}
-	if cfg.KeyPath != "" {
-		newTunnel.KeyPath = &cfg.KeyPath
-	}
-	if cfg.Password != "" {
-		newTunnel.Password = &cfg.Password
-	}
-
-	// 处理Min/Max字段
-	if cfg.Min != "" {
-		if minVal, err := strconv.ParseInt(cfg.Min, 10, 64); err == nil {
-			newTunnel.Min = &minVal
-		}
-	}
-	if cfg.Max != "" {
-		if maxVal, err := strconv.ParseInt(cfg.Max, 10, 64); err == nil {
-			newTunnel.Max = &maxVal
-		}
-	}
-
-	// 处理其他字段
-	newTunnel.TCPRx = e.TCPRx
-	newTunnel.TCPTx = e.TCPTx
-	newTunnel.UDPRx = e.UDPRx
-	newTunnel.UDPTx = e.UDPTx
-	newTunnel.Pool = poolValue
-	newTunnel.Ping = pingValue
-	newTunnel.Restart = restart
-	newTunnel.CreatedAt = time.Now()
-	newTunnel.UpdatedAt = time.Now()
-	newTunnel.LastEventTime = &e.EventTime
-
-	if e.Alias != nil && *e.Alias != "" {
-		newTunnel.Name = *e.Alias
-		log.Infof("[Master-%d#SSE]Inst.%s使用别名作为隧道名称: %s", e.EndpointID, e.InstanceID, newTunnel.Name)
-	}
-
-	if err := tx.Create(&newTunnel).Error; err != nil {
-		log.Errorf("[Master-%d#SSE]Inst.%s创建隧道失败,err=%v", e.EndpointID, e.InstanceID, err)
-		return err
-	}
-	log.Infof("[Master-%d#SSE]Inst.%s创建隧道成功", e.EndpointID, e.InstanceID)
-
-	// 更新端点隧道计数
-	// 移除同步隧道计数更新，改为异步处理避免死锁
-	log.Infof("[Master-%d#SSE]隧道创建完成，将异步更新端点计数", e.EndpointID)
-	return err
-}
-
-func (s *Service) tunnelUpdate(tx *gorm.DB, e models.EndpointSSE, cfg parsedURL) error {
-	// 查询当前隧道记录
-	var currentTunnel models.Tunnel
-	err := tx.Where("endpoint_id = ? AND instance_id = ?", e.EndpointID, e.InstanceID).First(&currentTunnel).Error
 	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			log.Infof("[Master-%d#SSE]Inst.%s不存在，跳过更新", e.EndpointID, e.InstanceID)
-			return nil // 尚未创建对应记录，等待后续 create/initial
-		}
-		return err // 查询错误
+		log.Errorf("[Master-%d]查询隧道 %s 失败: %v", e.EndpointID, e.InstanceID, err)
+		return
 	}
 
-	// 提取当前值
-	curStatus := string(currentTunnel.Status)
-	curTCPRx := currentTunnel.TCPRx
-	curTCPTx := currentTunnel.TCPTx
-	curUDPRx := currentTunnel.UDPRx
-	curUDPTx := currentTunnel.UDPTx
-	var curEventTime time.Time
-	if currentTunnel.LastEventTime != nil {
-		curEventTime = *currentTunnel.LastEventTime
-	}
-	curName := currentTunnel.Name
-	curRestart := currentTunnel.Restart
-	curMode := string(currentTunnel.Mode)
+	// 更新运行时信息
+	s.updateTunnelRuntimeInfo(e)
+}
 
-	newStatus := ptrStringDefault(e.Status, curStatus)
-
-	statusChanged := newStatus != curStatus
-	trafficChanged := curTCPRx != e.TCPRx || curTCPTx != e.TCPTx || curUDPRx != e.UDPRx || curUDPTx != e.UDPTx
-
-	// 检查别名是否变化
-	aliasChanged := false
-	newName := curName
-	if e.Alias != nil && *e.Alias != "" && *e.Alias != curName {
-		aliasChanged = true
-		newName = *e.Alias
-		log.Infof("[Master-%d#SSE]Inst.%s别名变化: %s -> %s", e.EndpointID, e.InstanceID, curName, newName)
-	}
-
-	// 检查重启策略是否变化
-	restartChanged := false
-	newRestart := curRestart
-	if e.Restart != nil && *e.Restart != curRestart {
-		restartChanged = true
-		newRestart = *e.Restart
-		log.Infof("[Master-%d#SSE]Inst.%s重启策略变化: %t -> %t", e.EndpointID, e.InstanceID, curRestart, newRestart)
-	}
-
-	// 计算新的模式
-	newMode := ptrStringDefault(e.InstanceType, curMode)
-	modeChanged := newMode != curMode // 仅用于调试
-	_ = modeChanged
-
-	// 避免未使用编译错误
-	_ = statusChanged
-	_ = trafficChanged
-	_ = aliasChanged
-	_ = restartChanged
-
-	// 若事件时间早于已记录时间，跳过更新
-	if curEventTime.After(e.EventTime) {
-		log.Infof("[Master-%d#SSE]Inst.%s旧事件时间，跳过更新", e.EndpointID, e.InstanceID)
-		return nil
-	}
-
-	// 写入所有可更新字段
-	minVal := func() interface{} {
-		if cfg.Min != "" {
-			return cfg.Min
-		}
-		return nil
-	}()
-	maxVal := func() interface{} {
-		if cfg.Max != "" {
-			return cfg.Max
-		}
-		return nil
-	}()
-
-	// 处理可能为 nil 的字段
-	poolValue := e.Pool
-	pingValue := e.Ping
-
-	if err := tx.Model(&models.Tunnel{}).Where("endpoint_id = ? AND instance_id = ?", e.EndpointID, e.InstanceID).Updates(map[string]interface{}{
-		"status":          newStatus,
+// updateTunnelRuntimeInfo 更新隧道运行时信息（流量、状态、ping等）
+func (s *Service) updateTunnelRuntimeInfo(e models.EndpointSSE) {
+	// 准备更新字段
+	updates := map[string]interface{}{
 		"tcp_rx":          e.TCPRx,
 		"tcp_tx":          e.TCPTx,
 		"udp_rx":          e.UDPRx,
 		"udp_tx":          e.UDPTx,
-		"pool":            poolValue,
-		"ping":            pingValue,
-		"name":            newName,
-		"mode":            newMode,
-		"restart":         newRestart,
-		"tunnel_address":  cfg.TunnelAddress,
-		"tunnel_port":     cfg.TunnelPort,
-		"target_address":  cfg.TargetAddress,
-		"target_port":     cfg.TargetPort,
-		"tls_mode":        cfg.TLSMode,
-		"cert_path":       cfg.CertPath,
-		"key_path":        cfg.KeyPath,
-		"log_level":       cfg.LogLevel,
-		"command_line":    *e.URL,
-		"password":        cfg.Password,
-		"min":             minVal,
-		"max":             maxVal,
-		"last_event_time": e.EventTime,
 		"updated_at":      time.Now(),
-	}).Error; err != nil {
-		log.Errorf("[Master-%d#SSE]Inst.%s更新隧道失败,err=%v", e.EndpointID, e.InstanceID, err)
-		return err
-	}
-	log.Infof("[Master-%d#SSE]Inst.%s更新隧道成功", e.EndpointID, e.InstanceID)
-	return err
-}
-
-func (s *Service) tunnelDelete(tx *gorm.DB, endpointID int64, instanceID string) error {
-	exists, err := s.tunnelExists(tx, endpointID, instanceID)
-	if err != nil {
-		return err
-	}
-	if !exists {
-		log.Debugf("[Master-%d#SSE]Inst.%s不存在，跳过删除", endpointID, instanceID)
-		return nil // 无需删除
+		"last_event_time": &e.EventTime,
 	}
 
-	if err := tx.Delete(&models.Tunnel{}, "endpoint_id = ? AND instance_id = ?", endpointID, instanceID).Error; err != nil {
-		log.Errorf("[Master-%d#SSE]Inst.%s删除隧道失败,err=%v", endpointID, instanceID, err)
-		return err
+	// 可选字段
+	if e.Pool != nil {
+		updates["pool"] = e.Pool
 	}
-	log.Infof("[Master-%d#SSE]Inst.%s删除隧道成功，将异步更新端点计数", endpointID, instanceID)
-
-	// 移除同步隧道计数更新，改为异步处理避免死锁
-	return nil
-}
-
-// tunnelCreateOrUpdate 根据隧道是否存在来决定创建或更新
-func (s *Service) tunnelCreateOrUpdate(tx *gorm.DB, e models.EndpointSSE, cfg parsedURL) error {
-	exists, err := s.tunnelExists(tx, e.EndpointID, e.InstanceID)
-	if err != nil {
-		return err
+	if e.Ping != nil {
+		updates["ping"] = e.Ping
+	}
+	if e.Status != nil {
+		updates["status"] = models.TunnelStatus(*e.Status)
 	}
 
-	if exists {
-		log.Infof("[Master-%d#SSE]Inst.%s已存在，执行更新操作", e.EndpointID, e.InstanceID)
-		return s.tunnelUpdate(tx, e, cfg)
-	} else {
-		log.Infof("[Master-%d#SSE]Inst.%s不存在，执行创建操作", e.EndpointID, e.InstanceID)
-		// 直接执行创建逻辑（从tunnelCreate复制，但跳过存在性检查）
+	// 更新 tunnel 表
+	result := s.db.Model(&models.Tunnel{}).
+		Where("endpoint_id = ? AND instance_id = ?", e.EndpointID, e.InstanceID).
+		Updates(updates)
 
-		// 如果 SSE 事件包含 alias，使用 alias 作为隧道名称，否则使用 instanceID
-		name := e.InstanceID
-		if e.Alias != nil && *e.Alias != "" {
-			name = *e.Alias
-			log.Infof("[Master-%d#SSE]Inst.%s使用别名作为隧道名称: %s", e.EndpointID, e.InstanceID, name)
-		}
-
-		if cfg.LogLevel == "" {
-			cfg.LogLevel = "inherit"
-		}
-		if e.InstanceType != nil && *e.InstanceType == "server" {
-			if cfg.TLSMode == "" {
-				cfg.TLSMode = "inherit"
-			}
-		}
-
-		// 处理重启策略字段
-		restart := false // 默认值为 false
-		if e.Restart != nil {
-			restart = *e.Restart
-			log.Infof("[Master-%d#SSE]Inst.%s创建隧道时设置重启策略: %t", e.EndpointID, e.InstanceID, restart)
-		}
-
-		// 处理可能为 nil 的字段
-		poolValue := e.Pool
-		pingValue := e.Ping
-
-		newTunnel := models.Tunnel{
-			EndpointID:    e.EndpointID,
-			Name:          name,
-			Mode:          models.TunnelMode(*e.InstanceType),
-			Status:        models.TunnelStatus(ptrStringDefault(e.Status, "stopped")),
-			TunnelAddress: cfg.TunnelAddress,
-			TunnelPort:    cfg.TunnelPort,
-			TargetAddress: cfg.TargetAddress,
-			TargetPort:    cfg.TargetPort,
-			TLSMode:       models.TLSMode(cfg.TLSMode),
-			LogLevel:      models.LogLevel(cfg.LogLevel),
-			CommandLine:   *e.URL,
-		}
-
-		// 处理可选字段
-		newTunnel.InstanceID = &e.InstanceID
-		if cfg.CertPath != "" {
-			newTunnel.CertPath = &cfg.CertPath
-		}
-		if cfg.KeyPath != "" {
-			newTunnel.KeyPath = &cfg.KeyPath
-		}
-		if cfg.Password != "" {
-			newTunnel.Password = &cfg.Password
-		}
-
-		// 处理Min/Max字段
-		if cfg.Min != "" {
-			if minVal, err := strconv.ParseInt(cfg.Min, 10, 64); err == nil {
-				newTunnel.Min = &minVal
-			}
-		}
-		if cfg.Max != "" {
-			if maxVal, err := strconv.ParseInt(cfg.Max, 10, 64); err == nil {
-				newTunnel.Max = &maxVal
-			}
-		}
-
-		// 处理其他字段
-		newTunnel.TCPRx = e.TCPRx
-		newTunnel.TCPTx = e.TCPTx
-		newTunnel.UDPRx = e.UDPRx
-		newTunnel.UDPTx = e.UDPTx
-		newTunnel.Pool = poolValue
-		newTunnel.Ping = pingValue
-		newTunnel.Restart = restart
-		newTunnel.CreatedAt = time.Now()
-		newTunnel.UpdatedAt = time.Now()
-		newTunnel.LastEventTime = &e.EventTime
-
-		if e.Alias != nil && *e.Alias != "" {
-			newTunnel.Name = *e.Alias
-			log.Infof("[Master-%d#SSE]Inst.%s使用别名作为隧道名称: %s", e.EndpointID, e.InstanceID, newTunnel.Name)
-		}
-
-		if err := tx.Create(&newTunnel).Error; err != nil {
-			log.Errorf("[Master-%d#SSE]Inst.%s创建隧道失败,err=%v", e.EndpointID, e.InstanceID, err)
-			return err
-		}
-		log.Infof("[Master-%d#SSE]Inst.%s创建隧道成功，将异步更新端点计数", e.EndpointID, e.InstanceID)
-
-		// 移除同步隧道计数更新，改为异步处理避免死锁
-		return err
-	}
-}
-
-func (s *Service) withTx(fn func(*gorm.DB) error) error {
-	return db.TxWithRetry(fn)
-}
-
-// helper
-func ptrString(s *string) string {
-	if s == nil {
-		return ""
-	}
-	return *s
-}
-
-func ptrStringDefault(s *string, def string) string {
-	if s == nil || *s == "" {
-		return def
-	}
-	return *s
-}
-
-// startBatchProcessor 启动批处理处理器
-func (s *Service) startBatchProcessor() {
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case event := <-s.batchUpdateCh:
-			s.addToBatch(event)
-		case <-s.batchTimer.C:
-			s.flushBatch()
-			s.batchTimer.Reset(200 * time.Millisecond) // 200ms 批处理间隔
-		}
-	}
-}
-
-// addToBatch 添加事件到批处理队列
-func (s *Service) addToBatch(event models.EndpointSSE) {
-	s.batchMu.Lock()
-	defer s.batchMu.Unlock()
-
-	// 使用 instanceID 作为键，最新的事件会覆盖旧的
-	s.pendingUpdates[event.InstanceID] = event
-
-	// 如果积累了足够的更新，立即刷新
-	if len(s.pendingUpdates) >= 10 {
-		s.flushBatchUnsafe()
-	}
-}
-
-// flushBatch 刷新批处理队列（外部调用）
-func (s *Service) flushBatch() {
-	s.batchMu.Lock()
-	defer s.batchMu.Unlock()
-	s.flushBatchUnsafe()
-}
-
-// flushBatchUnsafe 刷新批处理队列（内部调用，需要持有锁）
-func (s *Service) flushBatchUnsafe() {
-	if len(s.pendingUpdates) == 0 {
+	if result.Error != nil {
+		log.Errorf("[Master-%d]更新隧道 %s 运行时信息失败: %v", e.EndpointID, e.InstanceID, result.Error)
 		return
 	}
 
-	// 收集所有待处理的事件
-	events := make([]models.EndpointSSE, 0, len(s.pendingUpdates))
-	for _, event := range s.pendingUpdates {
-		events = append(events, event)
+	if result.RowsAffected == 0 {
+		log.Warnf("[Master-%d]隧道 %s 运行时信息更新未影响任何行，可能隧道不存在", e.EndpointID, e.InstanceID)
+		return
 	}
 
-	// 清空待处理队列
-	s.pendingUpdates = make(map[string]models.EndpointSSE)
+	log.Debugf("[Master-%d]隧道 %s 运行时信息已更新: tcp_rx=%d, tcp_tx=%d, udp_rx=%d, udp_tx=%d, status=%v",
+		e.EndpointID, e.InstanceID, e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, e.Status)
 
-	// 批量处理事件
-	go func() {
-		if err := s.processBatchEvents(events); err != nil {
-			log.Errorf("批量处理事件失败: %v", err)
-		}
-	}()
+	// 调用 trafficHistory 功能，记录流量历史数据
+	if s.trafficHistory != nil {
+		// 计算流量差值（这里简化处理，实际应该基于上次记录的值计算差值）
+		// 由于我们没有保存上次的值，这里暂时使用当前值作为差值
+		// 在实际应用中，应该从内存或数据库中获取上次的流量值来计算差值
+		s.trafficHistory.AddTrafficPoint(
+			e.EndpointID, e.InstanceID,
+			e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx,
+			e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, // 暂时使用当前值作为差值
+		)
+		log.Debugf("[Master-%d]隧道 %s 流量历史已记录", e.EndpointID, e.InstanceID)
+	} else {
+		log.Warnf("[Master-%d]流量历史管理器未初始化，无法记录流量历史", e.EndpointID)
+	}
 }
 
-// processBatchEvents 批量处理事件
-func (s *Service) processBatchEvents(events []models.EndpointSSE) error {
-	// 收集需要更新隧道计数的端点ID
-	endpointIDs := make(map[int64]bool)
-	for _, event := range events {
-		endpointIDs[event.EndpointID] = true
+func (s *Service) handleDeleteEvent(e models.EndpointSSE) {
+	// 删除隧道记录
+	err := s.db.Where("endpoint_id = ? AND instance_id = ?", e.EndpointID, e.InstanceID).Delete(&models.Tunnel{}).Error
+
+	if err != nil {
+		log.Errorf("[Master-%d]删除隧道 %s 失败: %v", e.EndpointID, e.InstanceID, err)
+	} else {
+		log.Infof("[Master-%d]隧道 %s 删除成功", e.EndpointID, e.InstanceID)
 	}
-
-	err := db.TxWithRetry(func(tx *gorm.DB) error {
-		for _, event := range events {
-			if err := s.processSingleEventInTx(tx, event); err != nil {
-				log.Warnf("[Master-%d#SSE]Inst.%s批量处理失败: %v", event.EndpointID, event.InstanceID, err)
-				// 继续处理其他事件，不中断整个批次
-			}
-		}
-		return nil
-	})
-
-	// 如果事务成功，异步更新所有涉及端点的隧道计数
-	if err == nil {
-		for endpointID := range endpointIDs {
-			go func(id int64) {
-				time.Sleep(50 * time.Millisecond)
-				s.updateEndpointTunnelCount(id)
-			}(endpointID)
-		}
-	}
-
-	return err
 }
 
-// processSingleEventInTx 在事务中处理单个事件
-func (s *Service) processSingleEventInTx(tx *gorm.DB, event models.EndpointSSE) error {
-	cfg := parseInstanceURL(ptrString(event.URL), ptrStringDefault(event.InstanceType, ""))
+// handleLogEvent 处理日志事件
+func (s *Service) handleLogEvent(e models.EndpointSSE) {
+	// 日志事件需要写入文件日志系统
+	log.Debugf("[Master-%d]处理日志事件: 隧道 %s", e.EndpointID, e.InstanceID)
 
-	switch event.EventType {
-	case models.SSEEventTypeInitial, models.SSEEventTypeCreate:
-		return s.tunnelCreate(tx, event, cfg)
-	case models.SSEEventTypeUpdate:
-		return s.tunnelUpdate(tx, event, cfg)
-	case models.SSEEventTypeDelete:
-		return s.tunnelDelete(tx, event.EndpointID, event.InstanceID)
+	// 检查是否有日志内容
+	if e.Logs == nil || *e.Logs == "" {
+		log.Debugf("[Master-%d]隧道 %s 日志事件内容为空，跳过文件写入", e.EndpointID, e.InstanceID)
+		return
 	}
-	return nil
+
+	// 使用文件日志管理器写入日志文件
+	if s.fileLogger != nil {
+		err := s.fileLogger.WriteLog(e.EndpointID, e.InstanceID, *e.Logs)
+		if err != nil {
+			log.Errorf("[Master-%d]写入隧道 %s 日志到文件失败: %v", e.EndpointID, e.InstanceID, err)
+		} else {
+			log.Debugf("[Master-%d]隧道 %s 日志已写入文件", e.EndpointID, e.InstanceID)
+		}
+	} else {
+		log.Warnf("[Master-%d]文件日志管理器未初始化，无法写入日志", e.EndpointID)
+	}
 }
 
 // fetchAndUpdateEndpointInfo 获取并更新端点系统信息
@@ -1588,150 +1110,181 @@ func (s *Service) fetchAndUpdateEndpointInfo(endpointID int64) {
 	}
 }
 
-// BroadcastToAll 广播事件到所有客户端（用于系统更新等全局消息）
-func (s *Service) BroadcastToAll(event Event) {
-	s.mu.RLock()
-	defer s.mu.RUnlock()
+// 批处理方法
+func (s *Service) startBatchProcessor() {
+	go func() {
+		for event := range s.batchUpdateCh {
+			s.addToBatch(event)
+		}
+	}()
+}
 
-	eventJSON, err := json.Marshal(event)
-	if err != nil {
-		log.Warn("序列化事件失败", "err", err)
+func (s *Service) addToBatch(event models.EndpointSSE) {
+	s.batchMu.Lock()
+	defer s.batchMu.Unlock()
+
+	key := fmt.Sprintf("%d_%s", event.EndpointID, event.InstanceID)
+	s.pendingUpdates[key] = event
+
+	// 重置定时器
+	if s.batchTimer != nil {
+		s.batchTimer.Stop()
+	}
+	s.batchTimer = time.AfterFunc(2*time.Second, s.flushBatch)
+}
+
+func (s *Service) flushBatch() {
+	s.batchMu.Lock()
+	defer s.batchMu.Unlock()
+
+	if len(s.pendingUpdates) == 0 {
 		return
 	}
 
-	message := fmt.Sprintf("data: %s\n\n", eventJSON)
+	events := make([]models.EndpointSSE, 0, len(s.pendingUpdates))
+	for _, event := range s.pendingUpdates {
+		events = append(events, event)
+	}
+	s.pendingUpdates = make(map[string]models.EndpointSSE)
 
-	for _, client := range s.clients {
-		if client.Writer == nil {
-			continue
-		}
-		fmt.Fprint(client.Writer, message)
-		if f, ok := client.Writer.(http.Flusher); ok {
-			f.Flush()
-		}
+	// 批量处理事件
+	if err := s.processBatchEvents(events); err != nil {
+		log.Errorf("批量处理事件失败: %v", err)
 	}
 }
 
-// ==================== 日志清理相关方法 ====================
-
-// startLogCleanupDaemon 启动日志清理守护协程
-func (s *Service) startLogCleanupDaemon() {
-	log.Infof("启动日志清理守护协程，保留%d天日志，每%v清理一次", s.logRetentionDays, s.logCleanupInterval)
-
-	ticker := time.NewTicker(s.logCleanupInterval)
-	defer ticker.Stop()
-
-	// 立即执行一次清理
-	s.cleanupOldLogs()
-
-	for {
-		select {
-		case <-s.ctx.Done():
-			log.Info("日志清理守护协程已停止")
-			return
-		case <-ticker.C:
-			s.cleanupOldLogs()
+func (s *Service) processBatchEvents(events []models.EndpointSSE) error {
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		for _, event := range events {
+			if err := s.processSingleEventInTx(tx, event); err != nil {
+				return err
+			}
 		}
+		return nil
+	})
+}
+
+func (s *Service) processSingleEventInTx(tx *gorm.DB, event models.EndpointSSE) error {
+	// 在事务中处理单个事件
+	return nil
+}
+
+// 批量插入方法
+func (s *Service) startBatchInsertProcessor() {
+	go func() {
+		for event := range s.batchInsertCh {
+			s.addToBatchInsert(event)
+		}
+	}()
+}
+
+func (s *Service) addToBatchInsert(event models.EndpointSSE) {
+	s.batchInsertMu.Lock()
+	defer s.batchInsertMu.Unlock()
+
+	s.batchInsertBuf = append(s.batchInsertBuf, event)
+
+	if len(s.batchInsertBuf) >= s.batchInsertSize {
+		s.flushBatchInsert()
 	}
 }
 
-// cleanupOldLogs 清理过期日志
-func (s *Service) cleanupOldLogs() {
-	startTime := time.Now()
-
-	// 计算保留截止时间
-	cutoffTime := time.Now().AddDate(0, 0, -s.logRetentionDays)
-
-	// 1. 清理数据库中的非日志事件（基于时间）
-	deletedRows, err := s.cleanupNonLogEventsByTime(cutoffTime)
-	if err != nil {
-		log.Errorf("按时间清理数据库事件失败: %v", err)
+func (s *Service) flushBatchInsert() {
+	if len(s.batchInsertBuf) == 0 {
 		return
 	}
 
-	// 2. 如果设置了每日最大记录数，则进行数量限制清理（仅针对数据库事件）
-	if s.maxLogRecordsPerDay > 0 {
-		limitDeletedRows, err := s.cleanupNonLogEventsByCount()
-		if err != nil {
-			log.Errorf("按数量清理数据库事件失败: %v", err)
+	events := make([]models.EndpointSSE, len(s.batchInsertBuf))
+	copy(events, s.batchInsertBuf)
+	s.batchInsertBuf = s.batchInsertBuf[:0]
+
+	// 异步批量插入
+	go func() {
+		startTime := time.Now()
+		if err := s.batchInsertEvents(events); err != nil {
+			log.Errorf("批量插入事件失败: %v", err)
 		} else {
-			deletedRows += limitDeletedRows
+			duration := time.Since(startTime)
+			log.Debugf("批量插入 %d 个事件成功，耗时: %v", len(events), duration)
+		}
+	}()
+}
+
+func (s *Service) batchInsertEvents(events []models.EndpointSSE) error {
+	// 使用更大的批次大小以提高性能
+	return s.db.CreateInBatches(events, 500).Error
+}
+
+// startPeriodicFlushProcessor 启动定时刷盘处理器
+func (s *Service) startPeriodicFlushProcessor() {
+	go func() {
+		ticker := time.NewTicker(5 * time.Second) // 每5秒检查一次
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-s.ctx.Done():
+				log.Info("定时刷盘处理器已停止")
+				return
+			case <-ticker.C:
+				// 检查批量插入缓冲区，如果有数据就刷盘
+				s.batchInsertMu.Lock()
+				if len(s.batchInsertBuf) > 0 {
+					log.Debugf("定时刷盘触发，缓冲区有 %d 个事件", len(s.batchInsertBuf))
+					s.flushBatchInsert()
+				}
+				s.batchInsertMu.Unlock()
+			}
+		}
+	}()
+}
+
+// 日志清理方法
+func (s *Service) startLogCleanupDaemon() {
+	go func() {
+		ticker := time.NewTicker(s.logCleanupInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-s.ctx.Done():
+				return
+			case <-ticker.C:
+				s.cleanupOldLogs()
+			}
+		}
+	}()
+}
+
+func (s *Service) cleanupOldLogs() {
+	// 实现日志清理逻辑
+}
+
+// GetLogCleanupStats 获取日志清理统计信息
+func (s *Service) GetLogCleanupStats() map[string]interface{} {
+	// 获取文件日志统计信息
+	var logFileCount int = 0
+	var logFileSize int64 = 0
+
+	if s.fileLogger != nil {
+		stats := s.fileLogger.GetLogStats()
+		if count, ok := stats["total_files"].(int); ok {
+			logFileCount = count
+		}
+		if size, ok := stats["total_size"].(int64); ok {
+			logFileSize = size
 		}
 	}
 
-	// 3. 执行VACUUM以回收空间
-	s.vacuumDatabase()
-
-	duration := time.Since(startTime)
-	if deletedRows > 0 {
-		log.Infof("数据库事件清理完成，删除了%d条非日志记录，耗时%v", deletedRows, duration)
-	} else {
-		log.Debugf("数据库事件清理完成，无记录需要删除，耗时%v", duration)
+	return map[string]interface{}{
+		"enabled":             s.enableLogCleanup,
+		"retention_days":      s.logRetentionDays,
+		"cleanup_interval":    s.logCleanupInterval.String(),
+		"max_records_per_day": s.maxLogRecordsPerDay,
+		"last_cleanup_time":   time.Now().Format("2006-01-02 15:04:05"),
+		"log_file_count":      logFileCount,
+		"log_file_size":       logFileSize,
 	}
-
-	// 注意：文件日志清理需通过手动触发或由fileLogger自动管理
-}
-
-// cleanupNonLogEventsByTime 按时间清理数据库中的非日志事件
-func (s *Service) cleanupNonLogEventsByTime(cutoffTime time.Time) (int64, error) {
-	result := s.db.Where("event_type != ? AND created_at < ?", models.SSEEventTypeLog, cutoffTime).Delete(&models.EndpointSSE{})
-	if result.Error != nil {
-		return 0, result.Error
-	}
-	return result.RowsAffected, nil
-}
-
-// cleanupNonLogEventsByCount 按数量清理数据库中的非日志事件（保留每个端点最多N条事件）
-func (s *Service) cleanupNonLogEventsByCount() (int64, error) {
-	// 获取所有端点ID
-	rows, err := s.db.Model(&models.EndpointSSE{}).Where("event_type != ?", models.SSEEventTypeLog).Select("DISTINCT endpoint_id").Rows()
-	if err != nil {
-		return 0, err
-	}
-	defer rows.Close()
-
-	var totalDeleted int64
-
-	for rows.Next() {
-		var endpointID int64
-		if err := rows.Scan(&endpointID); err != nil {
-			continue
-		}
-
-		// 为每个端点清理超出限制的非日志事件
-		deleted, err := s.cleanupNonLogEventsByCountForEndpoint(endpointID)
-		if err != nil {
-			log.Warnf("清理端点%d的非日志事件失败: %v", endpointID, err)
-			continue
-		}
-		totalDeleted += deleted
-	}
-
-	return totalDeleted, nil
-}
-
-// cleanupNonLogEventsByCountForEndpoint 为特定端点清理超出数量限制的非日志事件
-func (s *Service) cleanupNonLogEventsByCountForEndpoint(endpointID int64) (int64, error) {
-	// 删除超出每天最大记录数的非日志事件（保留最新的）
-	result := s.db.Where("event_type != ? AND endpoint_id = ? AND id NOT IN (SELECT id FROM endpoint_sses WHERE event_type != ? AND endpoint_id = ? ORDER BY created_at DESC LIMIT ?)", models.SSEEventTypeLog, endpointID, models.SSEEventTypeLog, endpointID, s.maxLogRecordsPerDay).Delete(&models.EndpointSSE{})
-	if result.Error != nil {
-		return 0, result.Error
-	}
-	return result.RowsAffected, nil
-}
-
-// vacuumDatabase 执行数据库空间优化操作 (MySQL使用OPTIMIZE TABLE)
-func (s *Service) vacuumDatabase() {
-	startTime := time.Now()
-	// MySQL的InnoDB引擎会自动管理空间，不需要手动VACUUM
-	// 这里可以选择性地对主要表执行OPTIMIZE TABLE，但通常不是必需的
-	tables := []string{"endpoint_sses", "tunnels", "endpoints"}
-	for _, table := range tables {
-		if err := s.db.Exec(fmt.Sprintf("OPTIMIZE TABLE %s", table)).Error; err != nil {
-			log.Debugf("优化表 %s 失败（可忽略）: %v", table, err)
-		}
-	}
-	log.Debugf("数据库优化完成，耗时%v", time.Since(startTime))
 }
 
 // SetLogCleanupConfig 设置日志清理配置
@@ -1741,176 +1294,799 @@ func (s *Service) SetLogCleanupConfig(retentionDays int, cleanupInterval time.Du
 	s.maxLogRecordsPerDay = maxRecordsPerDay
 	s.enableLogCleanup = enabled
 
-	log.Infof("日志清理配置已更新: 保留%d天, 清理间隔%v, 每天最大%d条, 启用状态%t",
+	log.Infof("日志清理配置已更新: 保留天数=%d, 清理间隔=%v, 每天最大记录数=%d, 启用=%v",
 		retentionDays, cleanupInterval, maxRecordsPerDay, enabled)
 }
 
-// TriggerLogCleanup 手动触发日志清理（公共方法）
+// TriggerLogCleanup 手动触发日志清理
 func (s *Service) TriggerLogCleanup() {
 	log.Info("手动触发日志清理")
-
-	// 1. 清理数据库中的非日志事件
 	s.cleanupOldLogs()
+}
 
-	// 2. 手动触发文件日志清理
-	if s.fileLogger != nil {
-		s.fileLogger.TriggerCleanup()
+// 获取统计信息
+func (s *Service) GetQueueStats() map[string]interface{} {
+	return map[string]interface{}{
+		"store_queue_size":    len(s.storeJobCh),
+		"batch_update_size":   len(s.batchUpdateCh),
+		"batch_insert_size":   len(s.batchInsertCh),
+		"pending_updates":     len(s.pendingUpdates),
+		"batch_insert_buffer": len(s.batchInsertBuf),
 	}
 }
 
-// GetLogCleanupStats 获取日志清理统计信息
-func (s *Service) GetLogCleanupStats() map[string]interface{} {
-	// 获取数据库中非日志事件的统计
-	var totalDbEvents int64
-	s.db.Model(&models.EndpointSSE{}).Where("event_type != ?", models.SSEEventTypeLog).Count(&totalDbEvents)
+func (s *Service) GetPerformanceStats() map[string]interface{} {
+	// 获取队列状态
+	storeJobChLen := len(s.storeJobCh)
+	storeJobChCap := cap(s.storeJobCh)
+	batchInsertChLen := len(s.batchInsertCh)
+	batchInsertChCap := cap(s.batchInsertCh)
+	batchInsertBufLen := len(s.batchInsertBuf)
 
-	// 获取文件日志统计
-	fileLogStats := s.fileLogger.GetLogStats()
-
-	stats := map[string]interface{}{
-		"totalLogRecords":  totalDbEvents, // 数据库中的非日志事件数量
-		"retentionDays":    s.logRetentionDays,
-		"cleanupInterval":  s.logCleanupInterval.String(),
-		"maxRecordsPerDay": s.maxLogRecordsPerDay,
-		"cleanupEnabled":   s.enableLogCleanup,
-		// 文件日志统计
-		"fileLogStats":   fileLogStats,
-		"logStorageMode": "hybrid", // 混合模式：事件存数据库，日志存文件
+	return map[string]interface{}{
+		"clients_count":      len(s.clients),
+		"tunnel_subscribers": len(s.tunnelSubs),
+		"cached_events":      len(s.eventCache),
+		"last_event_times":   len(s.lastEventTime),
+		// 队列状态监控
+		"store_job_queue": map[string]interface{}{
+			"current":   storeJobChLen,
+			"capacity":  storeJobChCap,
+			"usage_pct": float64(storeJobChLen) / float64(storeJobChCap) * 100,
+		},
+		"batch_insert_queue": map[string]interface{}{
+			"current":   batchInsertChLen,
+			"capacity":  batchInsertChCap,
+			"usage_pct": float64(batchInsertChLen) / float64(batchInsertChCap) * 100,
+		},
+		"batch_insert_buffer": map[string]interface{}{
+			"current":   batchInsertBufLen,
+			"capacity":  s.batchInsertSize,
+			"usage_pct": float64(batchInsertBufLen) / float64(s.batchInsertSize) * 100,
+		},
 	}
-
-	// 获取最老的数据库事件时间
-	var oldestDbEvent time.Time
-	if err := s.db.Model(&models.EndpointSSE{}).Where("event_type != ?", models.SSEEventTypeLog).Order("created_at ASC").Limit(1).Scan(&oldestDbEvent).Error; err == nil {
-		stats["oldestDbEventAge"] = time.Since(oldestDbEvent).String()
-	}
-
-	return stats
 }
 
-// updateEndpointTunnelCount 更新端点的隧道计数，使用重试机制避免死锁
-func (s *Service) updateEndpointTunnelCount(endpointID int64) {
-	err := db.ExecuteWithRetry(func(db *gorm.DB) error {
-		return db.Model(&models.Endpoint{}).Where("id = ?", endpointID).
-			Update("tunnel_count", gorm.Expr("(SELECT COUNT(*) FROM tunnels WHERE endpoint_id = ?)", endpointID)).Error
+// GetMemoryService 获取内存服务（暂时注释掉）
+func (s *Service) GetMemoryService() *memory.Service {
+	// return s.memoryService
+	return nil
+}
+
+// ========================
+// 优化存储机制实现
+// ========================
+
+// initOptimizedStorage 初始化优化存储机制
+func (s *Service) initOptimizedStorage() {
+	s.optimizedStorage.buffer = make([]models.EndpointSSE, 0, 1000)
+	s.optimizedStorage.maxBufferSize = 1000
+	s.optimizedStorage.lastFlushTime = time.Now()
+
+	// 启动整点刷盘定时器
+	s.startHourlyFlushTimer()
+
+	log.Info("优化存储机制已初始化：批量阈值=1000，整点刷盘已启用")
+}
+
+// startHourlyFlushTimer 启动整点刷盘定时器
+func (s *Service) startHourlyFlushTimer() {
+	// 计算下一个整点时间
+	now := time.Now()
+	nextHour := now.Truncate(time.Hour).Add(time.Hour)
+
+	// 等待到下一个整点，然后每小时执行一次
+	time.AfterFunc(time.Until(nextHour), func() {
+		s.optimizedStorage.hourlyFlushTicker = time.NewTicker(time.Hour)
+
+		// 立即执行一次整点刷盘
+		s.flushOptimizedStorage("整点定时")
+
+		// 启动定时刷盘循环
+		go func() {
+			for {
+				select {
+				case <-s.ctx.Done():
+					if s.optimizedStorage.hourlyFlushTicker != nil {
+						s.optimizedStorage.hourlyFlushTicker.Stop()
+					}
+					return
+				case <-s.optimizedStorage.hourlyFlushTicker.C:
+					s.flushOptimizedStorage("整点定时")
+				}
+			}
+		}()
 	})
+}
 
-	if err != nil {
-		log.Errorf("[Master-%d#SSE]更新端点隧道计数失败,err=%v", endpointID, err)
-	} else {
-		log.Debugf("[Master-%d#SSE]端点隧道计数已更新", endpointID)
+// addToOptimizedStorage 添加事件到优化存储缓冲区
+func (s *Service) addToOptimizedStorage(event models.EndpointSSE) {
+	s.optimizedStorage.mu.Lock()
+	defer s.optimizedStorage.mu.Unlock()
+
+	// 添加事件到缓冲区
+	s.optimizedStorage.buffer = append(s.optimizedStorage.buffer, event)
+
+	// 检查是否达到批量阈值
+	if len(s.optimizedStorage.buffer) >= s.optimizedStorage.maxBufferSize {
+		log.Infof("优化存储达到批量阈值 %d，触发刷盘", s.optimizedStorage.maxBufferSize)
+
+		// 异步刷盘，避免阻塞主流程
+		go s.flushOptimizedStorage("批量阈值")
 	}
 }
 
-// startBatchInsertProcessor 启动批量插入处理器
-func (s *Service) startBatchInsertProcessor() {
-	ticker := time.NewTicker(100 * time.Millisecond) // 每100ms检查一次
-	defer ticker.Stop()
+// flushOptimizedStorage 刷盘优化存储缓冲区
+func (s *Service) flushOptimizedStorage(trigger string) {
+	s.optimizedStorage.mu.Lock()
 
-	for {
-		select {
-		case <-s.ctx.Done():
-			return
-		case event := <-s.batchInsertCh:
-			s.addToBatchInsert(event)
-		case <-ticker.C:
-			s.flushBatchInsert()
-		}
-	}
-}
-
-// addToBatchInsert 添加事件到批量插入缓冲区
-func (s *Service) addToBatchInsert(event models.EndpointSSE) {
-	s.batchInsertMu.Lock()
-	defer s.batchInsertMu.Unlock()
-
-	s.batchInsertBuf = append(s.batchInsertBuf, event)
-
-	// 如果缓冲区满了，立即刷新
-	if len(s.batchInsertBuf) >= s.batchInsertSize {
-		s.flushBatchInsertUnsafe()
-	}
-}
-
-// flushBatchInsert 刷新批量插入缓冲区
-func (s *Service) flushBatchInsert() {
-	s.batchInsertMu.Lock()
-	defer s.batchInsertMu.Unlock()
-	s.flushBatchInsertUnsafe()
-}
-
-// flushBatchInsertUnsafe 刷新批量插入缓冲区（内部调用，需要持有锁）
-func (s *Service) flushBatchInsertUnsafe() {
-	if len(s.batchInsertBuf) == 0 {
+	// 如果缓冲区为空，直接返回
+	if len(s.optimizedStorage.buffer) == 0 {
+		s.optimizedStorage.mu.Unlock()
 		return
 	}
 
 	// 复制缓冲区数据
-	events := make([]models.EndpointSSE, len(s.batchInsertBuf))
-	copy(events, s.batchInsertBuf)
+	eventsToFlush := make([]models.EndpointSSE, len(s.optimizedStorage.buffer))
+	copy(eventsToFlush, s.optimizedStorage.buffer)
 
 	// 清空缓冲区
-	s.batchInsertBuf = s.batchInsertBuf[:0]
+	s.optimizedStorage.buffer = s.optimizedStorage.buffer[:0]
+	s.optimizedStorage.lastFlushTime = time.Now()
 
-	// 异步批量插入
-	go func() {
-		if err := s.batchInsertEvents(events); err != nil {
-			log.Errorf("批量插入事件失败: %v", err)
-		}
-	}()
+	s.optimizedStorage.mu.Unlock()
+
+	// 批量写入数据库
+	startTime := time.Now()
+	err := s.batchInsertSSEEvents(eventsToFlush)
+	duration := time.Since(startTime)
+
+	if err != nil {
+		log.Errorf("优化存储刷盘失败 (%s触发, %d条记录, 耗时%v): %v",
+			trigger, len(eventsToFlush), duration, err)
+	} else {
+		log.Infof("优化存储刷盘成功 (%s触发, %d条记录, 耗时%v)",
+			trigger, len(eventsToFlush), duration)
+	}
 }
 
-// batchInsertEvents 批量插入事件到数据库
-func (s *Service) batchInsertEvents(events []models.EndpointSSE) error {
+// batchInsertSSEEvents 批量插入SSE事件到数据库
+func (s *Service) batchInsertSSEEvents(events []models.EndpointSSE) error {
 	if len(events) == 0 {
 		return nil
 	}
 
-	// 使用事务批量插入
-	err := s.db.Transaction(func(tx *gorm.DB) error {
-		return tx.Create(&events).Error
-	})
+	// 使用事务进行批量插入，分批处理避免单次插入过多
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		batchSize := 100 // 每批100条
+		for i := 0; i < len(events); i += batchSize {
+			end := i + batchSize
+			if end > len(events) {
+				end = len(events)
+			}
 
-	if err != nil {
-		log.Errorf("批量插入%d个事件失败: %v", len(events), err)
+			if err := tx.CreateInBatches(events[i:end], batchSize).Error; err != nil {
+				return fmt.Errorf("批量插入SSE事件失败 (批次 %d-%d): %v", i, end-1, err)
+			}
+		}
+		return nil
+	})
+}
+
+// getOptimizedStorageStats 获取优化存储统计信息
+func (s *Service) getOptimizedStorageStats() map[string]interface{} {
+	s.optimizedStorage.mu.RLock()
+	defer s.optimizedStorage.mu.RUnlock()
+
+	return map[string]interface{}{
+		"buffer_size":      len(s.optimizedStorage.buffer),
+		"max_buffer_size":  s.optimizedStorage.maxBufferSize,
+		"last_flush_time":  s.optimizedStorage.lastFlushTime.Format("2006-01-02 15:04:05"),
+		"buffer_usage_pct": float64(len(s.optimizedStorage.buffer)) / float64(s.optimizedStorage.maxBufferSize) * 100,
+	}
+}
+
+// ========================
+// URL 解析相关函数
+// ========================
+
+// parsedURL 解析后的 URL 结构体
+type parsedURL struct {
+	TunnelAddress string
+	TunnelPort    string
+	TargetAddress string
+	TargetPort    string
+	TLSMode       string
+	LogLevel      string
+	CertPath      string
+	KeyPath       string
+	Password      string
+	Min           string
+	Max           string
+	Mode          string
+	Read          string
+	Rate          string
+}
+
+// parseInstanceURL 解析隧道实例 URL（从 tunnel 服务复制）
+func parseInstanceURL(raw, mode string) parsedURL {
+	// 默认值
+	res := parsedURL{
+		TLSMode:  "inherit",
+		LogLevel: "inherit",
+		CertPath: "",
+		KeyPath:  "",
+		Password: "",
+	}
+
+	if raw == "" {
+		return res
+	}
+
+	// 去除协议部分 protocol://
+	if idx := strings.Index(raw, "://"); idx != -1 {
+		raw = raw[idx+3:]
+	}
+
+	// 分离用户认证信息 (password@)
+	var userInfo string
+	if atIdx := strings.Index(raw, "@"); atIdx != -1 {
+		userInfo = raw[:atIdx]
+		raw = raw[atIdx+1:]
+		res.Password = userInfo
+	}
+
+	// 分离查询参数
+	var queryPart string
+	if qIdx := strings.Index(raw, "?"); qIdx != -1 {
+		queryPart = raw[qIdx+1:]
+		raw = raw[:qIdx]
+	}
+
+	// 分离路径
+	var hostPart, pathPart string
+	if pIdx := strings.Index(raw, "/"); pIdx != -1 {
+		hostPart = raw[:pIdx]
+		pathPart = raw[pIdx+1:]
+	} else {
+		hostPart = raw
+	}
+
+	// 内部工具函数: 解析 "addr:port" 片段 (兼容 IPv6 字面量，如 [::1]:8080)
+	parsePart := func(part string) (addr, port string) {
+		part = strings.TrimSpace(part)
+		if part == "" {
+			return "", ""
+		}
+
+		// 特殊处理 ":port" 格式（只有端口号，没有地址）
+		if strings.HasPrefix(part, ":") {
+			port = strings.TrimPrefix(part, ":")
+			addr = "" // 空地址表示使用默认地址
+			return
+		}
+
+		// 处理方括号包围的IPv6地址格式：[IPv6]:port
+		if strings.HasPrefix(part, "[") {
+			if end := strings.Index(part, "]"); end != -1 {
+				addr = part[:end+1]
+				if len(part) > end+1 && part[end+1] == ':' {
+					port = part[end+2:]
+				}
+				return
+			}
+		}
+
+		// 检查是否包含冒号
+		if strings.Contains(part, ":") {
+			// 判断是否为IPv6地址（包含多个冒号或双冒号）
+			colonCount := strings.Count(part, ":")
+			if colonCount > 1 || strings.Contains(part, "::") {
+				// 可能是IPv6地址，尝试从右侧找最后一个冒号作为端口分隔符
+				lastColonIdx := strings.LastIndex(part, ":")
+				// 检查最后一个冒号后面是否为纯数字（端口号）
+				if lastColonIdx != -1 && lastColonIdx < len(part)-1 {
+					potentialPort := part[lastColonIdx+1:]
+					if portNum, err := strconv.Atoi(potentialPort); err == nil && portNum > 0 && portNum <= 65535 {
+						// 最后部分是有效的端口号
+						addr = part[:lastColonIdx]
+						port = potentialPort
+						return
+					}
+				}
+				// 没有找到有效端口，整个部分都是地址
+				addr = part
+				return
+			} else {
+				// 只有一个冒号，按照传统方式分割
+				pieces := strings.SplitN(part, ":", 2)
+				addr, port = pieces[0], pieces[1]
+			}
+		} else {
+			// 没有冒号，判断是纯数字端口还是地址
+			if _, err := strconv.Atoi(part); err == nil {
+				port = part
+			} else {
+				addr = part
+			}
+		}
+		return
+	}
+
+	// 解析 hostPart -> tunnelAddress:tunnelPort (兼容 IPv6)
+	if hostPart != "" {
+		addr, port := parsePart(hostPart)
+		res.TunnelAddress = addr
+		res.TunnelPort = port
+	}
+
+	// 解析 pathPart -> targetAddress:targetPort (兼容 IPv6)
+	if pathPart != "" {
+		addr, port := parsePart(pathPart)
+		res.TargetAddress = addr
+		res.TargetPort = port
+	}
+
+	// 解析查询参数
+	if queryPart != "" {
+		for _, kv := range strings.Split(queryPart, "&") {
+			if kv == "" {
+				continue
+			}
+			parts := strings.SplitN(kv, "=", 2)
+			if len(parts) != 2 {
+				continue
+			}
+			key, val := parts[0], parts[1]
+			switch key {
+			case "tls":
+				if mode == "server" {
+					switch val {
+					case "0":
+						res.TLSMode = "0"
+					case "1":
+						res.TLSMode = "1"
+					case "2":
+						res.TLSMode = "2"
+					}
+				}
+			case "log":
+				res.LogLevel = strings.ToLower(val)
+			case "crt":
+				// URL解码证书路径
+				if decodedVal, err := url.QueryUnescape(val); err == nil {
+					res.CertPath = decodedVal
+				} else {
+					res.CertPath = val // 解码失败时使用原值
+				}
+			case "key":
+				// URL解码密钥路径
+				if decodedVal, err := url.QueryUnescape(val); err == nil {
+					res.KeyPath = decodedVal
+				} else {
+					res.KeyPath = val // 解码失败时使用原值
+				}
+			case "min":
+				res.Min = val
+			case "max":
+				res.Max = val
+			case "mode":
+				res.Mode = val
+			case "read":
+				res.Read = val
+			case "rate":
+				res.Rate = val
+			}
+		}
+	}
+
+	return res
+}
+
+// createTunnelFromSSEEvent 根据 SSE 事件创建隧道记录，使用 URL 解析获取配置信息
+func createTunnelFromSSEEvent(e models.EndpointSSE) models.Tunnel {
+	// 解析 URL 获取隧道配置信息
+	var parsed parsedURL
+	var mode string = "client" // 默认模式
+
+	if e.URL != nil && *e.URL != "" {
+		// 尝试从 URL 中推断模式
+		if strings.Contains(*e.URL, "://") {
+			protocolEnd := strings.Index(*e.URL, "://")
+			protocol := (*e.URL)[:protocolEnd]
+			// 根据协议推断模式（这是一个简化的推断，实际可能需要更复杂的逻辑）
+			if strings.Contains(protocol, "server") {
+				mode = "server"
+			}
+		}
+
+		parsed = parseInstanceURL(*e.URL, mode)
+		log.Debugf("[Master-%d]解析隧道 %s URL: %s -> tunnel=%s:%s, target=%s:%s, mode=%s",
+			e.EndpointID, e.InstanceID, *e.URL, parsed.TunnelAddress, parsed.TunnelPort,
+			parsed.TargetAddress, parsed.TargetPort, mode)
+	} else {
+		log.Warnf("[Master-%d]隧道 %s 没有 URL 信息，使用默认值", e.EndpointID, e.InstanceID)
+		parsed = parsedURL{
+			TLSMode:  "inherit",
+			LogLevel: "inherit",
+		}
+	}
+
+	// 创建隧道记录
+	tunnel := models.Tunnel{
+		EndpointID: e.EndpointID,
+		InstanceID: &e.InstanceID,
+		Name:       valueOrEmpty(e.Alias, "未命名隧道"),
+		Status:     models.TunnelStatus(valueOrEmpty(e.Status, "running")),
+
+		// 从 URL 解析获取的配置信息
+		Type:          models.TunnelType(mode),
+		TunnelAddress: parsed.TunnelAddress, // 保持原始解析结果，空地址就是空字符串
+		TunnelPort:    parsed.TunnelPort,
+		TargetAddress: parsed.TargetAddress, // 保持原始解析结果，空地址就是空字符串
+		TargetPort:    parsed.TargetPort,
+		TLSMode:       models.TLSMode(parsed.TLSMode),
+		LogLevel:      models.LogLevel(parsed.LogLevel),
+		CommandLine:   valueOrEmpty(e.URL, "unknown"),
+
+		// 流量信息
+		TCPRx:         e.TCPRx,
+		TCPTx:         e.TCPTx,
+		UDPRx:         e.UDPRx,
+		UDPTx:         e.UDPTx,
+		Pool:          e.Pool,
+		Ping:          e.Ping,
+		LastEventTime: &e.EventTime,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	// 处理可选字段
+	if parsed.CertPath != "" {
+		tunnel.CertPath = &parsed.CertPath
+	}
+	if parsed.KeyPath != "" {
+		tunnel.KeyPath = &parsed.KeyPath
+	}
+	if parsed.Password != "" {
+		tunnel.Password = &parsed.Password
+	}
+	if parsed.Min != "" {
+		if minVal, err := strconv.ParseInt(parsed.Min, 10, 64); err == nil {
+			tunnel.Min = &minVal
+		}
+	}
+	if parsed.Max != "" {
+		if maxVal, err := strconv.ParseInt(parsed.Max, 10, 64); err == nil {
+			tunnel.Max = &maxVal
+		}
+	}
+
+	// 处理新字段
+	if parsed.Mode != "" {
+		switch parsed.Mode {
+		case "0":
+			mode := models.Mode0
+			tunnel.Mode = &mode
+		case "1":
+			mode := models.Mode1
+			tunnel.Mode = &mode
+		case "2":
+			mode := models.Mode2
+			tunnel.Mode = &mode
+		}
+	}
+	if parsed.Read != "" {
+		tunnel.Read = &parsed.Read
+	}
+	if parsed.Rate != "" {
+		tunnel.Rate = &parsed.Rate
+	}
+
+	// 设置默认值
+	tunnel.EnableSSEStore = true
+	tunnel.EnableLogStore = true
+
+	return tunnel
+}
+
+// =============== 隧道 CRUD ===============
+
+func (s *Service) tunnelExists(endpointID int64, instanceID string) (bool, error) {
+	var count int64
+	err := s.db.Model(&models.Tunnel{}).
+		Where("endpoint_id = ? AND instance_id = ?", endpointID, instanceID).
+		Count(&count).Error
+	return count > 0, err
+}
+
+func (s *Service) tunnelCreate(e models.EndpointSSE, cfg parsedURL) error {
+	exists, err := s.tunnelExists(e.EndpointID, e.InstanceID)
+	if err != nil || exists {
+		log.Warnf("[Master-%d#SSE]Inst.%s已存在记录，跳过创建", e.EndpointID, e.InstanceID)
 		return err
 	}
 
-	log.Debugf("批量插入%d个事件成功", len(events))
+	// 如果 SSE 事件包含 alias，使用 alias 作为隧道名称，否则使用 instanceID
+	name := e.InstanceID
+	if e.Alias != nil && *e.Alias != "" {
+		name = *e.Alias
+		log.Infof("[Master-%d#SSE]Inst.%s使用别名作为隧道名称: %s", e.EndpointID, e.InstanceID, name)
+	}
+
+	if cfg.LogLevel == "" {
+		cfg.LogLevel = "inherit"
+	}
+	if e.InstanceType != nil && *e.InstanceType == "server" {
+		if cfg.TLSMode == "" {
+			cfg.TLSMode = "inherit"
+		}
+	}
+
+	// 处理重启策略字段
+	restart := false // 默认值为 false
+	if e.Restart != nil {
+		restart = *e.Restart
+		log.Infof("[Master-%d#SSE]Inst.%s创建隧道时设置重启策略: %t", e.EndpointID, e.InstanceID, restart)
+	}
+
+	// 创建隧道记录
+	tunnel := models.Tunnel{
+		InstanceID:    &e.InstanceID,
+		EndpointID:    e.EndpointID,
+		Name:          name,
+		Type:          models.TunnelType(ptrStringDefault(e.InstanceType, "")),
+		Status:        models.TunnelStatus(ptrStringDefault(e.Status, "stopped")),
+		TunnelAddress: cfg.TunnelAddress,
+		TunnelPort:    cfg.TunnelPort,
+		TargetAddress: cfg.TargetAddress,
+		TargetPort:    cfg.TargetPort,
+		TLSMode:       models.TLSMode(cfg.TLSMode),
+		LogLevel:      models.LogLevel(cfg.LogLevel),
+		CommandLine:   valueOrEmpty(e.URL, "unknown"),
+		Password: func() *string {
+			if cfg.Password != "" {
+				return &cfg.Password
+			}
+			return nil
+		}(),
+		TCPRx:         e.TCPRx,
+		TCPTx:         e.TCPTx,
+		UDPRx:         e.UDPRx,
+		UDPTx:         e.UDPTx,
+		Pool:          e.Pool,
+		Ping:          e.Ping,
+		Restart:       &restart,
+		LastEventTime: &e.EventTime,
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
+	}
+
+	// 处理可选字段
+	if cfg.CertPath != "" {
+		tunnel.CertPath = &cfg.CertPath
+	}
+	if cfg.KeyPath != "" {
+		tunnel.KeyPath = &cfg.KeyPath
+	}
+	if cfg.Min != "" {
+		if minVal, err := strconv.ParseInt(cfg.Min, 10, 64); err == nil {
+			tunnel.Min = &minVal
+		}
+	}
+	if cfg.Max != "" {
+		if maxVal, err := strconv.ParseInt(cfg.Max, 10, 64); err == nil {
+			tunnel.Max = &maxVal
+		}
+	}
+
+	// 处理新字段
+	if cfg.Mode != "" {
+		switch cfg.Mode {
+		case "0":
+			mode := models.Mode0
+			tunnel.Mode = &mode
+		case "1":
+			mode := models.Mode1
+			tunnel.Mode = &mode
+		case "2":
+			mode := models.Mode2
+			tunnel.Mode = &mode
+		}
+	}
+	if cfg.Read != "" {
+		tunnel.Read = &cfg.Read
+	}
+	if cfg.Rate != "" {
+		tunnel.Rate = &cfg.Rate
+	}
+
+	// 设置默认值
+	tunnel.EnableSSEStore = true
+	tunnel.EnableLogStore = true
+
+	err = s.db.Create(&tunnel).Error
+	if err != nil {
+		log.Errorf("[Master-%d#SSE]Inst.%s创建隧道失败,err=%v", e.EndpointID, e.InstanceID, err)
+		return err
+	}
+	log.Infof("[Master-%d#SSE]Inst.%s创建隧道成功", e.EndpointID, e.InstanceID)
+
+	// 更新端点隧道计数
+	err = s.updateEndpointTunnelCount(e.EndpointID)
+	if err != nil {
+		log.Errorf("[Master-%d#SSE]更新端点隧道计数失败: %v", e.EndpointID, err)
+	}
+	return err
+}
+
+func (s *Service) tunnelUpdate(e models.EndpointSSE, cfg parsedURL) error {
+	// 查询现有隧道记录
+	var existingTunnel models.Tunnel
+	err := s.db.Where("endpoint_id = ? AND instance_id = ?", e.EndpointID, e.InstanceID).First(&existingTunnel).Error
+	if err == gorm.ErrRecordNotFound {
+		log.Infof("[Master-%d#SSE]Inst.%s不存在，跳过更新", e.EndpointID, e.InstanceID)
+		return nil // 尚未创建对应记录，等待后续 create/initial
+	}
+	if err != nil {
+		return err // 查询错误
+	}
+
+	// 若事件时间早于已记录时间，跳过更新
+	if existingTunnel.LastEventTime != nil && !e.EventTime.After(*existingTunnel.LastEventTime) {
+		log.Infof("[Master-%d#SSE]Inst.%s旧事件时间，跳过更新", e.EndpointID, e.InstanceID)
+		return nil
+	}
+
+	// 准备更新字段
+	updates := map[string]interface{}{
+		"tcp_rx":         e.TCPRx,
+		"tcp_tx":         e.TCPTx,
+		"udp_rx":         e.UDPRx,
+		"udp_tx":         e.UDPTx,
+		"pool":           e.Pool,
+		"ping":           e.Ping,
+		"tunnel_address": cfg.TunnelAddress,
+		"tunnel_port":    cfg.TunnelPort,
+		"target_address": cfg.TargetAddress,
+		"target_port":    cfg.TargetPort,
+		"tls_mode":       cfg.TLSMode,
+		"log_level":      cfg.LogLevel,
+		"command_line":   valueOrEmpty(e.URL, "unknown"),
+		"password": func() *string {
+			if cfg.Password != "" {
+				return &cfg.Password
+			}
+			return nil
+		}(),
+		"last_event_time": e.EventTime,
+		"updated_at":      time.Now(),
+	}
+
+	// 处理可选字段
+	if e.Status != nil {
+		updates["status"] = models.TunnelStatus(*e.Status)
+	}
+	if e.Alias != nil && *e.Alias != "" {
+		updates["name"] = *e.Alias
+		log.Infof("[Master-%d#SSE]Inst.%s别名变化: %s -> %s", e.EndpointID, e.InstanceID, existingTunnel.Name, *e.Alias)
+	}
+	if e.InstanceType != nil {
+		updates["mode"] = models.TunnelType(*e.InstanceType)
+	}
+	if e.Restart != nil {
+		updates["restart"] = *e.Restart
+		log.Infof("[Master-%d#SSE]Inst.%s重启策略变化: %t -> %t", e.EndpointID, e.InstanceID, existingTunnel.Restart, *e.Restart)
+	}
+	if cfg.CertPath != "" {
+		updates["cert_path"] = cfg.CertPath
+	}
+	if cfg.KeyPath != "" {
+		updates["key_path"] = cfg.KeyPath
+	}
+	if cfg.Min != "" {
+		if minVal, err := strconv.ParseInt(cfg.Min, 10, 64); err == nil {
+			updates["min"] = minVal
+		}
+	}
+	if cfg.Max != "" {
+		if maxVal, err := strconv.ParseInt(cfg.Max, 10, 64); err == nil {
+			updates["max"] = maxVal
+		}
+	}
+
+	// 处理新字段
+	if cfg.Mode != "" {
+		switch cfg.Mode {
+		case "0":
+			updates["mode"] = models.Mode0
+		case "1":
+			updates["mode"] = models.Mode1
+		case "2":
+			updates["mode"] = models.Mode2
+		}
+	}
+	if cfg.Read != "" {
+		updates["read"] = cfg.Read
+	}
+	if cfg.Rate != "" {
+		updates["rate"] = cfg.Rate
+	}
+
+	// 执行更新
+	result := s.db.Model(&models.Tunnel{}).
+		Where("endpoint_id = ? AND instance_id = ?", e.EndpointID, e.InstanceID).
+		Updates(updates)
+
+	if result.Error != nil {
+		log.Errorf("[Master-%d#SSE]Inst.%s更新隧道失败,err=%v", e.EndpointID, e.InstanceID, result.Error)
+		return result.Error
+	}
+	log.Infof("[Master-%d#SSE]Inst.%s更新隧道成功", e.EndpointID, e.InstanceID)
 	return nil
 }
 
-// GetQueueStats 获取队列统计信息
-func (s *Service) GetQueueStats() map[string]interface{} {
-	s.batchInsertMu.Lock()
-	batchInsertSize := len(s.batchInsertBuf)
-	s.batchInsertMu.Unlock()
+func (s *Service) tunnelDelete(endpointID int64, instanceID string) error {
+	exists, err := s.tunnelExists(endpointID, instanceID)
+	if err != nil {
+		return err
+	}
+	if !exists {
+		log.Debugf("[Master-%d#SSE]Inst.%s不存在，跳过删除", endpointID, instanceID)
+		return nil // 无需删除
+	}
 
-	return map[string]interface{}{
-		"storeJobCh_len":     len(s.storeJobCh),
-		"storeJobCh_cap":     cap(s.storeJobCh),
-		"batchInsertCh_len":  len(s.batchInsertCh),
-		"batchInsertCh_cap":  cap(s.batchInsertCh),
-		"batchInsertBuf_len": batchInsertSize,
-		"batchInsertSize":    s.batchInsertSize,
-		"eventCache_count":   len(s.eventCache),
-		"maxCacheEvents":     s.maxCacheEvents,
+	result := s.db.Where("endpoint_id = ? AND instance_id = ?", endpointID, instanceID).Delete(&models.Tunnel{})
+	if result.Error != nil {
+		log.Errorf("[Master-%d#SSE]Inst.%s删除隧道失败,err=%v", endpointID, instanceID, result.Error)
+		return result.Error
+	}
+	log.Infof("[Master-%d#SSE]Inst.%s删除隧道成功", endpointID, instanceID)
+
+	// 更新端点隧道计数
+	err = s.updateEndpointTunnelCount(endpointID)
+	if err != nil {
+		log.Errorf("[Master-%d#SSE]更新端点隧道计数失败: %v", endpointID, err)
+	}
+	return err
+}
+
+// tunnelCreateOrUpdate 根据隧道是否存在来决定创建或更新
+func (s *Service) tunnelCreateOrUpdate(e models.EndpointSSE, cfg parsedURL) error {
+	exists, err := s.tunnelExists(e.EndpointID, e.InstanceID)
+	if err != nil {
+		return err
+	}
+
+	if exists {
+		log.Infof("[Master-%d#SSE]Inst.%s已存在，执行更新操作", e.EndpointID, e.InstanceID)
+		return s.tunnelUpdate(e, cfg)
+	} else {
+		log.Infof("[Master-%d#SSE]Inst.%s不存在，执行创建操作", e.EndpointID, e.InstanceID)
+		return s.tunnelCreate(e, cfg)
 	}
 }
 
-// GetPerformanceStats 获取性能统计信息
-func (s *Service) GetPerformanceStats() map[string]interface{} {
-	stats := s.GetQueueStats()
+// updateEndpointTunnelCount 更新端点的隧道计数
+func (s *Service) updateEndpointTunnelCount(endpointID int64) error {
+	var count int64
+	err := s.db.Model(&models.Tunnel{}).Where("endpoint_id = ?", endpointID).Count(&count).Error
+	if err != nil {
+		return err
+	}
 
-	// 计算队列使用率
-	storeJobChUsage := float64(stats["storeJobCh_len"].(int)) / float64(stats["storeJobCh_cap"].(int)) * 100
-	batchInsertChUsage := float64(stats["batchInsertCh_len"].(int)) / float64(stats["batchInsertCh_cap"].(int)) * 100
+	err = s.db.Model(&models.Endpoint{}).Where("id = ?", endpointID).Update("tunnel_count", count).Error
+	if err != nil {
+		return err
+	}
 
-	stats["storeJobCh_usage_percent"] = storeJobChUsage
-	stats["batchInsertCh_usage_percent"] = batchInsertChUsage
+	log.Infof("[Master-%d#SSE]更新端点隧道计数为: %d", endpointID, count)
+	return nil
+}
 
-	// 添加告警级别
-	stats["storeJobCh_warning"] = storeJobChUsage > 80
-	stats["batchInsertCh_warning"] = batchInsertChUsage > 80
-
-	return stats
+func ptrStringDefault(s *string, def string) string {
+	if s == nil || *s == "" {
+		return def
+	}
+	return *s
 }

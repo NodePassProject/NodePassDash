@@ -85,7 +85,6 @@ func (h *EndpointHandler) HandleCreateEndpoint(w http.ResponseWriter, r *http.Re
 	req.URL = strings.TrimSpace(req.URL)
 	req.APIPath = strings.TrimSpace(req.APIPath)
 	req.APIKey = strings.TrimSpace(req.APIKey)
-	req.Color = strings.TrimSpace(req.Color)
 
 	// 验证请求数据
 	if req.Name == "" || req.URL == "" || req.APIPath == "" || req.APIKey == "" {
@@ -1145,12 +1144,32 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 					log.Infof("[API] 端点 %d 更新：使用别名作为隧道名称: %s -> %s", endpointID, inst.ID, name)
 				}
 
+				// 处理新字段的默认值
+				enableSSEStore := true
+				enableLogStore := true
+
+				// 处理Mode字段的类型转换
+				var modePtr *models.TunnelMode
+				if parsed.Mode != "" {
+					switch parsed.Mode {
+					case "0":
+						mode := models.Mode0
+						modePtr = &mode
+					case "1":
+						mode := models.Mode1
+						modePtr = &mode
+					case "2":
+						mode := models.Mode2
+						modePtr = &mode
+					}
+				}
+
 				// 创建新隧道记录
 				newTunnel := models.Tunnel{
 					InstanceID:    &inst.ID,
 					Name:          name,
 					EndpointID:    endpointID,
-					Mode:          models.TunnelMode(inst.Type),
+					Type:          models.TunnelType(inst.Type),
 					TunnelAddress: parsed.TunnelAddress,
 					TunnelPort:    fmt.Sprintf("%d", convPort(parsed.TunnelPort)),
 					TargetAddress: parsed.TargetAddress,
@@ -1163,7 +1182,22 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 					TCPTx:         inst.TCPTx,
 					UDPRx:         inst.UDPRx,
 					UDPTx:         inst.UDPTx,
-					Restart:       inst.Restart,
+					Restart:       &inst.Restart,
+					Mode:          modePtr, // 新增：运行模式
+					Read: func() *string { // 新增：数据读取超时时间
+						if parsed.Read != "" {
+							return &parsed.Read
+						}
+						return nil
+					}(),
+					Rate: func() *string { // 新增：带宽速率限制
+						if parsed.Rate != "" {
+							return &parsed.Rate
+						}
+						return nil
+					}(),
+					EnableSSEStore: enableSSEStore, // 新增：是否启用SSE存储
+					EnableLogStore: enableLogStore, // 新增：是否启用日志存储
 				}
 
 				// 处理可选字段
@@ -1203,9 +1237,26 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 					nameParam = nil
 				}
 
+				// 处理新字段的更新值
+				var modeVal interface{}
+				if parsed.Mode != "" {
+					switch parsed.Mode {
+					case "0":
+						modeVal = models.Mode0
+					case "1":
+						modeVal = models.Mode1
+					case "2":
+						modeVal = models.Mode2
+					default:
+						modeVal = nil
+					}
+				} else {
+					modeVal = nil
+				}
+
 				// 准备更新数据
 				updateData := map[string]interface{}{
-					"mode":           models.TunnelMode(inst.Type),
+					"mode":           models.TunnelType(inst.Type),
 					"tunnel_address": parsed.TunnelAddress,
 					"tunnel_port":    fmt.Sprintf("%d", convPort(parsed.TunnelPort)),
 					"target_address": parsed.TargetAddress,
@@ -1219,6 +1270,21 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 					"udp_rx":         inst.UDPRx,
 					"udp_tx":         inst.UDPTx,
 					"restart":        inst.Restart,
+					"tunnel_mode":    modeVal, // 新增：运行模式（使用不同的键名避免冲突）
+					"read": func() interface{} { // 新增：数据读取超时时间
+						if parsed.Read != "" {
+							return parsed.Read
+						}
+						return nil
+					}(),
+					"rate": func() interface{} { // 新增：带宽速率限制
+						if parsed.Rate != "" {
+							return parsed.Rate
+						}
+						return nil
+					}(),
+					"enable_sse_store": true, // 新增：是否启用SSE存储
+					"enable_log_store": true, // 新增：是否启用日志存储
 				}
 
 				// 处理可选字段
@@ -1312,6 +1378,9 @@ func parseInstanceURL(raw, mode string) struct {
 	Password      string
 	Min           string
 	Max           string
+	Mode          string
+	Read          string
+	Rate          string
 } {
 	type parsedURL struct {
 		TunnelAddress string
@@ -1325,6 +1394,9 @@ func parseInstanceURL(raw, mode string) struct {
 		Password      string
 		Min           string
 		Max           string
+		Mode          string
+		Read          string
+		Rate          string
 	}
 
 	res := parsedURL{TLSMode: "inherit", LogLevel: "inherit", Password: ""}
@@ -1445,11 +1517,11 @@ func parseInstanceURL(raw, mode string) struct {
 				if mode == "server" {
 					switch val {
 					case "0":
-						res.TLSMode = "mode0"
+						res.TLSMode = "0"
 					case "1":
-						res.TLSMode = "mode1"
+						res.TLSMode = "1"
 					case "2":
-						res.TLSMode = "mode2"
+						res.TLSMode = "2"
 					}
 				}
 			case "log":
@@ -1472,6 +1544,12 @@ func parseInstanceURL(raw, mode string) struct {
 				res.Min = val
 			case "max":
 				res.Max = val
+			case "mode":
+				res.Mode = val
+			case "read":
+				res.Read = val
+			case "rate":
+				res.Rate = val
 			}
 		}
 	}

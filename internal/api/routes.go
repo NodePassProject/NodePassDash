@@ -4,7 +4,7 @@ import (
 	"NodePassDash/internal/auth"
 	"NodePassDash/internal/dashboard"
 	"NodePassDash/internal/endpoint"
-	"NodePassDash/internal/instance"
+	"NodePassDash/internal/metrics"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tag"
 	"NodePassDash/internal/tunnel"
@@ -17,17 +17,17 @@ import (
 
 // Router API 路由器
 type Router struct {
-	router           *mux.Router
-	authHandler      *AuthHandler
-	endpointHandler  *EndpointHandler
-	instanceHandler  *InstanceHandler
-	tunnelHandler    *TunnelHandler
-	tagHandler       *TagHandler
-	sseHandler       *SSEHandler
-	dashboardHandler *DashboardHandler
-	dataHandler      *DataHandler
-	versionHandler   *VersionHandler
-	groupHandler     *GroupHandler
+	router               *mux.Router
+	authHandler          *AuthHandler
+	endpointHandler      *EndpointHandler
+	tunnelHandler        *TunnelHandler
+	tunnelMetricsHandler *TunnelMetricsHandler
+	tagHandler           *TagHandler
+	sseHandler           *SSEHandler
+	dashboardHandler     *DashboardHandler
+	dataHandler          *DataHandler
+	versionHandler       *VersionHandler
+	groupHandler         *GroupHandler
 }
 
 // NewRouter 创建路由器实例
@@ -40,7 +40,6 @@ func NewRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager) *R
 	// 创建（或复用）服务实例
 	authService := auth.NewService(db)
 	endpointService := endpoint.NewService(db)
-	instanceService := instance.NewService(db)
 	tunnelService := tunnel.NewService(db)
 	tagService := tag.NewService(db)
 
@@ -55,8 +54,13 @@ func NewRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager) *R
 	// 创建处理器实例
 	authHandler := NewAuthHandler(authService)
 	endpointHandler := NewEndpointHandler(endpointService, sseManager)
-	instanceHandler := NewInstanceHandler(instanceService, endpointService)
 	tunnelHandler := NewTunnelHandler(tunnelService, sseManager)
+
+	// 创建 Metrics 系统相关的处理器 (简化版，不依赖完整的增强系统)
+	metricsAggregator := metrics.NewMetricsAggregator(db)
+	sseProcessor := metrics.NewSSEProcessor(metricsAggregator)
+	tunnelMetricsHandler := NewTunnelMetricsHandler(tunnelService, sseProcessor)
+
 	tagHandler := NewTagHandler(tagService)
 	sseHandler := NewSSEHandler(sseService, sseManager)
 	dataHandler := NewDataHandler(db, sseManager, endpointService, tunnelService)
@@ -65,17 +69,17 @@ func NewRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager) *R
 	groupHandler := NewGroupHandler(db)
 
 	r := &Router{
-		router:           router,
-		authHandler:      authHandler,
-		endpointHandler:  endpointHandler,
-		instanceHandler:  instanceHandler,
-		tunnelHandler:    tunnelHandler,
-		tagHandler:       tagHandler,
-		sseHandler:       sseHandler,
-		dashboardHandler: dashboardHandler,
-		dataHandler:      dataHandler,
-		versionHandler:   versionHandler,
-		groupHandler:     groupHandler,
+		router:               router,
+		authHandler:          authHandler,
+		endpointHandler:      endpointHandler,
+		tunnelHandler:        tunnelHandler,
+		tunnelMetricsHandler: tunnelMetricsHandler,
+		tagHandler:           tagHandler,
+		sseHandler:           sseHandler,
+		dashboardHandler:     dashboardHandler,
+		dataHandler:          dataHandler,
+		versionHandler:       versionHandler,
+		groupHandler:         groupHandler,
 	}
 
 	// 注册路由
@@ -136,9 +140,9 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/recycle", r.endpointHandler.HandleRecycleClearAll).Methods("DELETE")
 
 	// 实例相关路由
-	r.router.HandleFunc("/api/endpoints/{endpointId}/instances", r.instanceHandler.HandleGetInstances).Methods("GET")
-	r.router.HandleFunc("/api/endpoints/{endpointId}/instances/{instanceId}", r.instanceHandler.HandleGetInstance).Methods("GET")
-	r.router.HandleFunc("/api/endpoints/{endpointId}/instances/{instanceId}/control", r.instanceHandler.HandleControlInstance).Methods("POST")
+	r.router.HandleFunc("/api/endpoints/{endpointId}/instances", r.tunnelHandler.HandleGetInstances).Methods("GET")
+	r.router.HandleFunc("/api/endpoints/{endpointId}/instances/{instanceId}", r.tunnelHandler.HandleGetInstance).Methods("GET")
+	r.router.HandleFunc("/api/endpoints/{endpointId}/instances/{instanceId}/control", r.tunnelHandler.HandleControlInstance).Methods("POST")
 
 	// SSE 相关路由
 	r.router.HandleFunc("/api/sse/global", r.sseHandler.HandleGlobalSSE).Methods("GET")
@@ -154,8 +158,9 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/sse/log-cleanup/history", r.sseHandler.HandleLogCleanupHistory).Methods("GET")
 
 	// EndpointSSE统计和管理
-	r.router.HandleFunc("/api/sse/endpoint-stats", r.sseHandler.HandleEndpointSSEStats).Methods("GET")
-	r.router.HandleFunc("/api/sse/endpoint-clear", r.sseHandler.HandleClearEndpointSSE).Methods("DELETE")
+
+	// 队列状态监控
+	r.router.HandleFunc("/api/sse/queue-status", r.sseHandler.HandleGetQueueStatus).Methods("GET")
 
 	// 标签相关路由
 	r.router.HandleFunc("/api/tags", r.tagHandler.GetTags).Methods("GET")
@@ -189,6 +194,10 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/tunnels/{id}/traffic-trend", r.tunnelHandler.HandleGetTunnelTrafficTrend).Methods("GET")
 	r.router.HandleFunc("/api/tunnels/{id}/ping-trend", r.tunnelHandler.HandleGetTunnelPingTrend).Methods("GET")
 	r.router.HandleFunc("/api/tunnels/{id}/pool-trend", r.tunnelHandler.HandleGetTunnelPoolTrend).Methods("GET")
+
+	// 新的统一 metrics 趋势接口 - 基于 ServiceHistory 表，使用 instanceId
+	r.router.HandleFunc("/api/tunnels/{instanceId}/metrics-trend", r.tunnelMetricsHandler.HandleGetTunnelMetricsTrend).Methods("GET")
+
 	r.router.HandleFunc("/api/tunnels/{id}/export-logs", r.tunnelHandler.HandleExportTunnelLogs).Methods("GET")
 
 	// 隧道日志相关路由
@@ -207,6 +216,7 @@ func (r *Router) registerRoutes() {
 	// 仪表盘统计数据
 	r.router.HandleFunc("/api/dashboard/stats", r.dashboardHandler.HandleGetStats).Methods("GET")
 	r.router.HandleFunc("/api/dashboard/tunnel-stats", r.dashboardHandler.HandleGetTunnelStats).Methods("GET")
+	r.router.HandleFunc("/api/dashboard/overall-stats", r.dashboardHandler.HandleGetOverallStats).Methods("GET")
 
 	// 数据导入导出
 	r.router.HandleFunc("/api/data/export", r.dataHandler.HandleExport).Methods("GET")

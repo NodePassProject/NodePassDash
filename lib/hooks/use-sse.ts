@@ -1,4 +1,4 @@
-import { useEffect, useRef } from 'react';
+import { useEffect, useRef, useCallback } from 'react';
 import { buildApiUrl } from '@/lib/utils';
 
 interface SSEOptions {
@@ -10,48 +10,55 @@ interface SSEOptions {
 // 全局事件订阅 - 用于监听所有系统事件（包括隧道更新、仪表盘更新等）
 export function useGlobalSSE(options: SSEOptions = {}) {
   const eventSourceRef = useRef<EventSource | null>(null);
+  const isMountedRef = useRef(true);
+
+  // 使用 useCallback 包装回调函数，避免不必要的重新创建
+  const onMessage = useCallback(options.onMessage || (() => {}), [options.onMessage]);
+  const onError = useCallback(options.onError || (() => {}), [options.onError]);
+  const onConnected = useCallback(options.onConnected || (() => {}), [options.onConnected]);
 
   useEffect(() => {
+    isMountedRef.current = true;
     const url = buildApiUrl('/api/sse/global');
-
 
     const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
     
     eventSource.onmessage = (event) => {
+      if (!isMountedRef.current) return;
+      
       try {
         const data = JSON.parse(event.data);
         
         // 检查连接成功消息
         if (data.type === 'connected') {
-          if (options.onConnected) {
-            options.onConnected();
-          }
+          onConnected();
           return;
         }
         
-        if (options.onMessage) {
-          options.onMessage(data);
-        }
+        onMessage(data);
       } catch (error) {
-        console.error('[前端SSE] ❌ 解析全局SSE数据失败', error, '原始数据:', event.data);
+        if (isMountedRef.current) {
+          console.error('[前端SSE] ❌ 解析全局SSE数据失败', error, '原始数据:', event.data);
+        }
       }
     };
     
     eventSource.onerror = (error) => {
-      console.error(`[前端SSE] SSE连接错误`, error);
-      if (options.onError) {
-        options.onError(error);
+      if (isMountedRef.current) {
+        console.error(`[前端SSE] SSE连接错误`, error);
+        onError(error);
       }
     };
 
     return () => {
+      isMountedRef.current = false;
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
     };
-  }, []);
+  }, [onMessage, onError, onConnected]);
 
   return eventSourceRef.current;
 }
@@ -59,52 +66,59 @@ export function useGlobalSSE(options: SSEOptions = {}) {
 // 隧道事件订阅 - 用于监听特定隧道的事件
 export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
   const eventSourceRef = useRef<EventSource | null>(null);
+  const isMountedRef = useRef(true);
+
+  // 使用 useCallback 包装回调函数
+  const onMessage = useCallback(options.onMessage || (() => {}), [options.onMessage]);
+  const onError = useCallback(options.onError || (() => {}), [options.onError]);
+  const onConnected = useCallback(options.onConnected || (() => {}), [options.onConnected]);
 
   useEffect(() => {
     if (!instanceId) {
       return;
     }
 
-    // const url = `http://localhost:3000/api/sse/tunnel/${instanceId}`;
+    isMountedRef.current = true;
     const url = buildApiUrl(`/api/sse/tunnel/${instanceId}`);
 
     const eventSource = new EventSource(url);
     eventSourceRef.current = eventSource;
     
     eventSource.onmessage = (event) => {
+      if (!isMountedRef.current) return;
+      
       try {
         const data = JSON.parse(event.data);
         
         // 检查连接成功消息
         if (data.type === 'connected') {
-          if (options.onConnected) {
-            options.onConnected();
-          }
+          onConnected();
           return;
         }
         
-        if (options.onMessage) {
-          options.onMessage(data);
-        }
+        onMessage(data);
       } catch (error) {
-        console.error('[前端SSE] ❌ 解析隧道SSE数据失败', error, '原始数据:', event.data);
+        if (isMountedRef.current) {
+          console.error('[前端SSE] ❌ 解析隧道SSE数据失败', error, '原始数据:', event.data);
+        }
       }
     };
     
     eventSource.onerror = (error) => {
-      console.error(`[前端SSE] 隧道SSE连接错误`, error);
-      if (options.onError) {
-        options.onError(error);
+      if (isMountedRef.current) {
+        console.error(`[前端SSE] 隧道SSE连接错误`, error);
+        onError(error);
       }
     };
 
     return () => {
+      isMountedRef.current = false;
       if (eventSourceRef.current) {
         eventSourceRef.current.close();
         eventSourceRef.current = null;
       }
     };
-  }, [instanceId]);
+  }, [instanceId, onMessage, onError, onConnected]);
 
   return eventSourceRef.current;
 }
@@ -112,11 +126,19 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
 // NodePass主控SSE监听 - 直接连接到NodePass主控的SSE接口
 export function useNodePassSSE(endpointDetail: { url: string; apiPath: string; apiKey: string } | null, options: SSEOptions = {}) {
   const abortControllerRef = useRef<AbortController | null>(null);
+  const isMountedRef = useRef(true);
+
+  // 使用 useCallback 包装回调函数
+  const onMessage = useCallback(options.onMessage || (() => {}), [options.onMessage]);
+  const onError = useCallback(options.onError || (() => {}), [options.onError]);
+  const onConnected = useCallback(options.onConnected || (() => {}), [options.onConnected]);
 
   useEffect(() => {
     if (!endpointDetail) {
       return;
     }
+
+    isMountedRef.current = true;
 
     // 构建NodePass SSE URL: {URL}{APIPath}/events
     const sseUrl = `${endpointDetail.url}${endpointDetail.apiPath}/events`;
@@ -150,8 +172,8 @@ export function useNodePassSSE(endpointDetail: { url: string; apiPath: string; a
         console.log('[NodePass SSE] 连接成功，开始读取流');
         
         // 触发连接成功回调
-        if (options.onConnected) {
-          options.onConnected();
+        if (isMountedRef.current) {
+          onConnected();
         }
 
         // 创建Reader读取流数据
@@ -161,6 +183,8 @@ export function useNodePassSSE(endpointDetail: { url: string; apiPath: string; a
 
         try {
           while (true) {
+            if (!isMountedRef.current) break;
+            
             const { done, value } = await reader.read();
             
             if (done) {
@@ -177,6 +201,8 @@ export function useNodePassSSE(endpointDetail: { url: string; apiPath: string; a
             buffer = lines.pop() || ''; // 保留最后一个可能不完整的行
 
             for (const line of lines) {
+              if (!isMountedRef.current) break;
+              
               if (line.startsWith('data: ')) {
                 const data = line.slice(6); // 移除 "data: " 前缀
                 
@@ -189,15 +215,15 @@ export function useNodePassSSE(endpointDetail: { url: string; apiPath: string; a
                   const parsedData = JSON.parse(data);
                   console.log('[NodePass SSE] 收到JSON消息:', parsedData);
                   
-                  if (options.onMessage) {
-                    options.onMessage(parsedData);
+                  if (isMountedRef.current) {
+                    onMessage(parsedData);
                   }
                 } catch (parseError) {
                   // 如果不是JSON，当作纯文本日志处理
                   console.log('[NodePass SSE] 收到文本消息:', data);
                   
-                  if (options.onMessage) {
-                    options.onMessage({
+                  if (isMountedRef.current) {
+                    onMessage({
                       type: 'log',
                       message: data
                     });
@@ -216,9 +242,9 @@ export function useNodePassSSE(endpointDetail: { url: string; apiPath: string; a
           return;
         }
         
-        console.error('[NodePass SSE] 连接错误:', error);
-        if (options.onError) {
-          options.onError(error);
+        if (isMountedRef.current) {
+          console.error('[NodePass SSE] 连接错误:', error);
+          onError(error);
         }
       }
     };
@@ -227,12 +253,13 @@ export function useNodePassSSE(endpointDetail: { url: string; apiPath: string; a
 
     return () => {
       console.log('[NodePass SSE] 清理连接');
+      isMountedRef.current = false;
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
         abortControllerRef.current = null;
       }
     };
-  }, [endpointDetail?.url, endpointDetail?.apiPath, endpointDetail?.apiKey]);
+  }, [endpointDetail?.url, endpointDetail?.apiPath, endpointDetail?.apiKey, onMessage, onError, onConnected]);
 
   return null; // 不返回EventSource，因为我们使用的是fetch
 }
@@ -240,8 +267,16 @@ export function useNodePassSSE(endpointDetail: { url: string; apiPath: string; a
 // 用于连接 Go 后端的 SSE
 export function useSSE(endpoint: string, options: SSEOptions) {
   const eventSourceRef = useRef<EventSource | null>(null);
+  const isMountedRef = useRef(true);
+
+  // 使用 useCallback 包装回调函数
+  const onMessage = useCallback(options.onMessage || (() => {}), [options.onMessage]);
+  const onError = useCallback(options.onError || (() => {}), [options.onError]);
+  const onConnected = useCallback(options.onConnected || (() => {}), [options.onConnected]);
 
   useEffect(() => {
+    isMountedRef.current = true;
+    
     // 构建 SSE URL
     const url = buildApiUrl(`/api/sse${endpoint}`);
 
@@ -253,31 +288,40 @@ export function useSSE(endpoint: string, options: SSEOptions) {
 
     // 连接成功回调
     eventSource.onopen = () => {
-      options.onConnected?.();
+      if (isMountedRef.current) {
+        onConnected();
+      }
     };
 
     // 消息处理
     eventSource.onmessage = (event) => {
+      if (!isMountedRef.current) return;
+      
       try {
         const data = JSON.parse(event.data);
-        options.onMessage?.(data);
+        onMessage(data);
       } catch (error) {
-        console.error('[SSE] 解析消息失败:', error);
+        if (isMountedRef.current) {
+          console.error('[SSE] 解析消息失败:', error);
+        }
       }
     };
 
     // 错误处理
     eventSource.onerror = (error) => {
-      console.error('[SSE] 连接错误:', error);
-      options.onError?.(error);
+      if (isMountedRef.current) {
+        console.error('[SSE] 连接错误:', error);
+        onError(error);
+      }
     };
 
     // 清理函数
     return () => {
+      isMountedRef.current = false;
       eventSource.close();
       eventSourceRef.current = null;
     };
-  }, [endpoint, options]);
+  }, [endpoint, onMessage, onError, onConnected]);
 
   return eventSourceRef.current;
 } 

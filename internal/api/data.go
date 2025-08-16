@@ -258,19 +258,19 @@ func (h *DataHandler) handleImportV1(w http.ResponseWriter, r *http.Request, bas
 					tunnelStatus = models.TunnelStatusOffline
 				}
 
-				tunnelMode := models.TunnelModeClient
+				tunnelType := models.TunnelModeClient
 				if tunnel.Mode == "server" {
-					tunnelMode = models.TunnelModeServer
+					tunnelType = models.TunnelModeServer
 				}
 
 				tlsMode := models.TLSModeInherit
 				switch tunnel.TLSMode {
-				case "mode0":
-					tlsMode = models.TLSMode0
-				case "mode1":
-					tlsMode = models.TLSMode1
-				case "mode2":
-					tlsMode = models.TLSMode2
+				case "0":
+					tlsMode = models.TLS0
+				case "1":
+					tlsMode = models.TLS1
+				case "2":
+					tlsMode = models.TLS2
 				}
 
 				logLevel := models.LogLevelInherit
@@ -288,7 +288,7 @@ func (h *DataHandler) handleImportV1(w http.ResponseWriter, r *http.Request, bas
 				newTunnel := models.Tunnel{
 					Name:          tunnel.Name,
 					EndpointID:    newEndpoint.ID,
-					Mode:          tunnelMode,
+					Type:          tunnelType,
 					Status:        tunnelStatus,
 					TunnelAddress: tunnel.TunnelAddress,
 					TunnelPort:    tunnel.TunnelPort,

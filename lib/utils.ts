@@ -169,3 +169,47 @@ export function convertBigIntToNumber<T = any>(obj: T): T {
   
   return obj;
 } 
+
+export function formatRelativeTime(timestamp: number): string {
+  const now = Date.now()
+  const diff = now - timestamp
+  const hours = Math.floor(diff / (1000 * 60 * 60))
+  const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60))
+  const seconds = Math.floor((diff % (1000 * 60)) / 1000)
+
+  if (hours > 24) {
+    const days = Math.floor(hours / 24)
+    return `${days}d`
+  }
+  if (hours > 0) {
+    return `${hours}h`
+  }
+  if (minutes > 0) {
+    return `${minutes}m`
+  }
+  if (seconds >= 0) {
+    return `${seconds}s`
+  }
+  return "0s"
+}
+
+export function formatTime(timestamp: number): string {
+  const date = new Date(timestamp)
+  const year = date.getFullYear()
+  const month = date.getMonth() + 1
+  const day = date.getDate()
+  const hours = date.getHours().toString().padStart(2, "0")
+  const minutes = date.getMinutes().toString().padStart(2, "0")
+  const seconds = date.getSeconds().toString().padStart(2, "0")
+  return `${year}-${month}-${day} ${hours}:${minutes}:${seconds}`
+}
+
+export function formatTime12(timestamp: number): string {
+  // example: 3:45 PM
+  const date = new Date(timestamp)
+  const hours = date.getHours()
+  const minutes = date.getMinutes()
+  const ampm = hours >= 12 ? "PM" : "AM"
+  const hours12 = hours % 12 || 12
+  return `${hours12}:${minutes.toString().padStart(2, "0")} ${ampm}`
+}

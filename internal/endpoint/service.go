@@ -3,6 +3,9 @@ package endpoint
 import (
 	"NodePassDash/internal/models"
 	"errors"
+	"net"
+	"net/url"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -29,14 +32,11 @@ func (s *Service) GetEndpoints() ([]EndpointWithStats, error) {
 
 	err := s.db.Table("endpoints e").
 		Select(`
-			e.id, e.name, e.url, e.api_path, e.api_key, e.status, e.color,
+			e.id, e.name, e.url, e.ip, e.api_path, e.api_key, e.status, e.color,
 			e.os, e.arch, e.ver, e.log, e.tls, e.crt, e.key_path, e.uptime,
 			e.last_check, e.created_at, e.updated_at,
-			COUNT(t.id) as tunnel_count,
-			COUNT(CASE WHEN t.status = 'running' THEN 1 END) as active_tunnels
+			e.tunnel_count
 		`).
-		Joins("LEFT JOIN tunnels t ON e.id = t.endpoint_id").
-		Group("e.id").
 		Order("e.created_at DESC").
 		Scan(&endpoints).Error
 
@@ -51,6 +51,82 @@ func (s *Service) GetEndpoints() ([]EndpointWithStats, error) {
 	}
 
 	return endpoints, nil
+}
+
+// extractIPFromURL 从URL中提取IP地址（IPv4或IPv6）
+func extractIPFromURL(urlStr string) string {
+	// 尝试解析URL
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		// 如果URL解析失败，尝试手动提取
+		return extractIPFromString(urlStr)
+	}
+
+	// 从解析后的URL中提取主机名
+	host := parsedURL.Hostname()
+	if host == "" {
+		return ""
+	}
+
+	// 检查是否为有效的IP地址
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.String()
+	}
+
+	// 如果不是IP地址，返回空字符串
+	return ""
+}
+
+// extractIPFromString 从字符串中手动提取IP地址（备用方法）
+func extractIPFromString(input string) string {
+	// 去除协议部分
+	if idx := strings.Index(input, "://"); idx != -1 {
+		input = input[idx+3:]
+	}
+
+	// 去除用户认证信息
+	if atIdx := strings.Index(input, "@"); atIdx != -1 {
+		input = input[atIdx+1:]
+	}
+
+	// 去除路径部分
+	if slashIdx := strings.Index(input, "/"); slashIdx != -1 {
+		input = input[:slashIdx]
+	}
+
+	// 处理IPv6地址（方括号包围的地址）
+	if strings.HasPrefix(input, "[") {
+		if end := strings.Index(input, "]"); end != -1 {
+			// 提取方括号内的IPv6地址
+			ipv6Addr := input[1:end]
+			// 检查是否为有效的IPv6地址
+			if ip := net.ParseIP(ipv6Addr); ip != nil {
+				return ip.String()
+			}
+			// 如果不是有效IPv6，返回方括号内的内容
+			return ipv6Addr
+		}
+		return ""
+	}
+
+	// 处理IPv4地址或带端口的地址
+	if colonIdx := strings.Index(input, ":"); colonIdx != -1 {
+		// 提取冒号前的部分
+		hostPart := input[:colonIdx]
+		// 检查是否为有效的IP地址
+		if ip := net.ParseIP(hostPart); ip != nil {
+			return ip.String()
+		}
+		// 如果不是有效IP，返回端口前的信息
+		return hostPart
+	} else {
+		// 没有冒号，整个字符串可能是IP地址
+		if ip := net.ParseIP(input); ip != nil {
+			return ip.String()
+		}
+		// 如果不是有效IP，返回整个字符串
+		return input
+	}
 }
 
 // CreateEndpoint 创建新端点
@@ -72,10 +148,14 @@ func (s *Service) CreateEndpoint(req CreateEndpointRequest) (*Endpoint, error) {
 		return nil, errors.New("该URL已存在")
 	}
 
+	// 从URL中提取IP地址
+	extractedIP := extractIPFromURL(req.URL)
+
 	// 创建新端点
 	endpoint := &models.Endpoint{
 		Name:      req.Name,
 		URL:       req.URL,
+		IP:        extractedIP, // 填充提取的IP地址
 		APIPath:   req.APIPath,
 		APIKey:    req.APIKey,
 		Status:    StatusOffline,
@@ -139,6 +219,10 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 		}
 		if req.URL != "" {
 			updates["url"] = req.URL
+			// 如果URL更新了，同时更新IP字段
+			if extractedIP := extractIPFromURL(req.URL); extractedIP != "" {
+				updates["ip"] = extractedIP
+			}
 		}
 		if req.APIPath != "" {
 			updates["api_path"] = req.APIPath
@@ -226,7 +310,7 @@ type SimpleEndpoint struct {
 	APIPath     string         `json:"apiPath"`
 	Status      EndpointStatus `json:"status"`
 	TunnelCount int            `json:"tunnelCount"`
-	Version     string         `json:"version"`
+	Ver         string         `json:"version"`
 	TLS         string         `json:"tls"`
 	Log         string         `json:"log"`
 	Crt         string         `json:"crt"`
@@ -237,7 +321,7 @@ type SimpleEndpoint struct {
 // GetSimpleEndpoints 获取简化端点列表，可排除 FAIL
 func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error) {
 	query := s.db.Table("endpoints e").
-		Select("e.id, e.name, e.url, e.api_path, e.status, 0 as tunnel_count, e.ver, e.tls, e.log, e.crt, e.key_path, e.uptime")
+		Select("e.id, e.name, e.ip as url, e.api_path, e.status,  e.tunnel_count, e.ver, e.tls, e.log, e.crt, e.key_path, e.uptime")
 
 	if excludeFail {
 		query = query.Where("e.status NOT IN ('FAIL', 'DISCONNECT')")

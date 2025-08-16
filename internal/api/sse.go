@@ -2,12 +2,10 @@ package api
 
 import (
 	log "NodePassDash/internal/log"
-	"NodePassDash/internal/models"
 	"NodePassDash/internal/sse"
 	"bufio"
 	"context"
 	"crypto/tls"
-	"database/sql"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -39,16 +37,20 @@ func NewSSEHandler(sseService *sse.Service, sseManager *sse.Manager) *SSEHandler
 // HandleGlobalSSE 处理全局SSE连接
 func (h *SSEHandler) HandleGlobalSSE(w http.ResponseWriter, r *http.Request) {
 	// 设置SSE响应头
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Cache-Control")
+	w.Header().Set("X-Accel-Buffering", "no") // 禁用nginx缓冲
 
 	// 生成客户端ID
 	clientID := uuid.New().String()
 
-	// 发送连接成功消息
-	fmt.Fprintf(w, "data: %s\n\n", `{"type":"connected","message":"连接成功"}`)
+	// 发送连接成功消息（使用标准SSE格式）
+	w.Write([]byte("data: " + `{"type":"connected","message":"连接成功"}` + "\n\n"))
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
@@ -68,10 +70,14 @@ func (h *SSEHandler) HandleGlobalSSE(w http.ResponseWriter, r *http.Request) {
 // HandleTunnelSSE 处理隧道SSE连接
 func (h *SSEHandler) HandleTunnelSSE(w http.ResponseWriter, r *http.Request) {
 	// 设置SSE响应头
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
+	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
+	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
+	w.Header().Set("Pragma", "no-cache")
+	w.Header().Set("Expires", "0")
 	w.Header().Set("Connection", "keep-alive")
 	w.Header().Set("Access-Control-Allow-Origin", "*")
+	w.Header().Set("Access-Control-Allow-Headers", "Cache-Control")
+	w.Header().Set("X-Accel-Buffering", "no") // 禁用nginx缓冲
 
 	vars := mux.Vars(r)
 	tunnelID := vars["tunnelId"]
@@ -83,8 +89,8 @@ func (h *SSEHandler) HandleTunnelSSE(w http.ResponseWriter, r *http.Request) {
 	// 生成客户端ID
 	clientID := uuid.New().String()
 
-	// 发送连接成功消息
-	fmt.Fprintf(w, "data: %s\n\n", `{"type":"connected","message":"连接成功"}`)
+	// 发送连接成功消息（使用标准SSE格式）
+	w.Write([]byte("data: " + `{"type":"connected","message":"连接成功"}` + "\n\n"))
 	if f, ok := w.(http.Flusher); ok {
 		f.Flush()
 	}
@@ -288,10 +294,10 @@ func (h *SSEHandler) getLogCleanupConfig(w http.ResponseWriter, r *http.Request)
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"data": map[string]interface{}{
-			"retentionDays":    stats["retentionDays"],
-			"cleanupInterval":  stats["cleanupInterval"],
-			"maxRecordsPerDay": stats["maxRecordsPerDay"],
-			"cleanupEnabled":   stats["cleanupEnabled"],
+			"retentionDays":    stats["retention_days"],
+			"cleanupInterval":  stats["cleanup_interval"],
+			"maxRecordsPerDay": stats["max_records_per_day"],
+			"cleanupEnabled":   stats["enabled"],
 		},
 	})
 }
@@ -318,7 +324,12 @@ func (h *SSEHandler) updateLogCleanupConfig(w http.ResponseWriter, r *http.Reque
 	currentStats := h.sseService.GetLogCleanupStats()
 
 	// 设置默认值（如果没有提供则使用当前值）
-	retentionDays := currentStats["retentionDays"].(int)
+	retentionDays := 7 // 默认值
+	if val, ok := currentStats["retention_days"]; ok && val != nil {
+		if days, ok := val.(int); ok {
+			retentionDays = days
+		}
+	}
 	if req.RetentionDays != nil {
 		retentionDays = *req.RetentionDays
 	}
@@ -336,17 +347,31 @@ func (h *SSEHandler) updateLogCleanupConfig(w http.ResponseWriter, r *http.Reque
 			cleanupInterval = interval
 		}
 	} else {
-		if currentInterval, err := time.ParseDuration(currentStats["cleanupInterval"].(string)); err == nil {
-			cleanupInterval = currentInterval
+		if val, ok := currentStats["cleanup_interval"]; ok && val != nil {
+			if intervalStr, ok := val.(string); ok {
+				if currentInterval, err := time.ParseDuration(intervalStr); err == nil {
+					cleanupInterval = currentInterval
+				}
+			}
 		}
 	}
 
-	maxRecordsPerDay := currentStats["maxRecordsPerDay"].(int)
+	maxRecordsPerDay := 10000 // 默认值
+	if val, ok := currentStats["max_records_per_day"]; ok && val != nil {
+		if records, ok := val.(int); ok {
+			maxRecordsPerDay = records
+		}
+	}
 	if req.MaxRecordsPerDay != nil {
 		maxRecordsPerDay = *req.MaxRecordsPerDay
 	}
 
-	cleanupEnabled := currentStats["cleanupEnabled"].(bool)
+	cleanupEnabled := true // 默认值
+	if val, ok := currentStats["enabled"]; ok && val != nil {
+		if enabled, ok := val.(bool); ok {
+			cleanupEnabled = enabled
+		}
+	}
 	if req.CleanupEnabled != nil {
 		cleanupEnabled = *req.CleanupEnabled
 	}
@@ -601,125 +626,26 @@ func (h *SSEHandler) HandleNodePassSSEProxy(w http.ResponseWriter, r *http.Reque
 	log.Infof("[NodePass SSE Proxy] 连接结束")
 }
 
-// HandleEndpointSSEStats 获取EndpointSSE统计信息
-// GET /api/sse/endpoint-stats
-func (h *SSEHandler) HandleEndpointSSEStats(w http.ResponseWriter, r *http.Request) {
+// HandleGetQueueStatus 获取队列状态信息
+// GET /api/sse/queue-status
+func (h *SSEHandler) HandleGetQueueStatus(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
 		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
 		return
 	}
 
-	// 查询EndpointSSE总数
-	totalCount, err := h.getEndpointSSECount()
-	if err != nil {
-		log.Errorf("获取EndpointSSE统计失败: %v", err)
-		http.Error(w, "获取统计信息失败", http.StatusInternalServerError)
-		return
-	}
+	// 获取SSE服务的性能统计
+	performanceStats := h.sseService.GetPerformanceStats()
 
-	// 查询最早和最新的事件时间
-	oldestTime, newestTime, err := h.getEndpointSSETimeRange()
-	if err != nil {
-		log.Warnf("获取EndpointSSE时间范围失败: %v", err)
-		// 不影响主要统计信息
-	}
-
-	stats := map[string]interface{}{
-		"totalEvents": totalCount,
-		"oldestEvent": oldestTime,
-		"newestEvent": newestTime,
-		"lastUpdated": time.Now(),
+	// 构建队列状态响应
+	queueStatus := map[string]interface{}{
+		"timestamp":   time.Now().Format(time.RFC3339),
+		"sse_service": performanceStats,
 	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
-		"data":    stats,
+		"data":    queueStatus,
 	})
-}
-
-// HandleClearEndpointSSE 清空所有EndpointSSE数据
-// DELETE /api/sse/endpoint-clear
-func (h *SSEHandler) HandleClearEndpointSSE(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// 获取清空前的数量
-	beforeCount, _ := h.getEndpointSSECount()
-
-	// 清空EndpointSSE表
-	deletedCount, err := h.clearAllEndpointSSE()
-	if err != nil {
-		log.Errorf("清空EndpointSSE失败: %v", err)
-		http.Error(w, "清空操作失败", http.StatusInternalServerError)
-		return
-	}
-
-	log.Infof("已清空 %d 条EndpointSSE记录", deletedCount)
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success":      true,
-		"message":      "EndpointSSE数据已清空",
-		"deletedCount": deletedCount,
-		"beforeCount":  beforeCount,
-	})
-}
-
-// getEndpointSSECount 获取EndpointSSE总数
-func (h *SSEHandler) getEndpointSSECount() (int, error) {
-	db := h.sseService.GetDB()
-	var count int64
-	err := db.Model(&models.EndpointSSE{}).Count(&count).Error
-	return int(count), err
-}
-
-// getEndpointSSETimeRange 获取EndpointSSE时间范围
-func (h *SSEHandler) getEndpointSSETimeRange() (string, string, error) {
-	db := h.sseService.GetDB()
-
-	var result struct {
-		Oldest sql.NullTime `json:"oldest"`
-		Newest sql.NullTime `json:"newest"`
-	}
-
-	err := db.Raw(`
-		SELECT 
-			MIN(event_time) as oldest,
-			MAX(event_time) as newest
-		FROM endpoint_sses
-	`).Scan(&result).Error
-	if err != nil {
-		return "", "", err
-	}
-
-	oldestTime := result.Oldest
-	newestTime := result.Newest
-
-	oldestStr := ""
-	newestStr := ""
-
-	if oldestTime.Valid {
-		oldestStr = oldestTime.Time.Format("2006-01-02 15:04:05")
-	}
-
-	if newestTime.Valid {
-		newestStr = newestTime.Time.Format("2006-01-02 15:04:05")
-	}
-
-	return oldestStr, newestStr, nil
-}
-
-// clearAllEndpointSSE 清空所有EndpointSSE数据
-func (h *SSEHandler) clearAllEndpointSSE() (int64, error) {
-	db := h.sseService.GetDB()
-
-	result := db.Where("1 = 1").Delete(&models.EndpointSSE{})
-	if result.Error != nil {
-		return 0, result.Error
-	}
-
-	return result.RowsAffected, nil
 }

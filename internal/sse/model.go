@@ -2,6 +2,7 @@ package sse
 
 import (
 	"context"
+	"fmt"
 	"net/http"
 	"sync"
 	"time"
@@ -137,4 +138,30 @@ type Client struct {
 	ID     string
 	Writer http.ResponseWriter
 	Events chan Event
+}
+
+// Close 关闭客户端连接
+func (c *Client) Close() {
+	close(c.Events)
+}
+
+// Send 发送数据给客户端
+func (c *Client) Send(data []byte) error {
+	// 这里实现SSE数据发送逻辑
+	// 由于这是一个简化的实现，我们只是将数据写入到Events通道
+	select {
+	case c.Events <- Event{
+		Type: "data",
+		Data: string(data),
+	}:
+		return nil
+	default:
+		return fmt.Errorf("客户端事件通道已满")
+	}
+}
+
+// SetDisconnected 设置客户端断开状态
+func (c *Client) SetDisconnected(disconnected bool) {
+	// 这里可以实现断开状态的设置逻辑
+	// 目前是一个空实现
 }

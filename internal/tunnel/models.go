@@ -7,10 +7,11 @@ import (
 // 使用统一模型定义
 type Tunnel = models.Tunnel
 type TunnelStatus = models.TunnelStatus
-type TunnelMode = models.TunnelMode
+type TunnelType = models.TunnelType
 type TLSMode = models.TLSMode
 type LogLevel = models.LogLevel
 type Tag = models.Tag
+type TunnelMode = models.TunnelMode
 
 // 状态常量 - 保持向后兼容
 const (
@@ -29,9 +30,9 @@ const (
 // TLS模式常量 - 保持向后兼容
 const (
 	TLSModeInherit = models.TLSModeInherit
-	TLSMode0       = models.TLSMode0
-	TLSMode1       = models.TLSMode1
-	TLSMode2       = models.TLSMode2
+	TLS0           = models.TLS0
+	TLS1           = models.TLS1
+	TLS2           = models.TLS2
 )
 
 // 日志级别常量 - 保持向后兼容
@@ -87,10 +88,11 @@ type TunnelWithStats struct {
 			Total string `json:"total"`
 		} `json:"formatted"`
 	} `json:"traffic"`
-	EndpointName string `json:"endpoint"`
-	Type         string `json:"type"`
-	Avatar       string `json:"avatar"`
-	StatusInfo   struct {
+	EndpointName    string `json:"endpoint"`
+	EndpointVersion string `json:"version,omitempty"`
+	Type            string `json:"type"`
+	Avatar          string `json:"avatar"`
+	StatusInfo      struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"status"`
@@ -99,21 +101,26 @@ type TunnelWithStats struct {
 
 // CreateTunnelRequest 创建隧道请求
 type CreateTunnelRequest struct {
-	Name          string   `json:"name" validate:"required"`
-	EndpointID    int64    `json:"endpointId" validate:"required"`
-	Mode          string   `json:"mode" validate:"required,oneof=server client"`
-	TunnelAddress string   `json:"tunnelAddress"`
-	TunnelPort    int      `json:"tunnelPort" validate:"required"`
-	TargetAddress string   `json:"targetAddress"`
-	TargetPort    int      `json:"targetPort" validate:"required"`
-	TLSMode       TLSMode  `json:"tlsMode"`
-	CertPath      string   `json:"certPath,omitempty"`
-	KeyPath       string   `json:"keyPath,omitempty"`
-	LogLevel      LogLevel `json:"logLevel"`
-	Password      string   `json:"password,omitempty"`
-	Min           *int     `json:"min,omitempty"`
-	Max           *int     `json:"max,omitempty"`
-	Restart       bool     `json:"restart"`
+	Name           string      `json:"name" validate:"required"`
+	EndpointID     int64       `json:"endpointId" validate:"required"`
+	Type           string      `json:"type" validate:"required,oneof=server client"`
+	TunnelAddress  string      `json:"tunnelAddress"`
+	TunnelPort     int         `json:"tunnelPort" validate:"required"`
+	TargetAddress  string      `json:"targetAddress"`
+	TargetPort     int         `json:"targetPort" validate:"required"`
+	TLSMode        TLSMode     `json:"tlsMode"`
+	CertPath       string      `json:"certPath,omitempty"`
+	KeyPath        string      `json:"keyPath,omitempty"`
+	LogLevel       LogLevel    `json:"logLevel"`
+	Password       string      `json:"password,omitempty"`
+	Min            *int        `json:"min,omitempty"`
+	Max            *int        `json:"max,omitempty"`
+	Restart        bool        `json:"restart"`
+	Mode           *TunnelMode `json:"mode,omitempty"`
+	Read           *string     `json:"read,omitempty"`
+	Rate           *string     `json:"rate,omitempty"`
+	EnableSSEStore bool        `json:"enable_sse_store,omitempty"`
+	EnableLogStore bool        `json:"enable_log_store,omitempty"`
 }
 
 // BatchCreateTunnelItem 批量创建隧道的单个项目
@@ -192,20 +199,25 @@ type NewBatchCreateResponse struct {
 
 // UpdateTunnelRequest 更新隧道请求
 type UpdateTunnelRequest struct {
-	ID            int64    `json:"id" validate:"required"`
-	Name          string   `json:"name,omitempty"`
-	TunnelAddress string   `json:"tunnelAddress,omitempty"`
-	TunnelPort    int      `json:"tunnelPort,omitempty"`
-	TargetAddress string   `json:"targetAddress,omitempty"`
-	TargetPort    int      `json:"targetPort,omitempty"`
-	TLSMode       TLSMode  `json:"tlsMode,omitempty"`
-	CertPath      string   `json:"certPath,omitempty"`
-	KeyPath       string   `json:"keyPath,omitempty"`
-	LogLevel      LogLevel `json:"logLevel,omitempty"`
-	Password      string   `json:"password,omitempty"`
-	Min           *int     `json:"min,omitempty"`
-	Max           *int     `json:"max,omitempty"`
-	Restart       bool     `json:"restart"`
+	ID             int64       `json:"id" validate:"required"`
+	Name           string      `json:"name,omitempty"`
+	TunnelAddress  string      `json:"tunnelAddress,omitempty"`
+	TunnelPort     int         `json:"tunnelPort,omitempty"`
+	TargetAddress  string      `json:"targetAddress,omitempty"`
+	TargetPort     int         `json:"targetPort,omitempty"`
+	TLSMode        TLSMode     `json:"tlsMode,omitempty"`
+	CertPath       string      `json:"certPath,omitempty"`
+	KeyPath        string      `json:"keyPath,omitempty"`
+	LogLevel       LogLevel    `json:"logLevel,omitempty"`
+	Password       string      `json:"password,omitempty"`
+	Min            *int        `json:"min,omitempty"`
+	Max            *int        `json:"max,omitempty"`
+	Restart        bool        `json:"restart"`
+	Mode           *TunnelMode `json:"mode,omitempty"`
+	Read           *string     `json:"read,omitempty"`
+	Rate           *string     `json:"rate,omitempty"`
+	EnableSSEStore bool        `json:"enable_sse_store,omitempty"`
+	EnableLogStore bool        `json:"enable_log_store,omitempty"`
 }
 
 // TunnelActionRequest 隧道操作请求

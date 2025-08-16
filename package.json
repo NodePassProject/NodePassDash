@@ -1,6 +1,6 @@
 {
   "name": "NodePassDash",
-  "version": "2.2.1",
+  "version": "2.3.0-beta1",
   "private": true,
   "scripts": {
     "dev": "next dev",
@@ -13,6 +13,8 @@
     "db:migrate": "pnpm exec prisma migrate dev",
     "db:generate": "pnpm exec prisma generate",
     "db:push": "pnpm exec prisma db push",
+    "db:add-version": "node scripts/migrate.js",
+    "test:version": "node scripts/test-version-feature.js",
     "docker:up": "docker-compose up -d",
     "docker:up:integrated": "docker-compose --env-file env.docker up -d",
     "docker:down": "docker-compose down",
@@ -22,7 +24,7 @@
     "docker:release": "docker-compose -f docker-compose.release.yml up -d",
     "dev:all": "node scripts/dev.js",
     "dev:front": "next dev -p 8080",
-    "dev:back": "go run ./cmd/server/main.go",
+    "dev:back": "go run ./cmd/server/main.go --log-level debug",
     "dev:back-disable-login": "go run ./cmd/server/main.go --disable-login",
     "dev:resetpwd": "go run ./cmd/server/main.go --resetpwd",
     "dev:version": "go run ./cmd/server/main.go --version",
@@ -54,6 +56,7 @@
     "framer-motion": "11.13.1",
     "https-proxy-agent": "^7.0.6",
     "intl-messageformat": "10.7.16",
+    "lucide-react": "^0.539.0",
     "next": "15.3.1",
     "next-themes": "0.4.6",
     "node-fetch": "^2.7.0",

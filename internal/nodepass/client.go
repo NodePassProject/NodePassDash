@@ -214,7 +214,7 @@ func (c *Client) doRequest(method, url string, body interface{}, dest interface{
 type Instance struct {
 	ID      string `json:"id"`
 	Type    string `json:"type"`
-	Status  string `json:"status"`
+	Status  string `json:"status"` // running|stopped|error
 	URL     string `json:"url"`
 	TCPRx   int64  `json:"tcprx"`
 	TCPTx   int64  `json:"tcptx"`
@@ -248,3 +248,65 @@ func (c *Client) GetInstances() ([]Instance, error) {
 	}
 	return resp, nil
 }
+
+// server://<bind_addr>:<bind_port>/<target_host>:<target_port>?<参数>
+// client://<server_host>:<server_port>/<local_host>:<local_port>?<参数>
+// 支持参数:log、tls、crt、key、min、max、mode、read、rate
+// log=none|debug|info|warn|error|event
+// min／max：连接池容量（min 由客户端设置，max由服务端设置并在握手时传递给客户端)
+// tls=0,1,2
+// tls_crt=path 证书/密钥文件路径 (当 tls=2 时)
+// tls_key=path 证书/密钥文件路径 (当 tls=2 时)
+// read：数据读取超时时长（如1h、30m、15s）
+// rate：带宽速率限制，单位Mbps（0=无限制）
+
+// 数据读取超时可以通过URL查询参数read 设置，单位为秒或分钟：
+// read:数据读取超时时间(默认:10分钟)
+// # 设置数据读取超时为5分钟
+// nodepass "client://server.example.com:10101/127.0.0.1:8080?read=5m"
+
+// # 设置数据读取超时为30秒，适用于快速响应应用
+// nodepass "client://server.example.com:10101/127.0.0.1:8080?read=30s"
+
+// # 设置数据读取超时为30分钟，适用于长时间传输
+// nodepass "client://server.example.com:10101/127.0.0.1:8080?read=30m"
+
+// 重新生成API Key（需要知道当前的API Key）
+// async function regenerateApiKey() {
+// 	const response = await fetch(`${API_URL}/instances/${apiKeyID}`, {
+// 	  method: 'PATCH',
+// 	  headers: {
+// 		'Content-Type': 'application/json',
+// 		'X-API-Key': 'current-api-key'
+// 	  },
+// 	  body: JSON.stringify({ action: 'restart' })
+// 	});
+
+// 	const result = await response.json();
+// 	return result.url; // 新的API Key
+//   }
+
+// NodePass支持通过rate参数进行带宽速率限制，用于流量控制。此功能有助于防止网络拥塞，确保多个连接间的公平资源分配。
+
+// rate: 最大带宽限制，单位为Mbps（兆比特每秒）
+// 值为0或省略：无速率限制（无限带宽）
+// 正整数：以Mbps为单位的速率限制（例如，10表示10 Mbps）
+// 同时应用于上传和下载流量
+// 使用令牌桶算法进行平滑流量整形
+// 示例：
+
+// # 限制带宽为50 Mbps
+// nodepass "server://0.0.0.0:10101/0.0.0.0:8080?rate=50"
+
+// # 客户端100 Mbps速率限制
+// nodepass "client://server.example.com:10101/127.0.0.1:8080?rate=100"
+
+// # 与其他参数组合使用
+// nodepass "server://0.0.0.0:10101/0.0.0.0:8080?log=error&tls=1&rate=50"
+// 速率限制使用场景：
+
+// 带宽控制：防止NodePass消耗所有可用带宽
+// 公平共享：确保多个应用程序可以共享网络资源
+// 成本管理：在按流量计费的网络环境中控制数据使用
+// QoS合规：满足带宽使用的服务级别协议
+// 测试：模拟低带宽环境进行应用程序测试

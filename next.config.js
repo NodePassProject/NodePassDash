@@ -16,8 +16,8 @@ const nextConfig = {
   devIndicators: {
     position: 'bottom-left',
   },
-  // 禁用所有调试功能
-  reactStrictMode: true,
+  // 禁用所有调试功能 - 开发环境禁用以避免API重复调用
+  reactStrictMode: process.env.NODE_ENV === 'production',
   productionBrowserSourceMaps: false,
   compiler: {
     removeConsole: process.env.NODE_ENV === 'production',

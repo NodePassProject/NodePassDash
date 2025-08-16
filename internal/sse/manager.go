@@ -48,13 +48,13 @@ func NewManager(db *sql.DB, service *Service) *Manager {
 		service:      service,
 		db:           db,
 		connections:  make(map[int64]*EndpointConnection),
-		jobs:         make(chan eventJob, 8192), // 增加缓冲大小到8192
+		jobs:         make(chan eventJob, 30000), // 增加缓冲大小到30000
 		daemonCtx:    ctx,
 		daemonCancel: cancel,
 	}
 
-	// 启动worker处理事件
-	m.StartWorkers(4) // 启动4个worker处理事件
+	// 启动worker处理事件 - 增加worker数量到12个
+	m.StartWorkers(12) // 启动12个worker处理事件
 
 	return m
 }
@@ -555,83 +555,93 @@ func (m *Manager) workerLoop() {
 	}
 }
 
+type SSEBody struct {
+	Type     string       `json:"type"`
+	Time     string       `json:"time"`
+	Instance *SSEInstance `json:"instance"`
+	Logs     *string      `json:"logs"`
+}
+
+type SSEInstance struct {
+	ID      string  `json:"id"`
+	Type    string  `json:"type"`
+	Status  string  `json:"status"`
+	URL     string  `json:"url"`
+	TCPRx   int64   `json:"tcprx"`
+	TCPTx   int64   `json:"tcptx"`
+	UDPRx   int64   `json:"udprx"`
+	UDPTx   int64   `json:"udptx"`
+	Pool    *int64  `json:"pool,omitempty"` // 使用指针，兼容低版本
+	Ping    *int64  `json:"ping,omitempty"` // 使用指针，兼容低版本
+	Alias   *string `json:"alias,omitempty"`
+	Restart *bool   `json:"restart,omitempty"`
+}
+
 // processPayload 解析 JSON 并调用 service.ProcessEvent
-func (m *Manager) processPayload(endpointID int64, payload string) {
-	if payload == "" {
+func (m *Manager) processPayload(endpointID int64, payloadStr string) {
+	if payloadStr == "" {
 		return
 	}
-	var event struct {
-		Type      string          `json:"type"`
-		Time      interface{}     `json:"time"`
-		Logs      interface{}     `json:"logs"`
-		Instance  json.RawMessage `json:"instance"`
-		Instances json.RawMessage `json:"instances"`
-	}
+	var payload = new(SSEBody)
 
-	if err := json.Unmarshal([]byte(payload), &event); err != nil {
+	if err := json.Unmarshal([]byte(payloadStr), &payload); err != nil {
 		log.Errorf("[Master-%d]解码 SSE JSON 失败 %v", endpointID, err)
 		return
 	}
 
-	var logsStr string
-	if event.Logs != nil {
-		if s, ok := event.Logs.(string); ok {
-			logsStr = s
-		} else {
-			logsStr = fmt.Sprintf("%v", event.Logs)
-		}
+	// 解析时间字符串
+	eventTime, err := time.Parse(time.RFC3339, payload.Time)
+	if err != nil {
+		log.Errorf("[Master-%d]解析时间失败 %v，使用当前时间", endpointID, err)
+		eventTime = time.Now()
 	}
 
-	// 处理 create / update / delete / log 单实例事件
-	var inst struct {
-		ID      string `json:"id"`
-		Type    string `json:"type"`
-		Status  string `json:"status"`
-		URL     string `json:"url"`
-		TCPRx   int64  `json:"tcprx"`
-		TCPTx   int64  `json:"tcptx"`
-		UDPRx   int64  `json:"udprx"`
-		UDPTx   int64  `json:"udptx"`
-		Pool    *int64 `json:"pool,omitempty"` // 使用指针，兼容低版本
-		Ping    *int64 `json:"ping,omitempty"` // 使用指针，兼容低版本
-		Alias   string `json:"alias"`
-		Restart bool   `json:"restart"`
-	}
-	if err := json.Unmarshal(event.Instance, &inst); err != nil {
-		log.Errorf("[Master-%d#SSE]解析实例数据失败 %v", endpointID, err)
+	// 根据事件类型创建不同的 EndpointSSE 结构
+	var event models.EndpointSSE
+
+	switch payload.Type {
+	case "shutdown":
+		// shutdown 事件没有实例信息，创建一个最小化的事件
+		event = models.EndpointSSE{
+			EventType:  models.SSEEventType(payload.Type),
+			PushType:   payload.Type,
+			EventTime:  eventTime,
+			EndpointID: endpointID,
+			InstanceID: "", // shutdown 事件没有实例ID
+			// 其他字段保持默认值
+		}
+	case "initial", "create", "update", "delete", "log":
+		// 这些事件需要实例信息
+		if payload.Instance == nil {
+			log.Errorf("[Master-%d]事件类型 %s 缺少实例信息", endpointID, payload.Type)
+			return
+		}
+
+		event = models.EndpointSSE{
+			EventType:    models.SSEEventType(payload.Type),
+			PushType:     payload.Type,
+			EventTime:    eventTime,
+			EndpointID:   endpointID,
+			InstanceID:   payload.Instance.ID,
+			InstanceType: &payload.Instance.Type,
+			Status:       &payload.Instance.Status,
+			URL:          &payload.Instance.URL,
+			TCPRx:        payload.Instance.TCPRx,
+			TCPTx:        payload.Instance.TCPTx,
+			UDPRx:        payload.Instance.UDPRx,
+			UDPTx:        payload.Instance.UDPTx,
+			Pool:         payload.Instance.Pool,    // *int64，直接赋值
+			Ping:         payload.Instance.Ping,    // *int64，直接赋值
+			Logs:         payload.Logs,             // *string，直接赋值
+			Alias:        payload.Instance.Alias,   // *string，直接赋值
+			Restart:      payload.Instance.Restart, // *bool，直接赋值
+		}
+	default:
+		log.Warnf("[Master-%d]未知的事件类型: %s", endpointID, payload.Type)
 		return
 	}
 
-	// 对 alias 和 restart 字段进行适当的指针处理
-	var aliasPtr *string
-	var restartPtr *bool
-
-	if inst.Alias != "" {
-		aliasPtr = &inst.Alias
-	}
-	restartPtr = &inst.Restart
-
-	evt := models.EndpointSSE{
-		EventType:    models.SSEEventType(event.Type),
-		PushType:     event.Type,
-		EventTime:    time.Now(),
-		EndpointID:   endpointID,
-		InstanceID:   inst.ID,
-		InstanceType: &inst.Type,
-		Status:       &inst.Status,
-		URL:          &inst.URL,
-		TCPRx:        inst.TCPRx,
-		TCPTx:        inst.TCPTx,
-		UDPRx:        inst.UDPRx,
-		UDPTx:        inst.UDPTx,
-		Pool:         valueOrNilPtr(inst.Pool),
-		Ping:         valueOrNilPtr(inst.Ping),
-		Logs:         &logsStr,
-		Alias:        aliasPtr,
-		Restart:      restartPtr,
-	}
-
-	if err := m.service.ProcessEvent(endpointID, evt); err != nil {
+	if err := m.service.ProcessEvent(endpointID, event); err != nil {
 		log.Errorf("[Master-%d#SSE]处理事件失败 %v", endpointID, err)
 	}
 }
@@ -642,19 +652,6 @@ func (m *Manager) GetFileLogger() *log.FileLogger {
 		return m.service.GetFileLogger()
 	}
 	return nil
-}
-
-// valueOrNil 将指针值转换为int64，如果指针为nil则返回0
-func valueOrNil(p *int64) int64 {
-	if p == nil {
-		return 0
-	}
-	return *p
-}
-
-// valueOrNilPtr 将指针值转换为*int64，如果指针为nil则返回nil
-func valueOrNilPtr(p *int64) *int64 {
-	return p
 }
 
 // NotifyEndpointStatusChanged 通知端点状态变化

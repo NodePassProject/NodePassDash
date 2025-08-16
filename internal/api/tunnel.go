@@ -125,20 +125,25 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 
 	// 兼容前端将端口作为字符串提交的情况
 	var raw struct {
-		Name          string          `json:"name"`
-		EndpointID    int64           `json:"endpointId"`
-		Mode          string          `json:"mode"`
-		TunnelAddress string          `json:"tunnelAddress"`
-		TunnelPort    json.RawMessage `json:"tunnelPort"`
-		TargetAddress string          `json:"targetAddress"`
-		TargetPort    json.RawMessage `json:"targetPort"`
-		TLSMode       string          `json:"tlsMode"`
-		CertPath      string          `json:"certPath"`
-		KeyPath       string          `json:"keyPath"`
-		LogLevel      string          `json:"logLevel"`
-		Password      string          `json:"password"`
-		Min           json.RawMessage `json:"min"`
-		Max           json.RawMessage `json:"max"`
+		Name           string          `json:"name"`
+		EndpointID     int64           `json:"endpointId"`
+		Type           string          `json:"type"`
+		TunnelAddress  string          `json:"tunnelAddress"`
+		TunnelPort     json.RawMessage `json:"tunnelPort"`
+		TargetAddress  string          `json:"targetAddress"`
+		TargetPort     json.RawMessage `json:"targetPort"`
+		TLSMode        string          `json:"tlsMode"`
+		CertPath       string          `json:"certPath"`
+		KeyPath        string          `json:"keyPath"`
+		LogLevel       string          `json:"logLevel"`
+		Password       string          `json:"password"`
+		Min            json.RawMessage `json:"min"`
+		Max            json.RawMessage `json:"max"`
+		Mode           *string         `json:"mode,omitempty"`             // 新增：运行模式 (0, 1, 2)
+		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
+		Rate           *string         `json:"rate,omitempty"`             // 新增：带宽速率限制
+		EnableSSEStore *bool           `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
+		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
@@ -206,21 +211,44 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		maxPtr = &maxVal
 	}
 
+	// 处理新增字段的默认值
+	enableSSEStore := true
+	if raw.EnableSSEStore != nil {
+		enableSSEStore = *raw.EnableSSEStore
+	}
+
+	enableLogStore := true
+	if raw.EnableLogStore != nil {
+		enableLogStore = *raw.EnableLogStore
+	}
+
+	// 处理Mode字段的类型转换
+	var modePtr *tunnel.TunnelMode
+	if raw.Mode != nil {
+		mode := tunnel.TunnelMode(*raw.Mode)
+		modePtr = &mode
+	}
+
 	req := tunnel.CreateTunnelRequest{
-		Name:          raw.Name,
-		EndpointID:    raw.EndpointID,
-		Mode:          raw.Mode,
-		TunnelAddress: raw.TunnelAddress,
-		TunnelPort:    tunnelPort,
-		TargetAddress: raw.TargetAddress,
-		TargetPort:    targetPort,
-		TLSMode:       tunnel.TLSMode(raw.TLSMode),
-		CertPath:      raw.CertPath,
-		KeyPath:       raw.KeyPath,
-		LogLevel:      tunnel.LogLevel(raw.LogLevel),
-		Password:      raw.Password,
-		Min:           minPtr,
-		Max:           maxPtr,
+		Name:           raw.Name,
+		EndpointID:     raw.EndpointID,
+		Type:           raw.Type,
+		TunnelAddress:  raw.TunnelAddress,
+		TunnelPort:     tunnelPort,
+		TargetAddress:  raw.TargetAddress,
+		TargetPort:     targetPort,
+		TLSMode:        tunnel.TLSMode(raw.TLSMode),
+		CertPath:       raw.CertPath,
+		KeyPath:        raw.KeyPath,
+		LogLevel:       tunnel.LogLevel(raw.LogLevel),
+		Password:       raw.Password,
+		Min:            minPtr,
+		Max:            maxPtr,
+		Mode:           modePtr,        // 新增：运行模式
+		Read:           raw.Read,       // 新增：数据读取超时时间
+		Rate:           raw.Rate,       // 新增：带宽速率限制
+		EnableSSEStore: enableSSEStore, // 新增：是否启用SSE存储
+		EnableLogStore: enableLogStore, // 新增：是否启用日志存储
 	}
 
 	log.Infof("[Master-%v] 创建隧道请求: %v", req.EndpointID, req.Name)
@@ -405,7 +433,7 @@ func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Reques
 	if err := h.tunnelService.DB().QueryRow(`SELECT id, endpoint_id FROM tunnels WHERE instance_id = ?`, req.InstanceID).Scan(&tunnelID, &endpointID); err != nil {
 		// 如果从Tunnel表获取失败，尝试从EndpointSSE表获取端点ID
 		if shouldClearLogs {
-			if err := h.tunnelService.DB().QueryRow(`SELECT DISTINCT endpoint_id FROM endpoint_sses WHERE instance_id = ? LIMIT 1`, req.InstanceID).Scan(&endpointID); err != nil {
+			if err := h.tunnelService.DB().QueryRow(`SELECT DISTINCT endpoint_id FROM endpoint_sse WHERE instance_id = ? LIMIT 1`, req.InstanceID).Scan(&endpointID); err != nil {
 				log.Warnf("[API] 无法获取端点ID用于清理文件日志: instanceID=%s, err=%v", req.InstanceID, err)
 				shouldClearLogs = false
 			}
@@ -538,20 +566,25 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 
 	// 尝试解析为创建/替换请求体（与创建接口保持一致）
 	var rawCreate struct {
-		Name          string          `json:"name"`
-		EndpointID    int64           `json:"endpointId"`
-		Mode          string          `json:"mode"`
-		TunnelAddress string          `json:"tunnelAddress"`
-		TunnelPort    json.RawMessage `json:"tunnelPort"`
-		TargetAddress string          `json:"targetAddress"`
-		TargetPort    json.RawMessage `json:"targetPort"`
-		TLSMode       string          `json:"tlsMode"`
-		CertPath      string          `json:"certPath"`
-		KeyPath       string          `json:"keyPath"`
-		LogLevel      string          `json:"logLevel"`
-		Password      string          `json:"password"`
-		Min           json.RawMessage `json:"min"`
-		Max           json.RawMessage `json:"max"`
+		Name           string          `json:"name"`
+		EndpointID     int64           `json:"endpointId"`
+		Type           string          `json:"type"`
+		TunnelAddress  string          `json:"tunnelAddress"`
+		TunnelPort     json.RawMessage `json:"tunnelPort"`
+		TargetAddress  string          `json:"targetAddress"`
+		TargetPort     json.RawMessage `json:"targetPort"`
+		TLSMode        string          `json:"tlsMode"`
+		CertPath       string          `json:"certPath"`
+		KeyPath        string          `json:"keyPath"`
+		LogLevel       string          `json:"logLevel"`
+		Password       string          `json:"password"`
+		Min            json.RawMessage `json:"min"`
+		Max            json.RawMessage `json:"max"`
+		Mode           *string         `json:"mode,omitempty"`             // 新增：运行模式
+		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
+		Rate           *string         `json:"rate,omitempty"`             // 新增：带宽速率限制
+		EnableSSEStore *bool           `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
+		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
 	}
 
 	if err := json.NewDecoder(r.Body).Decode(&rawCreate); err != nil {
@@ -563,8 +596,8 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 如果请求体包含 EndpointID 和 Mode，则认定为"替换"逻辑，否则执行原 Update 逻辑
-	if rawCreate.EndpointID != 0 && rawCreate.Mode != "" {
+	// 如果请求体包含 EndpointID 和 Type，则认定为"替换"逻辑，否则执行原 Update 逻辑
+	if rawCreate.EndpointID != 0 && rawCreate.Type != "" {
 		// 1. 获取旧 instanceId
 		instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
 		if err != nil {
@@ -612,21 +645,44 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 			maxPtr = &maxVal
 		}
 
+		// 处理新增字段的默认值
+		enableSSEStore := true
+		if rawCreate.EnableSSEStore != nil {
+			enableSSEStore = *rawCreate.EnableSSEStore
+		}
+
+		enableLogStore := true
+		if rawCreate.EnableLogStore != nil {
+			enableLogStore = *rawCreate.EnableLogStore
+		}
+
+		// 处理Mode字段的类型转换
+		var modePtr *tunnel.TunnelMode
+		if rawCreate.Mode != nil {
+			mode := tunnel.TunnelMode(*rawCreate.Mode)
+			modePtr = &mode
+		}
+
 		createReq := tunnel.CreateTunnelRequest{
-			Name:          rawCreate.Name,
-			EndpointID:    rawCreate.EndpointID,
-			Mode:          rawCreate.Mode,
-			TunnelAddress: rawCreate.TunnelAddress,
-			TunnelPort:    tunnelPort,
-			TargetAddress: rawCreate.TargetAddress,
-			TargetPort:    targetPort,
-			TLSMode:       tunnel.TLSMode(rawCreate.TLSMode),
-			CertPath:      rawCreate.CertPath,
-			KeyPath:       rawCreate.KeyPath,
-			LogLevel:      tunnel.LogLevel(rawCreate.LogLevel),
-			Password:      rawCreate.Password,
-			Min:           minPtr,
-			Max:           maxPtr,
+			Name:           rawCreate.Name,
+			EndpointID:     rawCreate.EndpointID,
+			Type:           rawCreate.Type,
+			TunnelAddress:  rawCreate.TunnelAddress,
+			TunnelPort:     tunnelPort,
+			TargetAddress:  rawCreate.TargetAddress,
+			TargetPort:     targetPort,
+			TLSMode:        tunnel.TLSMode(rawCreate.TLSMode),
+			CertPath:       rawCreate.CertPath,
+			KeyPath:        rawCreate.KeyPath,
+			LogLevel:       tunnel.LogLevel(rawCreate.LogLevel),
+			Password:       rawCreate.Password,
+			Min:            minPtr,
+			Max:            maxPtr,
+			Mode:           modePtr,        // 新增：运行模式
+			Read:           rawCreate.Read, // 新增：数据读取超时时间
+			Rate:           rawCreate.Rate, // 新增：带宽速率限制
+			EnableSSEStore: enableSSEStore, // 新增：是否启用SSE存储
+			EnableLogStore: enableLogStore, // 新增：是否启用日志存储
 		}
 
 		// 使用等待模式创建新隧道，超时时间为 3 秒
@@ -1014,7 +1070,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		ID              int64
 		InstanceIDNS    sql.NullString
 		Name            string
-		Mode            string
+		Type            string
 		Status          string
 		EndpointID      int64
 		EndpointName    sql.NullString
@@ -1040,13 +1096,16 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		Min             sql.NullInt64
 		Max             sql.NullInt64
 		Restart         bool
+		Mode            sql.NullString
+		Read            sql.NullString
+		Rate            sql.NullString
 	}
 
-	query := `SELECT t.id, t.instance_id, t.name, t.mode, t.status, t.endpoint_id,
+	query := `SELECT t.id, t.instance_id, t.name, t.type, t.status, t.endpoint_id,
 		   e.name, e.tls, e.log, e.ver, t.tunnel_port, t.target_port, t.tls_mode, t.log_level,
 		   t.tunnel_address, t.target_address, t.command_line, t.password, t.cert_path, t.key_path,
 		   t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.pool, t.ping,
-		   t.min, t.max, t.restart
+		   t.min, t.max, ifnull(t.restart, 0), t.mode, t.read, t.rate
 		   FROM tunnels t
 		   LEFT JOIN endpoints e ON t.endpoint_id = e.id
 		   WHERE t.id = ?`
@@ -1054,7 +1113,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		&tunnelRecord.ID,
 		&tunnelRecord.InstanceIDNS,
 		&tunnelRecord.Name,
-		&tunnelRecord.Mode,
+		&tunnelRecord.Type,
 		&tunnelRecord.Status,
 		&tunnelRecord.EndpointID,
 		&tunnelRecord.EndpointName,
@@ -1080,6 +1139,9 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		&tunnelRecord.Min,
 		&tunnelRecord.Max,
 		&tunnelRecord.Restart,
+		&tunnelRecord.Mode,
+		&tunnelRecord.Read,
+		&tunnelRecord.Rate,
 	); err != nil {
 		if err == sql.ErrNoRows {
 			w.WriteHeader(http.StatusNotFound)
@@ -1142,13 +1204,27 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 	listenPort, _ := strconv.Atoi(tunnelRecord.TunnelPort)
 	targetPort, _ := strconv.Atoi(tunnelRecord.TargetPort)
 
+	// 处理新字段的NULL值
+	mode := ""
+	if tunnelRecord.Mode.Valid {
+		mode = tunnelRecord.Mode.String
+	}
+	read := ""
+	if tunnelRecord.Read.Valid {
+		read = tunnelRecord.Read.String
+	}
+	rate := ""
+	if tunnelRecord.Rate.Valid {
+		rate = tunnelRecord.Rate.String
+	}
+
 	// 2. 组装响应（不再包含日志数据）
 	resp := map[string]interface{}{
 		"tunnelInfo": map[string]interface{}{
 			"id":         tunnelRecord.ID,
 			"instanceId": instanceID,
 			"name":       tunnelRecord.Name,
-			"type":       map[string]string{"server": "服务端", "client": "客户端"}[tunnelRecord.Mode],
+			"type":       tunnelRecord.Type,
 			"status": map[string]string{
 				"type": statusType,
 				"text": statusText,
@@ -1160,7 +1236,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 			"config": map[string]interface{}{
 				"listenPort":  listenPort,
 				"targetPort":  targetPort,
-				"tls":         tunnelRecord.TLSMode != "mode0",
+				"tls":         tunnelRecord.TLSMode != "0",
 				"logLevel":    tunnelRecord.LogLevel,
 				"tlsMode":     tunnelRecord.TLSMode,
 				"endpointTLS": endpointTLS, // 主控的TLS配置
@@ -1180,6 +1256,9 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 					return nil
 				}(),
 				"restart": tunnelRecord.Restart,
+				"mode":    mode, // 新增字段
+				"read":    read, // 新增字段
+				"rate":    rate, // 新增字段
 			},
 			"traffic": map[string]interface{}{
 				"tcpRx": tunnelRecord.TCPRx,
@@ -3045,21 +3124,26 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 
 	// 解析请求体（与创建接口保持一致）
 	var raw struct {
-		Name          string          `json:"name"`
-		EndpointID    int64           `json:"endpointId"`
-		Mode          string          `json:"mode"`
-		TunnelAddress string          `json:"tunnelAddress"`
-		TunnelPort    json.RawMessage `json:"tunnelPort"`
-		TargetAddress string          `json:"targetAddress"`
-		TargetPort    json.RawMessage `json:"targetPort"`
-		TLSMode       string          `json:"tlsMode"`
-		CertPath      string          `json:"certPath"`
-		KeyPath       string          `json:"keyPath"`
-		LogLevel      string          `json:"logLevel"`
-		Password      string          `json:"password"`
-		Min           json.RawMessage `json:"min"`
-		Max           json.RawMessage `json:"max"`
-		ResetTraffic  bool            `json:"resetTraffic"` // 新增：是否重置流量统计
+		Name           string          `json:"name"`
+		EndpointID     int64           `json:"endpointId"`
+		Type           string          `json:"type"`
+		TunnelAddress  string          `json:"tunnelAddress"`
+		TunnelPort     json.RawMessage `json:"tunnelPort"`
+		TargetAddress  string          `json:"targetAddress"`
+		TargetPort     json.RawMessage `json:"targetPort"`
+		TLSMode        string          `json:"tlsMode"`
+		CertPath       string          `json:"certPath"`
+		KeyPath        string          `json:"keyPath"`
+		LogLevel       string          `json:"logLevel"`
+		Password       string          `json:"password"`
+		Min            json.RawMessage `json:"min"`
+		Max            json.RawMessage `json:"max"`
+		Mode           *string         `json:"mode,omitempty"`             // 新增：运行模式
+		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
+		Rate           *string         `json:"rate,omitempty"`             // 新增：带宽速率限制
+		EnableSSEStore *bool           `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
+		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
+		ResetTraffic   bool            `json:"resetTraffic"`               // 新增：是否重置流量统计
 	}
 	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -3095,33 +3179,33 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 	// 构建命令行
 	var commandLine string
 	if raw.Password != "" {
-		commandLine = fmt.Sprintf("%s://%s@%s:%d/%s:%d", raw.Mode, raw.Password, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort)
+		commandLine = fmt.Sprintf("%s://%s@%s:%d/%s:%d", raw.Type, raw.Password, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort)
 	} else {
-		commandLine = fmt.Sprintf("%s://%s:%d/%s:%d", raw.Mode, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort)
+		commandLine = fmt.Sprintf("%s://%s:%d/%s:%d", raw.Type, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort)
 	}
 
 	var queryParams []string
 	if raw.LogLevel != "" && raw.LogLevel != "inherit" {
 		queryParams = append(queryParams, fmt.Sprintf("log=%s", raw.LogLevel))
 	}
-	if raw.Mode == "server" && raw.TLSMode != "" && raw.TLSMode != "inherit" {
+	if raw.Type == "server" && raw.TLSMode != "" && raw.TLSMode != "inherit" {
 		var tlsNum string
 		switch raw.TLSMode {
-		case "mode0":
+		case "0":
 			tlsNum = "0"
-		case "mode1":
+		case "1":
 			tlsNum = "1"
-		case "mode2":
+		case "2":
 			tlsNum = "2"
 		}
 		if tlsNum != "" {
 			queryParams = append(queryParams, fmt.Sprintf("tls=%s", tlsNum))
 		}
-		if raw.TLSMode == "mode2" && raw.CertPath != "" && raw.KeyPath != "" {
+		if raw.TLSMode == "2" && raw.CertPath != "" && raw.KeyPath != "" {
 			queryParams = append(queryParams, fmt.Sprintf("crt=%s", url.QueryEscape(raw.CertPath)), fmt.Sprintf("key=%s", url.QueryEscape(raw.KeyPath)))
 		}
 	}
-	if raw.Mode == "client" {
+	if raw.Type == "client" {
 		// 处理 min/max，区分未设置状态
 		minVal, minSet, _ := parseIntV2(raw.Min)
 		maxVal, maxSet, _ := parseIntV2(raw.Max)
@@ -3182,21 +3266,44 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 			if maxSet {
 				maxPtr = &maxVal
 			}
+			// 处理新增字段的默认值
+			enableSSEStore := true
+			if raw.EnableSSEStore != nil {
+				enableSSEStore = *raw.EnableSSEStore
+			}
+
+			enableLogStore := true
+			if raw.EnableLogStore != nil {
+				enableLogStore = *raw.EnableLogStore
+			}
+
+			// 处理Mode字段的类型转换
+			var modePtr *tunnel.TunnelMode
+			if raw.Mode != nil {
+				mode := tunnel.TunnelMode(*raw.Mode)
+				modePtr = &mode
+			}
+
 			createReq := tunnel.CreateTunnelRequest{
-				Name:          raw.Name,
-				EndpointID:    raw.EndpointID,
-				Mode:          raw.Mode,
-				TunnelAddress: raw.TunnelAddress,
-				TunnelPort:    tunnelPort,
-				TargetAddress: raw.TargetAddress,
-				TargetPort:    targetPort,
-				TLSMode:       tunnel.TLSMode(raw.TLSMode),
-				CertPath:      raw.CertPath,
-				KeyPath:       raw.KeyPath,
-				LogLevel:      tunnel.LogLevel(raw.LogLevel),
-				Password:      raw.Password,
-				Min:           minPtr,
-				Max:           maxPtr,
+				Name:           raw.Name,
+				EndpointID:     raw.EndpointID,
+				Type:           raw.Type,
+				TunnelAddress:  raw.TunnelAddress,
+				TunnelPort:     tunnelPort,
+				TargetAddress:  raw.TargetAddress,
+				TargetPort:     targetPort,
+				TLSMode:        tunnel.TLSMode(raw.TLSMode),
+				CertPath:       raw.CertPath,
+				KeyPath:        raw.KeyPath,
+				LogLevel:       tunnel.LogLevel(raw.LogLevel),
+				Password:       raw.Password,
+				Min:            minPtr,
+				Max:            maxPtr,
+				Mode:           modePtr,        // 新增：运行模式
+				Read:           raw.Read,       // 新增：数据读取超时时间
+				Rate:           raw.Rate,       // 新增：带宽速率限制
+				EnableSSEStore: enableSSEStore, // 新增：是否启用SSE存储
+				EnableLogStore: enableLogStore, // 新增：是否启用日志存储
 			}
 			newTunnel, crtErr := h.tunnelService.CreateTunnelAndWait(createReq, 3*time.Second)
 			if crtErr != nil {
@@ -3237,8 +3344,40 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 		if !maxSet {
 			maxVal = -1
 		}
-		_, _ = h.tunnelService.DB().Exec(`UPDATE tunnels SET name = ?, mode = ?, tunnel_address = ?, tunnel_port = ?, target_address = ?, target_port = ?, tls_mode = ?, cert_path = ?, key_path = ?, log_level = ?, command_line = ?, min = ?, max = ?, status = ?, updated_at = ? WHERE id = ?`,
-			raw.Name, raw.Mode, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine,
+		// 构建新字段的更新值
+		var modeVal interface{}
+		if raw.Mode != nil {
+			modeVal = *raw.Mode
+		} else {
+			modeVal = nil
+		}
+
+		var readVal interface{}
+		if raw.Read != nil {
+			readVal = *raw.Read
+		} else {
+			readVal = nil
+		}
+
+		var rateVal interface{}
+		if raw.Rate != nil {
+			rateVal = *raw.Rate
+		} else {
+			rateVal = nil
+		}
+
+		enableSSEStore := true
+		if raw.EnableSSEStore != nil {
+			enableSSEStore = *raw.EnableSSEStore
+		}
+
+		enableLogStore := true
+		if raw.EnableLogStore != nil {
+			enableLogStore = *raw.EnableLogStore
+		}
+
+		_, _ = h.tunnelService.DB().Exec(`UPDATE tunnels SET name = ?, mode = ?, tunnel_address = ?, tunnel_port = ?, target_address = ?, target_port = ?, tls_mode = ?, cert_path = ?, key_path = ?, log_level = ?, command_line = ?, min = ?, max = ?, status = ?, updated_at = ?, read = ?, rate = ?, enable_sse_store = ?, enable_log_store = ? WHERE id = ?`,
+			raw.Name, modeVal, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine,
 			func() interface{} {
 				if minVal >= 0 {
 					return minVal
@@ -3251,7 +3390,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 				}
 				return nil
 			}(),
-			"running", time.Now(), tunnelID)
+			"running", time.Now(), readVal, rateVal, enableSSEStore, enableLogStore, tunnelID)
 	}
 
 	// 如果需要重置流量统计
@@ -3368,7 +3507,7 @@ func (h *TunnelHandler) HandleExportTunnelLogs(w http.ResponseWriter, r *http.Re
 		SELECT id, event_type, push_type, event_time, endpoint_id, instance_id, 
 		       instance_type, status, url, tcp_rx, tcp_tx, udp_rx, udp_tx, pool, ping,
 		       logs, created_at, alias, restart
-		FROM endpoint_sses 
+		FROM endpoint_sse
 		WHERE endpoint_id = ? AND instance_id = ?
 		ORDER BY created_at DESC
 	`, endpointID, instanceID)
@@ -3609,4 +3748,176 @@ func escapeCSVField(field string) string {
 		return fmt.Sprintf("\"%s\"", escaped)
 	}
 	return field
+}
+
+// ========== Instance 相关处理函数 ==========
+
+// HandleGetInstances 获取实例列表 (GET /api/endpoints/{endpointId}/instances)
+func (h *TunnelHandler) HandleGetInstances(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 从URL中获取端点ID
+	endpointIDStr := r.URL.Query().Get("endpointId")
+	if endpointIDStr == "" {
+		// 尝试从路径 /api/endpoints/{endpointId}/instances 提取
+		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
+		// 期望格式: api, endpoints, {endpointId}, instances
+		if len(parts) >= 4 {
+			endpointIDStr = parts[2]
+		}
+	}
+
+	if endpointIDStr == "" {
+		http.Error(w, "Missing endpointId parameter", http.StatusBadRequest)
+		return
+	}
+
+	// 解析端点ID
+	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid endpointId parameter", http.StatusBadRequest)
+		return
+	}
+
+	// 使用服务层获取端点信息
+	var endpoint struct{ URL, APIPath, APIKey string }
+	if err := h.tunnelService.DB().QueryRow(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`, endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Endpoint not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to get endpoint info", http.StatusInternalServerError)
+		return
+	}
+
+	// 获取实例列表
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	instances, err := npClient.GetInstances()
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 返回实例列表
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(instances)
+}
+
+// HandleGetInstance 获取单个实例信息 (GET /api/endpoints/{endpointId}/instances/{instanceId})
+func (h *TunnelHandler) HandleGetInstance(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 从URL中获取端点ID和实例ID
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 5 {
+		http.Error(w, "Invalid URL", http.StatusBadRequest)
+		return
+	}
+	endpointIDStr := parts[3]
+	instanceID := parts[4]
+
+	// 解析端点ID
+	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid endpointId parameter", http.StatusBadRequest)
+		return
+	}
+
+	// 使用服务层获取端点信息
+	var endpoint struct{ URL, APIPath, APIKey string }
+	if err := h.tunnelService.DB().QueryRow(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`, endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Endpoint not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to get endpoint info", http.StatusInternalServerError)
+		return
+	}
+
+	// 获取实例信息 - 使用ControlInstance获取状态
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	status, err := npClient.ControlInstance(instanceID, "status")
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 构造实例信息
+	instance := map[string]interface{}{
+		"id":     instanceID,
+		"status": status,
+	}
+
+	// 返回实例信息
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(instance)
+}
+
+// HandleControlInstance 控制实例状态 (PATCH /api/endpoints/{endpointId}/instances/{instanceId})
+func (h *TunnelHandler) HandleControlInstance(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPatch {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 从URL中获取端点ID和实例ID
+	parts := strings.Split(r.URL.Path, "/")
+	if len(parts) < 5 {
+		http.Error(w, "Invalid URL", http.StatusBadRequest)
+		return
+	}
+	endpointIDStr := parts[3]
+	instanceID := parts[4]
+
+	// 解析请求体
+	var req struct {
+		Action string `json:"action"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	// 验证action
+	if req.Action != "start" && req.Action != "stop" && req.Action != "restart" {
+		http.Error(w, "Invalid action", http.StatusBadRequest)
+		return
+	}
+
+	// 解析端点ID
+	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid endpointId parameter", http.StatusBadRequest)
+		return
+	}
+
+	// 使用服务层获取端点信息
+	var endpoint struct{ URL, APIPath, APIKey string }
+	if err := h.tunnelService.DB().QueryRow(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`, endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Endpoint not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to get endpoint info", http.StatusInternalServerError)
+		return
+	}
+
+	// 控制实例状态
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	_, err2 := npClient.ControlInstance(instanceID, req.Action)
+
+	if err2 != nil {
+		http.Error(w, err2.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 返回成功响应
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]bool{"success": true})
 }

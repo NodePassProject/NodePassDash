@@ -238,9 +238,9 @@ func (s *Service) GetStats(timeRange TimeRange) (*DashboardStats, error) {
 	}
 
 	for _, tunnel := range topTunnels {
-		tunnelType := "客户端"
+		tunnelType := "client"
 		if tunnel.Mode == "server" {
-			tunnelType = "服务端"
+			tunnelType = "server"
 		}
 
 		stats.TopTunnels = append(stats.TopTunnels, struct {
@@ -297,7 +297,7 @@ func formatTrafficBytes(bytes int64) string {
 
 // TrafficTrendItem 流量趋势条目
 type TrafficTrendItem struct {
-	HourTime    string `json:"hourTime"`    // 2025-06-15 11:00:00
+	HourTime    int64  `json:"hourTime"`    // Unix时间戳（秒）
 	HourDisplay string `json:"hourDisplay"` // 11:00
 	TCPRx       int64  `json:"tcpRx"`
 	TCPTx       int64  `json:"tcpTx"`
@@ -306,16 +306,43 @@ type TrafficTrendItem struct {
 	RecordCount int    `json:"recordCount"`
 }
 
-// GetTrafficTrend 获取最近 hours 小时内的流量趋势，默认24小时
-// 优化版本：优先使用汇总表，降级到原始查询
+// GetTrafficTrend 获取流量趋势数据
 func (s *Service) GetTrafficTrend(hours int) ([]TrafficTrendItem, error) {
-	if hours <= 0 {
-		hours = 24
+	// 使用新的dashboard_traffic_summary表获取流量趋势数据
+	end := time.Now()
+	start := end.Add(-time.Duration(hours) * time.Hour)
+
+	// 从dashboard_traffic_summary表获取数据
+	var summaries []models.DashboardTrafficSummary
+	err := s.db.Where("hour_time >= ? AND hour_time < ?", start, end).
+		Order("hour_time ASC").
+		Find(&summaries).Error
+
+	if err != nil {
+		return nil, fmt.Errorf("查询dashboard流量数据失败: %v", err)
 	}
 
-	// 使用优化的流量服务
-	trafficService := NewTrafficService(s.db)
-	return trafficService.GetTrafficTrendOptimized(hours)
+	// 转换为TrafficTrendItem格式
+	var result []TrafficTrendItem
+	for _, summary := range summaries {
+		item := TrafficTrendItem{
+			HourTime:    summary.HourTime.Unix(),
+			HourDisplay: summary.HourTime.Format("15:04"),
+			TCPRx:       summary.TCPRxTotal,
+			TCPTx:       summary.TCPTxTotal,
+			UDPRx:       summary.UDPRxTotal,
+			UDPTx:       summary.UDPTxTotal,
+			RecordCount: summary.InstanceCount,
+		}
+		result = append(result, item)
+	}
+
+	// 确保返回空数组而不是nil
+	if result == nil {
+		result = []TrafficTrendItem{}
+	}
+
+	return result, nil
 }
 
 // 使用原生SQL实现流量趋势查询
@@ -450,7 +477,7 @@ func (s *Service) processTrafficRecords(records []struct {
 			// 初始化该小时的数据结构
 			if _, exists := hourlyTraffic[current.HourKey]; !exists {
 				hourlyTraffic[current.HourKey] = &TrafficTrendItem{
-					HourTime:    current.HourKey,
+					HourTime:    hourTime.Unix(),
 					HourDisplay: hourTime.Format("15:04"),
 					TCPRx:       0,
 					TCPTx:       0,

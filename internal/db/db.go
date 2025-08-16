@@ -3,7 +3,9 @@ package db
 import (
 	applog "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
+	"context"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -15,6 +17,9 @@ import (
 var (
 	gormDB *gorm.DB
 	once   sync.Once
+	// 用于控制数据库健康检查协程的关闭
+	dbHealthCtx    context.Context
+	dbHealthCancel context.CancelFunc
 )
 
 // GetDB 获取GORM数据库实例
@@ -81,18 +86,26 @@ func GetDB() *gorm.DB {
 		config.PrintConfig()
 		log.Printf("SQLite数据库连接成功并完成表结构迁移")
 
-		// 启动连接健康检查
-		go startConnectionHealthCheck()
+		// 启动连接健康检查（可关闭）
+		dbHealthCtx, dbHealthCancel = context.WithCancel(context.Background())
+		go startConnectionHealthCheck(dbHealthCtx)
 	})
 	return gormDB
 }
 
-// startConnectionHealthCheck 启动连接健康检查
-func startConnectionHealthCheck() {
+// startConnectionHealthCheck 启动连接健康检查（支持优雅关闭）
+func startConnectionHealthCheck(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second) // 每30秒检查一次
 	defer ticker.Stop()
 
-	for range ticker.C {
+	for {
+		select {
+		case <-ctx.Done():
+			log.Printf("健康检查：收到停止信号，退出健康检查")
+			return
+		case <-ticker.C:
+		}
+
 		if gormDB == nil {
 			continue
 		}
@@ -105,7 +118,11 @@ func startConnectionHealthCheck() {
 
 		if err := sqlDB.Ping(); err != nil {
 			log.Printf("健康检查：数据库连接异常: %v", err)
-			// 可以在这里添加告警或者其他处理逻辑
+			// 如果数据库已关闭，自动退出健康检查，避免反复刷日志并阻止进程退出
+			if strings.Contains(err.Error(), "database is closed") {
+				log.Printf("健康检查：检测到数据库已关闭，停止健康检查协程")
+				return
+			}
 		}
 
 		// 检查连接池状态
@@ -154,6 +171,8 @@ func QuickInitSchema(db *gorm.DB) error {
 
 		// 流量统计表
 		&models.TrafficHourlySummary{},
+		&models.DashboardTrafficSummary{},
+		&models.ServiceHistory{},
 	)
 }
 
@@ -180,12 +199,18 @@ func StandardMigrate(db *gorm.DB) error {
 
 		// 流量统计表
 		&models.TrafficHourlySummary{},
+		&models.DashboardTrafficSummary{},
+		&models.ServiceHistory{},
 	)
 }
 
 // Close 关闭数据库连接
 func Close() error {
 	if gormDB != nil {
+		// 先停止健康检查协程
+		if dbHealthCancel != nil {
+			dbHealthCancel()
+		}
 		sqlDB, err := gormDB.DB()
 		if err != nil {
 			return err

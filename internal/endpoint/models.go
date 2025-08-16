@@ -19,8 +19,6 @@ const (
 // EndpointWithStats 带统计信息的端点
 type EndpointWithStats struct {
 	models.Endpoint
-	TunnelCount   int `json:"tunnelCount"`
-	ActiveTunnels int `json:"activeTunnels"`
 }
 
 // CreateEndpointRequest 创建端点请求

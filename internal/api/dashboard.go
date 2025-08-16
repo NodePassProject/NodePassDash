@@ -19,6 +19,66 @@ func NewDashboardHandler(dashboardService *dashboard.Service) *DashboardHandler 
 	}
 }
 
+// HandleGetOverallStats 获取总体统计数据
+func (h *DashboardHandler) HandleGetOverallStats(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 获取总体统计数据
+	var stats struct {
+		TotalEndpoints int64   `json:"total_endpoints"`
+		TotalTunnels   int64   `json:"total_tunnels"`
+		TotalTraffic   float64 `json:"total_traffic"` // 单位：GB
+		CurrentSpeed   float64 `json:"current_speed"` // 单位：MB/s
+	}
+
+	// 获取主控总数
+	if err := h.dashboardService.DB().Raw("SELECT COUNT(*) FROM endpoints").Scan(&stats.TotalEndpoints).Error; err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "获取主控总数失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 获取实例总数
+	if err := h.dashboardService.DB().Raw("SELECT COUNT(*) FROM tunnels").Scan(&stats.TotalTunnels).Error; err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "获取实例总数失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 获取总流量（TCP + UDP）
+	var totalBytes int64
+	if err := h.dashboardService.DB().Raw(`
+		SELECT COALESCE(SUM(tcp_rx + tcp_tx + udp_rx + udp_tx), 0)
+		FROM tunnels
+	`).Scan(&totalBytes).Error; err != nil {
+		w.WriteHeader(http.StatusInternalServerError)
+		json.NewEncoder(w).Encode(map[string]interface{}{
+			"success": false,
+			"error":   "获取总流量失败: " + err.Error(),
+		})
+		return
+	}
+	stats.TotalTraffic = float64(totalBytes) / (1024 * 1024 * 1024) // 转换为GB
+
+	// 当前速率暂时返回0，后续实现
+	stats.CurrentSpeed = 0
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success": true,
+		"data":    stats,
+	})
+}
+
 // HandleGetStats 获取仪表盘统计数据
 func (h *DashboardHandler) HandleGetStats(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
@@ -119,7 +179,7 @@ func (h *DashboardHandler) HandleGetTunnelStats(w http.ResponseWriter, r *http.R
 			COUNT(CASE WHEN status = 'running' THEN 1 END) AS running,
 			COUNT(CASE WHEN status = 'stopped' THEN 1 END) AS stopped,
 			COUNT(CASE WHEN status = 'error' THEN 1 END) AS error,
-			COUNT(CASE WHEN status = 'offline' THEN 1 END) AS offline
+			COUNT(CASE WHEN status = 'offline' OR status IS NULL THEN 1 END) AS offline
 		FROM tunnels
 		`
 
