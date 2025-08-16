@@ -12,6 +12,7 @@ import {
   ModalHeader,
   Pagination,
   Spinner,
+  Skeleton,
   Table,
   TableBody,
   TableCell,
@@ -58,6 +59,7 @@ import {
   faQuestionCircle,
   faTag,
   faRecycle,
+  faTimes,
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
@@ -71,6 +73,7 @@ import BatchUrlCreateTunnelModal from "./components/batch-url-create-tunnel-moda
 import TagManagementModal from "./components/tag-management-modal";
 import SimpleTagModal from "./components/simple-tag-modal";
 import { useSettings } from "@/components/providers/settings-provider";
+import { useIsMobile } from "@/lib/hooks/use-media-query";
 
 // 定义标签类型
 interface Tag {
@@ -82,7 +85,7 @@ interface Tag {
 interface Tunnel {
   id: string;
   instanceId?: string;
-  type: string;
+  type: "server" | "client"; // 统一使用英文类型
   name: string;
   endpoint: string;
   endpointId: string;
@@ -98,6 +101,10 @@ interface Tunnel {
   // 客户端模式的连接池配置
   min?: number;
   max?: number;
+  // 新增字段
+  mode: "0"; // 服务端/客户端模式：服务端默认0，客户端默认1
+  read: ""; // 数据读取超时
+  rate: ""; // 速率限制
   // 流量统计信息
   traffic?: {
     tcpRx: number;
@@ -116,6 +123,7 @@ interface Endpoint {
 
 export default function TunnelsPage() {
   const router = useRouter();
+  const isMobile = useIsMobile();
   const [filterValue, setFilterValue] = useState("");
   const [statusFilter, setStatusFilter] = useState("all");
   const [endpointFilter, setEndpointFilter] = useState("all");
@@ -158,13 +166,6 @@ export default function TunnelsPage() {
   const [error, setError] = useState<string | null>(null);
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [endpointsLoading, setEndpointsLoading] = useState(true);
-  const [stats, setStats] = useState({
-    total: 0,
-    running: 0,
-    stopped: 0,
-    error: 0,
-    offline: 0,
-  });
 
   // 是否移入回收站
   const [moveToRecycle, setMoveToRecycle] = useState(false);
@@ -203,7 +204,7 @@ export default function TunnelsPage() {
 
   // 排序处理函数
   const handleSortChange = (descriptor: SortDescriptor) => {
-    console.log('排序变化:', descriptor);
+    console.log("排序变化:", descriptor);
     setSortDescriptor(descriptor);
   };
 
@@ -235,9 +236,9 @@ export default function TunnelsPage() {
 
       // 排序参数
       if (sortDescriptor.column) {
-        console.log('发送排序参数:', {
+        console.log("发送排序参数:", {
           column: sortDescriptor.column,
-          direction: sortDescriptor.direction
+          direction: sortDescriptor.direction,
         });
         params.append("sort_by", String(sortDescriptor.column));
         params.append(
@@ -280,31 +281,10 @@ export default function TunnelsPage() {
     page,
     rowsPerPage,
     sortDescriptor,
-  ]);
-
-  // 获取统计数据
-  const fetchStats = useCallback(async () => {
-    try {
-      const response = await fetch(buildApiUrl("/api/dashboard/tunnel-stats"));
-      if (!response.ok) throw new Error("获取统计数据失败");
-      const result = await response.json();
-
-      if (result.success && result.data) {
-        setStats(result.data);
-      }
-    } catch (error) {
-      console.error("获取统计数据失败:", error);
-      addToast({
-        title: "错误",
-        description:
-          error instanceof Error ? error.message : "获取统计数据失败",
-        color: "danger",
-      });
-    }
-  }, []);
+  ]); // 恢复依赖项，但使用正确的useEffect模式
 
   // 获取主控列表
-  const fetchEndpoints = async () => {
+  const fetchEndpoints = useCallback(async () => {
     try {
       setEndpointsLoading(true);
       const response = await fetch(buildApiUrl("/api/endpoints/simple"));
@@ -321,10 +301,10 @@ export default function TunnelsPage() {
     } finally {
       setEndpointsLoading(false);
     }
-  };
+  }, []);
 
   // 获取标签列表
-  const fetchTags = async () => {
+  const fetchTags = useCallback(async () => {
     try {
       setTagsLoading(true);
       const response = await fetch(buildApiUrl("/api/tags"));
@@ -341,25 +321,28 @@ export default function TunnelsPage() {
     } finally {
       setTagsLoading(false);
     }
-  };
+  }, []);
 
-  // 状态选项
-  const statusOptions = [
-    { label: "所有状态", value: "all" },
-    { label: "运行中", value: "running" },
-    { label: "已停止", value: "stopped" },
-    { label: "有错误", value: "error" },
-    { label: "已离线", value: "offline" },
-  ];
+  // 状态选项 - 使用useMemo缓存
+  const statusOptions = useMemo(
+    () => [
+      { label: "所有状态", value: "all" },
+      { label: "运行中", value: "running" },
+      { label: "已停止", value: "stopped" },
+      { label: "有错误", value: "error" },
+      { label: "已离线", value: "offline" },
+    ],
+    []
+  );
 
-  // 获取选中主控名称
-  const getSelectedEndpointName = () => {
+  // 获取选中主控名称 - 使用useMemo缓存
+  const selectedEndpointName = useMemo(() => {
     if (endpointFilter === "all") return "所有主控";
     const endpoint = endpoints.find(
       (ep) => String(ep.id) === String(endpointFilter)
     );
     return endpoint ? endpoint.name : "所有主控";
-  };
+  }, [endpointFilter, endpoints]);
 
   // 处理实例操作
   const handleTunnelAction = async (tunnelId: string, action: string) => {
@@ -428,12 +411,12 @@ export default function TunnelsPage() {
     }
   };
 
-  // 计算已选中数量（支持全选）
-  const getSelectedCount = () => {
-    if (selectedKeys === "all") return filteredItems.length;
+  // 计算已选中数量（支持全选）- 使用useMemo缓存
+  const selectedCount = useMemo(() => {
+    if (selectedKeys === "all") return tunnels.length;
     if (selectedKeys instanceof Set) return selectedKeys.size;
     return 0;
-  };
+  }, [selectedKeys, tunnels.length]);
 
   // 显示批量删除确认弹窗
   const showBatchDeleteModal = () => {
@@ -866,6 +849,11 @@ export default function TunnelsPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   };
 
+  // 类型显示转换函数
+  const getTypeDisplayText = (type: "server" | "client"): string => {
+    return type === "server" ? "服务端" : "客户端";
+  };
+
   // 格式化流量信息组件
   const TrafficInfo = ({ traffic }: { traffic?: Tunnel["traffic"] }) => {
     if (!traffic) {
@@ -901,68 +889,194 @@ export default function TunnelsPage() {
     );
   };
 
-  // 初始加载
+  // 移动端卡片组件
+  const MobileTunnelCard = ({ tunnel }: { tunnel: Tunnel }) => (
+    <Card key={tunnel.id} className="w-full">
+      <CardBody className="p-4">
+        <div className="flex justify-between items-start mb-3">
+          <div className="flex-1">
+            <div className="flex items-center gap-2 mb-2">
+              <h3 className="text-sm font-semibold truncate">{tunnel.name}</h3>
+              <Chip
+                variant="flat"
+                color={tunnel.type === "server" ? "primary" : "secondary"}
+                size="sm"
+                className="text-xs"
+              >
+                {getTypeDisplayText(tunnel.type)}
+              </Chip>
+            </div>
+            <div className="space-y-1 text-xs text-default-600">
+              <div>主控: {tunnel.endpoint}</div>
+              <div>
+                隧道: {formatAddress(tunnel.tunnelAddress, tunnel.tunnelPort)}
+              </div>
+              <div>
+                目标: {formatAddress(tunnel.targetAddress, tunnel.targetPort)}
+              </div>
+            </div>
+          </div>
+          <div className="flex flex-col items-end gap-2">
+            <Chip
+              variant="flat"
+              color={tunnel.status.type}
+              size="sm"
+              className="text-xs"
+            >
+              {tunnel.status.text}
+            </Chip>
+            {tunnel.tag && (
+              <Chip
+                variant="flat"
+                size="sm"
+                color="primary"
+                className="text-xs cursor-pointer"
+                onClick={() => handleTagClick(tunnel)}
+              >
+                {tunnel.tag.name}
+              </Chip>
+            )}
+          </div>
+        </div>
+
+        <div className="flex justify-between items-center">
+          <div className="flex-1">
+            <TrafficInfo traffic={tunnel.traffic} />
+          </div>
+          <div className="flex gap-1">
+            <Button
+              isIconOnly
+              variant="light"
+              size="sm"
+              color="primary"
+              onClick={() => router.push(`/tunnels/details?id=${tunnel.id}`)}
+            >
+              <FontAwesomeIcon icon={faEye} className="text-xs" />
+            </Button>
+            <Button
+              isIconOnly
+              variant="light"
+              size="sm"
+              color={tunnel.status.type === "success" ? "warning" : "success"}
+              onClick={() => handleToggleStatus(tunnel)}
+            >
+              <FontAwesomeIcon
+                icon={tunnel.status.type === "success" ? faStop : faPlay}
+                className="text-xs"
+              />
+            </Button>
+            <Dropdown placement="bottom-end">
+              <DropdownTrigger>
+                <Button isIconOnly variant="light" size="sm">
+                  <FontAwesomeIcon icon={faEllipsisV} className="text-xs" />
+                </Button>
+              </DropdownTrigger>
+              <DropdownMenu aria-label="操作选项">
+                <DropdownItem
+                  key="restart"
+                  startContent={<FontAwesomeIcon icon={faRotateRight} />}
+                  isDisabled={tunnel.status.type !== "success"}
+                  onClick={() => handleRestart(tunnel)}
+                >
+                  重启
+                </DropdownItem>
+                <DropdownItem
+                  key="edit"
+                  startContent={<FontAwesomeIcon icon={faPen} />}
+                  onClick={() => {
+                    setEditTunnel(tunnel);
+                    setEditModalOpen(true);
+                  }}
+                >
+                  编辑
+                </DropdownItem>
+                <DropdownItem
+                  key="rename"
+                  startContent={<FontAwesomeIcon icon={faPen} />}
+                  onClick={() => handleEditClick(tunnel)}
+                >
+                  重命名
+                </DropdownItem>
+                <DropdownItem
+                  key="tag"
+                  startContent={<FontAwesomeIcon icon={faTag} />}
+                  onClick={() => handleTagClick(tunnel)}
+                >
+                  设置标签
+                </DropdownItem>
+                <DropdownItem
+                  key="delete"
+                  className="text-danger"
+                  color="danger"
+                  startContent={<FontAwesomeIcon icon={faTrash} />}
+                  onClick={() => handleDeleteClick(tunnel)}
+                >
+                  删除
+                </DropdownItem>
+              </DropdownMenu>
+            </Dropdown>
+          </div>
+        </div>
+      </CardBody>
+    </Card>
+  );
+
+  // 初始加载 - 只在组件挂载时执行一次
   React.useEffect(() => {
-    fetchTunnels();
     fetchEndpoints();
     fetchTags();
-    fetchStats();
-  }, []);
+  }, []); // 空依赖数组，只在组件挂载时执行一次
 
-  // 监听过滤参数变化，重新获取数据
+  // 监听过滤参数变化，重新获取数据（包括初始加载）
   React.useEffect(() => {
     fetchTunnels();
-  }, [
-    filterValue,
-    statusFilter,
-    endpointFilter,
-    tagFilter,
-    page,
-    rowsPerPage,
-    sortDescriptor,
-  ]);
+  }, [fetchTunnels]); // 只依赖fetchTunnels，当其依赖项变化时会自动触发
 
-  const columns = [
-    { key: "type", label: "类型", sortable: false },
-    { key: "name", label: "名称", sortable: true },
-    { key: "endpoint", label: "主控", sortable: false },
-    {
-      key: "tunnelAddress",
-      label: "隧道地址",
-      sortable: false,
-    },
-    {
-      key: "targetAddress",
-      label: "目标地址",
-      sortable: false,
-    },
-    { key: "status", label: "状态", sortable: false },
-    { key: "tag", label: "标签", sortable: false },
-    {
-      key: "traffic",
-      label: (
-        <div className="flex items-center gap-1">
-          <span>流量统计</span>
-          <Tooltip
-            content={
-              <div className="text-xs">
-                <div>第一行：TCP 下载↓ / 上传↑</div>
-                <div>第二行：UDP 下载↓ / 上传↑</div>
-              </div>
-            }
-            size="sm"
-          >
-            <FontAwesomeIcon
-              icon={faQuestionCircle}
-              className="text-xs text-default-400 hover:text-default-600 cursor-help"
-            />
-          </Tooltip>
-        </div>
-      ),
-      sortable: false,
-    },
-    { key: "actions", label: "操作", sortable: false },
-  ];
+  // 表格列定义 - 使用useMemo缓存
+  const columns = useMemo(
+    () => [
+      { key: "type", label: "类型", sortable: false },
+      { key: "name", label: "名称", sortable: true },
+      { key: "endpoint", label: "主控", sortable: false },
+      {
+        key: "tunnelAddress",
+        label: "隧道地址",
+        sortable: false,
+      },
+      {
+        key: "targetAddress",
+        label: "目标地址",
+        sortable: false,
+      },
+      { key: "status", label: "状态", sortable: false },
+      { key: "tag", label: "标签", sortable: false },
+      {
+        key: "traffic",
+        label: (
+          <div className="flex items-center gap-1">
+            <span>流量统计</span>
+            <Tooltip
+              content={
+                <div className="text-xs">
+                  <div>第一行：TCP 下载↓ / 上传↑</div>
+                  <div>第二行：UDP 下载↓ / 上传↑</div>
+                </div>
+              }
+              size="sm"
+            >
+              <FontAwesomeIcon
+                icon={faQuestionCircle}
+                className="text-xs text-default-400 hover:text-default-600 cursor-help"
+              />
+            </Tooltip>
+          </div>
+        ),
+        sortable: false,
+      },
+      { key: "actions", label: "操作", sortable: false },
+    ],
+    []
+  );
 
   // 更新实例状态的函数
   const handleStatusChange = (tunnelId: string, isRunning: boolean) => {
@@ -1109,18 +1223,19 @@ export default function TunnelsPage() {
     setSimpleTagModalOpen(true);
   };
 
-  const handleTagSaved = () => {
+  const handleTagSaved = useCallback(() => {
     fetchTunnels();
     fetchTags();
-  };
+  }, [fetchTunnels, fetchTags]);
 
-  // 由于筛选和排序已移到后端，这里直接返回隧道列表
-  const filteredItems = React.useMemo(() => {
+  // 由于筛选和排序已移到后端，这里直接返回隧道列表 - 使用useMemo缓存
+  const filteredItems = useMemo(() => {
     return tunnels;
   }, [tunnels]);
 
-  const pages = totalPages;
-  const items = filteredItems; // 后端已经处理了分页，直接使用返回的数据
+  // 分页和表格数据 - 使用useMemo缓存
+  const pages = useMemo(() => totalPages, [totalPages]);
+  const items = useMemo(() => filteredItems, [filteredItems]); // 后端已经处理了分页，直接使用返回的数据
 
   const onSearchChange = React.useCallback((value?: string) => {
     if (value) {
@@ -1174,6 +1289,35 @@ export default function TunnelsPage() {
     }
   };
 
+  // 标签筛选器组件
+  const renderTagFilter = () => {
+    if (tags.length === 0) {
+      return null;
+    }
+
+    return (
+      <div className="flex flex-wrap gap-2">
+        <Chip
+          color={tagFilter === "all" ? "primary" : "default"}
+          className="cursor-pointer rounded-md"
+          onClick={() => onTagFilterChange("all")}
+        >
+          所有
+        </Chip>
+        {tags.map((tag) => (
+          <Chip
+            key={tag.id}
+            color={tagFilter === String(tag.id) ? "primary" : "default"}
+            className="cursor-pointer rounded-md"
+            onClick={() => onTagFilterChange(String(tag.id))}
+          >
+            {tag.name}
+          </Chip>
+        ))}
+      </div>
+    );
+  };
+
   // 分页器组件
   const renderPagination = () => {
     if (loading || error || totalItems === 0) {
@@ -1205,105 +1349,263 @@ export default function TunnelsPage() {
       <div className="p-4 md:p-0">
         {/* 标题栏 */}
         <div className="flex items-center justify-between mb-4">
-          <div className="flex items-center gap-4">
-            <span className="text-2xl font-semibold text-foreground">
-              实例管理
-            </span>
-            {!loading && (
-              <Chip className="text-sm text-default-500" size="sm">{totalItems}</Chip>
-            )}
-          </div>
-          <div className="flex items-center gap-2">
-            {/* 标签管理按钮 */}
-            <Button
-              variant="flat"
-              color="warning"
-              startContent={<FontAwesomeIcon icon={faTag} />}
-              onPress={handleTagManagement}
-            >
-              标签管理
-            </Button>
-            <Button
-              variant="flat"
-              color="secondary"
-              startContent={<FontAwesomeIcon icon={faTag} />}
-              onPress={() => router.push("/templates")}
-            >
-              场景创建
-            </Button>
+          {/* 移动端布局 */}
+          <div className="flex md:hidden items-center justify-between w-full">
+            {/* 左侧：标题和数量 */}
+            <div className="flex items-center gap-3">
+              <h1 className="text-3xl font-semibold ">实例管理</h1>
+              {!loading && (
+                <Chip className="text-sm " size="sm" variant="solid">
+                  {totalItems}
+                </Chip>
+              )}
+            </div>
 
-            {/* 创建按钮组 */}
-            <ButtonGroup>
+            {/* 右侧：按钮组 */}
+            <div className="flex items-center gap-2">
               <Button
-                color="primary"
-                className="md:text-sm"
-                startContent={<FontAwesomeIcon icon={faPlus} />}
-                onClick={() => {
-                  if (settings.isBeginnerMode) {
-                    router.push("/tunnels/create");
-                  } else {
-                    setQuickCreateOpen(true);
-                  }
-                }}
-              >
-                <span className="hidden sm:inline">创建实例</span>
-                <span className="sm:hidden">创建</span>
-              </Button>
-              <Dropdown placement="bottom-end">
-                <DropdownTrigger>
-                  <Button isIconOnly color="primary" >
-                    <FontAwesomeIcon icon={faChevronDown} />
-                  </Button>
-                </DropdownTrigger>
-                <DropdownMenu
-                  aria-label="创建选项"
-                  onAction={(key) => {
-                    switch (key) {
-                      case "manual":
-                        setManualCreateOpen(true);
-                        break;
-                      case "batch":
-                        setBatchCreateOpen(true);
-                        break;
-                      // case "template":
-                      //   router.push("/templates");
-                      //   break;
+                variant="flat"
+                size="sm"
+                onClick={fetchTunnels}
+                isIconOnly
+                startContent={<FontAwesomeIcon icon={faRotateRight} />}
+              />
+              <Button
+                variant="flat"
+                color="warning"
+                size="sm"
+                isIconOnly
+                onPress={handleTagManagement}
+                startContent={<FontAwesomeIcon icon={faTag} />}
+              />
+              <ButtonGroup size="sm">
+                <Button
+                  color="primary"
+                  startContent={<FontAwesomeIcon icon={faPlus} />}
+                  onClick={() => {
+                    if (settings.isBeginnerMode) {
+                      router.push("/tunnels/create");
+                    } else {
+                      setQuickCreateOpen(true);
                     }
                   }}
                 >
-                  <DropdownItem
-                    key="manual"
-                    startContent={
-                      <FontAwesomeIcon icon={faHammer} fixedWidth />
+                  创建
+                </Button>
+                <Dropdown placement="bottom-end">
+                  <DropdownTrigger>
+                    <Button isIconOnly color="primary">
+                      <FontAwesomeIcon icon={faChevronDown} />
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu
+                    aria-label="创建选项"
+                    onAction={(key) => {
+                      switch (key) {
+                        case "manual":
+                          setManualCreateOpen(true);
+                          break;
+                        case "batch":
+                          setBatchCreateOpen(true);
+                          break;
+                      }
+                    }}
+                  >
+                    <DropdownItem
+                      key="manual"
+                      startContent={
+                        <FontAwesomeIcon icon={faHammer} fixedWidth />
+                      }
+                    >
+                      手搓创建
+                    </DropdownItem>
+                    <DropdownItem
+                      key="batch"
+                      startContent={
+                        <FontAwesomeIcon icon={faCopy} fixedWidth />
+                      }
+                    >
+                      批量创建
+                    </DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+              </ButtonGroup>
+            </div>
+          </div>
+
+          {/* 桌面端布局 */}
+          <div className="hidden md:flex items-center justify-between w-full">
+            <div className="flex items-center gap-4">
+              <span className="text-2xl font-semibold text-foreground">
+                实例管理
+              </span>
+              {!loading && (
+                <Chip className="text-sm text-default-500" size="sm">
+                  {totalItems}
+                </Chip>
+              )}
+            </div>
+            <div className="flex items-center gap-2">
+              {/* 标签管理按钮 */}
+              <Button
+                variant="flat"
+                color="warning"
+                startContent={<FontAwesomeIcon icon={faTag} />}
+                onPress={handleTagManagement}
+              >
+                标签管理
+              </Button>
+              <Button
+                variant="flat"
+                color="secondary"
+                startContent={<FontAwesomeIcon icon={faLayerGroup} />}
+                onPress={() => router.push("/templates")}
+              >
+                场景创建
+              </Button>
+
+              {/* 创建按钮组 */}
+              <ButtonGroup>
+                <Button
+                  color="primary"
+                  className="md:text-sm"
+                  startContent={<FontAwesomeIcon icon={faPlus} />}
+                  onClick={() => {
+                    if (settings.isBeginnerMode) {
+                      router.push("/tunnels/create");
+                    } else {
+                      setQuickCreateOpen(true);
                     }
+                  }}
+                >
+                  创建实例
+                </Button>
+                <Dropdown placement="bottom-end">
+                  <DropdownTrigger>
+                    <Button isIconOnly color="primary">
+                      <FontAwesomeIcon icon={faChevronDown} />
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu
+                    aria-label="创建选项"
+                    onAction={(key) => {
+                      switch (key) {
+                        case "manual":
+                          setManualCreateOpen(true);
+                          break;
+                        case "batch":
+                          setBatchCreateOpen(true);
+                          break;
+                      }
+                    }}
                   >
-                    手搓创建
-                  </DropdownItem>
-                  <DropdownItem
-                    key="batch"
-                    startContent={<FontAwesomeIcon icon={faCopy} fixedWidth />}
-                  >
-                    批量创建
-                  </DropdownItem>
-                  {/* <DropdownItem
-                    key="template"
-                    startContent={
-                      <FontAwesomeIcon icon={faLayerGroup} fixedWidth />
-                    }
-                  >
-                    场景创建
-                  </DropdownItem> */}
-                </DropdownMenu>
-              </Dropdown>
-            </ButtonGroup>
+                    <DropdownItem
+                      key="manual"
+                      startContent={
+                        <FontAwesomeIcon icon={faHammer} fixedWidth />
+                      }
+                    >
+                      手搓创建
+                    </DropdownItem>
+                    <DropdownItem
+                      key="batch"
+                      startContent={
+                        <FontAwesomeIcon icon={faCopy} fixedWidth />
+                      }
+                    >
+                      批量创建
+                    </DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+              </ButtonGroup>
+            </div>
           </div>
         </div>
 
         {/* 工具栏区域 */}
         <div className="mb-4">
-          <div className="flex flex-col sm:flex-row gap-3 items-start sm:items-center justify-between">
+          {/* 移动端布局：三个筛选组件并排 */}
+          <div className="flex md:hidden gap-2 mb-3">
+            {/* 搜索框 */}
+            <Input
+              placeholder="搜索实例名称..."
+              value={filterValue}
+              onValueChange={onSearchChange}
+              startContent={
+                <FontAwesomeIcon icon={faSearch} className="text-default-400" />
+              }
+              endContent={
+                filterValue && (
+                  <Button
+                    isIconOnly
+                    variant="light"
+                    size="sm"
+                    onClick={onClear}
+                    className="text-default-400 hover:text-default-600"
+                  >
+                    <FontAwesomeIcon icon={faTimes} className="text-xs" />
+                  </Button>
+                )
+              }
+              className="flex-1"
+              size="sm"
+            />
+
+            {/* 状态筛选 */}
+            <Select
+              placeholder="状态筛选"
+              selectedKeys={[statusFilter]}
+              onSelectionChange={(keys) => {
+                const value = Array.from(keys)[0] as string;
+                onStatusFilterChange(value);
+              }}
+              className="w-28"
+              size="sm"
+              classNames={{
+                trigger: "text-xs",
+                value: "text-xs",
+              }}
+            >
+              {statusOptions.map((option) => (
+                <SelectItem key={String(option.value)} className="text-xs">
+                  {option.label}
+                </SelectItem>
+              ))}
+            </Select>
+
+            {/* 主控筛选 */}
+            <Select
+              placeholder="主控筛选"
+              selectedKeys={[endpointFilter]}
+              onSelectionChange={(keys) => {
+                const value = Array.from(keys)[0] as string;
+                onEndpointFilterChange(value);
+              }}
+              className="w-28"
+              size="sm"
+              isLoading={endpointsLoading}
+              classNames={{
+                trigger: "text-xs",
+                value: "text-xs",
+              }}
+            >
+              <SelectItem key="all" className="text-xs">
+                所有主控
+              </SelectItem>
+              <>
+                {endpoints.map((endpoint) => (
+                  <SelectItem key={String(endpoint.id)} className="text-xs">
+                    {endpoint.name}
+                  </SelectItem>
+                ))}
+              </>
+            </Select>
+          </div>
+
+          {/* 桌面端布局 */}
+          <div className="hidden md:flex gap-3 items-center justify-between">
             {/* 左侧：搜索和筛选 */}
-            <div className="flex flex-col sm:flex-row gap-3 flex-1 min-w-0">
+            <div className="flex gap-3 flex-1 min-w-0">
               {/* 搜索框 */}
               <Input
                 placeholder="搜索实例名称..."
@@ -1315,7 +1617,20 @@ export default function TunnelsPage() {
                     className="text-default-400"
                   />
                 }
-                className="w-full sm:w-64"
+                endContent={
+                  filterValue && (
+                    <Button
+                      isIconOnly
+                      variant="light"
+                      size="sm"
+                      onClick={onClear}
+                      className="text-default-400 hover:text-default-600"
+                    >
+                      <FontAwesomeIcon icon={faTimes} className="text-xs" />
+                    </Button>
+                  )
+                }
+                className="w-64"
                 size="sm"
               />
 
@@ -1327,11 +1642,15 @@ export default function TunnelsPage() {
                   const value = Array.from(keys)[0] as string;
                   onStatusFilterChange(value);
                 }}
-                className="w-full sm:w-32"
+                className="w-36"
                 size="sm"
+                classNames={{
+                  trigger: "text-xs",
+                  value: "text-xs",
+                }}
               >
                 {statusOptions.map((option) => (
-                  <SelectItem key={String(option.value)}>
+                  <SelectItem key={String(option.value)} className="text-xs">
                     {option.label}
                   </SelectItem>
                 ))}
@@ -1345,28 +1664,36 @@ export default function TunnelsPage() {
                   const value = Array.from(keys)[0] as string;
                   onEndpointFilterChange(value);
                 }}
-                className="w-full sm:w-40"
+                className="w-36"
                 size="sm"
                 isLoading={endpointsLoading}
+                classNames={{
+                  trigger: "text-xs",
+                  value: "text-xs",
+                }}
               >
-                <SelectItem key="all">所有主控</SelectItem>
-                {endpoints.map((endpoint) => (
-                  <SelectItem key={String(endpoint.id)}>
-                    {endpoint.name}
-                  </SelectItem>
-                ))}
+                <SelectItem key="all" className="text-xs">
+                  所有主控
+                </SelectItem>
+                <>
+                  {endpoints.map((endpoint) => (
+                    <SelectItem key={String(endpoint.id)} className="text-xs">
+                      {endpoint.name}
+                    </SelectItem>
+                  ))}
+                </>
               </Select>
 
-              {/* 选中状态显示和批量操作 */}
+              {/* 选中状态显示和批量操作 - 桌面端显示 */}
               <div className="flex items-center h-8">
                 <Divider className="h-5" orientation="vertical" />
               </div>
               <div className="flex items-center h-8">
                 <span className="text-sm text-default-600 whitespace-nowrap">
-                  已选择 {getSelectedCount()} 个
+                  已选择 {selectedCount} 个
                 </span>
               </div>
-              {getSelectedCount() > 0 && (
+              {selectedCount > 0 && (
                 <>
                   <Dropdown placement="bottom-end">
                     <DropdownTrigger>
@@ -1451,14 +1778,18 @@ export default function TunnelsPage() {
                       );
                     }
                   }}
+                  classNames={{
+                    trigger: "text-xs",
+                    value: "text-xs",
+                  }}
                 >
-                  <SelectItem key="10" textValue="每页显示: 10">
+                  <SelectItem key="10" textValue="10条/页" className="text-xs">
                     10
                   </SelectItem>
-                  <SelectItem key="20" textValue="每页显示: 20">
+                  <SelectItem key="20" textValue="20条/页" className="text-xs">
                     20
                   </SelectItem>
-                  <SelectItem key="50" textValue="每页显示: 50">
+                  <SelectItem key="50" textValue="0条/页" className="text-xs">
                     50
                   </SelectItem>
                 </Select>
@@ -1478,600 +1809,396 @@ export default function TunnelsPage() {
           </div>
         </div>
 
-        {/* 标签筛选器 */}
-        {tags.length > 0 && (
-          <div className="mb-4">
-            <div className="flex flex-wrap gap-2">
-              <Chip
-                color={tagFilter === "all" ? "primary" : "default"}
-                className="cursor-pointer rounded-md"
-                onClick={() => onTagFilterChange("all")}
-              >
-                所有
-              </Chip>
-              {tags.map((tag) => (
-                <Chip
-                  key={tag.id}
-                  color={tagFilter === String(tag.id) ? "primary" : "default"}
-                  className="cursor-pointer rounded-md"
-                  onClick={() => onTagFilterChange(String(tag.id))}
-                >
-                  {tag.name}
-                </Chip>
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* 表格区域 */}
-        <div className="w-full overflow-hidden ">
-          {/* 移动端：使用卡片布局 */}
-          <div className="block md:hidden p-4 space-y-3">
-            {loading ? (
-              <div className="flex justify-center items-center py-16">
-                <div className="flex flex-col items-center gap-4">
-                  <Spinner size="lg" />
-                  <p className="text-default-500 text-sm">加载中...</p>
-                </div>
-              </div>
-            ) : error ? (
-              <div className="text-center py-12">
-                <div className="flex flex-col items-center gap-4">
-                  <div className="w-16 h-16 rounded-full bg-danger-50 flex items-center justify-center">
-                    <FontAwesomeIcon
-                      icon={faRotateRight}
-                      className="text-2xl text-danger"
-                    />
-                  </div>
-                  <div className="space-y-2">
-                    <p className="text-danger text-sm font-medium">加载失败</p>
-                    <p className="text-default-400 text-xs">{error}</p>
-                  </div>
-                  <Button
-                    color="danger"
-                    variant="flat"
-                    size="sm"
-                    startContent={<FontAwesomeIcon icon={faRotateRight} />}
-                    onClick={fetchTunnels}
-                  >
-                    重试
-                  </Button>
-                </div>
-              </div>
-            ) : items.length === 0 ? (
-              <div className="text-center py-12">
-                <div className="flex flex-col items-center gap-3">
-                  <div className="w-16 h-16 rounded-full bg-default-100 flex items-center justify-center">
-                    <FontAwesomeIcon
-                      icon={faEye}
-                      className="text-2xl text-default-400"
-                    />
-                  </div>
-                  <div className="space-y-1">
-                    <p className="text-default-500 text-sm font-medium">
-                      暂无实例
-                    </p>
-                    <p className="text-default-400 text-xs">
-                      您还没有创建任何实例
-                    </p>
-                  </div>
-                </div>
-              </div>
-            ) : (
-              items.map((tunnel) => (
-                <div key={tunnel.id} className="p-3 space-y-2 bg-background">
-                  {/* 头部：名称和状态 */}
-                  <div className="flex items-center justify-between">
-                    <div className="flex items-center gap-2 min-w-0 flex-1">
-                      <Chip
-                        variant="flat"
-                        color={
-                          tunnel.type === "服务端" ? "primary" : "secondary"
-                        }
-                        size="sm"
-                        className="text-xs"
-                      >
-                        {tunnel.type}
-                      </Chip>
-                      <div className="flex items-center gap-1 min-w-0">
-                        <Tooltip content={tunnel.name} size="sm">
-                          <span className="font-semibold text-sm truncate max-w-[120px]">
-                            {tunnel.name}
-                          </span>
-                        </Tooltip>
-                        <Tooltip content="修改名称" size="sm">
-                          <FontAwesomeIcon
-                            icon={faPen}
-                            className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer"
-                            onClick={() => handleEditClick(tunnel)}
-                          />
-                        </Tooltip>
+        {/* 表格区域 - 使用条件渲染完全分离移动端和桌面端 */}
+        <div className="w-full">
+          {isMobile ? (
+            // 移动端：卡片布局
+            <div className="space-y-3">
+              {loading || error || items.length === 0 ? (
+                <div className="min-h-[400px] flex items-center justify-center py-16">
+                  {loading ? (
+                    <div className="flex flex-col items-center gap-4">
+                      <Spinner size="lg" />
+                      <p className="text-default-500">加载中...</p>
+                    </div>
+                  ) : error ? (
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-20 h-20 rounded-full bg-danger-50 flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faRotateRight}
+                          className="text-3xl text-danger"
+                        />
                       </div>
-                    </div>
-                    <Chip
-                      variant="flat"
-                      color={tunnel.status.type}
-                      size="sm"
-                      className="text-xs"
-                    >
-                      {tunnel.status.text}
-                    </Chip>
-                  </div>
-
-                  {/* 主控信息 */}
-                  <div className="space-y-1">
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-default-500 w-12 flex-shrink-0">
-                        主控:
-                      </span>
-                      <Chip
-                        variant="bordered"
-                        color="default"
-                        size="sm"
-                        className="text-xs"
-                      >
-                        {tunnel.endpoint}
-                      </Chip>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-default-500 w-12 flex-shrink-0">
-                        实例:
-                      </span>
-                      <span className="text-xs font-mono text-default-600 truncate">
-                        {formatAddress(tunnel.tunnelAddress, tunnel.tunnelPort)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-default-500 w-12 flex-shrink-0">
-                        目标:
-                      </span>
-                      <span className="text-xs font-mono text-default-600 truncate">
-                        {formatAddress(tunnel.targetAddress, tunnel.targetPort)}
-                      </span>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-default-500 w-12 flex-shrink-0">
-                        流量:
-                      </span>
-                      <div className="flex-1">
-                        <TrafficInfo traffic={tunnel.traffic} />
+                      <div className="space-y-2">
+                        <p className="text-danger text-base font-medium">
+                          加载失败
+                        </p>
+                        <p className="text-default-400 text-sm">{error}</p>
                       </div>
-                    </div>
-                    <div className="flex items-center gap-2">
-                      <span className="text-xs text-default-500 w-12 flex-shrink-0">
-                        标签:
-                      </span>
-                      <div className="flex items-center gap-2">
-                        {tunnel.tag && tunnel.tag.id ? (
-                          <Tooltip content="点击更改标签" size="sm">
-                            <Chip
-                              variant="flat"
-                              size="sm"
-                              color="primary"
-                              className="text-xs cursor-pointer hover:opacity-80"
-                              onClick={() => handleTagClick(tunnel)}
-                            >
-                              {tunnel.tag.name}
-                            </Chip>
-                          </Tooltip>
-                        ) : (
-                          <Tooltip content="设置标签" size="sm">
-                            <FontAwesomeIcon
-                              icon={faTag}
-                              className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer"
-                              onClick={() => handleTagClick(tunnel)}
-                            />
-                          </Tooltip>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-
-                  {/* 操作按钮 */}
-                  <div className="flex justify-end gap-1 pt-2">
-                    <Tooltip content="查看实例" size="sm">
                       <Button
-                        isIconOnly
-                        variant="light"
-                        size="sm"
-                        color="primary"
-                        onClick={() =>
-                          router.push(`/tunnels/details?id=${tunnel.id}`)
-                        }
-                        startContent={
-                          <FontAwesomeIcon icon={faEye} className="text-xs" />
-                        }
-                      />
-                    </Tooltip>
-                    <Tooltip
-                      content={
-                        tunnel.status.type === "success"
-                          ? "停止实例"
-                          : "启动实例"
-                      }
-                      size="sm"
-                    >
-                      <Button
-                        isIconOnly
-                        variant="light"
-                        size="sm"
-                        color={
-                          tunnel.status.type === "success"
-                            ? "warning"
-                            : "success"
-                        }
-                        onClick={() => handleToggleStatus(tunnel)}
-                        startContent={
-                          <FontAwesomeIcon
-                            icon={
-                              tunnel.status.type === "success" ? faStop : faPlay
-                            }
-                            className="text-xs"
-                          />
-                        }
-                      />
-                    </Tooltip>
-                    <Tooltip content="重启实例" size="sm">
-                      <Button
-                        isIconOnly
-                        variant="light"
-                        size="sm"
-                        color="secondary"
-                        onClick={() => handleRestart(tunnel)}
-                        isDisabled={tunnel.status.type !== "success"}
-                        startContent={
-                          <FontAwesomeIcon
-                            icon={faRotateRight}
-                            className="text-xs"
-                          />
-                        }
-                      />
-                    </Tooltip>
-                    <Tooltip content="编辑实例" size="sm">
-                      <Button
-                        isIconOnly
-                        variant="light"
-                        size="sm"
-                        color="default"
-                        onClick={() => {
-                          setEditTunnel(tunnel);
-                          setEditModalOpen(true);
-                        }}
-                        startContent={
-                          <FontAwesomeIcon icon={faPen} className="text-xs" />
-                        }
-                      />
-                    </Tooltip>
-                    <Tooltip content="删除实例" size="sm">
-                      <Button
-                        isIconOnly
-                        variant="light"
-                        size="sm"
                         color="danger"
-                        onClick={() => handleDeleteClick(tunnel)}
-                        startContent={
-                          <FontAwesomeIcon icon={faTrash} className="text-xs" />
-                        }
-                      />
-                    </Tooltip>
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-
-          {/* 桌面端：使用表格布局 */}
-          <div className="hidden md:block">
-            {loading || error || items.length === 0 ? (
-              <div className="min-h-[400px] flex items-center justify-center py-16">
-                {loading ? (
-                  <div className="flex flex-col items-center gap-4">
-                    <Spinner size="lg" />
-                    <p className="text-default-500">加载中...</p>
-                  </div>
-                ) : error ? (
-                  <div className="flex flex-col items-center gap-4">
-                    <div className="w-20 h-20 rounded-full bg-danger-50 flex items-center justify-center">
-                      <FontAwesomeIcon
-                        icon={faRotateRight}
-                        className="text-3xl text-danger"
-                      />
+                        variant="flat"
+                        startContent={<FontAwesomeIcon icon={faRotateRight} />}
+                        onClick={fetchTunnels}
+                      >
+                        重试
+                      </Button>
                     </div>
-                    <div className="space-y-2">
-                      <p className="text-danger text-base font-medium">
-                        加载失败
-                      </p>
-                      <p className="text-default-400 text-sm">{error}</p>
+                  ) : (
+                    <div className="flex flex-col items-center justify-center gap-4 text-center">
+                      <div className="w-20 h-20 rounded-full bg-default-100 flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faEye}
+                          className="text-3xl text-default-400"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-default-500 text-base font-medium">
+                          暂无实例
+                        </p>
+                        <p className="text-default-400 text-sm">
+                          您还没有创建任何实例
+                        </p>
+                      </div>
                     </div>
-                    <Button
-                      color="danger"
-                      variant="flat"
-                      startContent={<FontAwesomeIcon icon={faRotateRight} />}
-                      onClick={fetchTunnels}
-                    >
-                      重试
-                    </Button>
-                  </div>
-                ) : (
-                  <div className="flex flex-col items-center justify-center gap-4 text-center">
-                    <div className="w-20 h-20 rounded-full bg-default-100 flex items-center justify-center">
-                      <FontAwesomeIcon
-                        icon={faEye}
-                        className="text-3xl text-default-400"
-                      />
-                    </div>
-                    <div className="space-y-2">
-                      <p className="text-default-500 text-base font-medium">
-                        暂无实例
-                      </p>
-                      <p className="text-default-400 text-sm">
-                        您还没有创建任何实例
-                      </p>
-                    </div>
-                  </div>
-                )}
-              </div>
-            ) : (
-              <Table
-                isHeaderSticky
-                shadow="none"
-                selectionMode="multiple"
-                bottomContent={renderPagination()}
-                selectedKeys={selectedKeys}
-                onSelectionChange={setSelectedKeys}
-                sortDescriptor={sortDescriptor}
-                onSortChange={handleSortChange}
-                aria-label="实例实例表格"
-                className="min-w-full p-0"
-                classNames={{
-                  th: "text-xs md:text-sm",
-                  td: "py-3",
-                  // 调整checkbox列宽度
-                  thead:
-                    "[&>tr>th:first-child]:w-12 [&>tr>th:first-child]:min-w-12",
-                  tbody:
-                    "[&>tr>td:first-child]:w-12 [&>tr>td:first-child]:min-w-12 ",
-                }}
-              >
-                <TableHeader columns={columns}>
-                  {(column) => (
-                    <TableColumn
-                      key={column.key}
-                      hideHeader={false}
-                      className={
-                        column.key === "actions"
-                          ? "w-[140px]"
-                          : column.key === "traffic"
-                            ? "w-[160px]"
-                            : column.key === "type"
-                              ? "w-[80px]"
-                              : column.key === "endpoint"
-                                ? "w-[120px]"
-                                : ""
-                      }
-                      allowsSorting={column.sortable}
-                    >
-                      {column.label}
-                    </TableColumn>
                   )}
-                </TableHeader>
-                <TableBody>
+                </div>
+              ) : (
+                <>
                   {items.map((tunnel) => (
-                    <TableRow key={tunnel.id}>
-                      {/* 类型列 */}
-                      <TableCell>
-                        <Chip
-                          variant="flat"
-                          color={
-                            tunnel.type === "服务端" ? "primary" : "secondary"
-                          }
-                          size="sm"
-                          classNames={{
-                            base: "text-xs md:text-sm",
-                          }}
-                        >
-                          {tunnel.type}
-                        </Chip>
-                      </TableCell>
-
-                      {/* 名称列 */}
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          <Tooltip content={tunnel.name} size="sm">
-                            <div className="text-xs md:text-sm font-semibold truncate max-w-[80px] md:max-w-[120px]">
-                              {tunnel.name}
-                            </div>
-                          </Tooltip>
-                          <Tooltip content="修改名称" size="sm">
-                            <FontAwesomeIcon
-                              icon={faPen}
-                              className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer"
-                              onClick={() => handleEditClick(tunnel)}
-                            />
-                          </Tooltip>
-                        </div>
-                      </TableCell>
-
-                      {/* 主控列 */}
-                      <TableCell>
-                        <Chip
-                          variant="bordered"
-                          color="default"
-                          size="sm"
-                          classNames={{
-                            base: "text-xs md:text-sm max-w-[100px] md:max-w-none",
-                            content: "truncate",
-                          }}
-                        >
-                          {tunnel.endpoint}
-                        </Chip>
-                      </TableCell>
-
-                      {/* 隧道地址列 */}
-                      <TableCell className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none">
-                        {formatAddress(tunnel.tunnelAddress, tunnel.tunnelPort)}
-                      </TableCell>
-
-                      {/* 目标地址列 */}
-                      <TableCell className="text-xs md:text-sm text-default-600 font-mono truncate max-w-[150px] md:max-w-none">
-                        {formatAddress(tunnel.targetAddress, tunnel.targetPort)}
-                      </TableCell>
-
-                      {/* 状态列 */}
-                      <TableCell>
-                        <Chip
-                          variant="flat"
-                          color={tunnel.status.type}
-                          size="sm"
-                          classNames={{
-                            base: "text-xs md:text-sm",
-                          }}
-                        >
-                          {tunnel.status.text}
-                        </Chip>
-                      </TableCell>
-
-                      {/* 标签列 */}
-                      <TableCell>
-                        <div className="flex items-center gap-2">
-                          {tunnel.tag && tunnel.tag.id ? (
-                            <Tooltip content="点击更改标签" size="sm">
-                              <Chip
-                                variant="flat"
-                                size="sm"
-                                color="primary"
-                                classNames={{
-                                  base: "text-xs md:text-sm cursor-pointer hover:opacity-80",
-                                }}
-                                onClick={() => handleTagClick(tunnel)}
-                              >
-                                {tunnel.tag.name}
-                              </Chip>
-                            </Tooltip>
-                          ) : (
-                            <Tooltip content="设置标签" size="sm">
-                              <FontAwesomeIcon
-                                icon={faTag}
-                                className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer"
-                                onClick={() => handleTagClick(tunnel)}
-                              />
-                            </Tooltip>
-                          )}
-                        </div>
-                      </TableCell>
-
-                      {/* 流量列 */}
-                      <TableCell className="text-xs md:text-sm text-default-600 font-mono truncate min-w-[150px]">
-                        <TrafficInfo traffic={tunnel.traffic} />
-                      </TableCell>
-
-                      {/* 操作列 */}
-                      <TableCell>
-                        <div className="flex justify-center gap-1">
-                          <Tooltip content="查看实例" size="sm">
-                            <Button
-                              isIconOnly
-                              variant="light"
-                              size="sm"
-                              color="primary"
-                              onClick={() =>
-                                router.push(`/tunnels/details?id=${tunnel.id}`)
-                              }
-                              startContent={
-                                <FontAwesomeIcon
-                                  icon={faEye}
-                                  className="text-xs"
-                                />
-                              }
-                            />
-                          </Tooltip>
-                          <Tooltip
-                            content={
-                              tunnel.status.type === "success"
-                                ? "停止实例"
-                                : "启动实例"
+                    <MobileTunnelCard key={tunnel.id} tunnel={tunnel} />
+                  ))}
+                  {renderPagination()}
+                </>
+              )}
+            </div>
+          ) : (
+            // 桌面端：表格布局
+            <Table
+              isHeaderSticky
+              selectionMode="multiple"
+              topContent={renderTagFilter()}
+              bottomContent={renderPagination()}
+              selectedKeys={selectedKeys}
+              onSelectionChange={setSelectedKeys}
+              sortDescriptor={sortDescriptor}
+              onSortChange={handleSortChange}
+              aria-label="实例表格"
+            >
+              <TableHeader columns={columns}>
+                {(column) => (
+                  <TableColumn
+                    key={column.key}
+                    hideHeader={false}
+                    className={
+                      column.key === "actions"
+                        ? "w-[140px]"
+                        : column.key === "traffic"
+                          ? "w-[160px]"
+                          : column.key === "type"
+                            ? "w-[80px]"
+                            : column.key === "endpoint"
+                              ? "w-[120px]"
+                              : ""
+                    }
+                    allowsSorting={column.sortable}
+                  >
+                    {column.label}
+                  </TableColumn>
+                )}
+              </TableHeader>
+              <TableBody
+                emptyContent={
+                  error ? (
+                    <div className="flex flex-col items-center gap-4">
+                      <div className="w-20 h-20 rounded-full bg-danger-50 flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faRotateRight}
+                          className="text-3xl text-danger"
+                        />
+                      </div>
+                      <div className="space-y-2 text-center">
+                        <p className="text-danger text-base font-medium">
+                          加载失败
+                        </p>
+                        <p className="text-default-400 text-sm">{error}</p>
+                      </div>
+                      <Button
+                        color="danger"
+                        variant="flat"
+                        startContent={<FontAwesomeIcon icon={faRotateRight} />}
+                        onClick={fetchTunnels}
+                      >
+                        重试
+                      </Button>
+                    </div>
+                  ) : (
+                    <div className="flex flex-col items-center gap-4 text-center">
+                      <div className="w-20 h-20 rounded-full bg-default-100 flex items-center justify-center">
+                        <FontAwesomeIcon
+                          icon={faEye}
+                          className="text-3xl text-default-400"
+                        />
+                      </div>
+                      <div className="space-y-2">
+                        <p className="text-default-500 text-base font-medium">
+                          暂无实例
+                        </p>
+                        <p className="text-default-400 text-sm">
+                          您还没有创建任何实例
+                        </p>
+                      </div>
+                    </div>
+                  )
+                }
+              >
+                {loading
+                  ? // Loading 状态：显示 Skeleton
+                    Array.from({ length: 5 }).map((_, index) => (
+                      <TableRow key={`skeleton-${index}`}>
+                        <TableCell>
+                          <Skeleton className="w-16 h-6 rounded-lg" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="w-24 h-5 rounded-lg" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="w-20 h-6 rounded-lg" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="w-32 h-5 rounded-lg" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="w-32 h-5 rounded-lg" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="w-16 h-6 rounded-lg" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="w-16 h-6 rounded-lg" />
+                        </TableCell>
+                        <TableCell>
+                          <Skeleton className="w-24 h-5 rounded-lg" />
+                        </TableCell>
+                        <TableCell>
+                          <div className="flex justify-center gap-1">
+                            <Skeleton className="w-8 h-8 rounded-lg" />
+                            <Skeleton className="w-8 h-8 rounded-lg" />
+                            <Skeleton className="w-8 h-8 rounded-lg" />
+                            <Skeleton className="w-8 h-8 rounded-lg" />
+                            <Skeleton className="w-8 h-8 rounded-lg" />
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))
+                  : // 正常数据
+                    items.map((tunnel) => (
+                      <TableRow key={tunnel.id}>
+                        {/* 类型列 */}
+                        <TableCell>
+                          <Chip
+                            variant="flat"
+                            color={
+                              tunnel.type === "server" ? "primary" : "secondary"
                             }
                             size="sm"
                           >
-                            <Button
-                              isIconOnly
-                              variant="light"
-                              size="sm"
-                              color={
+                            {getTypeDisplayText(tunnel.type)}
+                          </Chip>
+                        </TableCell>
+
+                        {/* 名称列 */}
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            <Tooltip content={tunnel.name} size="sm">
+                              <div className="text-sm font-semibold truncate max-w-[120px]">
+                                {tunnel.name}
+                              </div>
+                            </Tooltip>
+                            <Tooltip content="修改名称" size="sm">
+                              <FontAwesomeIcon
+                                icon={faPen}
+                                className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer"
+                                onClick={() => handleEditClick(tunnel)}
+                              />
+                            </Tooltip>
+                          </div>
+                        </TableCell>
+
+                        {/* 主控列 */}
+                        <TableCell>
+                          <Chip variant="bordered" color="default" size="sm">
+                            {tunnel.endpoint}
+                          </Chip>
+                        </TableCell>
+
+                        {/* 隧道地址列 */}
+                        <TableCell className="text-sm text-default-600 font-mono">
+                          {formatAddress(
+                            tunnel.tunnelAddress,
+                            tunnel.tunnelPort
+                          )}
+                        </TableCell>
+
+                        {/* 目标地址列 */}
+                        <TableCell className="text-sm text-default-600 font-mono">
+                          {formatAddress(
+                            tunnel.targetAddress,
+                            tunnel.targetPort
+                          )}
+                        </TableCell>
+
+                        {/* 状态列 */}
+                        <TableCell>
+                          <Chip
+                            variant="flat"
+                            color={tunnel.status.type}
+                            size="sm"
+                          >
+                            {tunnel.status.text}
+                          </Chip>
+                        </TableCell>
+
+                        {/* 标签列 */}
+                        <TableCell>
+                          <div className="flex items-center gap-2">
+                            {tunnel.tag && tunnel.tag.id ? (
+                              <Tooltip content="点击更改标签" size="sm">
+                                <Chip
+                                  variant="flat"
+                                  size="sm"
+                                  color="primary"
+                                  className="cursor-pointer hover:opacity-80"
+                                  onClick={() => handleTagClick(tunnel)}
+                                >
+                                  {tunnel.tag.name}
+                                </Chip>
+                              </Tooltip>
+                            ) : (
+                              <Tooltip content="设置标签" size="sm">
+                                <FontAwesomeIcon
+                                  icon={faTag}
+                                  className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer"
+                                  onClick={() => handleTagClick(tunnel)}
+                                />
+                              </Tooltip>
+                            )}
+                          </div>
+                        </TableCell>
+
+                        {/* 流量列 */}
+                        <TableCell className="text-sm text-default-600 font-mono min-w-[150px]">
+                          <TrafficInfo traffic={tunnel.traffic} />
+                        </TableCell>
+
+                        {/* 操作列 */}
+                        <TableCell>
+                          <div className="flex justify-center gap-1">
+                            <Tooltip content="查看实例" size="sm">
+                              <Button
+                                isIconOnly
+                                variant="light"
+                                size="sm"
+                                color="primary"
+                                onClick={() =>
+                                  router.push(
+                                    `/tunnels/details?id=${tunnel.id}`
+                                  )
+                                }
+                                startContent={
+                                  <FontAwesomeIcon
+                                    icon={faEye}
+                                    className="text-xs"
+                                  />
+                                }
+                              />
+                            </Tooltip>
+                            <Tooltip
+                              content={
                                 tunnel.status.type === "success"
-                                  ? "warning"
-                                  : "success"
+                                  ? "停止实例"
+                                  : "启动实例"
                               }
-                              onClick={() => handleToggleStatus(tunnel)}
-                              startContent={
-                                <FontAwesomeIcon
-                                  icon={
-                                    tunnel.status.type === "success"
-                                      ? faStop
-                                      : faPlay
-                                  }
-                                  className="text-xs"
-                                />
-                              }
-                            />
-                          </Tooltip>
-                          <Tooltip content="重启实例" size="sm">
-                            <Button
-                              isIconOnly
-                              variant="light"
                               size="sm"
-                              color="secondary"
-                              onClick={() => handleRestart(tunnel)}
-                              isDisabled={tunnel.status.type !== "success"}
-                              startContent={
-                                <FontAwesomeIcon
-                                  icon={faRotateRight}
-                                  className="text-xs"
-                                />
-                              }
-                            />
-                          </Tooltip>
-                          <Tooltip content="编辑实例" size="sm">
-                            <Button
-                              isIconOnly
-                              variant="light"
-                              size="sm"
-                              color="warning"
-                              onClick={() => {
-                                setEditTunnel(tunnel);
-                                setEditModalOpen(true);
-                              }}
-                              startContent={
-                                <FontAwesomeIcon
-                                  icon={faPen}
-                                  className="text-xs"
-                                />
-                              }
-                            />
-                          </Tooltip>
-                          <Tooltip content="删除实例" size="sm">
-                            <Button
-                              isIconOnly
-                              variant="light"
-                              size="sm"
-                              color="danger"
-                              onClick={() => handleDeleteClick(tunnel)}
-                              startContent={
-                                <FontAwesomeIcon
-                                  icon={faTrash}
-                                  className="text-xs"
-                                />
-                              }
-                            />
-                          </Tooltip>
-                        </div>
-                      </TableCell>
-                    </TableRow>
-                  ))}
-                </TableBody>
-              </Table>
-            )}
-          </div>
+                            >
+                              <Button
+                                isIconOnly
+                                variant="light"
+                                size="sm"
+                                color={
+                                  tunnel.status.type === "success"
+                                    ? "warning"
+                                    : "success"
+                                }
+                                onClick={() => handleToggleStatus(tunnel)}
+                                startContent={
+                                  <FontAwesomeIcon
+                                    icon={
+                                      tunnel.status.type === "success"
+                                        ? faStop
+                                        : faPlay
+                                    }
+                                    className="text-xs"
+                                  />
+                                }
+                              />
+                            </Tooltip>
+                            <Tooltip content="重启实例" size="sm">
+                              <Button
+                                isIconOnly
+                                variant="light"
+                                size="sm"
+                                color="secondary"
+                                onClick={() => handleRestart(tunnel)}
+                                isDisabled={tunnel.status.type !== "success"}
+                                startContent={
+                                  <FontAwesomeIcon
+                                    icon={faRotateRight}
+                                    className="text-xs"
+                                  />
+                                }
+                              />
+                            </Tooltip>
+                            <Tooltip content="编辑实例" size="sm">
+                              <Button
+                                isIconOnly
+                                variant="light"
+                                size="sm"
+                                color="warning"
+                                onClick={() => {
+                                  setEditTunnel(tunnel);
+                                  setEditModalOpen(true);
+                                }}
+                                startContent={
+                                  <FontAwesomeIcon
+                                    icon={faPen}
+                                    className="text-xs"
+                                  />
+                                }
+                              />
+                            </Tooltip>
+                            <Tooltip content="删除实例" size="sm">
+                              <Button
+                                isIconOnly
+                                variant="light"
+                                size="sm"
+                                color="danger"
+                                onClick={() => handleDeleteClick(tunnel)}
+                                startContent={
+                                  <FontAwesomeIcon
+                                    icon={faTrash}
+                                    className="text-xs"
+                                  />
+                                }
+                              />
+                            </Tooltip>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    ))}
+              </TableBody>
+            </Table>
+          )}
         </div>
       </div>
 
@@ -2244,7 +2371,7 @@ export default function TunnelsPage() {
                 <p className="text-default-600">
                   您确定要删除选中的{" "}
                   <span className="font-semibold text-foreground">
-                    {getSelectedCount()}
+                    {selectedCount}
                   </span>{" "}
                   个实例吗？
                 </p>
@@ -2301,7 +2428,7 @@ export default function TunnelsPage() {
               <ModalBody>
                 <div className="space-y-4">
                   <p className="text-default-600 text-sm">
-                    已选择 {getSelectedCount()}{" "}
+                    已选择 {selectedCount}{" "}
                     个实例的配置规则，格式符合批量创建规范：
                   </p>
                   <Code className="w-full p-4 max-h-96 overflow-auto">
