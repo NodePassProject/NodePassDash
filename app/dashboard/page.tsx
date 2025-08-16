@@ -144,6 +144,10 @@ export default function DashboardPage() {
   const { isOpen: isClearOpen, onOpen: onClearOpen, onClose: onClearClose } = useDisclosure();
   const [clearingLogs, setClearingLogs] = useState(false);
 
+  // 主控显示控制
+  const [showAllEndpoints, setShowAllEndpoints] = useState(false);
+  const maxVisibleEndpoints = 4; // 默认显示的主控数量
+
   // 添加组件挂载状态检查
   const isMountedRef = useRef(true);
   const mountCountRef = useRef(0);
@@ -157,6 +161,15 @@ export default function DashboardPage() {
     return () => {
       console.log(`[仪表盘] 组件卸载，第${mountCountRef.current}次`);
       isMountedRef.current = false;
+      
+      // 清理所有状态数据，释放内存
+      setOverallStats({ total_endpoints: 0, total_tunnels: 0, total_traffic: 0, current_speed: 0 });
+      setEndpoints([]);
+      setOperationLogs([]);
+      setTrafficTrend([]);
+      setTunnelStats({ total: 0, running: 0, stopped: 0, error: 0, offline: 0 });
+      setTodayTrafficData({ tcpIn: 0, tcpOut: 0, udpIn: 0, udpOut: 0, total: 0 });
+      
       console.log('[仪表盘] 资源清理完成');
     };
   }, []);
@@ -368,85 +381,38 @@ export default function DashboardPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   }, []);
 
-  // 处理今日流量数据
+  // 处理今日流量数据 - 优化内存使用，减少中间对象创建
   const processTodayTrafficData = useCallback((trafficData: TrafficTrendData[]) => {
-    if (!isMountedRef.current) return;
+    if (!isMountedRef.current || !trafficData?.length) return;
     
     const today = new Date();
-    const todayStart = new Date(today.getFullYear(), today.getMonth(), today.getDate());
-    const todayStartTimestamp = Math.floor(todayStart.getTime() / 1000); // 转换为秒级时间戳
+    const todayStartTimestamp = Math.floor(new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime() / 1000);
     
-    console.log('[今日流量筛选] 开始处理数据:', {
-      总数据条数: trafficData.length,
-      今日开始时间戳: todayStartTimestamp,
-      今日开始时间: todayStart.toISOString(),
-      当前时间: today.toISOString(),
-      示例数据: trafficData.slice(0, 3).map(item => ({
-        hourTime: item.hourTime,
-        parsedDate: new Date(item.hourTime * 1000).toISOString(),
-        tcpRx: item.tcpRx,
-        tcpTx: item.tcpTx,
-        udpRx: item.udpRx,
-        udpTx: item.udpTx
-      }))
-    });
-    
-    // 筛选今日的数据
-    const todayData = trafficData.filter(item => {
-      const isToday = item.hourTime >= todayStartTimestamp;
-      
-      // 调试信息
-      if (trafficData.length <= 10) { // 只在数据量少时输出调试信息
-        console.log('[今日流量筛选] 检查数据项:', {
-          hourTime: item.hourTime,
-          parsedDate: new Date(item.hourTime * 1000).toISOString(),
-          isToday: isToday,
-          tcpRx: item.tcpRx,
-          tcpTx: item.tcpTx,
-          udpRx: item.udpRx,
-          udpTx: item.udpTx
-        });
+    // 使用更高效的reduce，避免创建多个中间数组
+    const todayTraffic = trafficData.reduce((acc, item) => {
+      // 直接在reduce中进行时间判断，避免filter创建新数组
+      if (item.hourTime >= todayStartTimestamp) {
+        acc.tcpIn += item.tcpRx;
+        acc.tcpOut += item.tcpTx;
+        acc.udpIn += item.udpRx;
+        acc.udpOut += item.udpTx;
+        acc.total += item.tcpRx + item.tcpTx + item.udpRx + item.udpTx;
       }
-      
-      return isToday;
-    });
-
-    console.log('[今日流量筛选] 筛选结果:', {
-      今日数据条数: todayData.length,
-      筛选出的数据: todayData.map(item => ({
-        hourTime: item.hourTime,
-        parsedDate: new Date(item.hourTime * 1000).toISOString(),
-        tcpRx: item.tcpRx,
-        tcpTx: item.tcpTx,
-        udpRx: item.udpRx,
-        udpTx: item.udpTx
-      }))
-    });
-
-    // 计算今日总流量
-    const todayTraffic = todayData.reduce((acc, item) => {
-      acc.tcpIn += item.tcpRx;
-      acc.tcpOut += item.tcpTx;
-      acc.udpIn += item.udpRx;
-      acc.udpOut += item.udpTx;
-      acc.total += item.tcpRx + item.tcpTx + item.udpRx + item.udpTx;
       return acc;
     }, { tcpIn: 0, tcpOut: 0, udpIn: 0, udpOut: 0, total: 0 });
-
-    console.log('[今日流量筛选] 计算结果:', todayTraffic);
     
     if (isMountedRef.current) {
       setTodayTrafficData(todayTraffic);
     }
   }, []);
 
-
-
-
-
-  // 初始化数据
+  // 初始化数据 - 添加AbortController支持
   useEffect(() => {
+    const abortController = new AbortController();
+    
     const fetchData = async () => {
+      if (!isMountedRef.current) return;
+      
       console.log('[仪表盘] 开始加载数据');
       setLoading(true);
       setTrafficLoading(true);
@@ -459,18 +425,29 @@ export default function DashboardPage() {
           fetchOperationLogs(),
           fetchTrafficTrend()
         ]);
-        console.log('[仪表盘] 所有数据加载完成');
+        
+        if (isMountedRef.current) {
+          console.log('[仪表盘] 所有数据加载完成');
+        }
       } catch (error) {
-        console.error('加载数据失败:', error);
+        if (!abortController.signal.aborted && isMountedRef.current) {
+          console.error('加载数据失败:', error);
+        }
       } finally {
-        console.log('[仪表盘] 设置加载状态为false');
-        setLoading(false);
-        setTrafficLoading(false);
+        if (isMountedRef.current) {
+          console.log('[仪表盘] 设置加载状态为false');
+          setLoading(false);
+          setTrafficLoading(false);
+        }
       }
     };
     
     fetchData();
-  }, []);
+    
+    return () => {
+      abortController.abort();
+    };
+  }, [fetchOverallStats, fetchEndpoints, fetchTunnelStats, fetchOperationLogs, fetchTrafficTrend]);
 
   return (
     <div className="space-y-4 md:space-y-6 p-4 md:p-0">
@@ -629,11 +606,12 @@ export default function DashboardPage() {
             管理主控
           </Button>
         </div> */}
-        <div className="overflow-x-auto scrollbar-hide bg-transparent">
-          <div className="flex gap-4 pb-2" style={{ minWidth: 'max-content' }}>
+        <div className="scrollbar-hide bg-transparent">
+          {/* 桌面端：水平滚动布局 */}
+          <div className="hidden md:flex gap-4 pb-2" style={{ minWidth: 'max-content' }}>
             {loading ? (
               // 加载状态骨架屏
-              [1, 2, 3, 4, 5].map((i) => (
+              [1, 2, 3, 4].map((i) => (
                 <Card key={i} className="w-[260px] h-[80px] flex-shrink-0 bg-white dark:bg-default-50">
                   <CardBody className="p-4">
                     <div className="flex items-center gap-4 h-full">
@@ -650,57 +628,166 @@ export default function DashboardPage() {
                   </CardBody>
                 </Card>
               ))
-            ) :  (
-              // 主控卡片
-              endpoints.map((endpoint) => (
-                <Card 
-                  key={endpoint.id} 
-                  className="w-[260px] h-[80px] flex-shrink-0  shadow-none border-2 border-default-200 bg-white dark:bg-default-50"
-                >
-                  <CardBody className="p-4">
-                    <div className="flex items-center h-full">
-                      {/* 左侧：大号服务器图标 */}
-                      <div className="flex-shrink-0 -ml-1">
-                        {endpoint.status === 'ONLINE' ? (
-                          <ServerIcon size={64} className="text-default-400" />
-                        ) : (
-                          <ServerIconRed size={64} className="text-default-400" />
-                        )}
-                      </div>
-                      
-                      {/* 右侧：主控信息 */}
-                      <div className="flex flex-col justify-center gap-1 flex-1 min-w-0">
-                        {/* 主控名称和实例数量 */}
-                        <div className="flex items-center gap-1 min-w-0">
-                          <h4 className="font-medium text-sm text-foreground truncate">{endpoint.name}</h4>
-                          <Chip 
-                            size="sm" 
-                            variant="flat" 
-                            color="default"
-                            classNames={{
-                              base: "text-xs",
-                              content: "text-xs"
-                            }}
-                          >
-                            {endpoint.tunnelCount || 0} 个实例
-                          </Chip>
+            ) : (
+              <>
+                {/* 主控卡片 - 只显示前4个 */}
+                {endpoints.slice(0, 4).map((endpoint) => (
+                  <Card 
+                    key={endpoint.id} 
+                    className="w-[260px] h-[80px] flex-shrink-0 "
+                  >
+                    <CardBody className="p-4">
+                      <div className="flex items-center h-full">
+                        {/* 左侧：大号服务器图标 */}
+                        <div className="flex-shrink-0 -ml-1">
+                          {endpoint.status === 'ONLINE' ? (
+                            <ServerIcon size={64} className="text-default-400" />
+                          ) : (
+                            <ServerIconRed size={64} className="text-default-400" />
+                          )}
                         </div>
                         
-                        {/* 主控地址 - 根据隐私模式显示 */}
-                        <p className="text-xs text-default-500 truncate font-mono">
-                          {maskIpAddress(endpoint.url)}
-                        </p>
+                        {/* 右侧：主控信息 */}
+                        <div className="flex flex-col justify-center gap-1 flex-1 min-w-0">
+                          {/* 主控名称和实例数量 */}
+                          <div className="flex items-center gap-1 min-w-0">
+                            <h4 className="font-medium text-sm text-foreground truncate">{endpoint.name}</h4>
+                            <Chip 
+                              size="sm" 
+                              variant="flat" 
+                              color="default"
+                              classNames={{
+                                base: "text-xs",
+                                content: "text-xs"
+                              }}
+                            >
+                              {endpoint.tunnelCount || 0} 个实例
+                            </Chip>
+                          </div>
+                          
+                          {/* 主控地址 - 根据隐私模式显示 */}
+                          <p className="text-xs text-default-500 truncate font-mono">
+                            {maskIpAddress(endpoint.url)}
+                          </p>
+                        </div>
+                      </div>
+                    </CardBody>
+                  </Card>
+                ))}
+                
+                {/* 省略号按钮 - 超过4个时显示 */}
+                {endpoints.length > 4 && (
+                  <Card 
+                    className="w-[120px] h-[80px] flex-shrink-0 shadow-none border-2 border-dashed border-default-300 bg-transparent hover:border-primary-300 cursor-pointer transition-colors"
+                    isPressable
+                    onPress={() => router.push("/endpoints")}
+                  >
+                    <CardBody className="p-4 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="text-xl text-default-400 ">···</div>
+                        <div className="text-xs text-default-500">
+                          还有 {endpoints.length - 4} 个
+                        </div>
+                      </div>
+                    </CardBody>
+                  </Card>
+                )}
+              </>
+            )}
+          </div>
+          
+          {/* 移动端：垂直堆叠布局 */}
+          <div className="md:hidden flex flex-col gap-3 pb-2">
+            {loading ? (
+              // 移动端加载状态骨架屏
+              [1, 2, 3, 4].map((i) => (
+                <Card key={i} className="w-full h-[80px] bg-white dark:bg-default-50">
+                  <CardBody className="p-4">
+                    <div className="flex items-center gap-4 h-full">
+                      {/* 左侧：SVG图标骨架 */}
+                      <div className="w-8 h-8 bg-default-300 rounded animate-pulse flex-shrink-0" />
+                      
+                      {/* 右侧：信息骨架 */}
+                      <div className="flex flex-col justify-center gap-1 flex-1">
+                        <div className="w-20 h-4 bg-default-300 rounded animate-pulse" />
+                        <div className="w-32 h-3 bg-default-300 rounded animate-pulse" />
+                        <div className="w-16 h-3 bg-default-200 rounded animate-pulse" />
                       </div>
                     </div>
                   </CardBody>
                 </Card>
               ))
+            ) : (
+              <>
+                {/* 移动端主控卡片 - 只显示前4个，撑满宽度 */}
+                {endpoints.slice(0, 4).map((endpoint) => (
+                  <Card 
+                    key={endpoint.id} 
+                    className="w-full h-[80px] shadow-none border-2 border-default-200 bg-white dark:bg-default-50"
+                  >
+                    <CardBody className="p-4">
+                      <div className="flex items-center h-full">
+                        {/* 左侧：大号服务器图标 */}
+                        <div className="flex-shrink-0 -ml-1">
+                          {endpoint.status === 'ONLINE' ? (
+                            <ServerIcon size={64} className="text-default-400" />
+                          ) : (
+                            <ServerIconRed size={64} className="text-default-400" />
+                          )}
+                        </div>
+                        
+                        {/* 右侧：主控信息 */}
+                        <div className="flex flex-col justify-center gap-1 flex-1 min-w-0">
+                          {/* 主控名称和实例数量 */}
+                          <div className="flex items-center gap-1 min-w-0">
+                            <h4 className="font-medium text-sm text-foreground truncate">{endpoint.name}</h4>
+                            <Chip 
+                              size="sm" 
+                              variant="flat" 
+                              color="default"
+                              classNames={{
+                                base: "text-xs",
+                                content: "text-xs"
+                              }}
+                            >
+                              {endpoint.tunnelCount || 0} 个实例
+                            </Chip>
+                          </div>
+                          
+                          {/* 主控地址 - 根据隐私模式显示 */}
+                          <p className="text-xs text-default-500 truncate font-mono">
+                            {maskIpAddress(endpoint.url)}
+                          </p>
+                        </div>
+                      </div>
+                    </CardBody>
+                  </Card>
+                ))}
+                
+                {/* 移动端省略号按钮 - 超过4个时显示 */}
+                {endpoints.length > 4 && (
+                  <Card 
+                    className="w-full h-[80px] shadow-none border-2 border-dashed border-default-300 bg-transparent hover:border-primary-300 cursor-pointer transition-colors"
+                    isPressable
+                    onPress={() => router.push("/endpoints")}
+                  >
+                    <CardBody className="p-4 flex items-center justify-center">
+                      <div className="text-center">
+                        <div className="text-2xl text-default-400 mb-1">···</div>
+                        <div className="text-xs text-default-500">
+                          还有 {endpoints.length - 4} 个主控
+                        </div>
+                      </div>
+                    </CardBody>
+                  </Card>
+                )}
+              </>
             )}
           </div>
         </div>
       </div>
 
-                  {/* 最近活动 - 完全按照data-table.tsx的样式 */}
+      {/* 最近活动 - 完全按照data-table.tsx的样式 */}
       <Card isHoverable className="min-h-[400px]">
         <CardHeader className="p-5">
           <div className="flex flex-col items-start gap-1 w-full">

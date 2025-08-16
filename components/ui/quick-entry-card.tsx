@@ -26,37 +26,43 @@ export function QuickEntryCard() {
       id: "add-endpoint",
       icon: faServer,
       label: "添加主控",
-      route: "/endpoints"
+      route: "/endpoints",
+      color: "bg-blue-500 hover:bg-blue-600"
     },
     {
       id: "create-tunnel",
       icon: faPlus,
       label: "创建实例",
-      route: "/tunnels/create"
+      route: "/tunnels/create",
+      color: "bg-green-500 hover:bg-green-600"
     },
     {
       id: "template-create",
       icon: faLayerGroup,
       label: "场景创建",
-      route: "/templates"
+      route: "/templates",
+      color: "bg-purple-500 hover:bg-purple-600"
     },
     {
       id: "quick-create",
       icon: faBolt,
       label: "快速创建",
-      route: "/tunnels"
+      route: "/tunnels",
+      color: "bg-orange-500 hover:bg-orange-600"
     },
     {
       id: "manual-create",
       icon: faHammer,
       label: "手搓创建",
-      route: "/tunnels"
+      route: "/tunnels",
+      color: "bg-red-500 hover:bg-red-600"
     },
     {
       id: "batch-create",
       icon: faCopy,
       label: "批量创建",
-      route: "/tunnels"
+      route: "/tunnels",
+      color: "bg-teal-500 hover:bg-teal-600"
     }
   ];
 
@@ -74,7 +80,7 @@ export function QuickEntryCard() {
               onPress={() => router.push(action.route)}
               title={action.label}
               variant="solid"
-              className="bg-primary-400 hover:bg-primary-700 text-white"
+              className={`${action.color} text-white transition-colors duration-200`}
             >
               <FontAwesomeIcon 
                 icon={action.icon} 

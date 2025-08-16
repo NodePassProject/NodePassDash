@@ -375,7 +375,7 @@ export default function EndpointDetailPage() {
       {/* 顶部返回按钮和主控信息 */}
       <div className="flex items-center gap-3 justify-between">
         <div className="flex items-center gap-3">
-          <Button isIconOnly variant="flat" size="sm" onClick={() => router.back()} className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20">
+          <Button isIconOnly variant="flat" onClick={() => router.back()} className="bg-default-100 hover:bg-default-200">
             <FontAwesomeIcon icon={faArrowLeft} />
           </Button>
           {endpointDetail ? (
@@ -683,7 +683,7 @@ export default function EndpointDetailPage() {
               {instances.map((ins) => (
                 <Card 
                   key={ins.instanceId} 
-                  className="h-[100px] hover:shadow-md transition-all cursor-pointer"
+                  className="h-[100px] shadow-none border-1 border-default-300 transition-all cursor-pointer"
                   isPressable
                   onPress={() => {
                     // 复制实例ID到剪贴板

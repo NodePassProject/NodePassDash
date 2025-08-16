@@ -31,7 +31,7 @@ import {
   TableCell,
   Tooltip
 } from "@heroui/react";
-import { useState, useEffect, useRef } from "react";
+import { useState, useEffect, useRef, useCallback } from "react";
 import { useRouter } from "next/navigation";
 import { Icon } from "@iconify/react";
 
@@ -115,6 +115,10 @@ export default function EndpointsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 组件挂载状态管理和定时器清理
+  const isMountedRef = useRef(true);
+  const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
+
   const [endpoints, setEndpoints] = useState<FormattedEndpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [expandedCard, setExpandedCard] = useState<number | null>(null);
@@ -143,41 +147,68 @@ export default function EndpointsPage() {
     return 'card';
   });
 
+  // 组件挂载和卸载管理
+  useEffect(() => {
+    isMountedRef.current = true;
+    return () => {
+      isMountedRef.current = false;
+      // 清理所有定时器
+      timeoutRefs.current.forEach(id => clearTimeout(id));
+      timeoutRefs.current = [];
+    };
+  }, []);
+
+  // 安全的setTimeout函数
+  const safeSetTimeout = (callback: () => void, delay: number) => {
+    const timeoutId = setTimeout(() => {
+      if (isMountedRef.current) {
+        callback();
+      }
+    }, delay);
+    timeoutRefs.current.push(timeoutId);
+    return timeoutId;
+  };
+
   // 当 viewMode 变化时写入 localStorage，保持持久化
   useEffect(() => {
-    if (typeof window !== 'undefined') {
+    if (typeof window !== 'undefined' && isMountedRef.current) {
       localStorage.setItem('endpointsViewMode', viewMode);
     }
   }, [viewMode]);
 
-  // 获取主控列表
-  const fetchEndpoints = async () => {
+  // 获取主控列表 - 使用useCallback避免依赖问题
+  const fetchEndpoints = useCallback(async () => {
+    if (!isMountedRef.current) return;
+    
     try {
       setLoading(true);
       const response = await fetch(buildApiUrl('/api/endpoints'));
       if (!response.ok) throw new Error('获取主控列表失败');
       const data = await response.json();
-      setEndpoints(data);
+      
+      if (isMountedRef.current) {
+        setEndpoints(data);
+      }
     } catch (error) {
-      console.error('获取主控列表失败:', error);
-      addToast({
-        title: '错误',
-        description: '获取主控列表失败',
-        color: 'danger'
-      });
+      if (isMountedRef.current) {
+        console.error('获取主控列表失败:', error);
+        addToast({
+          title: '错误',
+          description: '获取主控列表失败',
+          color: 'danger'
+        });
+      }
     } finally {
-      setLoading(false);
+      if (isMountedRef.current) {
+        setLoading(false);
+      }
     }
-  };
+  }, []);
 
   // 应用启动时执行主控列表获取
   useEffect(() => {
-    const startupEndpoints = async () => {
-      const endpoints = await fetchEndpoints();
-    };
-    
-    startupEndpoints();
-  }, []);
+    fetchEndpoints();
+  }, [fetchEndpoints]);
 
   // 格式化URL显示（处理脱敏逻辑）
   const formatUrl = (url: string, apiPath: string) => {
@@ -463,7 +494,7 @@ export default function EndpointsPage() {
           fileInputRef.current.value = '';
         }
         // 添加延迟以确保 Toast 消息能够显示
-        setTimeout(() => {
+        safeSetTimeout(() => {
           window.location.reload();
         }, 1000);
       } else {
@@ -778,7 +809,7 @@ export default function EndpointsPage() {
       await fetchEndpoints();
       
       // 4. 重新连接
-      setTimeout(async () => {
+      safeSetTimeout(async () => {
         await handleConnect(selectedEndpoint.id);
       }, 1000);
 

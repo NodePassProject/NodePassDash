@@ -374,9 +374,9 @@ export default function TunnelDetailPage({
     setFullscreenModalOpen(true);
   };
 
-  // 根据时间范围过滤数据
-  const filterDataByTimeRange = React.useCallback(
-    (data: TrafficTrendData[], timeRange: "1h" | "6h" | "12h" | "24h") => {
+  // 根据时间范围过滤数据 - 使用useMemo优化，避免每次渲染都重新创建
+  const filterDataByTimeRange = React.useMemo(
+    () => (data: TrafficTrendData[], timeRange: "1h" | "6h" | "12h" | "24h") => {
       if (data.length === 0) return data;
 
       // 获取当前时间
@@ -419,9 +419,9 @@ export default function TunnelDetailPage({
     []
   );
 
-  // 根据时间范围过滤ping数据
-  const filterPingDataByTimeRange = React.useCallback(
-    (data: PingTrendData[], timeRange: "1h" | "6h" | "12h" | "24h") => {
+  // 根据时间范围过滤ping数据 - 优化为useMemo
+  const filterPingDataByTimeRange = React.useMemo(
+    () => (data: PingTrendData[], timeRange: "1h" | "6h" | "12h" | "24h") => {
       if (data.length === 0) return data;
 
       // 获取当前时间
@@ -464,9 +464,9 @@ export default function TunnelDetailPage({
     []
   );
 
-  // 根据时间范围过滤连接池数据
-  const filterPoolDataByTimeRange = React.useCallback(
-    (data: PoolTrendData[], timeRange: "1h" | "6h" | "12h" | "24h") => {
+  // 根据时间范围过滤连接池数据 - 优化为useMemo
+  const filterPoolDataByTimeRange = React.useMemo(
+    () => (data: PoolTrendData[], timeRange: "1h" | "6h" | "12h" | "24h") => {
       if (data.length === 0) return data;
 
       // 获取当前时间
@@ -646,7 +646,7 @@ export default function TunnelDetailPage({
     return result;
   }, []);
 
-  // 文件日志控制函数
+  // 文件日志控制函数 - 使用稳定的回调，减少重新渲染
   const handleLogRefresh = React.useCallback(() => {
     setLogRefreshTrigger((prev) => prev + 1);
   }, []);
@@ -661,6 +661,10 @@ export default function TunnelDetailPage({
     if (exportLoading || !tunnelInfo) return;
 
     setExportLoading(true);
+
+    // 声明清理变量
+    let tempAnchor: HTMLAnchorElement | null = null;
+    let objectUrl: string | null = null;
 
     try {
       // 调用后端API获取zip文件
@@ -683,15 +687,13 @@ export default function TunnelDetailPage({
 
       // 创建blob并下载
       const blob = await response.blob();
-      const url = window.URL.createObjectURL(blob);
-      const a = document.createElement("a");
-      a.style.display = "none";
-      a.href = url;
-      a.download = filename;
-      document.body.appendChild(a);
-      a.click();
-      window.URL.revokeObjectURL(url);
-      document.body.removeChild(a);
+      objectUrl = window.URL.createObjectURL(blob);
+      tempAnchor = document.createElement("a");
+      tempAnchor.style.display = "none";
+      tempAnchor.href = objectUrl;
+      tempAnchor.download = filename;
+      document.body.appendChild(tempAnchor);
+      tempAnchor.click();
 
       addToast({
         title: "导出成功",
@@ -706,6 +708,13 @@ export default function TunnelDetailPage({
         color: "danger",
       });
     } finally {
+      // 确保清理资源，防止内存泄漏
+      if (objectUrl) {
+        window.URL.revokeObjectURL(objectUrl);
+      }
+      if (tempAnchor && tempAnchor.parentNode) {
+        tempAnchor.parentNode.removeChild(tempAnchor);
+      }
       setExportLoading(false);
     }
   }, [exportLoading, tunnelInfo]);
@@ -760,6 +769,32 @@ export default function TunnelDetailPage({
   React.useEffect(() => {
     fetchTunnelDetails();
   }, [fetchTunnelDetails]);
+
+  // 组件卸载时清理全局变量引用和useRef数据
+  React.useEffect(() => {
+    return () => {
+      // 清理全局引用，防止内存泄漏
+      if ((window as any).fileLogViewerRef) {
+        delete (window as any).fileLogViewerRef;
+      }
+      
+      // 清理useRef中的大数据，释放内存
+      if (previousStatsRef.current) {
+        previousStatsRef.current = null;
+      }
+      
+      // 清理流量历史数据数组
+      if (trafficHistoryRef.current) {
+        trafficHistoryRef.current = {
+          timestamps: [],
+          tcp_in_rates: [],
+          tcp_out_rates: [],
+          udp_in_rates: [],
+          udp_out_rates: [],
+        };
+      }
+    };
+  }, []);
 
   // SSE事件处理器 - 使用useMemo优化
   const sseOnMessage = React.useCallback((data: any) => {
@@ -1703,17 +1738,7 @@ export default function TunnelDetailPage({
                 {/* 自动重启配置 */}
                 {tunnelInfo.endpointVersion && (
                   <CellValue
-                    label={
-                      <div className="flex items-center gap-2">
-                        自动重启
-                        <Tooltip content="在主控重启时自动启动" placement="top">
-                          <FontAwesomeIcon 
-                            icon={faQuestionCircle} 
-                            className="text-default-400 hover:text-default-600 cursor-help text-xs"
-                          />
-                        </Tooltip>
-                      </div>
-                    }
+                    label="自动重启"
                     value={
                       <div className="flex items-center justify-center">
                         <Switch
