@@ -5,6 +5,7 @@ interface SSEOptions {
   onMessage?: (event: any) => void;
   onError?: (error: any) => void;
   onConnected?: () => void;
+  enabled?: boolean; // 添加enabled参数控制是否连接
 }
 
 
@@ -20,7 +21,13 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
   const onConnected = useCallback(options.onConnected || (() => {}), [options.onConnected]);
 
   useEffect(() => {
-    if (!instanceId) {
+    // 如果没有instanceId或者enabled为false，则不连接
+    if (!instanceId || options.enabled === false) {
+      // 如果已有连接，先关闭
+      if (eventSourceRef.current) {
+        eventSourceRef.current.close();
+        eventSourceRef.current = null;
+      }
       return;
     }
 
@@ -64,7 +71,7 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
         eventSourceRef.current = null;
       }
     };
-  }, [instanceId, onMessage, onError, onConnected]);
+  }, [instanceId, onMessage, onError, onConnected, options.enabled]);
 
   return eventSourceRef.current;
 }

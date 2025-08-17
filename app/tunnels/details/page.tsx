@@ -53,7 +53,7 @@ import {
   faRecycle,
   faExpand,
   faHammer,
-  faSection,
+  faBug,
 } from "@fortawesome/free-solid-svg-icons";
 import { useRouter } from "next/navigation";
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
@@ -61,8 +61,10 @@ import { addToast } from "@heroui/toast";
 import CellValue from "./cell-value";
 import { EnhancedMetricsChart } from "@/components/ui/enhanced-metrics-chart";
 import { TrafficUsageChart } from "@/components/ui/traffic-usage-chart";
+import { DetailedTrafficChart } from "@/components/ui/detailed-traffic-chart";
 import { SpeedChart } from "@/components/ui/speed-chart";
 import { PoolChart } from "@/components/ui/pool-chart";
+import { ConnectionsChart } from "@/components/ui/connections-chart";
 import { LatencyChart } from "@/components/ui/latency-chart";
 import { useSearchParams } from "next/navigation";
 import { FileLogViewer } from "@/components/ui/file-log-viewer";
@@ -107,6 +109,8 @@ interface TunnelInfo {
     udpTx: number;
     pool: number | null;
     ping: number | null;
+    tcps: number | null;
+    udps: number | null;
   };
   nodepassInfo: any;
   error?: string;
@@ -362,13 +366,35 @@ export default function TunnelDetailPage({
   // 全屏图表模态状态
   const [fullscreenModalOpen, setFullscreenModalOpen] = React.useState(false);
   const [fullscreenChartType, setFullscreenChartType] = React.useState<
-    "traffic" | "speed" | "pool" | "latency"
+    "traffic" | "speed" | "pool" | "connections" | "latency"
   >("traffic");
   const [fullscreenChartTitle, setFullscreenChartTitle] = React.useState("");
 
+  // TCPing诊断测试状态
+  const [tcpingModalOpen, setTcpingModalOpen] = React.useState(false);
+  const [tcpingTarget, setTcpingTarget] = React.useState("");
+  const [tcpingLoading, setTcpingLoading] = React.useState(false);
+  const [tcpingResult, setTcpingResult] = React.useState<{
+    target: string;
+    connected: boolean;
+    latency: number;
+    error: string;
+    // 新增字段
+    minLatency?: number;
+    maxLatency?: number;
+    avgLatency?: number;
+    packetLoss?: number;
+    totalTests?: number;
+    successfulTests?: number;
+  } | null>(null);
+
+  // 日志实时输出状态
+  const [isRealtimeLogging, setIsRealtimeLogging] = React.useState(false);
+  const [selectedLogDate, setSelectedLogDate] = React.useState<string | null>(null);
+
   // 打开全屏图表的函数
   const openFullscreenChart = (
-    type: "traffic" | "speed" | "pool" | "latency",
+    type: "traffic" | "speed" | "pool" | "connections" | "latency",
     title: string
   ) => {
     setFullscreenChartType(type);
@@ -513,15 +539,7 @@ export default function TunnelDetailPage({
 
   // 数据转换函数 - 将API数据转换为新图表组件需要的格式
   const transformTrafficData = React.useCallback((apiData: any) => {
-    // 调试信息
-    if (process.env.NODE_ENV === "development") {
-      console.log("[transformTrafficData] API数据:", apiData);
-    }
-
     if (!apiData?.traffic?.created_at || !apiData?.traffic?.avg_delay) {
-      if (process.env.NODE_ENV === "development") {
-        console.log("[transformTrafficData] 缺少流量数据");
-      }
       return [];
     }
 
@@ -532,38 +550,14 @@ export default function TunnelDetailPage({
       })
     );
 
-    // 调试信息
-    if (process.env.NODE_ENV === "development") {
-      console.log("[transformTrafficData] 转换结果:", result.length, "条记录");
-    }
-
     return result;
   }, []);
 
   const transformSpeedData = React.useCallback((apiData: any) => {
-    // 调试信息
-    if (process.env.NODE_ENV === "development") {
-      console.log("[transformSpeedData] API数据:", apiData);
-    }
-
     const speedInTimestamps = apiData?.speed_in?.created_at || [];
-    const speedInValues = apiData?.speed_in?.avg_delay || []; // 使用正确的字段名
+    const speedInValues = apiData?.speed_in?.avg_delay || [];
     const speedOutTimestamps = apiData?.speed_out?.created_at || [];
-    const speedOutValues = apiData?.speed_out?.avg_delay || []; // 使用正确的字段名
-
-    // 调试信息
-    if (process.env.NODE_ENV === "development") {
-      console.log("[transformSpeedData] 入站数据:", {
-        timestamps: speedInTimestamps.length,
-        values: speedInValues.length,
-        sampleValues: speedInValues.slice(0, 3), // 显示前3个值
-      });
-      console.log("[transformSpeedData] 出站数据:", {
-        timestamps: speedOutTimestamps.length,
-        values: speedOutValues.length,
-        sampleValues: speedOutValues.slice(0, 3), // 显示前3个值
-      });
-    }
+    const speedOutValues = apiData?.speed_out?.avg_delay || [];
 
     // 合并时间戳
     const allTimestamps = [
@@ -581,27 +575,11 @@ export default function TunnelDetailPage({
       };
     });
 
-    // 调试信息
-    if (process.env.NODE_ENV === "development") {
-      console.log("[transformSpeedData] 转换结果:", result.length, "条记录");
-      if (result.length > 0) {
-        console.log("[transformSpeedData] 样本数据:", result.slice(0, 2));
-      }
-    }
-
     return result;
   }, []);
 
   const transformPoolData = React.useCallback((apiData: any) => {
-    // 调试信息
-    if (process.env.NODE_ENV === "development") {
-      console.log("[transformPoolData] API数据:", apiData);
-    }
-
     if (!apiData?.pool?.created_at || !apiData?.pool?.avg_delay) {
-      if (process.env.NODE_ENV === "development") {
-        console.log("[transformPoolData] 缺少连接池数据");
-      }
       return [];
     }
 
@@ -612,24 +590,41 @@ export default function TunnelDetailPage({
       })
     );
 
-    // 调试信息
-    if (process.env.NODE_ENV === "development") {
-      console.log("[transformPoolData] 转换结果:", result.length, "条记录");
-    }
+    return result;
+  }, []);
+
+  const transformConnectionsData = React.useCallback((apiData: any) => {
+    // 合并所有时间戳
+    const poolTimestamps = apiData?.pool?.created_at || [];
+    const tcpsTimestamps = apiData?.tcps?.created_at || [];
+    const udpsTimestamps = apiData?.udps?.created_at || [];
+    
+    const poolValues = apiData?.pool?.avg_delay || [];
+    const tcpsValues = apiData?.tcps?.avg_delay || [];
+    const udpsValues = apiData?.udps?.avg_delay || [];
+
+    const allTimestamps = [
+      ...new Set([...poolTimestamps, ...tcpsTimestamps, ...udpsTimestamps])
+    ].sort((a, b) => a - b);
+
+    const result = allTimestamps.map((timestamp: number) => {
+      const poolIndex = poolTimestamps.indexOf(timestamp);
+      const tcpsIndex = tcpsTimestamps.indexOf(timestamp);
+      const udpsIndex = udpsTimestamps.indexOf(timestamp);
+
+      return {
+        timeStamp: new Date(timestamp).toISOString(),
+        pool: poolIndex >= 0 ? Math.round(poolValues[poolIndex] || 0) : undefined,
+        tcps: tcpsIndex >= 0 ? Math.round(tcpsValues[tcpsIndex] || 0) : undefined,
+        udps: udpsIndex >= 0 ? Math.round(udpsValues[udpsIndex] || 0) : undefined,
+      };
+    });
 
     return result;
   }, []);
 
   const transformLatencyData = React.useCallback((apiData: any) => {
-    // 调试信息
-    if (process.env.NODE_ENV === "development") {
-      console.log("[transformLatencyData] API数据:", apiData);
-    }
-
     if (!apiData?.ping?.created_at || !apiData?.ping?.avg_delay) {
-      if (process.env.NODE_ENV === "development") {
-        console.log("[transformLatencyData] 缺少延迟数据");
-      }
       return [];
     }
 
@@ -640,10 +635,45 @@ export default function TunnelDetailPage({
       })
     );
 
-    // 调试信息
-    if (process.env.NODE_ENV === "development") {
-      console.log("[transformLatencyData] 转换结果:", result.length, "条记录");
-    }
+    return result;
+  }, []);
+
+  // 新增：详细流量数据转换函数 - 转换为四条线格式
+  const transformDetailedTrafficData = React.useCallback((apiData: any) => {
+    // 获取所有相关数据流
+    const tcpInTimestamps = apiData?.tcp_in?.created_at || [];
+    const tcpInValues = apiData?.tcp_in?.avg_delay || [];
+    const tcpOutTimestamps = apiData?.tcp_out?.created_at || [];
+    const tcpOutValues = apiData?.tcp_out?.avg_delay || [];
+    const udpInTimestamps = apiData?.udp_in?.created_at || [];
+    const udpInValues = apiData?.udp_in?.avg_delay || [];
+    const udpOutTimestamps = apiData?.udp_out?.created_at || [];
+    const udpOutValues = apiData?.udp_out?.avg_delay || [];
+
+    // 合并所有时间戳并去重
+    const allTimestamps = [
+      ...new Set([
+        ...tcpInTimestamps,
+        ...tcpOutTimestamps,
+        ...udpInTimestamps,
+        ...udpOutTimestamps
+      ])
+    ].sort((a, b) => a - b);
+
+    const result = allTimestamps.map((timestamp: number) => {
+      const tcpInIndex = tcpInTimestamps.indexOf(timestamp);
+      const tcpOutIndex = tcpOutTimestamps.indexOf(timestamp);
+      const udpInIndex = udpInTimestamps.indexOf(timestamp);
+      const udpOutIndex = udpOutTimestamps.indexOf(timestamp);
+
+      return {
+        timeStamp: new Date(timestamp).toISOString(),
+        tcpIn: tcpInIndex >= 0 ? tcpInValues[tcpInIndex] || 0 : 0,
+        tcpOut: tcpOutIndex >= 0 ? tcpOutValues[tcpOutIndex] || 0 : 0,
+        udpIn: udpInIndex >= 0 ? udpInValues[udpInIndex] || 0 : 0,
+        udpOut: udpOutIndex >= 0 ? udpOutValues[udpOutIndex] || 0 : 0,
+      };
+    });
 
     return result;
   }, []);
@@ -767,49 +797,26 @@ export default function TunnelDetailPage({
     udp_out_rates: [],
   });
 
-  // 获取可用的日志日期列表
-  const fetchAvailableLogDates = React.useCallback(async () => {
-    if (!tunnelInfo?.endpointId || !tunnelInfo?.instanceId) return;
-    
-    try {
-      const response = await fetch(
-        `/api/endpoints/${tunnelInfo.endpointId}/file-logs/dates?instanceId=${tunnelInfo.instanceId}`
-      );
-      
-      if (!response.ok) {
-        throw new Error('获取可用日志日期失败');
-      }
-      
-      const data = await response.json();
-      
-      if (data.success && Array.isArray(data.dates)) {
-        setAvailableLogDates(data.dates);
-        
-        // 如果没有选中日期，则默认选择最新的可用日期
-        if (!logDate && data.dates.length > 0) {
-          const latestDate = data.dates[0]; // 日期已经按最新排序
-          setLogDate(latestDate);
-        }
-      } else {
-        setAvailableLogDates([]);
-      }
-    } catch (error) {
-      console.error('获取可用日志日期失败:', error);
-      setAvailableLogDates([]);
+  // 初始化日志日期 - 直接设置为今天
+  const initializeLogDate = React.useCallback(() => {
+    if (!logDate) {
+      const today = new Date().toISOString().split('T')[0];
+      setLogDate(today);
+      setSelectedLogDate(today);
     }
-  }, [tunnelInfo?.endpointId, tunnelInfo?.instanceId, logDate]);
+  }, [logDate]);
 
   // 初始加载数据
   React.useEffect(() => {
     fetchTunnelDetails();
   }, [fetchTunnelDetails]);
 
-  // 当隧道信息加载完成后，获取可用的日志日期
+  // 当隧道信息加载完成后，初始化日志日期
   React.useEffect(() => {
-    if (tunnelInfo?.endpointId && tunnelInfo?.instanceId) {
-      fetchAvailableLogDates();
+    if (tunnelInfo?.endpointId && tunnelInfo?.instanceId && !logDate) {
+      initializeLogDate();
     }
-  }, [tunnelInfo?.endpointId, tunnelInfo?.instanceId, fetchAvailableLogDates]);
+  }, [tunnelInfo?.endpointId, tunnelInfo?.instanceId, logDate, initializeLogDate]);
 
   // 组件卸载时清理全局变量引用和useRef数据
   React.useEffect(() => {
@@ -842,7 +849,7 @@ export default function TunnelDetailPage({
     console.log("[隧道详情] 收到SSE事件:", data);
 
     // 处理log事件 - 拼接到日志末尾
-    if (data.eventType === "log" && data.logs) {
+    if (data.type === "log" && data.logs) {
       console.log("[隧道详情] 收到日志事件，追加到日志末尾:", data.logs);
       // 通过window对象调用FileLogViewer的方法追加日志
       if (
@@ -856,11 +863,13 @@ export default function TunnelDetailPage({
     }
 
     // 处理update事件 - 优化：只更新必要的状态，避免重复API调用
-    if (data.eventType === "update") {
+    if (data.type === "update") {
       console.log("[隧道详情] 收到update事件，更新本地状态");
 
-      // 只刷新日志（通过触发器），避免重复调用fetchTunnelDetails
-      setLogRefreshTrigger((prev) => prev + 1);
+      // 只在非实时模式下刷新日志（通过触发器），避免重复调用fetchTunnelDetails
+      if (!isRealtimeLogging) {
+        setLogRefreshTrigger((prev) => prev + 1);
+      }
       // 注意：metrics数据通过15秒轮询自动更新，无需手动刷新
       // 注意：基本信息很少变化，避免频繁调用API
 
@@ -897,22 +906,25 @@ export default function TunnelDetailPage({
                   udpTx: data.udpTx,
                   pool: data.pool || prev.traffic.pool,
                   ping: data.ping || prev.traffic.ping,
+                  tcps: data.tcps || prev.traffic.tcps,
+                  udps: data.udps || prev.traffic.udps,
                 },
               }
             : null
         );
       }
     }
-  }, []);
+  }, [isRealtimeLogging]);
 
   const sseOnError = React.useCallback((error: any) => {
     console.error("[隧道详情] SSE连接错误:", error);
   }, []);
 
-  // SSE监听逻辑 - 使用优化的事件处理器
+  // SSE监听逻辑 - 使用优化的事件处理器，只有在实时日志开启时才连接
   useTunnelSSE(tunnelInfo?.instanceId || "", {
     onMessage: sseOnMessage,
     onError: sseOnError,
+    enabled: isRealtimeLogging, // 控制是否连接SSE
   });
 
   const handleToggleStatus = () => {
@@ -1045,6 +1057,94 @@ export default function TunnelDetailPage({
       setIsUpdatingRestart(false);
     }
   };
+
+  // TCPing诊断测试处理函数
+  const handleTcpingTest = async () => {
+    if (!tunnelInfo || tcpingLoading) return;
+
+    // 直接使用当前实例的目标地址和端口
+    const targetAddress = `${tunnelInfo.targetAddress}:${tunnelInfo.config.targetPort}`;
+    setTcpingTarget(targetAddress);
+    setTcpingLoading(true);
+    setTcpingResult(null);
+
+    try {
+      const response = await fetch(
+        `/api/endpoints/${tunnelInfo.endpointId}/tcping`,
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ target: targetAddress }),
+        }
+      );
+
+      const data = await response.json();
+
+      if (response.ok && data.success) {
+        setTcpingResult(data.result);
+      } else {
+        throw new Error(data.error || "诊断测试失败");
+      }
+    } catch (error) {
+      console.error("TCPing诊断测试失败:", error);
+      addToast({
+        title: "诊断测试失败",
+        description: error instanceof Error ? error.message : "未知错误",
+        color: "danger",
+      });
+    } finally {
+      setTcpingLoading(false);
+    }
+  };
+
+  // 判断延迟是否优秀的函数
+  const getLatencyQuality = (latency: number) => {
+    if (latency < 50) return { text: "优秀", color: "success" };
+    if (latency < 100) return { text: "良好", color: "primary" };
+    if (latency < 200) return { text: "一般", color: "warning" };
+    return { text: "较差", color: "danger" };
+  };
+
+  // 当模态框打开时自动开始TCPing测试
+  React.useEffect(() => {
+    if (tcpingModalOpen && !tcpingLoading && !tcpingResult) {
+      // 直接开始测试，无需延迟
+      handleTcpingTest();
+    }
+  }, [tcpingModalOpen]);
+
+  // 处理实时日志开关切换
+  const handleRealtimeLoggingToggle = React.useCallback(async (enabled: boolean) => {
+    setIsRealtimeLogging(enabled);
+    
+    if (enabled) {
+      // 开启实时日志：直接清空日志显示，不调用清除接口
+      if ((window as any).fileLogViewerRef && (window as any).fileLogViewerRef.clearDisplay) {
+        (window as any).fileLogViewerRef.clearDisplay();
+      }
+      // 保持selectedLogDate不变，但显示为禁用状态
+    } else {
+      // 关闭实时日志：恢复到历史日志模式，默认选择今天
+      const today = new Date().toISOString().split('T')[0];
+      
+      setLogDate(today);
+      setSelectedLogDate(today);
+      setLogRefreshTrigger((prev) => prev + 1);
+    }
+  }, []);
+
+  // 处理日期选择变更（仅在非实时模式下有效）
+  const handleLogDateChange = React.useCallback(async (date: string | null) => {
+    if (isRealtimeLogging) return; // 实时模式下不允许选择日期
+    
+    setSelectedLogDate(date);
+    
+    // 触发FileLogViewer刷新以加载新日期的日志
+    if (date) {
+      setLogDate(date);
+      setLogRefreshTrigger((prev) => prev + 1);
+    }
+  }, [isRealtimeLogging]);
 
   const handleReset = async () => {
     if (!tunnelInfo) return;
@@ -1484,6 +1584,21 @@ export default function TunnelDetailPage({
             </CardBody>
           </Card>
 
+          {tunnelInfo.traffic.ping !== null && (
+            <Card className="p-1 md:p-2 bg-pink-50 dark:bg-pink-950/30 shadow-none">
+              <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
+                <div className="text-center">
+                  <p className="text-xs text-pink-600 dark:text-pink-400 mb-1">
+                    端内延迟
+                  </p>
+                  <p className="text-xs md:text-sm lg:text-lg font-bold text-pink-700 dark:text-pink-300">
+                    {tunnelInfo.traffic.ping}ms
+                  </p>
+                </div>
+              </CardBody>
+            </Card>
+          )}
+
           {tunnelInfo.traffic.pool !== null && (
             <Card className="p-1 md:p-2 bg-cyan-50 dark:bg-cyan-950/30 shadow-none">
               <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
@@ -1499,15 +1614,32 @@ export default function TunnelDetailPage({
             </Card>
           )}
 
-          {tunnelInfo.traffic.ping !== null && (
-            <Card className="p-1 md:p-2 bg-pink-50 dark:bg-pink-950/30 shadow-none">
+         
+
+          {tunnelInfo.traffic.tcps !== null && (
+            <Card className="p-1 md:p-2 bg-amber-50 dark:bg-amber-950/30 shadow-none">
               <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
                 <div className="text-center">
-                  <p className="text-xs text-pink-600 dark:text-pink-400 mb-1">
-                    端内延迟
+                  <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">
+                    TCP连接数
                   </p>
-                  <p className="text-xs md:text-sm lg:text-lg font-bold text-pink-700 dark:text-pink-300">
-                    {tunnelInfo.traffic.ping}ms
+                  <p className="text-xs md:text-sm lg:text-lg font-bold text-amber-700 dark:text-amber-300">
+                    {tunnelInfo.traffic.tcps}
+                  </p>
+                </div>
+              </CardBody>
+            </Card>
+          )}
+
+          {tunnelInfo.traffic.udps !== null && (
+            <Card className="p-1 md:p-2 bg-teal-50 dark:bg-teal-950/30 shadow-none">
+              <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
+                <div className="text-center">
+                  <p className="text-xs text-teal-600 dark:text-teal-400 mb-1">
+                    UDP连接数
+                  </p>
+                  <p className="text-xs md:text-sm lg:text-lg font-bold text-teal-700 dark:text-teal-300">
+                    {tunnelInfo.traffic.udps}
                   </p>
                 </div>
               </CardBody>
@@ -1919,12 +2051,13 @@ export default function TunnelDetailPage({
                   </Button>
                   <Button
                     variant="flat"
-                    color="default"
-                    startContent={<FontAwesomeIcon icon={faSection} />}
+                    color="warning"
+                    startContent={<FontAwesomeIcon icon={faBug} />}
                     className="w-full  h-7"
                     size="sm"
+                    onClick={() => setTcpingModalOpen(true)}
                   >
-                    功能开发中...
+                    诊断测试
                   </Button>
                 </div>
               </div>
@@ -1951,10 +2084,42 @@ export default function TunnelDetailPage({
         <div className="space-y-3">
           {/* 第一行：流量用量和速率 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* 流量趋势 */}
+            {/* 详细流量趋势 - 四条线 */}
             <Card className="p-2">
               <CardHeader className="pb-1 pt-2 px-2 flex items-center justify-between">
-                <h4 className="text-sm font-semibold">流量累计</h4>
+                <div className="flex items-center gap-3">
+                  <h4 className="text-sm font-semibold">流量累计</h4>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: "hsl(217 91% 60%)" }}
+                      ></div>
+                      <span className="text-xs text-default-600">TCP入</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: "hsl(142 76% 36%)" }}
+                      ></div>
+                      <span className="text-xs text-default-600">TCP出</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: "hsl(262 83% 58%)" }}
+                      ></div>
+                      <span className="text-xs text-default-600">UDP入</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: "hsl(25 95% 53%)" }}
+                      ></div>
+                      <span className="text-xs text-default-600">UDP出</span>
+                    </div>
+                  </div>
+                </div>
                 <Button
                   size="sm"
                   variant="light"
@@ -1967,8 +2132,8 @@ export default function TunnelDetailPage({
               </CardHeader>
               <CardBody className="pt-0 px-2 pb-2">
                 <div className="h-[140px]">
-                  <TrafficUsageChart
-                    data={transformTrafficData(metricsData?.data)}
+                  <DetailedTrafficChart
+                    data={transformDetailedTrafficData(metricsData?.data)}
                     height={140}
                     loading={metricsLoading && !metricsData}
                     error={metricsError || undefined}
@@ -2052,15 +2217,40 @@ export default function TunnelDetailPage({
                 </div>
               </CardBody>
             </Card>
-            {/* 连接池趋势 */}
+            {/* 连接数趋势 */}
             <Card className="p-2">
               <CardHeader className="pb-1 pt-2 px-2 flex items-center justify-between">
-                <h4 className="text-sm font-semibold">池连接数</h4>
+                <div className="flex items-center gap-3">
+                  <h4 className="text-sm font-semibold">连接数量</h4>
+                  <div className="flex items-center gap-2">
+                    <div className="flex items-center gap-1">
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: "hsl(340 75% 55%)" }}
+                      ></div>
+                      <span className="text-xs text-default-600">池</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: "hsl(24 70% 50%)" }}
+                      ></div>
+                      <span className="text-xs text-default-600">TCP</span>
+                    </div>
+                    <div className="flex items-center gap-1">
+                      <div
+                        className="w-2 h-2 rounded-full"
+                        style={{ backgroundColor: "hsl(173 58% 39%)" }}
+                      ></div>
+                      <span className="text-xs text-default-600">UDP</span>
+                    </div>
+                  </div>
+                </div>
                 <Button
                   size="sm"
                   variant="light"
                   isIconOnly
-                  onPress={() => openFullscreenChart("pool", "池连接数")}
+                  onPress={() => openFullscreenChart("connections", "连接数")}
                   className="h-6 w-6 min-w-0"
                 >
                   <FontAwesomeIcon icon={faExpand} className="text-xs" />
@@ -2068,8 +2258,8 @@ export default function TunnelDetailPage({
               </CardHeader>
               <CardBody className="pt-0 px-2 pb-2">
                 <div className="h-[140px]">
-                  <PoolChart
-                    data={transformPoolData(metricsData?.data)}
+                  <ConnectionsChart
+                    data={transformConnectionsData(metricsData?.data)}
                     height={140}
                     loading={metricsLoading && !metricsData}
                     error={metricsError || undefined}
@@ -2168,27 +2358,32 @@ export default function TunnelDetailPage({
               </div>
             </div>
             <div className="flex items-center gap-2">
+              {/* 实时日志开关 */}
+              <div className="flex items-center gap-2">
+                <span className="text-sm text-default-600">实时输出</span>
+                <Switch
+                  size="sm"
+                  isSelected={isRealtimeLogging}
+                  onValueChange={handleRealtimeLoggingToggle}
+                  color="primary"
+                />
+              </div>
+              
               {/* 日期选择 */}
               <DatePicker
                 size="sm"
                 className="w-40"
-                isDisabled={availableLogDates.length === 0}
-                value={logDate ? parseDate(logDate) : null}
+                isDisabled={isRealtimeLogging}
+                value={selectedLogDate ? parseDate(selectedLogDate) : null}
                 onChange={(date) => {
-                  if (date) {
+                  if (!isRealtimeLogging && date) {
                     const newDate = date.toString();
-                    setLogDate(newDate);
-                    // 触发日志刷新以获取新日期的日志内容
-                    setLogRefreshTrigger(prev => prev + 1);
+                    handleLogDateChange(newDate);
                   }
                 }}
                 isDateUnavailable={(date) => {
-                  // 如果availableLogDates为空，则禁用所有日期
-                  if (availableLogDates.length === 0) return true;
-                  
-                  // 只允许选择可用日期列表中的日期
-                  const dateString = date.toString();
-                  return !availableLogDates.includes(dateString);
+                  // 允许选择任何日期，让FileLogViewer来处理日志获取
+                  return false;
                 }}
                 showMonthAndYearPickers
                 granularity="day"
@@ -2303,6 +2498,7 @@ export default function TunnelDetailPage({
               onClearingChange={setLogClearing}
               triggerRefresh={logRefreshTrigger}
               onClearLogs={handleLogClear}
+              isRealtimeMode={isRealtimeLogging}
             />
           </CardBody>
         </Card>
@@ -2399,11 +2595,197 @@ export default function TunnelDetailPage({
         trafficData={transformTrafficData(metricsData?.data)}
         speedData={transformSpeedData(metricsData?.data)}
         poolData={transformPoolData(metricsData?.data)}
+        connectionsData={transformConnectionsData(metricsData?.data)}
         latencyData={transformLatencyData(metricsData?.data)}
         loading={metricsLoading}
         error={metricsError || undefined}
         onRefresh={refreshMetrics}
       />
+
+      {/* TCPing诊断测试模态框 */}
+      <Modal
+        isOpen={tcpingModalOpen}
+        onOpenChange={(open) => {
+          setTcpingModalOpen(open);
+          if (!open) {
+            setTcpingTarget("");
+            setTcpingResult(null);
+            setTcpingLoading(false);
+          }
+        }}
+        placement="center"
+        size="lg"
+        hideCloseButton={tcpingLoading}
+        isDismissable={!tcpingLoading}
+      >
+        <ModalContent className="min-h-[400px]">
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <FontAwesomeIcon icon={faBug} className="text-primary" />
+                  网络诊断测试
+                </div>
+              </ModalHeader>
+              
+              {tcpingLoading ? (
+                // 加载状态 - 充斥整个模态窗内容
+                <ModalBody className="flex-1 flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center space-y-4">
+                    <Spinner size="lg" color="primary" />
+                    <p className="text-default-600 animate-pulse">正在进行连通性测试...</p>
+                    <p className="text-xs text-default-400">目标地址: {tcpingTarget}</p>
+                  </div>
+                </ModalBody>
+              ) : tcpingResult ? (
+                // 结果显示状态
+                <ModalBody className="py-6">
+                  <div className="space-y-6">
+                    {/* 测试结果卡片 */}
+                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 rounded-lg p-6 border border-default-200">
+                      <div className="flex items-center gap-3 mb-4">
+                        <div className={`w-3 h-3 rounded-full ${tcpingResult.connected ? 'bg-success animate-pulse' : 'bg-danger'}`}></div>
+                        <h3 className="text-lg font-semibold">测试结果</h3>
+                      </div>
+                      
+                      {/* 目标地址 */}
+                      <div className="grid grid-cols-2 gap-4 mb-4">
+                        <div>
+                          <p className="text-xs text-default-500 mb-1">目标地址</p>
+                          <p className="font-mono text-sm text-primary">{tcpingResult.target}</p>
+                        </div>
+                        <div>
+                          <p className="text-xs text-default-500 mb-1">连接状态</p>
+                          <Chip
+                            variant="flat"
+                            color={tcpingResult.connected ? "success" : "danger"}
+                            className="text-xs"
+                          >
+                            {tcpingResult.connected ? "✓ 连接成功" : "✗ 连接失败"}
+                          </Chip>
+                        </div>
+                      </div>
+
+                      {/* 始终显示统计信息，无论成功还是失败 */}
+                      <div className="space-y-4">
+                          {/* 丢包率和网络质量评估 */}
+                          <div className="grid grid-cols-2 gap-4">
+                            <div>
+                              <p className="text-xs text-default-500 mb-1">丢包率</p>
+                              <div className="flex items-center gap-2">
+                                <span className={`text-lg font-bold ${(tcpingResult.packetLoss || 0) === 0 ? 'text-success' : (tcpingResult.packetLoss || 0) < 20 ? 'text-warning' : 'text-danger'}`}>
+                                  {tcpingResult.packetLoss?.toFixed(1) || '0.0'}
+                                </span>
+                                <span className="text-sm text-default-600">%</span>
+                              </div>
+                            </div>
+                            {tcpingResult.avgLatency && (
+                              <div>
+                                <p className="text-xs text-default-500 mb-1">网络质量</p>
+                                <Chip
+                                  variant="flat"
+                                  color={getLatencyQuality(tcpingResult.avgLatency).color as any}
+                                  className="text-xs"
+                                >
+                                  {getLatencyQuality(tcpingResult.avgLatency).text}
+                                </Chip>
+                              </div>
+                            )}
+                          </div>
+
+                          {/* 延迟统计 - 始终显示，空值显示为 - */}
+                          <div className="grid grid-cols-3 gap-4">
+                            <div>
+                              <p className="text-xs text-default-500 mb-1">最快响应</p>
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm font-bold text-success">
+                                  {tcpingResult.minLatency ? tcpingResult.minLatency : '-'}
+                                </span>
+                                {tcpingResult.minLatency && <span className="text-xs text-default-600">ms</span>}
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-xs text-default-500 mb-1">平均响应</p>
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm font-bold text-primary">
+                                  {tcpingResult.avgLatency ? tcpingResult.avgLatency.toFixed(1) : '-'}
+                                </span>
+                                {tcpingResult.avgLatency && <span className="text-xs text-default-600">ms</span>}
+                              </div>
+                            </div>
+                            <div>
+                              <p className="text-xs text-default-500 mb-1">最慢响应</p>
+                              <div className="flex items-center gap-1">
+                                <span className="text-sm font-bold text-warning">
+                                  {tcpingResult.maxLatency ? tcpingResult.maxLatency : '-'}
+                                </span>
+                                {tcpingResult.maxLatency && <span className="text-xs text-default-600">ms</span>}
+                              </div>
+                            </div>
+                          </div>
+
+                          
+                          {/* 延迟质量指示器 */}
+                          {tcpingResult.avgLatency && (
+                            <div className="mt-4">
+                              <div className="flex justify-between text-xs text-default-500 mb-2">
+                                <span>0ms</span>
+                                <span>50ms</span>
+                                <span>100ms</span>
+                                <span>200ms+</span>
+                              </div>
+                              <div className="h-2 bg-gradient-to-r from-green-200 via-yellow-200 to-red-200 rounded-full relative">
+                                {/* 位置标记 - 使用圆形标记 */}
+                                <div 
+                                  className="absolute -top-1 w-4 h-4 bg-white rounded-full border-2 border-primary shadow-lg flex items-center justify-center"
+                                  style={{ 
+                                    left: `${Math.min((tcpingResult.avgLatency / 200) * 100, 100)}%`,
+                                    transform: 'translateX(-50%)'
+                                  }}
+                                >
+                                  <div className="w-1.5 h-1.5 bg-primary rounded-full"></div>
+                                </div>
+                              </div>
+                            </div>
+                          )}
+                      </div>
+                    </div>
+
+                    {/* 重新测试按钮 */}
+                    <div className="flex gap-2">
+                      <Button
+                        color="primary"
+                        onPress={() => {
+                          setTcpingResult(null);
+                        }}
+                        className="flex-1"
+                      >
+                        重新测试
+                      </Button>
+                      <Button
+                        variant="flat"
+                        onPress={onClose}
+                        className="flex-1"
+                      >
+                        关闭
+                      </Button>
+                    </div>
+                  </div>
+                </ModalBody>
+              ) : (
+                // 空状态 - 正在启动
+                <ModalBody className="flex-1 flex items-center justify-center py-12">
+                  <div className="flex flex-col items-center space-y-4">
+                    <Spinner size="lg" color="primary" />
+                    <p className="text-default-600 animate-pulse">正在进行连通性测试...</p>
+                    <p className="text-xs text-default-400">目标地址: {tunnelInfo.targetAddress}:{tunnelInfo.config.targetPort}</p>
+                  </div>
+                </ModalBody>
+              )}
+            </>
+          )}
+        </ModalContent>
+      </Modal>
     </>
   );
 }

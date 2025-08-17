@@ -436,6 +436,8 @@ func (h *TunnelMetricsHandler) getUnifiedTrendDataFromServiceHistory(instanceID 
 		RecordTime  time.Time `json:"record_time"`
 		AvgPing     float64   `json:"avg_ping"`
 		AvgPool     float64   `json:"avg_pool"`
+		AvgTCPs     float64   `json:"avg_tcps"`
+		AvgUDPs     float64   `json:"avg_udps"`
 		DeltaTCPIn  float64   `json:"delta_tcp_in"`
 		DeltaTCPOut float64   `json:"delta_tcp_out"`
 		DeltaUDPIn  float64   `json:"delta_udp_in"`
@@ -444,7 +446,7 @@ func (h *TunnelMetricsHandler) getUnifiedTrendDataFromServiceHistory(instanceID 
 		AvgSpeedOut float64   `json:"avg_speed_out"`
 	}
 
-	query := `SELECT record_time, avg_ping, avg_pool, delta_tcp_in, delta_tcp_out, delta_udp_in, delta_udp_out, avg_speed_in, avg_speed_out 
+	query := `SELECT record_time, avg_ping, avg_pool, avg_tcps, avg_udps, delta_tcp_in, delta_tcp_out, delta_udp_in, delta_udp_out, avg_speed_in, avg_speed_out 
 			  FROM service_history 
 			  WHERE instance_id = ? AND record_time >= ? 
 			  ORDER BY record_time ASC`
@@ -460,6 +462,8 @@ func (h *TunnelMetricsHandler) getUnifiedTrendDataFromServiceHistory(instanceID 
 			RecordTime  time.Time `json:"record_time"`
 			AvgPing     float64   `json:"avg_ping"`
 			AvgPool     float64   `json:"avg_pool"`
+			AvgTCPs     float64   `json:"avg_tcps"`
+			AvgUDPs     float64   `json:"avg_udps"`
 			DeltaTCPIn  float64   `json:"delta_tcp_in"`
 			DeltaTCPOut float64   `json:"delta_tcp_out"`
 			DeltaUDPIn  float64   `json:"delta_udp_in"`
@@ -468,7 +472,7 @@ func (h *TunnelMetricsHandler) getUnifiedTrendDataFromServiceHistory(instanceID 
 			AvgSpeedOut float64   `json:"avg_speed_out"`
 		}
 
-		if err := rows.Scan(&metric.RecordTime, &metric.AvgPing, &metric.AvgPool, &metric.DeltaTCPIn, &metric.DeltaTCPOut, &metric.DeltaUDPIn, &metric.DeltaUDPOut, &metric.AvgSpeedIn, &metric.AvgSpeedOut); err != nil {
+		if err := rows.Scan(&metric.RecordTime, &metric.AvgPing, &metric.AvgPool, &metric.AvgTCPs, &metric.AvgUDPs, &metric.DeltaTCPIn, &metric.DeltaTCPOut, &metric.DeltaUDPIn, &metric.DeltaUDPOut, &metric.AvgSpeedIn, &metric.AvgSpeedOut); err != nil {
 			return nil, err
 		}
 
@@ -489,8 +493,15 @@ func (h *TunnelMetricsHandler) getUnifiedTrendDataFromServiceHistory(instanceID 
 			trafficData  []float64
 			pingData     []float64
 			poolData     []float64
+			tcpsData     []float64
+			udpsData     []float64
 			speedInData  []float64
 			speedOutData []float64
+			// 新增：分开的流量数据数组
+			tcpInData  []float64
+			tcpOutData []float64
+			udpInData  []float64
+			udpOutData []float64
 		)
 
 		// 按时间排序
@@ -501,12 +512,19 @@ func (h *TunnelMetricsHandler) getUnifiedTrendDataFromServiceHistory(instanceID 
 			// 添加数据
 			pingData = append(pingData, metric.AvgPing)
 			poolData = append(poolData, metric.AvgPool)
+			tcpsData = append(tcpsData, metric.AvgTCPs)
+			udpsData = append(udpsData, metric.AvgUDPs)
 			// 流量数据：TCP+UDP总流量变化（bytes/min）
 			totalTraffic := metric.DeltaTCPIn + metric.DeltaTCPOut + metric.DeltaUDPIn + metric.DeltaUDPOut
 			trafficData = append(trafficData, totalTraffic)
 			// 速度数据：使用新的速度字段
 			speedInData = append(speedInData, metric.AvgSpeedIn)
 			speedOutData = append(speedOutData, metric.AvgSpeedOut)
+			// 新增：分开的流量数据
+			tcpInData = append(tcpInData, metric.DeltaTCPIn)
+			tcpOutData = append(tcpOutData, metric.DeltaTCPOut)
+			udpInData = append(udpInData, metric.DeltaUDPIn)
+			udpOutData = append(udpOutData, metric.DeltaUDPOut)
 
 		}
 
@@ -524,12 +542,37 @@ func (h *TunnelMetricsHandler) getUnifiedTrendDataFromServiceHistory(instanceID 
 				"avg_delay":  poolData,
 				"created_at": timestampsMs,
 			},
+			"tcps": map[string]interface{}{
+				"avg_delay":  tcpsData,
+				"created_at": timestampsMs,
+			},
+			"udps": map[string]interface{}{
+				"avg_delay":  udpsData,
+				"created_at": timestampsMs,
+			},
 			"speed_in": map[string]interface{}{
 				"avg_delay":  speedInData,
 				"created_at": timestampsMs,
 			},
 			"speed_out": map[string]interface{}{
 				"avg_delay":  speedOutData,
+				"created_at": timestampsMs,
+			},
+			// 新增：分开的流量数据
+			"tcp_in": map[string]interface{}{
+				"avg_delay":  tcpInData,
+				"created_at": timestampsMs,
+			},
+			"tcp_out": map[string]interface{}{
+				"avg_delay":  tcpOutData,
+				"created_at": timestampsMs,
+			},
+			"udp_in": map[string]interface{}{
+				"avg_delay":  udpInData,
+				"created_at": timestampsMs,
+			},
+			"udp_out": map[string]interface{}{
+				"avg_delay":  udpOutData,
 				"created_at": timestampsMs,
 			},
 		}
@@ -725,11 +768,36 @@ func (h *TunnelMetricsHandler) createEmptyTrendData(hours int) map[string]interf
 			"avg_delay":  emptyData,
 			"created_at": timestampsMs,
 		},
+		"tcps": map[string]interface{}{
+			"avg_delay":  emptyData,
+			"created_at": timestampsMs,
+		},
+		"udps": map[string]interface{}{
+			"avg_delay":  emptyData,
+			"created_at": timestampsMs,
+		},
 		"speed_in": map[string]interface{}{
 			"avg_delay":  emptyData,
 			"created_at": timestampsMs,
 		},
 		"speed_out": map[string]interface{}{
+			"avg_delay":  emptyData,
+			"created_at": timestampsMs,
+		},
+		// 新增：分开的流量数据
+		"tcp_in": map[string]interface{}{
+			"avg_delay":  emptyData,
+			"created_at": timestampsMs,
+		},
+		"tcp_out": map[string]interface{}{
+			"avg_delay":  emptyData,
+			"created_at": timestampsMs,
+		},
+		"udp_in": map[string]interface{}{
+			"avg_delay":  emptyData,
+			"created_at": timestampsMs,
+		},
+		"udp_out": map[string]interface{}{
 			"avg_delay":  emptyData,
 			"created_at": timestampsMs,
 		},

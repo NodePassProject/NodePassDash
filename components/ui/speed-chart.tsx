@@ -139,7 +139,6 @@ const filterDataTo1Hour = (data: SpeedDataPoint[]) => {
       const itemTime = new Date(item.timeStamp);
       return !isNaN(itemTime.getTime()) && itemTime >= oneHourAgo;
     } catch (error) {
-      console.error(`时间解析错误: ${item.timeStamp}`, error);
       return false;
     }
   });
@@ -153,25 +152,6 @@ export const SpeedChart: React.FC<SpeedChartProps> = ({
   className = '',
   showFullData = false,
 }) => {
-  // 调试信息 - 开发环境下显示数据更新
-  React.useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[SpeedChart] 数据更新:', data.length, '条记录');
-      if (data.length > 0) {
-        console.log('[SpeedChart] 样本数据:', data.slice(0, 2));
-        console.log('[SpeedChart] 数据范围:', {
-          speed_in: {
-            min: Math.min(...data.map(d => d.speed_in)),
-            max: Math.max(...data.map(d => d.speed_in))
-          },
-          speed_out: {
-            min: Math.min(...data.map(d => d.speed_out)),
-            max: Math.max(...data.map(d => d.speed_out))
-          }
-        });
-      }
-    }
-  }, [data]);
   const chartConfig = {
     speed_in: {
       label: "上传速度",

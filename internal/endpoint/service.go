@@ -2,6 +2,7 @@ package endpoint
 
 import (
 	"NodePassDash/internal/models"
+	"NodePassDash/internal/nodepass"
 	"errors"
 	"net"
 	"net/url"
@@ -344,7 +345,7 @@ func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error)
 }
 
 // UpdateEndpointInfo 更新端点的系统信息
-func (s *Service) UpdateEndpointInfo(id int64, info NodePassInfo) error {
+func (s *Service) UpdateEndpointInfo(id int64, info nodepass.EndpointInfoResult) error {
 	updates := map[string]interface{}{
 		"os":         info.OS,
 		"arch":       info.Arch,

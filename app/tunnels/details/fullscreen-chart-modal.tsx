@@ -15,10 +15,11 @@ import { faXmark, faRefresh } from "@fortawesome/free-solid-svg-icons";
 import { TrafficUsageChart } from "@/components/ui/traffic-usage-chart";
 import { SpeedChart } from "@/components/ui/speed-chart";
 import { PoolChart } from "@/components/ui/pool-chart";
+import { ConnectionsChart } from "@/components/ui/connections-chart";
 import { LatencyChart } from "@/components/ui/latency-chart";
 
 // 图表类型
-type ChartType = "traffic" | "speed" | "pool" | "latency";
+type ChartType = "traffic" | "speed" | "pool" | "connections" | "latency";
 
 // 数据接口
 interface TrafficDataPoint {
@@ -37,6 +38,13 @@ interface PoolDataPoint {
   pool: number;
 }
 
+interface ConnectionDataPoint {
+  timeStamp: string;
+  pool?: number;
+  tcps?: number;
+  udps?: number;
+}
+
 interface LatencyDataPoint {
   timeStamp: string;
   latency: number;
@@ -51,6 +59,7 @@ interface FullscreenChartModalProps {
   trafficData?: TrafficDataPoint[];
   speedData?: SpeedDataPoint[];
   poolData?: PoolDataPoint[];
+  connectionsData?: ConnectionDataPoint[];
   latencyData?: LatencyDataPoint[];
   loading?: boolean;
   error?: string;
@@ -92,6 +101,7 @@ export const FullscreenChartModal: React.FC<FullscreenChartModalProps> = ({
   trafficData = [],
   speedData = [],
   poolData = [],
+  connectionsData = [],
   latencyData = [],
   loading = false,
   error,
@@ -108,6 +118,8 @@ export const FullscreenChartModal: React.FC<FullscreenChartModalProps> = ({
         return filterDataByTimeRange(speedData, timeRange);
       case "pool":
         return filterDataByTimeRange(poolData, timeRange);
+      case "connections":
+        return filterDataByTimeRange(connectionsData, timeRange);
       case "latency":
         return filterDataByTimeRange(latencyData, timeRange);
       default:
@@ -134,6 +146,8 @@ export const FullscreenChartModal: React.FC<FullscreenChartModalProps> = ({
         return <SpeedChart {...chartProps} />;
       case "pool":
         return <PoolChart {...chartProps} />;
+      case "connections":
+        return <ConnectionsChart {...chartProps} />;
       case "latency":
         return <LatencyChart {...chartProps} />;
       default:

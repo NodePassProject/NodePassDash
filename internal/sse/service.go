@@ -197,10 +197,6 @@ func (s *Service) storeWorkerLoop() {
 			if err := s.fileLogger.WriteLog(event.EndpointID, event.InstanceID, logContent); err != nil {
 				log.Warnf("[Master-%d]写入文件日志失败: %v", event.EndpointID, err)
 			}
-
-			// 推流转发给前端订阅
-			// log.Debugf("[Master-%d#SSE]准备推送事件给前端，eventType=%s instanceID=%s", endpointID, event.EventType, event.InstanceID)
-			s.sendTunnelUpdateByInstanceId(event.InstanceID, event)
 		}
 	}
 }
@@ -208,7 +204,7 @@ func (s *Service) storeWorkerLoop() {
 // ======================== 事件处理器 ============================
 
 // ProcessEvent 处理SSE事件（回滚到原来的直接更新逻辑）
-func (s *Service) ProcessEvent(endpointID int64, event models.EndpointSSE) error {
+func (s *Service) ProcessEvent(payload SSEResp) {
 	// 异步处理事件，避免阻塞SSE接收
 	// select {
 	// case s.storeJobCh <- event:
@@ -218,118 +214,85 @@ func (s *Service) ProcessEvent(endpointID int64, event models.EndpointSSE) error
 	// 	return fmt.Errorf("存储队列已满")
 	// }
 
-	switch event.EventType {
-	case models.SSEEventTypeShutdown:
-		s.handleShutdownEvent(event)
-	case models.SSEEventTypeInitial:
-		s.handleInitialEvent(event)
-	case models.SSEEventTypeCreate:
-		s.handleCreateEvent(event)
-	case models.SSEEventTypeUpdate:
+	switch payload.Type {
+	case "shutdown":
+		s.handleShutdownEvent(payload)
+	case "initial":
+		s.handleInitialEvent(payload)
+	case "create":
+		s.handleCreateEvent(payload)
+	case "update":
 		// 保留History Worker逻辑（参照Nezha的逻辑）
 		if s.historyWorker != nil {
-			s.historyWorker.Dispatch(event)
+			s.historyWorker.Dispatch(payload)
 		}
-		s.handleUpdateEvent(event)
-	case models.SSEEventTypeDelete:
-		s.handleDeleteEvent(event)
-	case models.SSEEventTypeLog:
-		s.handleLogEvent(event)
+		s.handleUpdateEvent(payload)
+	case "delete":
+		s.handleDeleteEvent(payload)
+	case "log":
+		s.handleLogEvent(payload)
 	}
-	return nil
 }
 
 // 事件处理方法
-func (s *Service) handleInitialEvent(e models.EndpointSSE) {
+func (s *Service) handleInitialEvent(payload SSEResp) {
 	// SSE initial 事件表示端点重新连接时报告现有隧道状态
-	log.Debugf("[Master-%d]处理初始化事件: 隧道 %s", e.EndpointID, e.InstanceID)
-	if e.InstanceType == nil || *e.InstanceType == "" {
+	log.Debugf("[Master-%d]处理初始化事件: 隧道 %s", payload.EndpointID, payload.Instance.ID)
+	if payload.Instance.Type == "" {
 		// 当InstanceType为空时，尝试获取端点系统信息
-		go s.fetchAndUpdateEndpointInfo(e.EndpointID)
+		go s.fetchAndUpdateEndpointInfo(payload.EndpointID)
 		return
 	}
 
 	// 检查隧道是否已存在
-	if err := s.db.Where("endpoint_id = ? AND instance_id = ?", e.EndpointID, e.InstanceID).First(&models.Tunnel{}).Error; err == nil {
+	if err := s.db.Where("endpoint_id = ? AND instance_id = ?", payload.EndpointID, payload.Instance.ID).First(&models.Tunnel{}).Error; err == nil {
 		// 隧道已存在（正常情况），更新运行时信息
-		log.Debugf("[Master-%d]隧道 %s 已存在，更新运行时信息", e.EndpointID, e.InstanceID)
-		s.updateTunnelRuntimeInfo(e)
+		log.Debugf("[Master-%d]隧道 %s 已存在，更新运行时信息", payload.EndpointID, payload.Instance.ID)
+		s.updateTunnelRuntimeInfo(payload)
 		return
 	} else if err != gorm.ErrRecordNotFound {
-		log.Errorf("[Master-%d]查询隧道 %s 失败: %v", e.EndpointID, e.InstanceID, err)
+		log.Errorf("[Master-%d]查询隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
 		return
 	} else {
 		// 创建最小化隧道记录，包含从EndpointSSE获取的流量等信息
-		tunnel := nodepass.ParseTunnelURL(*e.URL)
-		// 补充从EndpointSSE获取的信息
-		tunnel.EndpointID = e.EndpointID
-		tunnel.InstanceID = &e.InstanceID
-		tunnel.TCPRx = e.TCPRx
-		tunnel.TCPTx = e.TCPTx
-		tunnel.UDPRx = e.UDPRx
-		tunnel.UDPTx = e.UDPTx
-		tunnel.Pool = e.Pool
-		tunnel.Ping = e.Ping
-		tunnel.LastEventTime = &e.EventTime
-		tunnel.EnableLogStore = true
-
-		// 设置可选字段
-		if e.Status != nil {
-			tunnel.Status = models.TunnelStatus(*e.Status)
-		}
-		if e.Alias != nil && *e.Alias != "" {
-			tunnel.Name = *e.Alias
-		}
-		if e.InstanceType != nil {
-			tunnel.Type = models.TunnelType(*e.InstanceType)
-		}
-		if e.Restart != nil {
-			tunnel.Restart = e.Restart
-		}
+		tunnel := buildTunnel(payload)
 
 		if err = s.db.Create(&tunnel).Error; err != nil {
-			log.Errorf("[Master-%d]初始化隧道 %s 失败: %v", e.EndpointID, e.InstanceID, err)
+			log.Errorf("[Master-%d]初始化隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
 		} else {
-			log.Infof("[Master-%d]最小化隧道记录 %s 初始化成功，包含流量信息", e.EndpointID, e.InstanceID)
-			s.updateEndpointTunnelCount(e.EndpointID)
+			log.Infof("[Master-%d]最小化隧道记录 %s 初始化成功，包含流量信息", payload.EndpointID, payload.Instance.ID)
+			s.updateEndpointTunnelCount(payload.EndpointID)
 		}
 	}
 }
 
-func (s *Service) handleCreateEvent(e models.EndpointSSE) {
+func buildTunnel(payload SSEResp) *models.Tunnel {
+	tunnel := nodepass.ParseTunnelURL(payload.Instance.URL)
+	// 补充从EndpointSSE获取的信息
+	tunnel.EndpointID = payload.EndpointID
+	tunnel.InstanceID = &payload.Instance.ID
+	tunnel.TCPRx = payload.Instance.TCPRx
+	tunnel.TCPTx = payload.Instance.TCPTx
+	tunnel.UDPRx = payload.Instance.UDPRx
+	tunnel.UDPTx = payload.Instance.UDPTx
+	tunnel.TCPs = payload.Instance.TCPs
+	tunnel.UDPs = payload.Instance.UDPs
+	tunnel.Pool = payload.Instance.Pool
+	tunnel.Ping = payload.Instance.Ping
+	tunnel.LastEventTime = &payload.TimeStamp
+	tunnel.EnableLogStore = true
+	tunnel.Restart = payload.Instance.Restart
+	tunnel.Name = *payload.Instance.Alias
+	tunnel.Status = models.TunnelStatus(payload.Instance.Status)
+	return tunnel
+}
+
+func (s *Service) handleCreateEvent(payload SSEResp) {
 	// SSE create 事件表示 NodePass 客户端报告隧道创建成功
 	// 此时隧道记录应该已经由 API 创建，我们只需要更新状态和流量信息
-	log.Debugf("[Master-%d]处理创建事件: 隧道 %s", e.EndpointID, e.InstanceID)
+	log.Debugf("[Master-%d]处理创建事件: 隧道 %s", payload.EndpointID, payload.Instance.ID)
 	// 先解析 URL 获取隧道配置信息
-	var tunnel *models.Tunnel = nodepass.ParseTunnelURL(*e.URL)
-	// 设置默认值
-	tunnel.EnableLogStore = true
-
-	// 补充从EndpointSSE获取的信息
-	tunnel.EndpointID = e.EndpointID
-	tunnel.InstanceID = &e.InstanceID
-	tunnel.TCPRx = e.TCPRx
-	tunnel.TCPTx = e.TCPTx
-	tunnel.UDPRx = e.UDPRx
-	tunnel.UDPTx = e.UDPTx
-	tunnel.Pool = e.Pool
-	tunnel.Ping = e.Ping
-	tunnel.LastEventTime = &e.EventTime
-
-	// 设置可选字段
-	if e.Status != nil {
-		tunnel.Status = models.TunnelStatus(*e.Status)
-	}
-	if e.Alias != nil && *e.Alias != "" {
-		tunnel.Name = *e.Alias
-	}
-	if e.InstanceType != nil {
-		tunnel.Type = models.TunnelType(*e.InstanceType)
-	}
-	if e.Restart != nil {
-		tunnel.Restart = e.Restart
-	}
-
+	tunnel := buildTunnel(payload)
 	// 使用 OnConflict 子句处理冲突情况
 	// 如果 endpoint_id + instance_id 已存在，则更新相关字段
 	if err := s.db.Clauses(clause.OnConflict{
@@ -338,170 +301,116 @@ func (s *Service) handleCreateEvent(e models.EndpointSSE) {
 			{Name: "instance_id"},
 		},
 		DoUpdates: clause.AssignmentColumns([]string{
-			"tcp_rx", "tcp_tx", "udp_rx", "udp_tx", "pool", "ping",
+			"tcp_rx", "tcp_tx", "udp_rx", "udp_tx", "tcps", "udps", "pool", "ping",
 			"tunnel_address", "tunnel_port", "target_address", "target_port",
 			"tls_mode", "log_level", "command_line", "password", "cert_path", "key_path",
 			"min", "max", "mode", "read", "rate", "restart", "last_event_time", "updated_at",
 		}),
 	}).Create(&tunnel).Error; err != nil {
-		log.Errorf("[Master-%d]创建/更新隧道记录 %s 失败: %v", e.EndpointID, e.InstanceID, err)
+		log.Errorf("[Master-%d]创建/更新隧道记录 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
 	} else {
-		log.Infof("[Master-%d]隧道记录 %s 处理成功（创建或更新）", e.EndpointID, e.InstanceID)
-		s.updateEndpointTunnelCount(e.EndpointID)
+		log.Infof("[Master-%d]隧道记录 %s 处理成功（创建或更新）", payload.EndpointID, payload.Instance.ID)
+		s.updateEndpointTunnelCount(payload.EndpointID)
 	}
 }
 
-func (s *Service) handleUpdateEvent(e models.EndpointSSE) {
+func (s *Service) handleUpdateEvent(payload SSEResp) {
 	// SSE update 事件用于更新隧道的运行时信息
-	log.Debugf("[Master-%d]处理更新事件: 隧道 %s", e.EndpointID, e.InstanceID)
+	log.Debugf("[Master-%d]处理更新事件: 隧道 %s", payload.EndpointID, payload.Instance.ID)
 
 	// 先检查隧道是否存在
-	if err := s.db.Where("endpoint_id = ? AND instance_id = ?", e.EndpointID, e.InstanceID).First(&models.Tunnel{}).Error; err != nil {
-		log.Errorf("[Master-%d]查询隧道 %s 失败: %v", e.EndpointID, e.InstanceID, err)
+	if err := s.db.Where("endpoint_id = ? AND instance_id = ?", payload.EndpointID, payload.Instance.ID).First(&models.Tunnel{}).Error; err != nil {
+		log.Errorf("[Master-%d]查询隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
 		return
 	} else if err == gorm.ErrRecordNotFound {
 		// 隧道不存在，可能是时序问题（SSE 事件比 API 创建先到达）
-		log.Warnf("[Master-%d]收到更新事件但隧道 %s 不存在，可能是时序问题，跳过处理", e.EndpointID, e.InstanceID)
+		log.Warnf("[Master-%d]收到更新事件但隧道 %s 不存在，可能是时序问题，跳过处理", payload.EndpointID, payload.Instance.ID)
 		return
 	}
 
 	// 更新运行时信息
-	s.updateTunnelRuntimeInfo(e)
+	s.updateTunnelRuntimeInfo(payload)
 }
 
-func (s *Service) handleDeleteEvent(e models.EndpointSSE) {
+func (s *Service) handleDeleteEvent(payload SSEResp) {
 	// 删除隧道记录
-	err := s.db.Where("endpoint_id = ? AND instance_id = ?", e.EndpointID, e.InstanceID).Delete(&models.Tunnel{}).Error
+	err := s.db.Where("endpoint_id = ? AND instance_id = ?", payload.EndpointID, payload.Instance.ID).Delete(&models.Tunnel{}).Error
 
 	if err != nil {
-		log.Errorf("[Master-%d]删除隧道 %s 失败: %v", e.EndpointID, e.InstanceID, err)
+		log.Errorf("[Master-%d]删除隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
 	} else {
-		log.Infof("[Master-%d]隧道 %s 删除成功", e.EndpointID, e.InstanceID)
+		log.Infof("[Master-%d]隧道 %s 删除成功", payload.EndpointID, payload.Instance.ID)
 		// 更新端点隧道计数
-		s.updateEndpointTunnelCount(e.EndpointID)
+		s.updateEndpointTunnelCount(payload.EndpointID)
 	}
 }
 
-func (s *Service) handleLogEvent(e models.EndpointSSE) {
+func (s *Service) handleLogEvent(payload SSEResp) {
 	// 日志事件需要写入文件日志系统
-	log.Debugf("[Master-%d]处理日志事件: 隧道 %s", e.EndpointID, e.InstanceID)
+	log.Debugf("[Master-%d]处理日志事件: 隧道 %s", payload.EndpointID, payload.Instance.ID)
 
 	// 检查是否有日志内容
-	if e.Logs == nil || *e.Logs == "" {
-		log.Debugf("[Master-%d]隧道 %s 日志事件内容为空，跳过文件写入", e.EndpointID, e.InstanceID)
+	if *payload.Logs == "" {
+		log.Debugf("[Master-%d]隧道 %s 日志事件内容为空，跳过文件写入", payload.EndpointID, payload.Instance.ID)
 		return
 	}
 
 	// 使用文件日志管理器写入日志文件
 	if s.fileLogger != nil {
-		err := s.fileLogger.WriteLog(e.EndpointID, e.InstanceID, *e.Logs)
+		err := s.fileLogger.WriteLog(payload.EndpointID, payload.Instance.ID, *payload.Logs)
 		if err != nil {
-			log.Errorf("[Master-%d]写入隧道 %s 日志到文件失败: %v", e.EndpointID, e.InstanceID, err)
+			log.Errorf("[Master-%d]写入隧道 %s 日志到文件失败: %v", payload.EndpointID, payload.Instance.ID, err)
 		} else {
-			log.Debugf("[Master-%d]隧道 %s 日志已写入文件", e.EndpointID, e.InstanceID)
+			log.Debugf("[Master-%d]隧道 %s 日志已写入文件", payload.EndpointID, payload.Instance.ID)
 		}
 	} else {
-		log.Warnf("[Master-%d]文件日志管理器未初始化，无法写入日志", e.EndpointID)
+		log.Warnf("[Master-%d]文件日志管理器未初始化，无法写入日志", payload.EndpointID)
 	}
 	// 推流转发给前端订阅
 	// log.Debugf("[Master-%d#SSE]准备推送事件给前端，eventType=%s instanceID=%s", endpointID, event.EventType, event.InstanceID)
-	s.sendTunnelUpdateByInstanceId(e.InstanceID, e)
+	s.sendTunnelUpdateByInstanceId(payload.Instance.ID, payload)
 }
 
-func (s *Service) handleShutdownEvent(event models.EndpointSSE) {
+func (s *Service) handleShutdownEvent(payload SSEResp) {
 	// 使用GORM更新端点状态
 	if err := s.db.Model(&models.Endpoint{}).
-		Where("id = ?", event.EndpointID).
+		Where("id = ?", payload.EndpointID).
 		Updates(map[string]interface{}{
 			"status":     models.EndpointStatusOffline,
 			"last_check": time.Now(),
 			"updated_at": time.Now(),
 		}).Error; err != nil {
-		log.Errorf("[Master-%d#SSE]更新端点状态失败: %v", event.EndpointID, err)
+		log.Errorf("[Master-%d#SSE]更新端点状态失败: %v", payload.EndpointID, err)
 		return
 	}
 
-	log.Infof("[Master-%d]端点状态已更新为: %s", event.EndpointID, models.EndpointStatusOffline)
+	log.Infof("[Master-%d]端点状态已更新为: %s", payload.EndpointID, models.EndpointStatusOffline)
 
 	// 如果端点状态变为离线，设置所有相关隧道为离线状态
-	if err := s.setTunnelsOfflineForEndpoint(event.EndpointID); err != nil {
-		log.Errorf("[Master-%d]设置隧道离线状态失败: %v", event.EndpointID, err)
+	if err := s.setTunnelsOfflineForEndpoint(payload.EndpointID); err != nil {
+		log.Errorf("[Master-%d]设置隧道离线状态失败: %v", payload.EndpointID, err)
 	}
 
 	// 通知Manager状态变化
-	s.manager.NotifyEndpointStatusChanged(event.EndpointID, string(models.EndpointStatusOffline))
+	s.manager.NotifyEndpointStatusChanged(payload.EndpointID, string(models.EndpointStatusOffline))
 }
 
 // updateTunnelRuntimeInfo 更新隧道运行时信息（流量、状态、ping等）
-func (s *Service) updateTunnelRuntimeInfo(e models.EndpointSSE) {
+func (s *Service) updateTunnelRuntimeInfo(payload SSEResp) {
 	// 准备更新字段
-	cfg := nodepass.ParseTunnelURL(*e.URL)
-	updates := map[string]interface{}{
-		"tcp_rx":          e.TCPRx,
-		"tcp_tx":          e.TCPTx,
-		"udp_rx":          e.UDPRx,
-		"udp_tx":          e.UDPTx,
-		"pool":            e.Pool,
-		"ping":            e.Ping,
-		"tunnel_address":  cfg.TunnelAddress,
-		"tunnel_port":     cfg.TunnelPort,
-		"target_address":  cfg.TargetAddress,
-		"target_port":     cfg.TargetPort,
-		"tls_mode":        cfg.TLSMode,
-		"log_level":       cfg.LogLevel,
-		"command_line":    e.URL,
-		"password":        cfg.Password, // 直接使用指针类型
-		"restart":         e.Restart,    // 添加restart字段更新
-		"last_event_time": e.EventTime,
-		"updated_at":      time.Now(),
-	}
-
-	// 处理可选字段
-	if e.Status != nil {
-		updates["status"] = models.TunnelStatus(*e.Status)
-	}
-	if e.Alias != nil && *e.Alias != "" {
-		updates["name"] = *e.Alias
-	}
-	if e.InstanceType != nil {
-		updates["mode"] = models.TunnelType(*e.InstanceType)
-	}
-	if cfg.CertPath != nil {
-		updates["cert_path"] = cfg.CertPath
-	}
-	if cfg.KeyPath != nil {
-		updates["key_path"] = cfg.KeyPath
-	}
-	if cfg.Min != nil {
-		updates["min"] = cfg.Min
-	}
-	if cfg.Max != nil {
-		updates["max"] = cfg.Max
-	}
-
-	// 处理新字段
-	if cfg.Mode != nil {
-		updates["mode"] = cfg.Mode
-	}
-	if cfg.Read != nil {
-		updates["read"] = cfg.Read
-	}
-	if cfg.Rate != nil {
-		updates["rate"] = cfg.Rate
-	}
-
+	tunnel := buildTunnel(payload)
+	updates := nodepass.TunnelToMap(tunnel)
 	// 更新 tunnel 表
 	result := s.db.Model(&models.Tunnel{}).
-		Where("endpoint_id = ? AND instance_id = ?", e.EndpointID, e.InstanceID).
+		Where("endpoint_id = ? AND instance_id = ?", payload.EndpointID, payload.Instance.ID).
 		Updates(updates)
 
 	if result.Error != nil {
-		log.Errorf("[Master-%d]更新隧道 %s 运行时信息失败: %v", e.EndpointID, e.InstanceID, result.Error)
+		log.Errorf("[Master-%d]更新隧道 %s 运行时信息失败: %v", payload.EndpointID, payload.Instance.ID, result.Error)
 		return
 	}
 
-	log.Debugf("[Master-%d]隧道 %s 运行时信息已更新: tcp_rx=%d, tcp_tx=%d, udp_rx=%d, udp_tx=%d, restart=%v, status=%v",
-		e.EndpointID, e.InstanceID, e.TCPRx, e.TCPTx, e.UDPRx, e.UDPTx, e.Restart, e.Status)
+	log.Debugf("[Master-%d]隧道 %s 运行时信息已更新", payload.EndpointID, payload.Instance.ID)
 }
 
 // fetchAndUpdateEndpointInfo 获取并更新端点系统信息
@@ -517,7 +426,7 @@ func (s *Service) fetchAndUpdateEndpointInfo(endpointID int64) {
 	client := nodepass.NewClient(ep.URL, ep.APIPath, ep.APIKey, nil)
 
 	// 尝试获取系统信息 (处理低版本API不存在的情况)
-	var info *nodepass.NodePassInfo
+	var info *nodepass.EndpointInfoResult
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -534,18 +443,7 @@ func (s *Service) fetchAndUpdateEndpointInfo(endpointID int64) {
 
 	// 如果成功获取到信息，更新数据库
 	if info != nil && err == nil {
-		epInfo := endpoint.NodePassInfo{
-			OS:     info.OS,
-			Arch:   info.Arch,
-			Ver:    info.Ver,
-			Name:   info.Name,
-			Log:    info.Log,
-			TLS:    info.TLS,
-			Crt:    info.Crt,
-			Key:    info.Key,
-			Uptime: info.Uptime, // 直接传递指针，service层会处理nil情况
-		}
-		if updateErr := s.endpointService.UpdateEndpointInfo(endpointID, epInfo); updateErr != nil {
+		if updateErr := s.endpointService.UpdateEndpointInfo(endpointID, *info); updateErr != nil {
 			log.Errorf("[Master-%d] 更新系统信息失败: %v", endpointID, updateErr)
 		} else {
 			// 在日志中显示uptime信息（如果可用）
@@ -577,7 +475,7 @@ func (s *Service) updateEndpointTunnelCount(endpointID int64) {
 }
 
 // sendTunnelUpdateByInstanceId 根据实例ID发送隧道更新
-func (s *Service) sendTunnelUpdateByInstanceId(instanceID string, data interface{}) {
+func (s *Service) sendTunnelUpdateByInstanceId(instanceID string, data SSEResp) {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 

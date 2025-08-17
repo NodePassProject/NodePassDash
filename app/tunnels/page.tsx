@@ -1478,7 +1478,7 @@ export default function TunnelsPage() {
                 variant="flat"
                 color="secondary"
                 startContent={<FontAwesomeIcon icon={faLayerGroup} />}
-                onPress={() => router.push("/templates")}
+                onPress={() => router.push("/templates/")}
               >
                 场景创建
               </Button>
@@ -1808,7 +1808,7 @@ export default function TunnelsPage() {
                   <SelectItem key="20" textValue="20条/页" className="text-xs">
                     20
                   </SelectItem>
-                  <SelectItem key="50" textValue="0条/页" className="text-xs">
+                  <SelectItem key="50" textValue="50条/页" className="text-xs">
                     50
                   </SelectItem>
                 </Select>

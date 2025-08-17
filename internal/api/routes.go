@@ -130,6 +130,7 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/endpoints/{id}/file-logs/clear", r.endpointHandler.HandleClearEndpointFileLogs).Methods("DELETE")
 	r.router.HandleFunc("/api/endpoints/{id}/file-logs/dates", r.endpointHandler.HandleGetAvailableLogDates).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{id}/stats", r.endpointHandler.HandleEndpointStats).Methods("GET")
+	r.router.HandleFunc("/api/endpoints/{id}/tcping", r.endpointHandler.HandleTCPing).Methods("POST")
 
 	// 全局回收站
 	r.router.HandleFunc("/api/recycle", r.endpointHandler.HandleRecycleListAll).Methods("GET")

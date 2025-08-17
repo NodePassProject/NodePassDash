@@ -119,7 +119,6 @@ const filterDataTo1Hour = (data: LatencyDataPoint[]) => {
       const itemTime = new Date(item.timeStamp);
       return !isNaN(itemTime.getTime()) && itemTime >= oneHourAgo;
     } catch (error) {
-      console.error(`时间解析错误: ${item.timeStamp}`, error);
       return false;
     }
   });
@@ -133,12 +132,6 @@ export const LatencyChart: React.FC<LatencyChartProps> = ({
   className = '',
   showFullData = false,
 }) => {
-  // 调试信息 - 开发环境下显示数据更新
-  React.useEffect(() => {
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[LatencyChart] 数据更新:', data.length, '条记录');
-    }
-  }, [data]);
 
   const chartConfig = {
     latency: {

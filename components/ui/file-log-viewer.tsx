@@ -26,6 +26,7 @@ interface FileLogViewerProps {
   date?: string; // 改为date参数
   onDateChange?: (date: string) => void; // 改为onDateChange
   triggerRefresh?: number; // 通过改变这个值来触发刷新
+  isRealtimeMode?: boolean; // 是否处于实时模式
 }
 
 export const FileLogViewer: React.FC<FileLogViewerProps> = ({
@@ -38,53 +39,19 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
   onClearingChange,
   date: externalDate,
   onDateChange,
-  triggerRefresh
+  triggerRefresh,
+  isRealtimeMode = false
 }) => {
   const [logs, setLogs] = useState<FileLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [internalDate, setInternalDate] = useState<string>(""); // 改为空字符串，等待获取可用日期
+  const [internalDate, setInternalDate] = useState<string>(""); // 内部日期状态（当外部没有提供时使用）
   const [clearing, setClearing] = useState(false);
-  const [availableDates, setAvailableDates] = useState<string[]>([]); // 新增：可用日期列表
-  const [loadingDates, setLoadingDates] = useState(false); // 新增：加载日期状态
   const logContainerRef = useRef<HTMLDivElement>(null);
 
   // 使用外部控制的date或内部state
   const date = externalDate !== undefined ? externalDate : internalDate;
 
-  // 获取可用的日志日期列表
-  const fetchAvailableDates = useCallback(async () => {
-    if (!endpointId || !instanceId) return;
-    
-    setLoadingDates(true);
-    try {
-      const response = await fetch(
-        `/api/endpoints/${endpointId}/file-logs/dates?instanceId=${instanceId}`
-      );
-      
-      if (!response.ok) {
-        throw new Error('获取可用日志日期失败');
-      }
-      
-      const data = await response.json();
-      
-      if (data.success && Array.isArray(data.dates)) {
-        setAvailableDates(data.dates);
-        
-        // 如果没有外部控制的日期，且内部日期为空，则设置默认日期为最新的可用日期
-        if (externalDate === undefined && internalDate === "" && data.dates.length > 0) {
-          const latestDate = data.dates[0]; // 日期已经按最新排序
-          setInternalDate(latestDate);
-        }
-      } else {
-        setAvailableDates([]);
-      }
-    } catch (error) {
-      console.error('获取可用日志日期失败:', error);
-      setAvailableDates([]);
-    } finally {
-      setLoadingDates(false);
-    }
-  }, [endpointId, instanceId, externalDate, internalDate]);
+  // 移除获取可用日志日期的功能，直接使用外部传入的日期
 
   // 滚动到底部
   const scrollToBottom = useCallback(() => {
@@ -105,6 +72,8 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
   // 获取文件日志
   const fetchFileLogs = useCallback(async () => {
     if (!endpointId || !instanceId || !date) return; // 添加date检查
+    
+    console.log(`[FileLogViewer] 开始获取日志: endpointId=${endpointId}, instanceId=${instanceId}, date=${date}`);
     
     setLoading(true);
     onLoadingChangeRef.current?.(true);
@@ -195,24 +164,21 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
     }
   }, [endpointId, instanceId]);
 
-  // 初始加载：获取可用日期
-  useEffect(() => {
-    fetchAvailableDates();
-  }, [fetchAvailableDates]);
+  // 移除自动获取可用日期的逻辑，避免多次API调用
 
-  // 当有可用日期且有选中日期时，获取日志
+  // 当有选中日期时，获取日志
   useEffect(() => {
-    if (date && availableDates.length > 0) {
+    if (date && endpointId && instanceId) {
       fetchFileLogs();
     }
-  }, [date, availableDates, fetchFileLogs]);
+  }, [date, endpointId, instanceId, fetchFileLogs]);
 
   // 响应外部触发的刷新
   useEffect(() => {
-    if (triggerRefresh && triggerRefresh > 0) {
+    if (triggerRefresh && triggerRefresh > 0 && endpointId && instanceId) {
       fetchFileLogs();
     }
-  }, [triggerRefresh, fetchFileLogs]);
+  }, [triggerRefresh, endpointId, instanceId, fetchFileLogs]);
 
   // 日志变化时自动滚动到底部
   useEffect(() => {
@@ -220,6 +186,12 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
       setTimeout(scrollToBottom, 50);
     }
   }, [logs, scrollToBottom]);
+
+  // 清空显示（仅清空UI，不调用接口）
+  const clearDisplay = useCallback(() => {
+    setLogs([]);
+    onLogsChangeRef.current?.([]);
+  }, []);
 
   // 追加新日志的方法
   const appendLog = useCallback((logContent: string) => {
@@ -250,16 +222,16 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
     const component = { 
       refresh: fetchFileLogs, 
       clear: handleClearLogs,
+      clearDisplay: clearDisplay, // 新增：仅清空显示的方法
       scrollToBottom: scrollToBottom,
-      appendLog: appendLog,
-      getAvailableDates: fetchAvailableDates // 新增：获取可用日期的方法
+      appendLog: appendLog
     };
     (window as any).fileLogViewerRef = component;
     
     return () => {
       delete (window as any).fileLogViewerRef;
     };
-  }, [fetchFileLogs, handleClearLogs, scrollToBottom, appendLog, fetchAvailableDates]);
+  }, [fetchFileLogs, handleClearLogs, clearDisplay, scrollToBottom, appendLog]);
 
   return (
     <div className={className}>
@@ -273,9 +245,18 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
             <span className="text-gray-300 ml-1">加载文件日志中...</span>
           </div>
         ) : logs.length === 0 ? (
-          <div className="text-gray-400">
-            暂无日志记录 {date ? `(${date})` : ''}
-          </div>
+          isRealtimeMode ? (
+            <div className="text-gray-400 flex items-center">
+              <div className="animate-pulse flex items-center">
+                <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce mr-2"></div>
+                <span>正在等待日志推送...</span>
+              </div>
+            </div>
+          ) : (
+            <div className="text-gray-400">
+              暂无日志记录 {date ? `(${date})` : ''}
+            </div>
+          )
         ) : (
           <div className="space-y-1">
             {logs.map((log, index) => {

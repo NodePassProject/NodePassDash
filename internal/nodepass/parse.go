@@ -192,6 +192,57 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 
 	return tunnel
 }
+func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
+	updates := map[string]interface{}{
+		"name":            tunnel.Name,
+		"status":          tunnel.Status,
+		"mode":            tunnel.Type,
+		"tcp_rx":          tunnel.TCPRx,
+		"tcp_tx":          tunnel.TCPTx,
+		"udp_rx":          tunnel.UDPRx,
+		"udp_tx":          tunnel.UDPTx,
+		"tcps":            tunnel.TCPs,
+		"udps":            tunnel.UDPs,
+		"pool":            tunnel.Pool,
+		"ping":            tunnel.Ping,
+		"tunnel_address":  tunnel.TunnelAddress,
+		"tunnel_port":     tunnel.TunnelPort,
+		"target_address":  tunnel.TargetAddress,
+		"target_port":     tunnel.TargetPort,
+		"tls_mode":        tunnel.TLSMode,
+		"log_level":       tunnel.LogLevel,
+		"command_line":    tunnel.CommandLine,
+		"password":        tunnel.Password, // 直接使用指针类型
+		"restart":         tunnel.Restart,  // 添加restart字段更新
+		"last_event_time": tunnel.LastEventTime,
+		"updated_at":      time.Now(),
+	}
+
+	if tunnel.CertPath != nil {
+		updates["cert_path"] = tunnel.CertPath
+	}
+	if tunnel.KeyPath != nil {
+		updates["key_path"] = tunnel.KeyPath
+	}
+	if tunnel.Min != nil {
+		updates["min"] = tunnel.Min
+	}
+	if tunnel.Max != nil {
+		updates["max"] = tunnel.Max
+	}
+
+	// 处理新字段
+	if tunnel.Mode != nil {
+		updates["mode"] = tunnel.Mode
+	}
+	if tunnel.Read != nil {
+		updates["read"] = tunnel.Read
+	}
+	if tunnel.Rate != nil {
+		updates["rate"] = tunnel.Rate
+	}
+	return updates
+}
 
 // ParseTunnelConfig 解析隧道实例 URL 并返回 TunnelConfig
 func ParseTunnelConfig(rawURL string) *TunnelConfig {

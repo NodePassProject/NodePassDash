@@ -1093,6 +1093,8 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		UDPTx           int64
 		Pool            sql.NullInt64
 		Ping            sql.NullInt64
+		TCPs            sql.NullInt64
+		UDPs            sql.NullInt64
 		Min             sql.NullInt64
 		Max             sql.NullInt64
 		Restart         bool
@@ -1104,7 +1106,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 	query := `SELECT t.id, t.instance_id, t.name, t.type, t.status, t.endpoint_id,
 		   e.name, e.tls, e.log, e.ver, t.tunnel_port, t.target_port, t.tls_mode, t.log_level,
 		   t.tunnel_address, t.target_address, t.command_line, t.password, t.cert_path, t.key_path,
-		   t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.pool, t.ping,
+		   t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.pool, t.ping, t.tcps, t.udps,
 		   t.min, t.max, ifnull(t.restart, 0), t.mode, t.read, t.rate
 		   FROM tunnels t
 		   LEFT JOIN endpoints e ON t.endpoint_id = e.id
@@ -1136,6 +1138,8 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		&tunnelRecord.UDPTx,
 		&tunnelRecord.Pool,
 		&tunnelRecord.Ping,
+		&tunnelRecord.TCPs,
+		&tunnelRecord.UDPs,
 		&tunnelRecord.Min,
 		&tunnelRecord.Max,
 		&tunnelRecord.Restart,
@@ -1274,6 +1278,18 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 				"ping": func() interface{} {
 					if tunnelRecord.Ping.Valid {
 						return tunnelRecord.Ping.Int64
+					}
+					return nil
+				}(),
+				"tcps": func() interface{} {
+					if tunnelRecord.TCPs.Valid {
+						return tunnelRecord.TCPs.Int64
+					}
+					return nil
+				}(),
+				"udps": func() interface{} {
+					if tunnelRecord.UDPs.Valid {
+						return tunnelRecord.UDPs.Int64
 					}
 					return nil
 				}(),

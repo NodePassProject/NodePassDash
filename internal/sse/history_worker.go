@@ -29,6 +29,8 @@ type MonitoringData struct {
 	UDPOut     int64  // 累计值
 	Ping       *int64 // 延迟（瞬时值）
 	Pool       *int64 // 连接池（瞬时值）
+	TCPs       *int64 // TCP连接数（瞬时值）
+	UDPs       *int64 // UDP连接数（瞬时值）
 	Timestamp  time.Time
 }
 
@@ -84,18 +86,20 @@ func NewHistoryWorker(db *gorm.DB) *HistoryWorker {
 }
 
 // Dispatch 将SSE update事件推送到数据处理通道（参照Nezha的设计）
-func (hw *HistoryWorker) Dispatch(event models.EndpointSSE) {
+func (hw *HistoryWorker) Dispatch(payload SSEResp) {
 	// 构建监控数据点
 	data := MonitoringData{
-		EndpointID: event.EndpointID,
-		InstanceID: event.InstanceID,
-		TCPIn:      event.TCPRx,
-		TCPOut:     event.TCPTx,
-		UDPIn:      event.UDPRx,
-		UDPOut:     event.UDPTx,
-		Ping:       event.Ping,
-		Pool:       event.Pool,
-		Timestamp:  time.Now(),
+		EndpointID: payload.EndpointID,
+		InstanceID: payload.Instance.ID,
+		TCPIn:      payload.Instance.TCPRx,
+		TCPOut:     payload.Instance.TCPTx,
+		UDPIn:      payload.Instance.UDPRx,
+		UDPOut:     payload.Instance.UDPTx,
+		Ping:       payload.Instance.Ping,
+		Pool:       payload.Instance.Pool,
+		TCPs:       payload.Instance.TCPs,
+		UDPs:       payload.Instance.UDPs,
+		Timestamp:  payload.TimeStamp,
 	}
 
 	// 推送到数据处理通道（非阻塞）
@@ -166,6 +170,8 @@ func (hw *HistoryWorker) processMonitoringData(data MonitoringData) {
 		UDPOut:     data.UDPOut, // 直接使用累计值
 		Ping:       data.Ping,   // 延迟使用瞬时值
 		Pool:       data.Pool,   // 连接池使用瞬时值
+		TCPs:       data.TCPs,   // TCP连接数使用瞬时值
+		UDPs:       data.UDPs,   // UDP连接数使用瞬时值
 		Timestamp:  data.Timestamp,
 	}
 
@@ -305,7 +311,20 @@ func (hw *HistoryWorker) aggregateAndWrite(dataPoints []MonitoringData) {
 		historyModel.AvgPool = 0
 	}
 
-	// 6. 立即写入数据库
+	// 6. TCPs和UDPs连接数：直接使用最后一个值（反映最新状态）
+	if lastPoint.TCPs != nil {
+		historyModel.AvgTCPs = *lastPoint.TCPs
+	} else {
+		historyModel.AvgTCPs = 0
+	}
+
+	if lastPoint.UDPs != nil {
+		historyModel.AvgUDPs = *lastPoint.UDPs
+	} else {
+		historyModel.AvgUDPs = 0
+	}
+
+	// 7. 立即写入数据库
 	startTime := time.Now()
 	err := hw.db.Create(historyModel).Error
 	duration := time.Since(startTime)
@@ -315,10 +334,10 @@ func (hw *HistoryWorker) aggregateAndWrite(dataPoints []MonitoringData) {
 			historyModel.EndpointID, historyModel.InstanceID, duration, err)
 	}
 
-	log.Infof("[HistoryWorker]聚合完成 - 端点:%d 实例:%s 数据点:%d 时间跨度:%.1fs TCP入累计:%d TCP出累计:%d UDP入累计:%d UDP出累计:%d 延迟平均:%.2fms 连接池最新:%d 入站速度:%.2f bytes/s 出站速度:%.2f bytes/s",
+	log.Infof("[HistoryWorker]聚合完成 - 端点:%d 实例:%s 数据点:%d 时间跨度:%.1fs TCP入累计:%d TCP出累计:%d UDP入累计:%d UDP出累计:%d 延迟平均:%.2fms 连接池最新:%d TCP连接数:%d UDP连接数:%d 入站速度:%.2f bytes/s 出站速度:%.2f bytes/s",
 		historyModel.EndpointID, historyModel.InstanceID, historyModel.RecordCount, totalTime,
 		historyModel.DeltaTCPIn, historyModel.DeltaTCPOut, historyModel.DeltaUDPIn, historyModel.DeltaUDPOut,
-		historyModel.AvgPing, int64(historyModel.AvgPool), historyModel.AvgSpeedIn, historyModel.AvgSpeedOut)
+		historyModel.AvgPing, int64(historyModel.AvgPool), historyModel.AvgTCPs, historyModel.AvgUDPs, historyModel.AvgSpeedIn, historyModel.AvgSpeedOut)
 }
 
 // 移除批量写入相关方法（改为立即写入）

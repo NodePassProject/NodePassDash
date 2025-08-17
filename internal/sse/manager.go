@@ -2,7 +2,7 @@ package sse
 
 import (
 	log "NodePassDash/internal/log"
-	"NodePassDash/internal/models"
+	"NodePassDash/internal/nodepass"
 	"context"
 	"crypto/tls"
 	"database/sql"
@@ -556,26 +556,17 @@ func (m *Manager) workerLoop() {
 	}
 }
 
-type SSEBody struct {
-	Type     string       `json:"type"`
-	Time     string       `json:"time"`
-	Instance *SSEInstance `json:"instance"`
-	Logs     *string      `json:"logs"`
-}
-
-type SSEInstance struct {
-	ID      string  `json:"id"`
-	Type    string  `json:"type"`
-	Status  string  `json:"status"`
-	URL     string  `json:"url"`
-	TCPRx   int64   `json:"tcprx"`
-	TCPTx   int64   `json:"tcptx"`
-	UDPRx   int64   `json:"udprx"`
-	UDPTx   int64   `json:"udptx"`
-	Pool    *int64  `json:"pool,omitempty"` // 使用指针，兼容低版本
-	Ping    *int64  `json:"ping,omitempty"` // 使用指针，兼容低版本
-	Alias   *string `json:"alias,omitempty"`
-	Restart *bool   `json:"restart,omitempty"`
+type SSEResp struct {
+	Type     string `json:"type"`
+	Time     string `json:"time"`
+	Instance struct {
+		nodepass.InstanceResult        // 不加inline标签
+		URL                     string `json:"url"`
+	} `json:"instance"`
+	Logs *string `json:"logs"`
+	// JSON中不存在的字段，后续手动设置
+	TimeStamp  time.Time `json:"-"` // 不参与JSON序列化/反序列化
+	EndpointID int64     `json:"-"` // 处理ID
 }
 
 // processPayload 解析 JSON 并调用 service.ProcessEvent
@@ -583,68 +574,22 @@ func (m *Manager) processPayload(endpointID int64, payloadStr string) {
 	if payloadStr == "" {
 		return
 	}
-	var payload = new(SSEBody)
 
+	var payload SSEResp
 	if err := json.Unmarshal([]byte(payloadStr), &payload); err != nil {
 		log.Errorf("[Master-%d]解码 SSE JSON 失败 %v", endpointID, err)
 		return
 	}
 
 	// 解析时间字符串
-	eventTime, err := time.Parse(time.RFC3339, payload.Time)
-	if err != nil {
-		log.Errorf("[Master-%d]解析时间失败 %v，使用当前时间", endpointID, err)
-		eventTime = time.Now()
+	payload.EndpointID = endpointID
+	if parsedTime, err := time.Parse(time.RFC3339, payload.Time); err == nil {
+		payload.TimeStamp = parsedTime
+	} else {
+		payload.TimeStamp = time.Now()
 	}
 
-	// 根据事件类型创建不同的 EndpointSSE 结构
-	var event models.EndpointSSE
-
-	switch payload.Type {
-	case "shutdown":
-		// shutdown 事件没有实例信息，创建一个最小化的事件
-		event = models.EndpointSSE{
-			EventType:  models.SSEEventType(payload.Type),
-			PushType:   payload.Type,
-			EventTime:  eventTime,
-			EndpointID: endpointID,
-			InstanceID: "", // shutdown 事件没有实例ID
-			// 其他字段保持默认值
-		}
-	case "initial", "create", "update", "delete", "log":
-		// 这些事件需要实例信息
-		if payload.Instance == nil {
-			log.Errorf("[Master-%d]事件类型 %s 缺少实例信息", endpointID, payload.Type)
-			return
-		}
-
-		event = models.EndpointSSE{
-			EventType:    models.SSEEventType(payload.Type),
-			PushType:     payload.Type,
-			EventTime:    eventTime,
-			EndpointID:   endpointID,
-			InstanceID:   payload.Instance.ID,
-			InstanceType: &payload.Instance.Type,
-			Status:       &payload.Instance.Status,
-			URL:          &payload.Instance.URL,
-			TCPRx:        payload.Instance.TCPRx,
-			TCPTx:        payload.Instance.TCPTx,
-			UDPRx:        payload.Instance.UDPRx,
-			UDPTx:        payload.Instance.UDPTx,
-			Pool:         payload.Instance.Pool,    // *int64，直接赋值
-			Ping:         payload.Instance.Ping,    // *int64，直接赋值
-			Logs:         payload.Logs,             // *string，直接赋值
-			Alias:        payload.Instance.Alias,   // *string，直接赋值
-			Restart:      payload.Instance.Restart, // *bool，直接赋值
-		}
-	default:
-		log.Warnf("[Master-%d]未知的事件类型: %s", endpointID, payload.Type)
-		return
-	}
-
-	if err := m.service.ProcessEvent(endpointID, event); err != nil {
-		log.Errorf("[Master-%d#SSE]处理事件失败 %v", endpointID, err)
-	}
+	m.service.ProcessEvent(payload)
 }
 
 // GetFileLogger 获取文件日志管理器

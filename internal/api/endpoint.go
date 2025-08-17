@@ -1134,7 +1134,7 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 			parsed.TCPTx = inst.TCPTx
 			parsed.UDPRx = inst.UDPRx
 			parsed.UDPTx = inst.UDPTx
-			parsed.Restart = &inst.Restart
+			parsed.Restart = inst.Restart
 			parsed.CommandLine = inst.URL
 			parsed.UpdatedAt = time.Now()
 
@@ -1148,8 +1148,8 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 			if err == gorm.ErrRecordNotFound {
 				// 插入新隧道
 				name := fmt.Sprintf("auto-%s", inst.ID)
-				if inst.Alias != "" {
-					name = inst.Alias
+				if *inst.Alias != "" {
+					name = *inst.Alias
 					log.Infof("[API] 端点 %d 更新：使用别名作为隧道名称: %s -> %s", endpointID, inst.ID, name)
 				}
 				parsed.Name = name
@@ -1162,7 +1162,7 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 			} else {
 				// 更新已有隧道
 				var nameParam interface{}
-				if inst.Alias != "" {
+				if *inst.Alias != "" {
 					nameParam = inst.Alias
 					log.Infof("[API] 端点 %d 更新：使用别名更新隧道名称: %s -> %s", endpointID, inst.ID, inst.Alias)
 				}
@@ -1310,7 +1310,7 @@ func (h *EndpointHandler) HandleGetEndpointInfo(w http.ResponseWriter, r *http.R
 	client := nodepass.NewClient(ep.URL, ep.APIPath, ep.APIKey, nil)
 
 	// 尝试获取系统信息 (处理低版本API不存在的情况)
-	var info *nodepass.NodePassInfo
+	var info *nodepass.EndpointInfoResult
 	func() {
 		defer func() {
 			if r := recover(); r != nil {
@@ -1327,18 +1327,7 @@ func (h *EndpointHandler) HandleGetEndpointInfo(w http.ResponseWriter, r *http.R
 
 	// 如果成功获取到信息，更新数据库
 	if info != nil && err == nil {
-		epInfo := endpoint.NodePassInfo{
-			OS:     info.OS,
-			Arch:   info.Arch,
-			Ver:    info.Ver,
-			Name:   info.Name,
-			Log:    info.Log,
-			TLS:    info.TLS,
-			Crt:    info.Crt,
-			Key:    info.Key,
-			Uptime: info.Uptime, // 直接传递指针，service层会处理nil情况
-		}
-		if updateErr := h.endpointService.UpdateEndpointInfo(id, epInfo); updateErr != nil {
+		if updateErr := h.endpointService.UpdateEndpointInfo(id, *info); updateErr != nil {
 			log.Errorf("[Master-%v] 更新系统信息失败: %v", ep.ID, updateErr)
 		} else {
 			// 在日志中显示uptime信息（如果可用）
@@ -1466,18 +1455,7 @@ func (h *EndpointHandler) HandleGetEndpointDetail(w http.ResponseWriter, r *http
 
 		if info != nil {
 			// 更新数据库中的系统信息
-			epInfo := endpoint.NodePassInfo{
-				OS:     info.OS,
-				Arch:   info.Arch,
-				Ver:    info.Ver,
-				Name:   info.Name,
-				Log:    info.Log,
-				TLS:    info.TLS,
-				Crt:    info.Crt,
-				Key:    info.Key,
-				Uptime: info.Uptime,
-			}
-			if updateErr := h.endpointService.UpdateEndpointInfo(id, epInfo); updateErr != nil {
+			if updateErr := h.endpointService.UpdateEndpointInfo(id, *info); updateErr != nil {
 				log.Errorf("[Master-%v] 更新系统信息到数据库失败: %v", ep.ID, updateErr)
 			} else {
 				// 在日志中显示uptime信息（如果可用）
@@ -1793,6 +1771,70 @@ func (h *EndpointHandler) HandleGetAvailableLogDates(w http.ResponseWriter, r *h
 		"success": true,
 		"dates":   dates,
 		"count":   len(dates),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
+}
+
+// HandleTCPing TCPing诊断测试 (POST /api/endpoints/{id}/tcping)
+func (h *EndpointHandler) HandleTCPing(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	endpointID, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid endpoint ID", http.StatusBadRequest)
+		return
+	}
+
+	// 解析请求体
+	var req struct {
+		Target string `json:"target"`
+	}
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		http.Error(w, "Invalid request body", http.StatusBadRequest)
+		return
+	}
+
+	if req.Target == "" {
+		http.Error(w, "Missing target parameter", http.StatusBadRequest)
+		return
+	}
+
+	// 获取端点信息
+	var endpoint struct {
+		URL     string
+		APIPath string
+		APIKey  string
+	}
+
+	db := h.endpointService.DB()
+	if err := db.Raw(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`, endpointID).Scan(&endpoint).Error; err != nil {
+		if err == sql.ErrNoRows {
+			http.Error(w, "Endpoint not found", http.StatusNotFound)
+			return
+		}
+		http.Error(w, "Failed to get endpoint info", http.StatusInternalServerError)
+		return
+	}
+
+	// 调用NodePass的TCPing接口
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	result, err := npClient.TCPing(req.Target)
+	if err != nil {
+		log.Errorf("[API]TCPing测试失败: target=%s, err=%v", req.Target, err)
+		http.Error(w, err.Error(), http.StatusInternalServerError)
+		return
+	}
+
+	// 返回结果
+	response := map[string]interface{}{
+		"success": true,
+		"result":  result,
 	}
 
 	w.Header().Set("Content-Type", "application/json")

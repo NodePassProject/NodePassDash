@@ -68,6 +68,8 @@ type Tunnel struct {
 	UDPTx int64 `json:"udpTx" gorm:"default:0;column:udp_tx"`
 
 	// 连接池和延迟信息
+	TCPs *int64 `json:"tcps,omitempty" gorm:"column:tcps"`
+	UDPs *int64 `json:"udps,omitempty" gorm:"column:udps"`
 	Pool *int64 `json:"pool,omitempty" gorm:"column:pool"`
 	Ping *int64 `json:"ping,omitempty" gorm:"column:ping"`
 
@@ -331,6 +333,8 @@ type ServiceHistory struct {
 	DeltaUDPOut int64   `json:"deltaUdpOut" gorm:"default:0;column:delta_udp_out"` // UDP出站总流量变化
 	AvgPing     float64 `json:"avgPing" gorm:"default:0;column:avg_ping"`          // 平均延迟
 	AvgPool     int64   `json:"avgPool" gorm:"default:0;column:avg_pool"`          // 平均连接池
+	AvgTCPs     int64   `json:"avgTcps" gorm:"default:0;column:avg_tcps"`          // 平均TCP连接数
+	AvgUDPs     int64   `json:"avgUdps" gorm:"default:0;column:avg_udps"`          // 平均UDP连接数
 
 	// 平均速度字段（bytes/s）
 	AvgSpeedIn  float64 `json:"avgSpeedIn" gorm:"default:0;column:avg_speed_in"`   // 平均入站速度 (TCP+UDP)

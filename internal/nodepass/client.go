@@ -138,9 +138,9 @@ func (c *Client) ResetInstanceTraffic(instanceID string) error {
 }
 
 // GetInfo 获取NodePass实例的系统信息
-func (c *Client) GetInfo() (*NodePassInfo, error) {
+func (c *Client) GetInfo() (*EndpointInfoResult, error) {
 	url := fmt.Sprintf("%s%s/info", c.baseURL, c.apiPath)
-	var resp NodePassInfo
+	var resp EndpointInfoResult
 	if err := c.doRequest(http.MethodGet, url, nil, &resp); err != nil {
 		return nil, err
 	}
@@ -187,7 +187,47 @@ func (c *Client) doRequest(method, url string, body interface{}, dest interface{
 	return nil
 }
 
-// Instance 表示 NodePass 中的隧道实例信息
+// doRequestWithClient 内部方法：使用指定的HTTP客户端构建并发送请求，解析 JSON
+func (c *Client) doRequestWithClient(client *http.Client, method, url string, body interface{}, dest interface{}) error {
+	var buf *bytes.Buffer
+	if body != nil {
+		data, err := json.Marshal(body)
+		if err != nil {
+			return err
+		}
+		buf = bytes.NewBuffer(data)
+	} else {
+		buf = &bytes.Buffer{}
+	}
+
+	req, err := http.NewRequest(method, url, buf)
+	if err != nil {
+		return err
+	}
+	req.Header.Set("X-API-Key", c.apiKey)
+	if method != http.MethodGet && method != http.MethodDelete {
+		req.Header.Set("Content-Type", "application/json")
+	}
+
+	resp, err := client.Do(req)
+	if err != nil {
+		return err
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode < 200 || resp.StatusCode >= 300 {
+		return fmt.Errorf("NodePass API 返回错误: %d", resp.StatusCode)
+	}
+
+	if dest != nil {
+		if err := json.NewDecoder(resp.Body).Decode(dest); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+// InstanceResult 表示 NodePass 中的隧道实例信息
 // 与 NodePass API /instances 响应保持一致
 //
 // 示例响应:
@@ -211,23 +251,25 @@ func (c *Client) doRequest(method, url string, body interface{}, dest interface{
 // 字段保持驼峰以方便 JSON 解析
 //
 //go:generate stringer -type=Instance
-type Instance struct {
-	ID      string `json:"id"`
-	Type    string `json:"type"`
-	Status  string `json:"status"` // running|stopped|error
-	URL     string `json:"url"`
-	TCPRx   int64  `json:"tcprx"`
-	TCPTx   int64  `json:"tcptx"`
-	UDPRx   int64  `json:"udprx"`
-	UDPTx   int64  `json:"udptx"`
-	Pool    *int64 `json:"pool,omitempty"`
-	Ping    *int64 `json:"ping,omitempty"`
-	Alias   string `json:"alias"`
-	Restart bool   `json:"restart"`
+type InstanceResult struct {
+	ID      string  `json:"id"`
+	Type    string  `json:"type"`   // client|server
+	Status  string  `json:"status"` // running|stopped|error
+	URL     string  `json:"url"`
+	TCPRx   int64   `json:"tcprx"`
+	TCPTx   int64   `json:"tcptx"`
+	UDPRx   int64   `json:"udprx"`
+	UDPTx   int64   `json:"udptx"`
+	Pool    *int64  `json:"pool,omitempty"`
+	Ping    *int64  `json:"ping,omitempty"`
+	Alias   *string `json:"alias,omitempty"`
+	Restart *bool   `json:"restart,omitempty"`
+	TCPs    *int64  `json:"tcps,omitempty"`
+	UDPs    *int64  `json:"udps,omitempty"`
 }
 
-// NodePassInfo NodePass实例的系统信息
-type NodePassInfo struct {
+// EndpointInfoResult NodePass实例的系统信息
+type EndpointInfoResult struct {
 	OS     string `json:"os"`
 	Arch   string `json:"arch"`
 	Ver    string `json:"ver"`
@@ -239,10 +281,126 @@ type NodePassInfo struct {
 	Uptime *int64 `json:"uptime,omitempty"` // 使用指针类型，支持低版本兼容
 }
 
+// TCPingResult 表示TCP连接测试的结果
+type TCPingResult struct {
+	Target    string `json:"target"`
+	Connected bool   `json:"connected"`
+	Latency   int64  `json:"latency"` // 延迟时间，单位毫秒（保持兼容性）
+	Error     string `json:"error"`   // 错误信息，连接成功时为null
+	// 新增字段 - 5次测试统计
+	TotalTests      int      `json:"totalTests"`      // 总测试次数
+	SuccessfulTests int      `json:"successfulTests"` // 成功测试次数
+	MinLatency      *int64   `json:"minLatency"`      // 最快响应时间（毫秒）
+	MaxLatency      *int64   `json:"maxLatency"`      // 最慢响应时间（毫秒）
+	AvgLatency      *float64 `json:"avgLatency"`      // 平均响应时间（毫秒）
+	PacketLoss      float64  `json:"packetLoss"`      // 丢包率（百分比）
+}
+
+// TCPing 执行TCP连接测试，检测目标地址的连通性和延迟
+// target 参数格式为 host:port，例如 "example.com:80"
+// 进行5次测试并返回统计信息
+func (c *Client) TCPing(target string) (*TCPingResult, error) {
+	const testCount = 5
+
+	result := &TCPingResult{
+		Target:          target,
+		TotalTests:      testCount,
+		SuccessfulTests: 0,
+		PacketLoss:      0.0,
+	}
+
+	var latencies []int64
+	var errors []string
+
+	// 进行5次测试
+	for i := 0; i < testCount; i++ {
+		url := fmt.Sprintf("%s%s/tcping?target=%s", c.baseURL, c.apiPath, target)
+
+		// 单次测试结果结构
+		var singleResult struct {
+			Target    string `json:"target"`
+			Connected bool   `json:"connected"`
+			Latency   int64  `json:"latency"`
+			Error     string `json:"error"`
+		}
+
+		// 为单次测试创建5秒超时的HTTP客户端
+		timeoutClient := &http.Client{
+			Timeout:   5 * time.Second,
+			Transport: c.httpClient.Transport, // 复用原有的Transport配置
+		}
+
+		// 使用超时客户端进行请求
+		if err := c.doRequestWithClient(timeoutClient, http.MethodGet, url, nil, &singleResult); err != nil {
+			// 网络请求失败或超时，算作丢包
+			errors = append(errors, err.Error())
+			continue
+		}
+
+		if singleResult.Connected {
+			// 连接成功
+			result.SuccessfulTests++
+			latencies = append(latencies, singleResult.Latency)
+		} else {
+			// 连接失败
+			if singleResult.Error != "" {
+				errors = append(errors, singleResult.Error)
+			} else {
+				errors = append(errors, "连接失败")
+			}
+		}
+
+		// 避免测试过于频繁，间隔100ms
+		if i < testCount-1 {
+			time.Sleep(100 * time.Millisecond)
+		}
+	}
+
+	// 计算统计信息
+	if result.SuccessfulTests > 0 {
+		result.Connected = true
+
+		// 计算延迟统计
+		var sum int64
+		minLat := latencies[0]
+		maxLat := latencies[0]
+
+		for _, lat := range latencies {
+			sum += lat
+			if lat < minLat {
+				minLat = lat
+			}
+			if lat > maxLat {
+				maxLat = lat
+			}
+		}
+
+		result.MinLatency = &minLat
+		result.MaxLatency = &maxLat
+		avgLat := float64(sum) / float64(len(latencies))
+		result.AvgLatency = &avgLat
+		result.Latency = minLat // 保持兼容性，使用最快响应时间
+
+	} else {
+		// 全部失败时仍然返回基本信息，延迟字段设为nil
+		result.Connected = false
+		result.MinLatency = nil
+		result.MaxLatency = nil
+		result.AvgLatency = nil
+		result.Latency = 0
+		// 不设置Error字段，前端不显示错误信息
+	}
+
+	// 计算丢包率
+	result.PacketLoss = float64(testCount-result.SuccessfulTests) / float64(testCount) * 100.0
+
+	return result, nil
+}
+
 // GetInstances 获取所有隧道实例列表
-func (c *Client) GetInstances() ([]Instance, error) {
+func (c *Client) GetInstances() ([]InstanceResult, error) {
 	url := fmt.Sprintf("%s%s/instances", c.baseURL, c.apiPath)
-	var resp []Instance
+	var resp []InstanceResult
 	if err := c.doRequest(http.MethodGet, url, nil, &resp); err != nil {
 		return nil, err
 	}

@@ -210,4 +210,42 @@ export const LatencyTooltipV2 = ({ active, payload, label }: any) => {
   );
 };
 
+export const ConnectionsTooltip = ({ active, payload, label }: any) => (
+  <SharedChartTooltip
+    active={active}
+    payload={payload}
+    label={label}
+    items={payload?.map((entry: any) => {
+      let name = '';
+      let color = '';
+      
+      switch (entry.dataKey) {
+        case 'pool':
+          name = '池连接数';
+          color = 'text-red-600 dark:text-red-400';
+          break;
+        case 'tcps':
+          name = 'TCP连接数';
+          color = 'text-orange-600 dark:text-orange-400';
+          break;
+        case 'udps':
+          name = 'UDP连接数';
+          color = 'text-teal-600 dark:text-teal-400';
+          break;
+        default:
+          name = entry.name || entry.dataKey;
+          color = 'text-default-600';
+      }
+      
+      return {
+        key: entry.dataKey,
+        name,
+        value: entry.value,
+        color,
+        unit: 'pool' as const
+      };
+    }).filter((item: any) => item.value !== null && item.value !== undefined)}
+  />
+);
+
 export default SharedChartTooltip;
