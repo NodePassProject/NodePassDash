@@ -130,14 +130,8 @@ func (hw *HistoryWorker) dataProcessWorker() {
 
 // processMonitoringData 处理单个监控数据点
 // 重要：每个实例独立处理，互不影响
-// 每个实例维护自己的30个数据点累积数组和流量差值计算状态
+// 每个实例维护自己的数据点累积数组和流量差值计算状态
 func (hw *HistoryWorker) processMonitoringData(data MonitoringData) {
-	// 数据验证
-	if data.EndpointID <= 0 || data.InstanceID == "" {
-		log.Warnf("[HistoryWorker]无效的监控数据: 端点ID=%d, 实例ID=%s", data.EndpointID, data.InstanceID)
-		return
-	}
-
 	// 构建实例唯一键：endpointID_instanceID
 	key := hw.buildDataKey(data.EndpointID, data.InstanceID)
 
@@ -147,10 +141,9 @@ func (hw *HistoryWorker) processMonitoringData(data MonitoringData) {
 	hw.mu.RUnlock()
 
 	if !exists {
-		// 为该实例创建独立的状态数据容器
-		// 每个实例都有自己的30个数据点累积数组
+		// 为该实例创建独立的状态数据容器，每个实例都有自己的数据点累积数组
 		currentStatus = &ServiceCurrentStatus{
-			Result: make([]MonitoringData, 0, _CurrentStatusSize), // 独立的30个数据点数组
+			Result: make([]MonitoringData, 0, _CurrentStatusSize), // 独立的数据点数组
 		}
 
 		hw.mu.Lock()
@@ -182,10 +175,9 @@ func (hw *HistoryWorker) processMonitoringData(data MonitoringData) {
 
 	log.Debugf("[HistoryWorker]实例 %s 累积数据点: %d/%d", key, resultLength, _CurrentStatusSize)
 
-	// 检查该实例是否独立达到累积阈值（30个数据点）
+	// 检查该实例是否独立达到累积阈值
 	// 重要：每个实例独立计算，不同实例之间互不影响
 	if resultLength >= _CurrentStatusSize {
-		log.Infof("[HistoryWorker]实例 %s 达到累积阈值，触发独立批量写入", key)
 		hw.triggerBatchWrite(key, currentStatus)
 	}
 }
@@ -227,7 +219,7 @@ func (hw *HistoryWorker) aggregateAndWrite(dataPoints []MonitoringData) {
 	lastPoint := dataPoints[len(dataPoints)-1]
 
 	// 初始化聚合结果
-	aggregated := &models.ServiceHistory{
+	historyModel := &models.ServiceHistory{
 		EndpointID:  firstPoint.EndpointID,
 		InstanceID:  firstPoint.InstanceID,
 		RecordTime:  time.Now().Truncate(time.Minute), // 按分钟取整
@@ -236,11 +228,10 @@ func (hw *HistoryWorker) aggregateAndWrite(dataPoints []MonitoringData) {
 	}
 
 	// 1. 存储最后一个数据点的累计值（保持原始int64类型）
-	aggregated.DeltaTCPIn = lastPoint.TCPIn
-	aggregated.DeltaTCPOut = lastPoint.TCPOut
-	aggregated.DeltaUDPIn = lastPoint.UDPIn
-	aggregated.DeltaUDPOut = lastPoint.UDPOut
-
+	historyModel.DeltaTCPIn = lastPoint.TCPIn
+	historyModel.DeltaTCPOut = lastPoint.TCPOut
+	historyModel.DeltaUDPIn = lastPoint.UDPIn
+	historyModel.DeltaUDPOut = lastPoint.UDPOut
 	// 2. 计算时间跨度
 	totalTime := lastPoint.Timestamp.Sub(firstPoint.Timestamp).Seconds()
 
@@ -270,8 +261,8 @@ func (hw *HistoryWorker) aggregateAndWrite(dataPoints []MonitoringData) {
 			udpOutDelta = float64(lastPoint.UDPOut)
 		}
 
-		aggregated.AvgSpeedIn = (tcpInDelta + udpInDelta) / totalTime
-		aggregated.AvgSpeedOut = (tcpOutDelta + udpOutDelta) / totalTime
+		historyModel.AvgSpeedIn = (tcpInDelta + udpInDelta) / totalTime
+		historyModel.AvgSpeedOut = (tcpOutDelta + udpOutDelta) / totalTime
 	} else {
 		// 异常情况：时间差为0，使用理论时间间隔
 		log.Warnf("[HistoryWorker]时间差为0，使用理论时间间隔计算速度")
@@ -282,11 +273,11 @@ func (hw *HistoryWorker) aggregateAndWrite(dataPoints []MonitoringData) {
 			udpInDelta := float64(lastPoint.UDPIn - firstPoint.UDPIn)
 			udpOutDelta := float64(lastPoint.UDPOut - firstPoint.UDPOut)
 
-			aggregated.AvgSpeedIn = (tcpInDelta + udpInDelta) / theoreticalTime
-			aggregated.AvgSpeedOut = (tcpOutDelta + udpOutDelta) / theoreticalTime
+			historyModel.AvgSpeedIn = (tcpInDelta + udpInDelta) / theoreticalTime
+			historyModel.AvgSpeedOut = (tcpOutDelta + udpOutDelta) / theoreticalTime
 		} else {
-			aggregated.AvgSpeedIn = 0
-			aggregated.AvgSpeedOut = 0
+			historyModel.AvgSpeedIn = 0
+			historyModel.AvgSpeedOut = 0
 		}
 	}
 
@@ -302,35 +293,32 @@ func (hw *HistoryWorker) aggregateAndWrite(dataPoints []MonitoringData) {
 	}
 
 	if pingCount > 0 {
-		aggregated.AvgPing = pingSum / float64(pingCount)
+		historyModel.AvgPing = pingSum / float64(pingCount)
 	} else {
-		aggregated.AvgPing = 0
+		historyModel.AvgPing = 0
 	}
 
 	// 5. Pool连接池：直接使用最后一个值（反映最新状态）
 	if lastPoint.Pool != nil {
-		aggregated.AvgPool = *lastPoint.Pool
+		historyModel.AvgPool = *lastPoint.Pool
 	} else {
-		aggregated.AvgPool = 0
+		historyModel.AvgPool = 0
 	}
-
-	log.Infof("[HistoryWorker]聚合完成 - 端点:%d 实例:%s 数据点:%d 时间跨度:%.1fs TCP入累计:%d TCP出累计:%d UDP入累计:%d UDP出累计:%d 延迟平均:%.2fms 连接池最新:%d 入站速度:%.2f bytes/s 出站速度:%.2f bytes/s",
-		aggregated.EndpointID, aggregated.InstanceID, aggregated.RecordCount, totalTime,
-		aggregated.DeltaTCPIn, aggregated.DeltaTCPOut, aggregated.DeltaUDPIn, aggregated.DeltaUDPOut,
-		aggregated.AvgPing, int64(aggregated.AvgPool), aggregated.AvgSpeedIn, aggregated.AvgSpeedOut)
 
 	// 6. 立即写入数据库
 	startTime := time.Now()
-	err := hw.db.Create(aggregated).Error
+	err := hw.db.Create(historyModel).Error
 	duration := time.Since(startTime)
 
 	if err != nil {
 		log.Errorf("[HistoryWorker]立即写入失败 (端点:%d 实例:%s, 耗时%v): %v",
-			aggregated.EndpointID, aggregated.InstanceID, duration, err)
-	} else {
-		log.Infof("[HistoryWorker]立即写入成功: 端点:%d 实例:%s, 数据点:%d, 耗时%v",
-			aggregated.EndpointID, aggregated.InstanceID, aggregated.RecordCount, duration)
+			historyModel.EndpointID, historyModel.InstanceID, duration, err)
 	}
+
+	log.Infof("[HistoryWorker]聚合完成 - 端点:%d 实例:%s 数据点:%d 时间跨度:%.1fs TCP入累计:%d TCP出累计:%d UDP入累计:%d UDP出累计:%d 延迟平均:%.2fms 连接池最新:%d 入站速度:%.2f bytes/s 出站速度:%.2f bytes/s",
+		historyModel.EndpointID, historyModel.InstanceID, historyModel.RecordCount, totalTime,
+		historyModel.DeltaTCPIn, historyModel.DeltaTCPOut, historyModel.DeltaUDPIn, historyModel.DeltaUDPOut,
+		historyModel.AvgPing, int64(historyModel.AvgPool), historyModel.AvgSpeedIn, historyModel.AvgSpeedOut)
 }
 
 // 移除批量写入相关方法（改为立即写入）

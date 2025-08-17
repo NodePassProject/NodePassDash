@@ -183,7 +183,7 @@ export function TrafficOverviewChart({
         key: "tcp-in",
         title: "TCP In",
         value: currentValues.tcpIn,
-        suffix: "B/s",
+        suffix: "",
         type: "number" as const,
         change: calculateChange(currentValues.tcpIn, previousValues.tcpIn),
         changeType: getChangeType(currentValues.tcpIn, previousValues.tcpIn),
@@ -194,7 +194,7 @@ export function TrafficOverviewChart({
         key: "tcp-out",
         title: "TCP Out",
         value: currentValues.tcpOut,
-        suffix: "B/s",
+        suffix: "",
         type: "number" as const,
         change: calculateChange(currentValues.tcpOut, previousValues.tcpOut),
         changeType: getChangeType(currentValues.tcpOut, previousValues.tcpOut),
@@ -205,7 +205,7 @@ export function TrafficOverviewChart({
         key: "udp-in",
         title: "UDP In",
         value: currentValues.udpIn,
-        suffix: "B/s",
+        suffix: "",
         type: "number" as const,
         change: calculateChange(currentValues.udpIn, previousValues.udpIn),
         changeType: getChangeType(currentValues.udpIn, previousValues.udpIn),
@@ -216,7 +216,7 @@ export function TrafficOverviewChart({
         key: "udp-out",
         title: "UDP Out",
         value: currentValues.udpOut,
-        suffix: "B/s",
+        suffix: "",
         type: "number" as const,
         change: calculateChange(currentValues.udpOut, previousValues.udpOut),
         changeType: getChangeType(currentValues.udpOut, previousValues.udpOut),
@@ -427,7 +427,6 @@ export function TrafficOverviewChart({
                                 <>
                                   <span>{formatted.value}</span>
                                   {formatted.unit && <span>{formatted.unit}</span>}
-                                  <span>{activeMetricData.metric?.suffix}</span>
                                 </>
                               );
                             })()}

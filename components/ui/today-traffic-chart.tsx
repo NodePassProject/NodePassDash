@@ -90,11 +90,15 @@ export const TodayTrafficChart = React.forwardRef<
       );
     }
 
-    if (chartData.length === 0) {
+    // 检查是否有数据或者总流量为0
+    const totalTraffic = chartData.reduce((sum, item) => sum + (item.value as number || 0), 0);
+    const hasNoTraffic = chartData.length === 0 || totalTraffic === 0;
+
+    if (hasNoTraffic) {
       return (
         <Card
           ref={ref}
-          className={cn("dark:border-default-100 min-h-[340px] border border-transparent", className)}
+          className={cn("dark:border-default-100 min-h-[340px] border border-transparent bg-gradient-to-br from-default-50/50 to-default-100/30", className)}
           {...props}
         >
           <div className="flex flex-col gap-y-2 p-4 pb-0">
@@ -104,18 +108,30 @@ export const TodayTrafficChart = React.forwardRef<
               </dt>
             </div>
             <dd className="flex items-baseline gap-x-1">
-              <span className="text-default-900 text-3xl font-semibold">0 B</span>
-              <span className="text-medium text-default-500 font-medium">{unit}</span>
+              <span className="text-default-600 text-3xl font-semibold">0 B</span>
+              <span className="text-medium text-default-400 font-medium">{unit}</span>
             </dd>
           </div>
           <div className="h-[200px] flex items-center justify-center">
             <div className="text-center space-y-3">
-              <Icon icon="solar:chart-2-bold" className="w-12 h-12 text-default-300 mx-auto" />
-              <div className="space-y-1">
-                <p className="text-sm font-medium text-default-600">暂无数据</p>
-                <p className="text-xs text-default-400">今日暂无流量数据</p>
+              <div className="relative">
+                <Icon icon="solar:chart-2-linear" className="w-16 h-16 text-default-300 mx-auto" />
+              </div>
+              <div className="space-y-2">
+                <p className="text-sm font-medium text-default-600">暂无流量变化</p>
               </div>
             </div>
+          </div>
+          {/* 空状态下的图例 */}
+          <div className="text-tiny text-default-400 flex w-full flex-wrap justify-center gap-4 px-4 pb-4">
+            {categories.map((category, index) => (
+              <div key={index} className="flex items-center gap-2 opacity-50">
+                <span
+                  className="h-2 w-2 rounded-full bg-default-300"
+                />
+                <span className="capitalize">{category}</span>
+              </div>
+            ))}
           </div>
         </Card>
       );

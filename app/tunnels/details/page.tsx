@@ -2026,32 +2026,6 @@ export default function TunnelDetailPage({
 
           {/* 第二行：延迟和连接池 */}
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-            {/* 连接池趋势 */}
-            <Card className="p-2">
-              <CardHeader className="pb-1 pt-2 px-2 flex items-center justify-between">
-                <h4 className="text-sm font-semibold">池连接数</h4>
-                <Button
-                  size="sm"
-                  variant="light"
-                  isIconOnly
-                  onPress={() => openFullscreenChart("pool", "池连接数")}
-                  className="h-6 w-6 min-w-0"
-                >
-                  <FontAwesomeIcon icon={faExpand} className="text-xs" />
-                </Button>
-              </CardHeader>
-              <CardBody className="pt-0 px-2 pb-2">
-                <div className="h-[140px]">
-                  <PoolChart
-                    data={transformPoolData(metricsData?.data)}
-                    height={140}
-                    loading={metricsLoading && !metricsData}
-                    error={metricsError || undefined}
-                    className="h-full w-full"
-                  />
-                </div>
-              </CardBody>
-            </Card>
             {/* 延迟 */}
             <Card className="p-2">
               <CardHeader className="pb-1 pt-2 px-2 flex items-center justify-between">
@@ -2070,6 +2044,32 @@ export default function TunnelDetailPage({
                 <div className="h-[140px]">
                   <LatencyChart
                     data={transformLatencyData(metricsData?.data)}
+                    height={140}
+                    loading={metricsLoading && !metricsData}
+                    error={metricsError || undefined}
+                    className="h-full w-full"
+                  />
+                </div>
+              </CardBody>
+            </Card>
+            {/* 连接池趋势 */}
+            <Card className="p-2">
+              <CardHeader className="pb-1 pt-2 px-2 flex items-center justify-between">
+                <h4 className="text-sm font-semibold">池连接数</h4>
+                <Button
+                  size="sm"
+                  variant="light"
+                  isIconOnly
+                  onPress={() => openFullscreenChart("pool", "池连接数")}
+                  className="h-6 w-6 min-w-0"
+                >
+                  <FontAwesomeIcon icon={faExpand} className="text-xs" />
+                </Button>
+              </CardHeader>
+              <CardBody className="pt-0 px-2 pb-2">
+                <div className="h-[140px]">
+                  <PoolChart
+                    data={transformPoolData(metricsData?.data)}
                     height={140}
                     loading={metricsLoading && !metricsData}
                     error={metricsError || undefined}
