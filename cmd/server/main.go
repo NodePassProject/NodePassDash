@@ -6,6 +6,8 @@ import (
 	"NodePassDash/internal/dashboard"
 	dbPkg "NodePassDash/internal/db"
 	"NodePassDash/internal/endpoint"
+
+	// "NodePassDash/internal/lifecycle"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
@@ -37,7 +39,7 @@ var distZip embed.FS
 func extractDistIfNeeded() error {
 	// 检查 dist 目录是否已存在
 	if _, err := os.Stat("dist"); err == nil {
-		log.Infof("dist 目录已存在，跳过解压")
+		log.Debug("dist 目录已存在，跳过解压")
 		return nil
 	}
 
@@ -142,17 +144,6 @@ func main() {
 	// 禁用用户名密码登录参数
 	disableLoginFlag := flag.Bool("disable-login", false, "禁用用户名密码登录，仅允许 OAuth2 登录")
 
-	// 数据库相关参数
-	// flag.String("db-host", "localhost", "MySQL主机地址")
-	// flag.String("db-port", "3306", "MySQL端口")
-	// flag.String("db-user", "nodepass", "MySQL用户名")
-	// flag.String("db-password", "nodepass123", "MySQL密码")
-	// flag.String("db-name", "nodepass_dashboard", "MySQL数据库名")
-	// flag.String("db-charset", "utf8mb4", "MySQL字符集")
-	// flag.Int("db-max-open", 100, "最大打开连接数")
-	// flag.Int("db-max-idle", 10, "最大空闲连接数")
-	// flag.String("db-log-level", "info", "数据库日志级别")
-
 	flag.Parse()
 
 	// 设置日志级别
@@ -206,7 +197,16 @@ func main() {
 		}
 	}()
 
-	log.Info("数据库连接成功，表结构已自动迁移")
+	log.Info("数据库连接成功")
+
+	// 创建并启动增强系统（内存优先数据管理、定时清理、分钟级数据聚合）
+	// lifecycleManager := lifecycle.NewManager(gormDB)
+	// if err := lifecycleManager.Start(); err != nil {
+	// 	log.Errorf("增强系统启动失败: %v", err)
+	// 	os.Exit(1)
+	// }
+	// log.Info("增强系统已启动：内存优先数据管理、定时清理、分钟级数据聚合")
+	// log.Info("增强系统已暂时禁用")
 
 	// 初始化服务
 	authService := auth.NewService(gormDB)
@@ -231,14 +231,13 @@ func main() {
 
 	// 设置Manager引用到Service（避免循环依赖）
 	sseService.SetManager(sseManager)
+	sseService.StartStoreWorkers(8)
 
 	// 适当减少 worker 数量，避免过多并发写入
 	workerCount := runtime.NumCPU()
 	if workerCount > 4 {
 		workerCount = 4 // 最多4个worker
 	}
-	sseManager.StartWorkers(workerCount)
-
 	// 启动SSE守护进程（自动重连功能）
 	sseManager.StartDaemon()
 
@@ -373,6 +372,11 @@ func main() {
 
 	// 关闭服务
 	log.Infof("正在关闭服务器...")
+
+	// 关闭增强系统（暂时注释掉）
+	// if err := lifecycleManager.Shutdown(); err != nil {
+	// 	log.Errorf("增强系统关闭失败: %v", err)
+	// }
 
 	// 关闭流量调度器
 	trafficScheduler.Stop()

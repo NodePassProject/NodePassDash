@@ -47,7 +47,6 @@ export const getClientSSEConfig = () => {
 
 // SSE 端点路径
 export const SSE_ENDPOINTS = {
-  global: '/api/sse/global',
   tunnel: (instanceId: string) => `/api/sse/tunnel/${instanceId}`,
   internal: '/api/sse/internal'
 } as const;

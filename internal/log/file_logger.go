@@ -1,6 +1,7 @@
 package log
 
 import (
+	"context"
 	"fmt"
 	"io"
 	"os"
@@ -20,16 +21,32 @@ type FileLogger struct {
 	maxFileSize   int64         // 单个日志文件最大大小（字节）
 	retentionDays int           // 日志保留天数
 	flushInterval time.Duration // 自动刷新间隔
+
+	// 日志清理配置
+	logCleanupInterval  time.Duration // 清理间隔
+	maxLogRecordsPerDay int           // 每天最大日志记录数
+	enableLogCleanup    bool          // 是否启用日志清理
+
+	// 上下文控制
+	ctx    context.Context
+	cancel context.CancelFunc
 }
 
 // NewFileLogger 创建文件日志管理器
 func NewFileLogger(baseDir string) *FileLogger {
+	ctx, cancel := context.WithCancel(context.Background())
+
 	fl := &FileLogger{
-		baseDir:       baseDir,
-		fileCache:     make(map[string]*os.File),
-		maxFileSize:   100 * 1024 * 1024, // 默认100MB
-		retentionDays: 7,                 // 默认保留7天
-		flushInterval: 5 * time.Second,   // 默认5秒刷新一次
+		baseDir:             baseDir,
+		fileCache:           make(map[string]*os.File),
+		maxFileSize:         100 * 1024 * 1024, // 默认100MB
+		retentionDays:       7,                 // 默认保留7天
+		flushInterval:       5 * time.Second,   // 默认5秒刷新一次
+		logCleanupInterval:  24 * time.Hour,    // 默认24小时清理一次
+		maxLogRecordsPerDay: 10000,             // 默认每天最多10000条记录
+		enableLogCleanup:    true,              // 默认启用清理
+		ctx:                 ctx,
+		cancel:              cancel,
 	}
 
 	// 确保基础目录存在
@@ -39,6 +56,11 @@ func NewFileLogger(baseDir string) *FileLogger {
 
 	// 启动定期刷新和清理
 	go fl.startPeriodicTasks()
+
+	// 启动日志清理守护进程
+	if fl.enableLogCleanup {
+		fl.startLogCleanupDaemon()
+	}
 
 	return fl
 }
@@ -233,17 +255,23 @@ func (fl *FileLogger) readLogsByDate(endpointID int64, instanceID string, date t
 
 // startPeriodicTasks 启动定期任务
 func (fl *FileLogger) startPeriodicTasks() {
-	flushTicker := time.NewTicker(fl.flushInterval)
-	cleanupTicker := time.NewTicker(24 * time.Hour) // 每天清理一次
+	go func() {
+		flushTicker := time.NewTicker(fl.flushInterval)
+		cleanupTicker := time.NewTicker(24 * time.Hour) // 每天清理一次
+		defer flushTicker.Stop()
+		defer cleanupTicker.Stop()
 
-	for {
-		select {
-		case <-flushTicker.C:
-			fl.flushAll()
-		case <-cleanupTicker.C:
-			fl.cleanupOldLogs()
+		for {
+			select {
+			case <-fl.ctx.Done():
+				return
+			case <-flushTicker.C:
+				fl.flushAll()
+			case <-cleanupTicker.C:
+				fl.cleanupOldLogs()
+			}
 		}
-	}
+	}()
 }
 
 // flushAll 刷新所有文件缓存
@@ -360,6 +388,9 @@ func (fl *FileLogger) ClearLogs(endpointID int64, instanceID string) error {
 
 // Close 关闭文件日志管理器
 func (fl *FileLogger) Close() {
+	// 停止上下文
+	fl.cancel()
+
 	fl.mu.Lock()
 	defer fl.mu.Unlock()
 
@@ -428,4 +459,74 @@ func (fl *FileLogger) GetLogStats() map[string]interface{} {
 	}
 
 	return stats
+}
+
+// =============== 日志清理功能 ===============
+
+// startLogCleanupDaemon 启动日志清理守护进程
+func (fl *FileLogger) startLogCleanupDaemon() {
+	go func() {
+		ticker := time.NewTicker(fl.logCleanupInterval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-fl.ctx.Done():
+				return
+			case <-ticker.C:
+				fl.cleanupOldLogsAdvanced()
+			}
+		}
+	}()
+}
+
+// cleanupOldLogsAdvanced 高级日志清理功能（扩展原有的cleanupOldLogs）
+func (fl *FileLogger) cleanupOldLogsAdvanced() {
+	// 首先调用原有的清理逻辑
+	fl.cleanupOldLogs()
+
+	// 可以在这里添加更多高级清理逻辑，比如：
+	// - 按文件大小清理
+	// - 按记录数量清理
+	// - 压缩旧文件等
+}
+
+// GetLogCleanupStats 获取日志清理统计信息
+func (fl *FileLogger) GetLogCleanupStats() map[string]interface{} {
+	// 获取文件日志统计信息
+	stats := fl.GetLogStats()
+
+	// 添加清理配置信息
+	stats["enabled"] = fl.enableLogCleanup
+	stats["retention_days"] = fl.retentionDays
+	stats["cleanup_interval"] = fl.logCleanupInterval.String()
+	stats["max_records_per_day"] = fl.maxLogRecordsPerDay
+	stats["last_cleanup_time"] = time.Now().Format("2006-01-02 15:04:05")
+
+	// 为了兼容性，添加旧的key名称
+	if totalFiles, ok := stats["totalFiles"]; ok {
+		stats["log_file_count"] = totalFiles
+	}
+	if totalSize, ok := stats["totalSize"]; ok {
+		stats["log_file_size"] = totalSize
+	}
+
+	return stats
+}
+
+// SetLogCleanupConfig 设置日志清理配置
+func (fl *FileLogger) SetLogCleanupConfig(retentionDays int, cleanupInterval time.Duration, maxRecordsPerDay int, enabled bool) {
+	fl.retentionDays = retentionDays
+	fl.logCleanupInterval = cleanupInterval
+	fl.maxLogRecordsPerDay = maxRecordsPerDay
+	fl.enableLogCleanup = enabled
+
+	Infof("日志清理配置已更新: 保留天数=%d, 清理间隔=%v, 每天最大记录数=%d, 启用=%v",
+		retentionDays, cleanupInterval, maxRecordsPerDay, enabled)
+}
+
+// TriggerManualCleanup 手动触发日志清理
+func (fl *FileLogger) TriggerManualCleanup() {
+	Infof("手动触发日志清理")
+	fl.cleanupOldLogsAdvanced()
 }

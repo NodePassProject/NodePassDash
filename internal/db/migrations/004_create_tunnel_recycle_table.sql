@@ -8,7 +8,7 @@ CREATE TABLE IF NOT EXISTS "TunnelRecycle" (
     tunnelPort TEXT NOT NULL,
     targetAddress TEXT NOT NULL,
     targetPort TEXT NOT NULL,
-    tlsMode TEXT NOT NULL DEFAULT 'inherit' CHECK (tlsMode IN ('inherit', 'mode0', 'mode1', 'mode2')),
+    tlsMode TEXT NOT NULL DEFAULT 'inherit' CHECK (tlsMode IN ('inherit', '0', '1', '2')),
     certPath TEXT,
     keyPath TEXT,
     logLevel TEXT NOT NULL DEFAULT 'inherit' CHECK (logLevel IN ('inherit', 'debug', 'info', 'warn', 'error')),

@@ -70,6 +70,7 @@ func (m *Manager) StartDaemon() {
 	// 启动健康检查守护协程
 	m.daemonWg.Add(1)
 	go m.healthCheckDaemon()
+
 }
 
 // StopDaemon 停止守护进程

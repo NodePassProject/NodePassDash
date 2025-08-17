@@ -59,7 +59,6 @@ type Tunnel struct {
 	Rate          *string      `json:"rate,omitempty" gorm:"type:text;column:rate"`
 	Read          *string      `json:"read,omitempty" gorm:"type:text;column:read"`
 
-	EnableSSEStore bool `json:"enable_sse_store,omitempty" gorm:"default:true;type:bool;column:enable_sse_store"`
 	EnableLogStore bool `json:"enable_log_store,omitempty" gorm:"default:true;type:bool;column:enable_log_store"`
 
 	// 网络流量统计

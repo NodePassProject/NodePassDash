@@ -44,7 +44,7 @@ const (
 type TLSMode string
 
 const (
-	TLSModeInherit TLSMode = "inherit"
+	TLSModeInherit TLSMode = ""
 	TLS0           TLSMode = "0"
 	TLS1           TLSMode = "1"
 	TLS2           TLSMode = "2"
@@ -63,7 +63,7 @@ const (
 type LogLevel string
 
 const (
-	LogLevelInherit LogLevel = "inherit"
+	LogLevelInherit LogLevel = ""
 	LogLevelDebug   LogLevel = "debug"
 	LogLevelInfo    LogLevel = "info"
 	LogLevelWarn    LogLevel = "warn"

@@ -137,27 +137,32 @@ type Event struct {
 type Client struct {
 	ID     string
 	Writer http.ResponseWriter
-	Events chan Event
 }
 
 // Close 关闭客户端连接
 func (c *Client) Close() {
-	close(c.Events)
+	// 这里可以实现关闭逻辑，例如关闭Writer
+	// 目前是一个空实现
 }
 
 // Send 发送数据给客户端
 func (c *Client) Send(data []byte) error {
-	// 这里实现SSE数据发送逻辑
-	// 由于这是一个简化的实现，我们只是将数据写入到Events通道
-	select {
-	case c.Events <- Event{
-		Type: "data",
-		Data: string(data),
-	}:
-		return nil
-	default:
-		return fmt.Errorf("客户端事件通道已满")
+	// 使用标准SSE格式发送数据
+	// 格式: "data: {json数据}\n\n"
+	sseData := fmt.Sprintf("data: %s\n\n", string(data))
+
+	// 直接写入HTTP响应流
+	_, err := c.Writer.Write([]byte(sseData))
+	if err != nil {
+		return fmt.Errorf("写入SSE数据失败: %v", err)
 	}
+
+	// 立即刷新缓冲区，确保数据被发送
+	if flusher, ok := c.Writer.(http.Flusher); ok {
+		flusher.Flush()
+	}
+
+	return nil
 }
 
 // SetDisconnected 设置客户端断开状态

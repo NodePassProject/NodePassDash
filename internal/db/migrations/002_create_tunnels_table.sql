@@ -9,7 +9,7 @@ CREATE TABLE IF NOT EXISTS tunnels (
     tunnel_port INTEGER NOT NULL,
     target_address TEXT NOT NULL,
     target_port INTEGER NOT NULL,
-    tls_mode TEXT NOT NULL DEFAULT 'inherit' CHECK (tls_mode IN ('inherit', 'mode0', 'mode1', 'mode2')),
+    tls_mode TEXT NOT NULL DEFAULT 'inherit' CHECK (tls_mode IN ('inherit', '0', '1', '2')),
     cert_path TEXT,
     key_path TEXT,
     log_level TEXT NOT NULL DEFAULT 'inherit' CHECK (log_level IN ('inherit', 'debug', 'info', 'warn', 'error', 'event', 'none')),

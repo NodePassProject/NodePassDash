@@ -5,6 +5,9 @@ import (
 	"net/url"
 	"strconv"
 	"strings"
+	"time"
+
+	"NodePassDash/internal/models"
 )
 
 // TunnelConfig 表示解析后的隧道配置信息
@@ -26,21 +29,24 @@ type TunnelConfig struct {
 	Rate          string
 }
 
-// ParseTunnelURL 解析隧道实例 URL
+// ParseTunnelURL 解析隧道实例 URL 并返回 Tunnel 模型
 // 支持格式: protocol://[password@][tunnel_address:tunnel_port]/[target_address:target_port]?[params]
-func ParseTunnelURL(rawURL, tunnelType string) *TunnelConfig {
-	// 默认值
-	config := &TunnelConfig{
-		Type:     tunnelType, // 使用传入的隧道类型
-		TLSMode:  "",         // 空字符串表示不设置（inherit）
-		LogLevel: "",         // 空字符串表示不设置（inherit）
-		CertPath: "",
-		KeyPath:  "",
-		Password: "",
+func ParseTunnelURL(rawURL string) *models.Tunnel {
+	// 创建一个新的 Tunnel 实例
+	tunnel := &models.Tunnel{
+		Status:        models.TunnelStatusStopped, // 默认状态
+		TLSMode:       models.TLSModeInherit,      // 默认继承
+		LogLevel:      models.LogLevelInherit,     // 默认继承
+		TunnelAddress: "",
+		TunnelPort:    "",
+		TargetAddress: "",
+		TargetPort:    "",
+		CreatedAt:     time.Now(),
+		UpdatedAt:     time.Now(),
 	}
 
 	if rawURL == "" {
-		return config
+		return tunnel
 	}
 
 	// 提取协议部分并设置Type
@@ -49,9 +55,11 @@ func ParseTunnelURL(rawURL, tunnelType string) *TunnelConfig {
 		protocol = rawURL[:idx]
 		rawURL = rawURL[idx+3:]
 
-		// 如果URL中包含协议，优先使用URL中的协议
-		if protocol == "client" || protocol == "server" {
-			config.Type = protocol
+		// 设置隧道类型
+		if protocol == "client" {
+			tunnel.Type = models.TunnelModeClient
+		} else if protocol == "server" {
+			tunnel.Type = models.TunnelModeServer
 		}
 	}
 
@@ -60,7 +68,9 @@ func ParseTunnelURL(rawURL, tunnelType string) *TunnelConfig {
 	if atIdx := strings.Index(rawURL, "@"); atIdx != -1 {
 		userInfo = rawURL[:atIdx]
 		rawURL = rawURL[atIdx+1:]
-		config.Password = userInfo
+		if userInfo != "" {
+			tunnel.Password = &userInfo
+		}
 	}
 
 	// 分离查询参数
@@ -82,15 +92,15 @@ func ParseTunnelURL(rawURL, tunnelType string) *TunnelConfig {
 	// 解析 hostPart -> tunnelAddress:tunnelPort (兼容 IPv6)
 	if hostPart != "" {
 		addr, port := parseAddressPort(hostPart)
-		config.TunnelAddress = addr
-		config.TunnelPort = port
+		tunnel.TunnelAddress = addr
+		tunnel.TunnelPort = port
 	}
 
 	// 解析 pathPart -> targetAddress:targetPort (兼容 IPv6)
 	if pathPart != "" {
 		addr, port := parseAddressPort(pathPart)
-		config.TargetAddress = addr
-		config.TargetPort = port
+		tunnel.TargetAddress = addr
+		tunnel.TargetPort = port
 	}
 
 	// 解析查询参数
@@ -106,47 +116,134 @@ func ParseTunnelURL(rawURL, tunnelType string) *TunnelConfig {
 			key, val := parts[0], parts[1]
 			switch key {
 			case "tls":
-				if config.Type == "server" {
+				if tunnel.Type == models.TunnelModeServer {
 					switch val {
 					case "0":
-						config.TLSMode = "0"
+						tunnel.TLSMode = models.TLS0
 					case "1":
-						config.TLSMode = "1"
+						tunnel.TLSMode = models.TLS1
 					case "2":
-						config.TLSMode = "2"
+						tunnel.TLSMode = models.TLS2
 					}
 				}
 			case "log":
-				config.LogLevel = strings.ToLower(val)
+				lowerVal := strings.ToLower(val)
+				switch lowerVal {
+				case "debug":
+					tunnel.LogLevel = models.LogLevelDebug
+				case "info":
+					tunnel.LogLevel = models.LogLevelInfo
+				case "warn":
+					tunnel.LogLevel = models.LogLevelWarn
+				case "error":
+					tunnel.LogLevel = models.LogLevelError
+				case "event":
+					tunnel.LogLevel = models.LogLevelEvent
+				case "none":
+					tunnel.LogLevel = models.LogLevelNone
+				default:
+					tunnel.LogLevel = models.LogLevelInherit
+				}
 			case "crt":
 				// URL解码证书路径
 				if decodedVal, err := url.QueryUnescape(val); err == nil {
-					config.CertPath = decodedVal
+					tunnel.CertPath = &decodedVal
 				} else {
-					config.CertPath = val // 解码失败时使用原值
+					tunnel.CertPath = &val // 解码失败时使用原值
 				}
 			case "key":
 				// URL解码密钥路径
 				if decodedVal, err := url.QueryUnescape(val); err == nil {
-					config.KeyPath = decodedVal
+					tunnel.KeyPath = &decodedVal
 				} else {
-					config.KeyPath = val // 解码失败时使用原值
+					tunnel.KeyPath = &val // 解码失败时使用原值
 				}
 			case "min":
-				config.Min = val
+				if minVal, err := strconv.ParseInt(val, 10, 64); err == nil {
+					tunnel.Min = &minVal
+				}
 			case "max":
-				config.Max = val
+				if maxVal, err := strconv.ParseInt(val, 10, 64); err == nil {
+					tunnel.Max = &maxVal
+				}
 			case "mode":
-				config.Mode = val
+				switch val {
+				case "0":
+					mode := models.Mode0
+					tunnel.Mode = &mode
+				case "1":
+					mode := models.Mode1
+					tunnel.Mode = &mode
+				case "2":
+					mode := models.Mode2
+					tunnel.Mode = &mode
+				}
 			case "read":
-				config.Read = val
+				if val != "" {
+					tunnel.Read = &val
+				}
 			case "rate":
-				config.Rate = val
+				if val != "" {
+					tunnel.Rate = &val
+				}
 			}
 		}
 	}
 
-	return config
+	return tunnel
+}
+
+// ParseTunnelConfig 解析隧道实例 URL 并返回 TunnelConfig
+func ParseTunnelConfig(rawURL string) *TunnelConfig {
+	// 使用现有的ParseTunnelURL逻辑，但返回配置信息
+	cfg := &TunnelConfig{}
+
+	// 简单的URL解析逻辑（可以从ParseTunnelURL中提取）
+	u, err := url.Parse(rawURL)
+	if err != nil {
+		return cfg
+	}
+
+	cfg.Type = u.Scheme
+	if u.User != nil {
+		cfg.Password = u.User.Username()
+	}
+
+	hostPort := u.Host
+	if hostPort != "" {
+		parts := strings.Split(hostPort, ":")
+		if len(parts) >= 1 {
+			cfg.TunnelAddress = parts[0]
+		}
+		if len(parts) >= 2 {
+			cfg.TunnelPort = parts[1]
+		}
+	}
+
+	pathParts := strings.Trim(u.Path, "/")
+	if pathParts != "" {
+		targetParts := strings.Split(pathParts, ":")
+		if len(targetParts) >= 1 {
+			cfg.TargetAddress = targetParts[0]
+		}
+		if len(targetParts) >= 2 {
+			cfg.TargetPort = targetParts[1]
+		}
+	}
+
+	// 解析查询参数
+	query := u.Query()
+	cfg.TLSMode = query.Get("tls")
+	cfg.LogLevel = query.Get("log")
+	cfg.CertPath = query.Get("crt")
+	cfg.KeyPath = query.Get("key")
+	cfg.Min = query.Get("min")
+	cfg.Max = query.Get("max")
+	cfg.Mode = query.Get("mode")
+	cfg.Read = query.Get("read")
+	cfg.Rate = query.Get("rate")
+
+	return cfg
 }
 
 // BuildTunnelURL 根据配置生成隧道 URL

@@ -32,199 +32,6 @@ type OperationLog struct {
 	CreatedAt  time.Time      `json:"createdAt"`
 }
 
-// parsedURL 表示解析后的隧道 URL 各字段（与 SSE 模块保持一致）
-type parsedURL struct {
-	TunnelAddress string
-	TunnelPort    string
-	TargetAddress string
-	TargetPort    string
-	TLSMode       string
-	LogLevel      string
-	CertPath      string
-	KeyPath       string
-	Password      string
-	Min           string
-	Max           string
-	Mode          string
-	Read          string
-	Rate          string
-}
-
-// parseInstanceURL 解析隧道实例 URL（简化实现，与 SSE 保持一致）
-func parseInstanceURL(raw, tunnelType string) parsedURL {
-	// 默认值
-	res := parsedURL{
-		TLSMode:  "inherit",
-		LogLevel: "inherit",
-		CertPath: "",
-		KeyPath:  "",
-		Password: "",
-	}
-
-	if raw == "" {
-		return res
-	}
-
-	// 去除协议部分 protocol://
-	if idx := strings.Index(raw, "://"); idx != -1 {
-		raw = raw[idx+3:]
-	}
-
-	// 分离用户认证信息 (password@)
-	var userInfo string
-	if atIdx := strings.Index(raw, "@"); atIdx != -1 {
-		userInfo = raw[:atIdx]
-		raw = raw[atIdx+1:]
-		res.Password = userInfo
-	}
-
-	// 分离查询参数
-	var queryPart string
-	if qIdx := strings.Index(raw, "?"); qIdx != -1 {
-		queryPart = raw[qIdx+1:]
-		raw = raw[:qIdx]
-	}
-
-	// 分离路径
-	var hostPart, pathPart string
-	if pIdx := strings.Index(raw, "/"); pIdx != -1 {
-		hostPart = raw[:pIdx]
-		pathPart = raw[pIdx+1:]
-	} else {
-		hostPart = raw
-	}
-
-	// 内部工具函数: 解析 "addr:port" 片段 (兼容 IPv6 字面量，如 [::1]:8080)
-	parsePart := func(part string) (addr, port string) {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			return "", ""
-		}
-
-		// 特殊处理 ":port" 格式（只有端口号，没有地址）
-		if strings.HasPrefix(part, ":") {
-			port = strings.TrimPrefix(part, ":")
-			addr = "" // 空地址表示使用默认地址
-			return
-		}
-
-		// 处理方括号包围的IPv6地址格式：[IPv6]:port
-		if strings.HasPrefix(part, "[") {
-			if end := strings.Index(part, "]"); end != -1 {
-				addr = part[:end+1]
-				if len(part) > end+1 && part[end+1] == ':' {
-					port = part[end+2:]
-				}
-				return
-			}
-		}
-
-		// 检查是否包含冒号
-		if strings.Contains(part, ":") {
-			// 判断是否为IPv6地址（包含多个冒号或双冒号）
-			colonCount := strings.Count(part, ":")
-			if colonCount > 1 || strings.Contains(part, "::") {
-				// 可能是IPv6地址，尝试从右侧找最后一个冒号作为端口分隔符
-				lastColonIdx := strings.LastIndex(part, ":")
-				// 检查最后一个冒号后面是否为纯数字（端口号）
-				if lastColonIdx != -1 && lastColonIdx < len(part)-1 {
-					potentialPort := part[lastColonIdx+1:]
-					if portNum, err := strconv.Atoi(potentialPort); err == nil && portNum > 0 && portNum <= 65535 {
-						// 最后部分是有效的端口号
-						addr = part[:lastColonIdx]
-						port = potentialPort
-						return
-					}
-				}
-				// 没有找到有效端口，整个部分都是地址
-				addr = part
-				return
-			} else {
-				// 只有一个冒号，按照传统方式分割
-				pieces := strings.SplitN(part, ":", 2)
-				addr, port = pieces[0], pieces[1]
-			}
-		} else {
-			// 没有冒号，判断是纯数字端口还是地址
-			if _, err := strconv.Atoi(part); err == nil {
-				port = part
-			} else {
-				addr = part
-			}
-		}
-		return
-	}
-
-	// 解析 hostPart -> tunnelAddress:tunnelPort (兼容 IPv6)
-	if hostPart != "" {
-		addr, port := parsePart(hostPart)
-		res.TunnelAddress = addr
-		res.TunnelPort = port
-	}
-
-	// 解析 pathPart -> targetAddress:targetPort (兼容 IPv6)
-	if pathPart != "" {
-		addr, port := parsePart(pathPart)
-		res.TargetAddress = addr
-		res.TargetPort = port
-	}
-
-	// 解析查询参数
-	if queryPart != "" {
-		for _, kv := range strings.Split(queryPart, "&") {
-			if kv == "" {
-				continue
-			}
-			parts := strings.SplitN(kv, "=", 2)
-			if len(parts) != 2 {
-				continue
-			}
-			key, val := parts[0], parts[1]
-			switch key {
-			case "tls":
-				if tunnelType == "server" {
-					switch val {
-					case "0":
-						res.TLSMode = "0"
-					case "1":
-						res.TLSMode = "1"
-					case "2":
-						res.TLSMode = "2"
-					}
-				}
-			case "log":
-				res.LogLevel = strings.ToLower(val)
-			case "crt":
-				// URL解码证书路径
-				if decodedVal, err := url.QueryUnescape(val); err == nil {
-					res.CertPath = decodedVal
-				} else {
-					res.CertPath = val // 解码失败时使用原值
-				}
-			case "key":
-				// URL解码密钥路径
-				if decodedVal, err := url.QueryUnescape(val); err == nil {
-					res.KeyPath = decodedVal
-				} else {
-					res.KeyPath = val // 解码失败时使用原值
-				}
-			case "min":
-				res.Min = val
-			case "max":
-				res.Max = val
-			case "mode":
-				res.Mode = val
-			case "read":
-				res.Read = val
-			case "rate":
-				res.Rate = val
-			}
-		}
-	}
-
-	return res
-}
-
 // NewService 创建隧道服务实例
 func NewService(db *gorm.DB) *Service {
 	return &Service{db: db}
@@ -418,11 +225,11 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 	// 3. 添加查询参数
 	var queryParams []string
 
-	if req.LogLevel != LogLevelInherit {
+	if req.LogLevel != LogLevelInherit && req.LogLevel != "" {
 		queryParams = append(queryParams, fmt.Sprintf("log=%s", req.LogLevel))
 	}
 
-	if req.Type == "server" && req.TLSMode != TLSModeInherit {
+	if req.Type == "server" && req.TLSMode != TLSModeInherit && req.TLSMode != "" {
 		var tlsModeNum string
 		switch req.TLSMode {
 		case TLS0:
@@ -929,11 +736,11 @@ func (s *Service) UpdateTunnel(req UpdateTunnelRequest) error {
 	// 添加查询参数
 	var queryParams []string
 
-	if tunnelWithEndpoint.LogLevel != models.LogLevelInherit {
+	if tunnelWithEndpoint.LogLevel != models.LogLevelInherit && tunnelWithEndpoint.LogLevel != "" {
 		queryParams = append(queryParams, fmt.Sprintf("log=%s", tunnelWithEndpoint.LogLevel))
 	}
 
-	if tunnelWithEndpoint.Type == models.TunnelModeServer && tunnelWithEndpoint.TLSMode != models.TLSModeInherit {
+	if tunnelWithEndpoint.Type == models.TunnelModeServer && tunnelWithEndpoint.TLSMode != models.TLSModeInherit && tunnelWithEndpoint.TLSMode != "" {
 		var tlsModeNum string
 		switch tunnelWithEndpoint.TLSMode {
 		case models.TLS0:
@@ -1217,10 +1024,10 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 
 	// 添加查询参数
 	var queryParams []string
-	if req.LogLevel != LogLevelInherit {
+	if req.LogLevel != LogLevelInherit && req.LogLevel != "" {
 		queryParams = append(queryParams, fmt.Sprintf("log=%s", req.LogLevel))
 	}
-	if req.Type == "server" && req.TLSMode != TLSModeInherit {
+	if req.Type == "server" && req.TLSMode != TLSModeInherit && req.TLSMode != "" {
 		var tlsModeNum string
 		switch req.TLSMode {
 		case TLS0:
@@ -1713,7 +1520,7 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string
 		return errors.New("无效的隧道URL")
 	}
 	typer := rawURL[:idx]
-	cfg := parseInstanceURL(rawURL, typer) // 复用 sse 里的同名私有函数，此处复制实现
+	cfg := nodepass.ParseTunnelURL(rawURL)
 
 	// 端口转换
 	tp, _ := strconv.Atoi(cfg.TunnelPort)
@@ -1732,59 +1539,56 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string
 		TargetAddress: cfg.TargetAddress,
 		TargetPort:    sp,
 		TLSMode:       TLSMode(cfg.TLSMode),
-		CertPath:      cfg.CertPath,
-		KeyPath:       cfg.KeyPath,
-		LogLevel:      LogLevel(cfg.LogLevel),
-		Password:      cfg.Password,
+		CertPath: func() string {
+			if cfg.CertPath != nil {
+				return *cfg.CertPath
+			}
+			return ""
+		}(),
+		KeyPath: func() string {
+			if cfg.KeyPath != nil {
+				return *cfg.KeyPath
+			}
+			return ""
+		}(),
+		LogLevel: LogLevel(cfg.LogLevel),
+		Password: func() string {
+			if cfg.Password != nil {
+				return *cfg.Password
+			}
+			return ""
+		}(),
 		Min: func() *int {
-			if cfg.Min == "" {
-				return nil
+			if cfg.Min != nil {
+				val := int(*cfg.Min)
+				return &val
 			}
-			v, err := strconv.Atoi(cfg.Min)
-			if err != nil {
-				return nil
-			}
-			return &v
+			return nil
 		}(),
 		Max: func() *int {
-			if cfg.Max == "" {
-				return nil
+			if cfg.Max != nil {
+				val := int(*cfg.Max)
+				return &val
 			}
-			v, err := strconv.Atoi(cfg.Max)
-			if err != nil {
-				return nil
-			}
-			return &v
+			return nil
 		}(),
 		Mode: func() *TunnelMode {
-			if cfg.Mode == "" {
-				return nil
+			if cfg.Mode != nil {
+				return (*TunnelMode)(cfg.Mode)
 			}
-			switch cfg.Mode {
-			case "0":
-				mode := models.Mode0
-				return &mode
-			case "1":
-				mode := models.Mode1
-				return &mode
-			case "2":
-				mode := models.Mode2
-				return &mode
-			default:
-				return nil
-			}
+			return nil
 		}(),
 		Read: func() *string {
-			if cfg.Read == "" {
-				return nil
+			if cfg.Read != nil {
+				return cfg.Read
 			}
-			return &cfg.Read
+			return nil
 		}(),
 		Rate: func() *string {
-			if cfg.Rate == "" {
-				return nil
+			if cfg.Rate != nil {
+				return cfg.Rate
 			}
-			return &cfg.Rate
+			return nil
 		}(),
 		EnableSSEStore: true,
 		EnableLogStore: true,
@@ -1801,7 +1605,7 @@ func (s *Service) QuickCreateTunnelAndWait(endpointID int64, rawURL string, name
 		return errors.New("无效的隧道URL")
 	}
 	typer := rawURL[:idx]
-	cfg := parseInstanceURL(rawURL, typer) // 复用 sse 里的同名私有函数，此处复制实现
+	cfg := nodepass.ParseTunnelURL(rawURL)
 
 	// 端口转换
 	tp, _ := strconv.Atoi(cfg.TunnelPort)
@@ -1814,56 +1618,59 @@ func (s *Service) QuickCreateTunnelAndWait(endpointID int64, rawURL string, name
 
 	// 正确处理min和max值，区分未设置和设置为0的情况
 	var minVal, maxVal *int
-	if cfg.Min != "" {
-		if val, err := strconv.Atoi(cfg.Min); err == nil {
-			minVal = &val
-		}
+	if cfg.Min != nil {
+		val := int(*cfg.Min)
+		minVal = &val
 	}
-	if cfg.Max != "" {
-		if val, err := strconv.Atoi(cfg.Max); err == nil {
-			maxVal = &val
-		}
+	if cfg.Max != nil {
+		val := int(*cfg.Max)
+		maxVal = &val
 	}
 
 	// 处理新字段
 	var modeVal *TunnelMode
-	if cfg.Mode != "" {
-		switch cfg.Mode {
-		case "0":
-			mode := models.Mode0
-			modeVal = &mode
-		case "1":
-			mode := models.Mode1
-			modeVal = &mode
-		case "2":
-			mode := models.Mode2
-			modeVal = &mode
-		}
+	if cfg.Mode != nil {
+		modeVal = (*TunnelMode)(cfg.Mode)
 	}
 
 	var readVal *string
-	if cfg.Read != "" {
-		readVal = &cfg.Read
+	if cfg.Read != nil {
+		readVal = cfg.Read
 	}
 
 	var rateVal *string
-	if cfg.Rate != "" {
-		rateVal = &cfg.Rate
+	if cfg.Rate != nil {
+		rateVal = cfg.Rate
 	}
 
 	req := CreateTunnelRequest{
-		Name:           finalName,
-		EndpointID:     endpointID,
-		Type:           typer,
-		TunnelAddress:  cfg.TunnelAddress,
-		TunnelPort:     tp,
-		TargetAddress:  cfg.TargetAddress,
-		TargetPort:     sp,
-		TLSMode:        TLSMode(cfg.TLSMode),
-		CertPath:       cfg.CertPath,
-		KeyPath:        cfg.KeyPath,
-		LogLevel:       LogLevel(cfg.LogLevel),
-		Password:       cfg.Password,
+		Name:          finalName,
+		EndpointID:    endpointID,
+		Type:          typer,
+		TunnelAddress: cfg.TunnelAddress,
+		TunnelPort:    tp,
+		TargetAddress: cfg.TargetAddress,
+		TargetPort:    sp,
+		TLSMode:       TLSMode(cfg.TLSMode),
+		CertPath: func() string {
+			if cfg.CertPath != nil {
+				return *cfg.CertPath
+			}
+			return ""
+		}(),
+		KeyPath: func() string {
+			if cfg.KeyPath != nil {
+				return *cfg.KeyPath
+			}
+			return ""
+		}(),
+		LogLevel: LogLevel(cfg.LogLevel),
+		Password: func() string {
+			if cfg.Password != nil {
+				return *cfg.Password
+			}
+			return ""
+		}(),
 		Min:            minVal,
 		Max:            maxVal,
 		Mode:           modeVal,
@@ -1956,8 +1763,8 @@ func (s *Service) BatchCreateTunnels(req BatchCreateTunnelRequest) (*BatchCreate
 			TunnelPort:    item.InboundsPort,
 			TargetAddress: item.OutboundHost,
 			TargetPort:    item.OutboundPort,
-			TLSMode:       TLSModeInherit, // 使用默认TLS设置
-			LogLevel:      LogLevelInfo,   // 使用Info日志级别
+			TLSMode:       "",           // 空字符串表示不设置（inherit）
+			LogLevel:      LogLevelInfo, // 使用Info日志级别
 		}
 
 		// 调用等待模式创建方法
@@ -2215,7 +2022,7 @@ func (s *Service) NewBatchCreateTunnels(req NewBatchCreateRequest) (*NewBatchCre
 			TunnelPort:    item.TunnelPort,
 			TargetAddress: item.TargetHost,
 			TargetPort:    item.TargetPort,
-			TLSMode:       TLSModeInherit, // 使用默认TLS设置
+			TLSMode:       "", // 空字符串表示不设置（inherit）
 			LogLevel:      logLevel,
 		}
 

@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"io"
 	"net/http"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -1088,230 +1087,113 @@ func (h *EndpointHandler) HandleRecycleClearAll(w http.ResponseWriter, r *http.R
 // refreshTunnels 同步指定端点的隧道信息
 func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 	log.Infof("[API] 刷新端点 %v 的隧道信息", endpointID)
+
 	// 获取端点信息
 	ep, err := h.endpointService.GetEndpointByID(endpointID)
 	if err != nil {
-		return err
+		log.Errorf("[API] 获取端点信息失败: %v", err)
+		return fmt.Errorf("获取端点信息失败: %v", err)
 	}
 
 	// 创建 NodePass 客户端并获取实例列表
 	npClient := nodepass.NewClient(ep.URL, ep.APIPath, ep.APIKey, nil)
 	instances, err := npClient.GetInstances()
 	if err != nil {
-		return err
+		log.Errorf("[API] 获取实例列表失败: %v", err)
+		return fmt.Errorf("获取实例列表失败: %v", err)
 	}
 
 	db := h.endpointService.DB()
+	if db == nil {
+		return fmt.Errorf("数据库连接不可用")
+	}
 
 	// 记录 NodePass 实例 ID，便于后续删除不存在的隧道
 	instanceIDSet := make(map[string]struct{})
 
-	return db.Transaction(func(tx *gorm.DB) error {
-
-		// Upsert
+	// 使用事务执行
+	err = db.Transaction(func(tx *gorm.DB) error {
+		// Upsert 操作
 		for _, inst := range instances {
 			if inst.Type == "" {
 				continue
 			}
 			instanceIDSet[inst.ID] = struct{}{}
 
-			parsed := parseInstanceURL(inst.URL, inst.Type)
+			parsed := nodepass.ParseTunnelURL(inst.URL)
+			if parsed == nil {
+				log.Warnf("[API] 端点 %d 更新：无法解析隧道URL: %s", endpointID, inst.URL)
+				continue
+			}
 
-			convPort := func(p string) int {
-				v, _ := strconv.Atoi(p)
-				return v
-			}
-			convInt := func(s string) interface{} {
-				if s == "" {
-					return nil
-				}
-				v, _ := strconv.Atoi(s)
-				return v
-			}
+			// 设置必要的字段
+			parsed.EndpointID = endpointID
+			parsed.InstanceID = &inst.ID
+			parsed.Status = models.TunnelStatus(inst.Status)
+			parsed.TCPRx = inst.TCPRx
+			parsed.TCPTx = inst.TCPTx
+			parsed.UDPRx = inst.UDPRx
+			parsed.UDPTx = inst.UDPTx
+			parsed.Restart = &inst.Restart
+			parsed.CommandLine = inst.URL
+			parsed.UpdatedAt = time.Now()
 
 			// 检查隧道是否存在
 			var tunnel models.Tunnel
-			err := tx.Where("instance_id = ?", inst.ID).First(&tunnel).Error
+			err := tx.Where("instance_id = ? AND endpoint_id = ?", inst.ID, endpointID).First(&tunnel).Error
 			if err != nil && err != gorm.ErrRecordNotFound {
-				return err
+				return fmt.Errorf("查询隧道失败: %v", err)
 			}
 
 			if err == gorm.ErrRecordNotFound {
-				// 插入新隧道 - 如果有 alias 则使用 alias，否则使用自动生成的名称
+				// 插入新隧道
 				name := fmt.Sprintf("auto-%s", inst.ID)
 				if inst.Alias != "" {
 					name = inst.Alias
 					log.Infof("[API] 端点 %d 更新：使用别名作为隧道名称: %s -> %s", endpointID, inst.ID, name)
 				}
+				parsed.Name = name
 
-				// 处理新字段的默认值
-				enableSSEStore := true
-				enableLogStore := true
-
-				// 处理Mode字段的类型转换
-				var modePtr *models.TunnelMode
-				if parsed.Mode != "" {
-					switch parsed.Mode {
-					case "0":
-						mode := models.Mode0
-						modePtr = &mode
-					case "1":
-						mode := models.Mode1
-						modePtr = &mode
-					case "2":
-						mode := models.Mode2
-						modePtr = &mode
-					}
-				}
-
-				// 创建新隧道记录
-				newTunnel := models.Tunnel{
-					InstanceID:    &inst.ID,
-					Name:          name,
-					EndpointID:    endpointID,
-					Type:          models.TunnelType(inst.Type),
-					TunnelAddress: parsed.TunnelAddress,
-					TunnelPort:    fmt.Sprintf("%d", convPort(parsed.TunnelPort)),
-					TargetAddress: parsed.TargetAddress,
-					TargetPort:    fmt.Sprintf("%d", convPort(parsed.TargetPort)),
-					TLSMode:       models.TLSMode(parsed.TLSMode),
-					LogLevel:      models.LogLevel(parsed.LogLevel),
-					CommandLine:   inst.URL,
-					Status:        models.TunnelStatus(inst.Status),
-					TCPRx:         inst.TCPRx,
-					TCPTx:         inst.TCPTx,
-					UDPRx:         inst.UDPRx,
-					UDPTx:         inst.UDPTx,
-					Restart:       &inst.Restart,
-					Mode:          modePtr, // 新增：运行模式
-					Read: func() *string { // 新增：数据读取超时时间
-						if parsed.Read != "" {
-							return &parsed.Read
-						}
-						return nil
-					}(),
-					Rate: func() *string { // 新增：带宽速率限制
-						if parsed.Rate != "" {
-							return &parsed.Rate
-						}
-						return nil
-					}(),
-					EnableSSEStore: enableSSEStore, // 新增：是否启用SSE存储
-					EnableLogStore: enableLogStore, // 新增：是否启用日志存储
-				}
-
-				// 处理可选字段
-				if parsed.CertPath != "" {
-					newTunnel.CertPath = &parsed.CertPath
-				}
-				if parsed.KeyPath != "" {
-					newTunnel.KeyPath = &parsed.KeyPath
-				}
-				if parsed.Password != "" {
-					newTunnel.Password = &parsed.Password
-				}
-				if minVal := convInt(parsed.Min); minVal != nil {
-					if minInt64, ok := minVal.(int64); ok {
-						newTunnel.Min = &minInt64
-					}
-				}
-				if maxVal := convInt(parsed.Max); maxVal != nil {
-					if maxInt64, ok := maxVal.(int64); ok {
-						newTunnel.Max = &maxInt64
-					}
-				}
-
-				err = tx.Create(&newTunnel).Error
+				err = tx.Create(parsed).Error
 				if err != nil {
-					return err
+					return fmt.Errorf("创建隧道失败: %v", err)
 				}
 				log.Infof("[API] 端点 %d 更新：插入新隧道 %v", endpointID, inst.ID)
 			} else {
-				// 更新已有隧道 - 如果有 alias 则更新 name，同时更新 restart 字段
+				// 更新已有隧道
 				var nameParam interface{}
-
 				if inst.Alias != "" {
 					nameParam = inst.Alias
 					log.Infof("[API] 端点 %d 更新：使用别名更新隧道名称: %s -> %s", endpointID, inst.ID, inst.Alias)
-				} else {
-					nameParam = nil
-				}
-
-				// 处理新字段的更新值
-				var modeVal interface{}
-				if parsed.Mode != "" {
-					switch parsed.Mode {
-					case "0":
-						modeVal = models.Mode0
-					case "1":
-						modeVal = models.Mode1
-					case "2":
-						modeVal = models.Mode2
-					default:
-						modeVal = nil
-					}
-				} else {
-					modeVal = nil
 				}
 
 				// 准备更新数据
 				updateData := map[string]interface{}{
-					"mode":           models.TunnelType(inst.Type),
-					"tunnel_address": parsed.TunnelAddress,
-					"tunnel_port":    fmt.Sprintf("%d", convPort(parsed.TunnelPort)),
-					"target_address": parsed.TargetAddress,
-					"target_port":    fmt.Sprintf("%d", convPort(parsed.TargetPort)),
-					"tls_mode":       models.TLSMode(parsed.TLSMode),
-					"log_level":      models.LogLevel(parsed.LogLevel),
-					"command_line":   inst.URL,
-					"status":         models.TunnelStatus(inst.Status),
-					"tcp_rx":         inst.TCPRx,
-					"tcp_tx":         inst.TCPTx,
-					"udp_rx":         inst.UDPRx,
-					"udp_tx":         inst.UDPTx,
-					"restart":        inst.Restart,
-					"tunnel_mode":    modeVal, // 新增：运行模式（使用不同的键名避免冲突）
-					"read": func() interface{} { // 新增：数据读取超时时间
-						if parsed.Read != "" {
-							return parsed.Read
-						}
-						return nil
-					}(),
-					"rate": func() interface{} { // 新增：带宽速率限制
-						if parsed.Rate != "" {
-							return parsed.Rate
-						}
-						return nil
-					}(),
-					"enable_sse_store": true, // 新增：是否启用SSE存储
-					"enable_log_store": true, // 新增：是否启用日志存储
-				}
-
-				// 处理可选字段
-				if parsed.CertPath != "" {
-					updateData["cert_path"] = parsed.CertPath
-				} else {
-					updateData["cert_path"] = nil
-				}
-				if parsed.KeyPath != "" {
-					updateData["key_path"] = parsed.KeyPath
-				} else {
-					updateData["key_path"] = nil
-				}
-				if parsed.Password != "" {
-					updateData["password"] = parsed.Password
-				} else {
-					updateData["password"] = nil
-				}
-				if minVal := convInt(parsed.Min); minVal != nil {
-					updateData["min"] = minVal
-				} else {
-					updateData["min"] = nil
-				}
-				if maxVal := convInt(parsed.Max); maxVal != nil {
-					updateData["max"] = maxVal
-				} else {
-					updateData["max"] = nil
+					"type":             parsed.Type,
+					"tunnel_address":   parsed.TunnelAddress,
+					"tunnel_port":      parsed.TunnelPort,
+					"target_address":   parsed.TargetAddress,
+					"target_port":      parsed.TargetPort,
+					"tls_mode":         parsed.TLSMode,
+					"log_level":        parsed.LogLevel,
+					"command_line":     inst.URL,
+					"status":           models.TunnelStatus(inst.Status),
+					"tcp_rx":           inst.TCPRx,
+					"tcp_tx":           inst.TCPTx,
+					"udp_rx":           inst.UDPRx,
+					"udp_tx":           inst.UDPTx,
+					"restart":          inst.Restart,
+					"mode":             parsed.Mode,
+					"read":             parsed.Read,
+					"rate":             parsed.Rate,
+					"cert_path":        parsed.CertPath,
+					"key_path":         parsed.KeyPath,
+					"password":         parsed.Password,
+					"min":              parsed.Min,
+					"max":              parsed.Max,
+					"enable_sse_store": true,
+					"enable_log_store": true,
+					"updated_at":       time.Now(),
 				}
 
 				// 如果有别名，则更新名称
@@ -1320,10 +1202,8 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 				}
 
 				err = tx.Model(&models.Tunnel{}).Where("id = ?", tunnel.ID).Updates(updateData).Error
-
 				if err != nil {
-					tx.Rollback()
-					return err
+					return fmt.Errorf("更新隧道失败: %v", err)
 				}
 				log.Infof("[API] 端点 %d 更新：更新隧道信息 %v", endpointID, inst.ID)
 			}
@@ -1333,7 +1213,7 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 		var existingTunnels []models.Tunnel
 		err = tx.Select("id, instance_id").Where("endpoint_id = ?", endpointID).Find(&existingTunnels).Error
 		if err != nil {
-			return err
+			return fmt.Errorf("查询现有隧道失败: %v", err)
 		}
 
 		for _, tunnel := range existingTunnels {
@@ -1341,14 +1221,13 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 				if _, ok := instanceIDSet[*tunnel.InstanceID]; !ok {
 					err = tx.Delete(&models.Tunnel{}, tunnel.ID).Error
 					if err != nil {
-						return err
+						return fmt.Errorf("删除隧道失败: %v", err)
 					}
 					log.Infof("[API] 端点 %d 更新：删除隧道 %v", endpointID, tunnel.ID)
 				}
 			}
 		}
 
-		// 移除同步隧道计数更新，改为异步处理避免死锁
 		log.Infof("[API] 端点 %d 更新：将异步更新隧道数量", endpointID)
 		return nil
 	})
@@ -1363,198 +1242,6 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 	}
 
 	return err
-}
-
-// parseInstanceURL 解析隧道 URL，逻辑与 tunnel 包保持一致（简化复制）
-func parseInstanceURL(raw, mode string) struct {
-	TunnelAddress string
-	TunnelPort    string
-	TargetAddress string
-	TargetPort    string
-	TLSMode       string
-	LogLevel      string
-	CertPath      string
-	KeyPath       string
-	Password      string
-	Min           string
-	Max           string
-	Mode          string
-	Read          string
-	Rate          string
-} {
-	type parsedURL struct {
-		TunnelAddress string
-		TunnelPort    string
-		TargetAddress string
-		TargetPort    string
-		TLSMode       string
-		LogLevel      string
-		CertPath      string
-		KeyPath       string
-		Password      string
-		Min           string
-		Max           string
-		Mode          string
-		Read          string
-		Rate          string
-	}
-
-	res := parsedURL{TLSMode: "inherit", LogLevel: "inherit", Password: ""}
-
-	if raw == "" {
-		return res
-	}
-
-	// 去协议
-	if idx := strings.Index(raw, "://"); idx != -1 {
-		raw = raw[idx+3:]
-	}
-
-	// 分离用户认证信息 (password@)
-	if atIdx := strings.Index(raw, "@"); atIdx != -1 {
-		res.Password = raw[:atIdx]
-		raw = raw[atIdx+1:]
-	}
-
-	// query 部分
-	var query string
-	if qIdx := strings.Index(raw, "?"); qIdx != -1 {
-		query = raw[qIdx+1:]
-		raw = raw[:qIdx]
-	}
-
-	// host 与 path
-	var hostPart, pathPart string
-	if pIdx := strings.Index(raw, "/"); pIdx != -1 {
-		hostPart = raw[:pIdx]
-		pathPart = raw[pIdx+1:]
-	} else {
-		hostPart = raw
-	}
-
-	// 内部帮助函数: 解析地址与端口, 支持 IPv6 字面量如 [2001:db8::1]:8080
-	parsePart := func(part string) (addr string, port string) {
-		part = strings.TrimSpace(part)
-		if part == "" {
-			return "", ""
-		}
-
-		// 处理方括号包围的IPv6地址格式：[IPv6]:port
-		if strings.HasPrefix(part, "[") {
-			if end := strings.Index(part, "]"); end != -1 {
-				addr = part[:end+1] // 连同 ']' 一并保留，方便后续直接展示
-				// 判断是否包含端口
-				if len(part) > end+1 && part[end+1] == ':' {
-					port = part[end+2:]
-				}
-				return
-			}
-		}
-
-		// 检查是否包含冒号
-		if strings.Contains(part, ":") {
-			// 判断是否为IPv6地址（包含多个冒号或双冒号）
-			colonCount := strings.Count(part, ":")
-			if colonCount > 1 || strings.Contains(part, "::") {
-				// 可能是IPv6地址，尝试从右侧找最后一个冒号作为端口分隔符
-				lastColonIdx := strings.LastIndex(part, ":")
-				// 检查最后一个冒号后面是否为纯数字（端口号）
-				if lastColonIdx != -1 && lastColonIdx < len(part)-1 {
-					potentialPort := part[lastColonIdx+1:]
-					if portNum, err := strconv.Atoi(potentialPort); err == nil && portNum > 0 && portNum <= 65535 {
-						// 最后部分是有效的端口号
-						addr = part[:lastColonIdx]
-						port = potentialPort
-						return
-					}
-				}
-				// 没有找到有效端口，整个部分都是地址
-				addr = part
-				return
-			} else {
-				// 只有一个冒号，按照传统方式分割
-				pieces := strings.SplitN(part, ":", 2)
-				addr = pieces[0]
-				port = pieces[1]
-			}
-		} else {
-			// 仅端口或仅地址
-			if _, err := strconv.Atoi(part); err == nil {
-				port = part
-			} else {
-				addr = part
-			}
-		}
-		return
-	}
-
-	// 解析 hostPart -> tunnelAddress:tunnelPort (兼容 IPv6)
-	if hostPart != "" {
-		addr, port := parsePart(hostPart)
-		res.TunnelAddress = addr
-		res.TunnelPort = port
-	}
-
-	// 解析 pathPart -> targetAddress:targetPort (兼容 IPv6)
-	if pathPart != "" {
-		addr, port := parsePart(pathPart)
-		res.TargetAddress = addr
-		res.TargetPort = port
-	}
-
-	if query != "" {
-		for _, kv := range strings.Split(query, "&") {
-			if kv == "" {
-				continue
-			}
-			parts := strings.SplitN(kv, "=", 2)
-			if len(parts) != 2 {
-				continue
-			}
-			key, val := parts[0], parts[1]
-			switch key {
-			case "tls":
-				if mode == "server" {
-					switch val {
-					case "0":
-						res.TLSMode = "0"
-					case "1":
-						res.TLSMode = "1"
-					case "2":
-						res.TLSMode = "2"
-					}
-				}
-			case "log":
-				res.LogLevel = strings.ToLower(val)
-			case "crt":
-				// URL解码证书路径
-				if decodedVal, err := url.QueryUnescape(val); err == nil {
-					res.CertPath = decodedVal
-				} else {
-					res.CertPath = val // 解码失败时使用原值
-				}
-			case "key":
-				// URL解码密钥路径
-				if decodedVal, err := url.QueryUnescape(val); err == nil {
-					res.KeyPath = decodedVal
-				} else {
-					res.KeyPath = val // 解码失败时使用原值
-				}
-			case "min":
-				res.Min = val
-			case "max":
-				res.Max = val
-			case "mode":
-				res.Mode = val
-			case "read":
-				res.Read = val
-			case "rate":
-				res.Rate = val
-			}
-		}
-	}
-
-	return res
 }
 
 // testEndpointConnection 测试端点连接是否可用

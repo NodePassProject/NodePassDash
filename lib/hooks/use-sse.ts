@@ -7,61 +7,7 @@ interface SSEOptions {
   onConnected?: () => void;
 }
 
-// 全局事件订阅 - 用于监听所有系统事件（包括隧道更新、仪表盘更新等）
-export function useGlobalSSE(options: SSEOptions = {}) {
-  const eventSourceRef = useRef<EventSource | null>(null);
-  const isMountedRef = useRef(true);
 
-  // 使用 useCallback 包装回调函数，避免不必要的重新创建
-  const onMessage = useCallback(options.onMessage || (() => {}), [options.onMessage]);
-  const onError = useCallback(options.onError || (() => {}), [options.onError]);
-  const onConnected = useCallback(options.onConnected || (() => {}), [options.onConnected]);
-
-  useEffect(() => {
-    isMountedRef.current = true;
-    const url = buildApiUrl('/api/sse/global');
-
-    const eventSource = new EventSource(url);
-    eventSourceRef.current = eventSource;
-    
-    eventSource.onmessage = (event) => {
-      if (!isMountedRef.current) return;
-      
-      try {
-        const data = JSON.parse(event.data);
-        
-        // 检查连接成功消息
-        if (data.type === 'connected') {
-          onConnected();
-          return;
-        }
-        
-        onMessage(data);
-      } catch (error) {
-        if (isMountedRef.current) {
-          console.error('[前端SSE] ❌ 解析全局SSE数据失败', error, '原始数据:', event.data);
-        }
-      }
-    };
-    
-    eventSource.onerror = (error) => {
-      if (isMountedRef.current) {
-        console.error(`[前端SSE] SSE连接错误`, error);
-        onError(error);
-      }
-    };
-
-    return () => {
-      isMountedRef.current = false;
-      if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
-      }
-    };
-  }, [onMessage, onError, onConnected]);
-
-  return eventSourceRef.current;
-}
 
 // 隧道事件订阅 - 用于监听特定隧道的事件
 export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {

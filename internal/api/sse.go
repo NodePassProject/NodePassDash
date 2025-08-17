@@ -10,7 +10,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
-	"strconv"
 	"strings"
 	"time"
 
@@ -32,39 +31,6 @@ func NewSSEHandler(sseService *sse.Service, sseManager *sse.Manager) *SSEHandler
 		sseService: sseService,
 		sseManager: sseManager,
 	}
-}
-
-// HandleGlobalSSE 处理全局SSE连接
-func (h *SSEHandler) HandleGlobalSSE(w http.ResponseWriter, r *http.Request) {
-	// 设置SSE响应头
-	w.Header().Set("Content-Type", "text/event-stream; charset=utf-8")
-	w.Header().Set("Cache-Control", "no-cache, no-store, must-revalidate")
-	w.Header().Set("Pragma", "no-cache")
-	w.Header().Set("Expires", "0")
-	w.Header().Set("Connection", "keep-alive")
-	w.Header().Set("Access-Control-Allow-Origin", "*")
-	w.Header().Set("Access-Control-Allow-Headers", "Cache-Control")
-	w.Header().Set("X-Accel-Buffering", "no") // 禁用nginx缓冲
-
-	// 生成客户端ID
-	clientID := uuid.New().String()
-
-	// 发送连接成功消息（使用标准SSE格式）
-	w.Write([]byte("data: " + `{"type":"connected","message":"连接成功"}` + "\n\n"))
-	if f, ok := w.(http.Flusher); ok {
-		f.Flush()
-	}
-
-	// log.Infof("前端建立全局SSE连接,clientID=%s remote=%s", clientID, r.RemoteAddr)
-
-	// 添加客户端
-	h.sseService.AddClient(clientID, w)
-	defer h.sseService.RemoveClient(clientID)
-
-	// 保持连接直到客户端断开
-	<-r.Context().Done()
-
-	// log.Infof("全局SSE连接关闭,clientID=%s remote=%s", clientID, r.RemoteAddr)
 }
 
 // HandleTunnelSSE 处理隧道SSE连接
@@ -191,55 +157,6 @@ func (h *SSEHandler) HandleTestSSEEndpoint(w http.ResponseWriter, r *http.Reques
 	json.NewEncoder(w).Encode(res)
 }
 
-// HandleSSEStatus 查看SSE连接状态
-func (h *SSEHandler) HandleSSEStatus(w http.ResponseWriter, r *http.Request) {
-	// 仅允许 GET
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method Not Allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// 设置响应头
-	w.Header().Set("Content-Type", "application/json")
-
-	// 获取连接状态
-	connectionStatus := h.sseManager.GetConnectionStatus()
-
-	// 构建响应
-	response := map[string]interface{}{
-		"success":     true,
-		"message":     "SSE连接状态查询成功",
-		"connections": connectionStatus,
-		"summary": map[string]interface{}{
-			"total_connections": len(connectionStatus),
-			"connected_count": func() int {
-				count := 0
-				for _, status := range connectionStatus {
-					if connected, ok := status["connected"].(bool); ok && connected {
-						count++
-					}
-				}
-				return count
-			}(),
-			"manually_disconnected_count": func() int {
-				count := 0
-				for _, status := range connectionStatus {
-					if manuallyDisconnected, ok := status["manually_disconnected"].(bool); ok && manuallyDisconnected {
-						count++
-					}
-				}
-				return count
-			}(),
-		},
-	}
-
-	// 返回JSON响应
-	if err := json.NewEncoder(w).Encode(response); err != nil {
-		h.loggerError(w, "序列化响应失败", err)
-		return
-	}
-}
-
 // writeError 写 JSON 错误响应
 func (h *SSEHandler) writeError(w http.ResponseWriter, msg string) {
 	w.WriteHeader(http.StatusInternalServerError)
@@ -263,7 +180,7 @@ func (h *SSEHandler) HandleLogCleanupStats(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	stats := h.sseService.GetLogCleanupStats()
+	stats := h.sseService.GetFileLogger().GetLogCleanupStats()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -288,7 +205,7 @@ func (h *SSEHandler) HandleLogCleanupConfig(w http.ResponseWriter, r *http.Reque
 
 // getLogCleanupConfig 获取当前日志清理配置
 func (h *SSEHandler) getLogCleanupConfig(w http.ResponseWriter, r *http.Request) {
-	stats := h.sseService.GetLogCleanupStats()
+	stats := h.sseService.GetFileLogger().GetLogCleanupStats()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -321,7 +238,7 @@ func (h *SSEHandler) updateLogCleanupConfig(w http.ResponseWriter, r *http.Reque
 	}
 
 	// 获取当前配置
-	currentStats := h.sseService.GetLogCleanupStats()
+	currentStats := h.sseService.GetFileLogger().GetLogCleanupStats()
 
 	// 设置默认值（如果没有提供则使用当前值）
 	retentionDays := 7 // 默认值
@@ -405,7 +322,7 @@ func (h *SSEHandler) updateLogCleanupConfig(w http.ResponseWriter, r *http.Reque
 	}
 
 	// 更新配置
-	h.sseService.SetLogCleanupConfig(retentionDays, cleanupInterval, maxRecordsPerDay, cleanupEnabled)
+	h.sseService.GetFileLogger().SetLogCleanupConfig(retentionDays, cleanupInterval, maxRecordsPerDay, cleanupEnabled)
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
@@ -428,44 +345,13 @@ func (h *SSEHandler) HandleTriggerLogCleanup(w http.ResponseWriter, r *http.Requ
 		return
 	}
 
-	// 在后台异步执行清理，避免阻塞请求
-	go h.sseService.TriggerLogCleanup()
+	// 触发日志清理
+	h.sseService.GetFileLogger().TriggerManualCleanup()
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(map[string]interface{}{
 		"success": true,
 		"message": "日志清理任务已启动，将在后台执行",
-	})
-}
-
-// HandleLogCleanupHistory 获取日志清理历史
-// GET /api/sse/log-cleanup/history?limit=10
-func (h *SSEHandler) HandleLogCleanupHistory(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// 解析limit参数
-	limit := 10
-	if l := r.URL.Query().Get("limit"); l != "" {
-		if v, err := strconv.Atoi(l); err == nil && v > 0 && v <= 100 {
-			limit = v
-		}
-	}
-
-	// 这里可以从数据库查询清理历史记录
-	// 暂时返回当前统计信息
-	stats := h.sseService.GetLogCleanupStats()
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"data": map[string]interface{}{
-			"currentStats": stats,
-			"history":      []interface{}{}, // 预留给未来实现
-			"limit":        limit,
-		},
 	})
 }
 
@@ -624,28 +510,4 @@ func (h *SSEHandler) HandleNodePassSSEProxy(w http.ResponseWriter, r *http.Reque
 	}
 
 	log.Infof("[NodePass SSE Proxy] 连接结束")
-}
-
-// HandleGetQueueStatus 获取队列状态信息
-// GET /api/sse/queue-status
-func (h *SSEHandler) HandleGetQueueStatus(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// 获取SSE服务的性能统计
-	performanceStats := h.sseService.GetPerformanceStats()
-
-	// 构建队列状态响应
-	queueStatus := map[string]interface{}{
-		"timestamp":   time.Now().Format(time.RFC3339),
-		"sse_service": performanceStats,
-	}
-
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
-		"success": true,
-		"data":    queueStatus,
-	})
 }
