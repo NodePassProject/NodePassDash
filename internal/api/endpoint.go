@@ -1524,32 +1524,64 @@ func (h *EndpointHandler) HandleEndpointFileLogs(w http.ResponseWriter, r *http.
 
 	// 获取查询参数
 	instanceID := r.URL.Query().Get("instanceId")
-	daysStr := r.URL.Query().Get("days")
+	dateStr := r.URL.Query().Get("date") // 改为date参数
 	if instanceID == "" {
 		http.Error(w, "Missing instanceId parameter", http.StatusBadRequest)
 		return
 	}
 
-	days := 7 // 默认查询最近7天
-	if daysStr != "" {
-		if d, err := strconv.Atoi(daysStr); err == nil && d > 0 && d <= 30 {
-			days = d
+	// 解析日期参数，格式为 YYYY-MM-DD
+	var targetDate time.Time
+	if dateStr != "" {
+		var parseErr error
+		targetDate, parseErr = time.Parse("2006-01-02", dateStr)
+		if parseErr != nil {
+			http.Error(w, "Invalid date format, expected YYYY-MM-DD", http.StatusBadRequest)
+			return
 		}
+	} else {
+		// 如果没有指定日期，默认使用今天
+		targetDate = time.Now()
 	}
 
-	// 从文件日志管理器读取日志（最多1000条）
-	logs, err := h.sseManager.GetFileLogger().ReadRecentLogs(endpointID, instanceID, days, 1000)
+	// 从文件日志管理器读取指定日期的日志
+	logs, err := h.sseManager.GetFileLogger().ReadLogs(endpointID, instanceID, targetDate, 1000)
 	if err != nil {
 		log.Warnf("[API]读取文件日志失败: %v", err)
 		http.Error(w, "Failed to read file logs", http.StatusInternalServerError)
 		return
 	}
 
+	// 转换为LogEntry格式以保持兼容性
+	var logEntries []log.LogEntry
+	for _, logLine := range logs {
+		if logLine != "" {
+			// 尝试解析日志行中的时间戳
+			var timestamp time.Time
+			if len(logLine) > 20 && logLine[0] == '[' {
+				timeStr := logLine[1:20]
+				if parsedTime, err := time.Parse("2006-01-02 15:04:05", timeStr); err == nil {
+					timestamp = parsedTime
+				} else {
+					timestamp = targetDate // 如果解析失败，使用目标日期
+				}
+			} else {
+				timestamp = targetDate // 如果没有时间戳，使用目标日期
+			}
+
+			logEntries = append(logEntries, log.LogEntry{
+				Timestamp: timestamp,
+				Content:   logLine,
+				FilePath:  fmt.Sprintf("%s.log", targetDate.Format("2006-01-02")),
+			})
+		}
+	}
+
 	response := map[string]interface{}{
 		"success":   true,
-		"logs":      logs,
+		"logs":      logEntries,
 		"storage":   "file",
-		"days":      days,
+		"date":      targetDate.Format("2006-01-02"),
 		"timestamp": time.Now(),
 	}
 
@@ -1726,4 +1758,43 @@ func updateEndpointTunnelCount(endpointID int64) {
 	} else {
 		log.Debugf("[API]端点 %d 隧道计数已更新", endpointID)
 	}
+}
+
+// HandleGetAvailableLogDates 获取指定端点和实例的可用日志日期列表
+func (h *EndpointHandler) HandleGetAvailableLogDates(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	vars := mux.Vars(r)
+	endpointID, err := strconv.ParseInt(vars["id"], 10, 64)
+	if err != nil {
+		http.Error(w, "Invalid endpoint ID", http.StatusBadRequest)
+		return
+	}
+
+	// 获取查询参数
+	instanceID := r.URL.Query().Get("instanceId")
+	if instanceID == "" {
+		http.Error(w, "Missing instanceId parameter", http.StatusBadRequest)
+		return
+	}
+
+	// 从文件日志管理器获取可用的日志日期
+	dates, err := h.sseManager.GetFileLogger().GetAvailableLogDates(endpointID, instanceID)
+	if err != nil {
+		log.Warnf("[API]获取可用日志日期失败: %v", err)
+		http.Error(w, "Failed to get available log dates", http.StatusInternalServerError)
+		return
+	}
+
+	response := map[string]interface{}{
+		"success": true,
+		"dates":   dates,
+		"count":   len(dates),
+	}
+
+	w.Header().Set("Content-Type", "application/json")
+	json.NewEncoder(w).Encode(response)
 }

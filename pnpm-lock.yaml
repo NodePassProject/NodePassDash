@@ -35,6 +35,9 @@ importers:
       '@iconify/react':
         specifier: ^6.0.0
         version: 6.0.0(react@18.3.1)
+      '@internationalized/date':
+        specifier: ^3.8.2
+        version: 3.8.2
       '@monaco-editor/react':
         specifier: ^4.7.0
         version: 4.7.0(monaco-editor@0.52.2)(react-dom@18.3.1(react@18.3.1))(react@18.3.1)
@@ -6061,7 +6064,7 @@ snapshots:
 
   '@react-aria/i18n@3.12.8(react-dom@18.3.1(react@18.3.1))(react@18.3.1)':
     dependencies:
-      '@internationalized/date': 3.8.0
+      '@internationalized/date': 3.8.2
       '@internationalized/message': 3.1.8
       '@internationalized/number': 3.6.3
       '@internationalized/string': 3.2.7
@@ -6741,7 +6744,7 @@ snapshots:
 
   '@react-types/datepicker@3.12.0(react@18.3.1)':
     dependencies:
-      '@internationalized/date': 3.8.0
+      '@internationalized/date': 3.8.2
       '@react-types/calendar': 3.7.2(react@18.3.1)
       '@react-types/overlays': 3.8.16(react@18.3.1)
       '@react-types/shared': 3.29.0(react@18.3.1)

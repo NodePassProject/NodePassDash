@@ -27,6 +27,7 @@ import {
   PopoverContent,
   Spinner,
   Input,
+  DatePicker,
 } from "@heroui/react";
 import { Snippet } from "@/components/ui/snippet";
 import React, { useEffect } from "react";
@@ -67,6 +68,7 @@ import { useSearchParams } from "next/navigation";
 import { FileLogViewer } from "@/components/ui/file-log-viewer";
 import { useTunnelSSE } from "@/lib/hooks/use-sse";
 import { useMetricsTrend } from "@/lib/hooks/use-metrics-trend";
+import {parseDate, getLocalTimeZone} from "@internationalized/date";
 
 interface TunnelInfo {
   id: string;
@@ -347,10 +349,10 @@ export default function TunnelDetailPage({
   const [isUpdatingRestart, setIsUpdatingRestart] = React.useState(false);
 
   // 文件日志相关状态
-  const [logDays, setLogDays] = React.useState<string>("1");
+  const [logDate, setLogDate] = React.useState<string>(""); // 改为logDate
+  const [availableLogDates, setAvailableLogDates] = React.useState<string[]>([]); // 新增：可用日志日期列表
   const [logLoading, setLogLoading] = React.useState(false);
   const [logClearing, setLogClearing] = React.useState(false);
-  const [logCount, setLogCount] = React.useState(0);
   const [logRefreshTrigger, setLogRefreshTrigger] = React.useState(0);
   const [clearPopoverOpen, setClearPopoverOpen] = React.useState(false);
   const [exportLoading, setExportLoading] = React.useState(false);
@@ -765,10 +767,49 @@ export default function TunnelDetailPage({
     udp_out_rates: [],
   });
 
+  // 获取可用的日志日期列表
+  const fetchAvailableLogDates = React.useCallback(async () => {
+    if (!tunnelInfo?.endpointId || !tunnelInfo?.instanceId) return;
+    
+    try {
+      const response = await fetch(
+        `/api/endpoints/${tunnelInfo.endpointId}/file-logs/dates?instanceId=${tunnelInfo.instanceId}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('获取可用日志日期失败');
+      }
+      
+      const data = await response.json();
+      
+      if (data.success && Array.isArray(data.dates)) {
+        setAvailableLogDates(data.dates);
+        
+        // 如果没有选中日期，则默认选择最新的可用日期
+        if (!logDate && data.dates.length > 0) {
+          const latestDate = data.dates[0]; // 日期已经按最新排序
+          setLogDate(latestDate);
+        }
+      } else {
+        setAvailableLogDates([]);
+      }
+    } catch (error) {
+      console.error('获取可用日志日期失败:', error);
+      setAvailableLogDates([]);
+    }
+  }, [tunnelInfo?.endpointId, tunnelInfo?.instanceId, logDate]);
+
   // 初始加载数据
   React.useEffect(() => {
     fetchTunnelDetails();
   }, [fetchTunnelDetails]);
+
+  // 当隧道信息加载完成后，获取可用的日志日期
+  React.useEffect(() => {
+    if (tunnelInfo?.endpointId && tunnelInfo?.instanceId) {
+      fetchAvailableLogDates();
+    }
+  }, [tunnelInfo?.endpointId, tunnelInfo?.instanceId, fetchAvailableLogDates]);
 
   // 组件卸载时清理全局变量引用和useRef数据
   React.useEffect(() => {
@@ -2121,32 +2162,37 @@ export default function TunnelDetailPage({
             <div className="flex items-center gap-3">
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-semibold">日志</h3>
-
-                <Chip variant="flat" color="primary" size="sm">
-                  {logCount} 条记录
-                </Chip>
+                {/* <Chip variant="flat" color="primary" size="sm">
+                  {logCount} 条记录 {logDate ? `(${logDate})` : ''}
+                </Chip> */}
               </div>
             </div>
             <div className="flex items-center gap-2">
-              {/* 天数选择 */}
-              <Select
+              {/* 日期选择 */}
+              <DatePicker
                 size="sm"
-                placeholder="选择天数"
-                selectedKeys={[logDays]}
-                onSelectionChange={(keys) => {
-                  const selected = Array.from(keys)[0] as string;
-                  if (selected) setLogDays(selected);
+                className="w-40"
+                isDisabled={availableLogDates.length === 0}
+                value={logDate ? parseDate(logDate) : null}
+                onChange={(date) => {
+                  if (date) {
+                    const newDate = date.toString();
+                    setLogDate(newDate);
+                    // 触发日志刷新以获取新日期的日志内容
+                    setLogRefreshTrigger(prev => prev + 1);
+                  }
                 }}
-                className="w-20"
-                classNames={{
-                  trigger: "min-h-unit-8 h-8",
-                  value: "text-xs",
+                isDateUnavailable={(date) => {
+                  // 如果availableLogDates为空，则禁用所有日期
+                  if (availableLogDates.length === 0) return true;
+                  
+                  // 只允许选择可用日期列表中的日期
+                  const dateString = date.toString();
+                  return !availableLogDates.includes(dateString);
                 }}
-              >
-                <SelectItem key="1">1天</SelectItem>
-                <SelectItem key="3">3天</SelectItem>
-                <SelectItem key="7">7天</SelectItem>
-              </Select>
+                showMonthAndYearPickers
+                granularity="day"
+              />
 
               {/* 刷新按钮 */}
               <Tooltip content="刷新日志" placement="top">
@@ -2208,7 +2254,6 @@ export default function TunnelDetailPage({
                     color="danger"
                     isIconOnly
                     isLoading={logClearing}
-                    isDisabled={logCount === 0}
                     className="h-8 w-8 min-w-0"
                   >
                     <FontAwesomeIcon icon={faTrash} className="text-xs" />
@@ -2252,9 +2297,8 @@ export default function TunnelDetailPage({
             <FileLogViewer
               endpointId={tunnelInfo?.endpointId || ""}
               instanceId={tunnelInfo?.instanceId || ""}
-              days={logDays}
-              onDaysChange={setLogDays}
-              onLogsChange={(logs) => setLogCount(logs.length)}
+              date={logDate}
+              onDateChange={setLogDate}
               onLoadingChange={setLogLoading}
               onClearingChange={setLogClearing}
               triggerRefresh={logRefreshTrigger}

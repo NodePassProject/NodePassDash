@@ -15,7 +15,7 @@ interface FileLogEntry {
 
 interface FileLogViewerProps {
   endpointId: string;
-  instanceId: string;
+  instanceId: string
   className?: string;
   onClearLogs?: () => void;
   // 新增：外部控制接口
@@ -23,8 +23,8 @@ interface FileLogViewerProps {
   onLoadingChange?: (loading: boolean) => void;
   onClearingChange?: (clearing: boolean) => void;
   // 外部控制的状态
-  days?: string;
-  onDaysChange?: (days: string) => void;
+  date?: string; // 改为date参数
+  onDateChange?: (date: string) => void; // 改为onDateChange
   triggerRefresh?: number; // 通过改变这个值来触发刷新
 }
 
@@ -36,18 +36,55 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
   onLogsChange,
   onLoadingChange,
   onClearingChange,
-  days: externalDays,
-  onDaysChange,
+  date: externalDate,
+  onDateChange,
   triggerRefresh
 }) => {
   const [logs, setLogs] = useState<FileLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
-  const [internalDays, setInternalDays] = useState<string>("7");
+  const [internalDate, setInternalDate] = useState<string>(""); // 改为空字符串，等待获取可用日期
   const [clearing, setClearing] = useState(false);
+  const [availableDates, setAvailableDates] = useState<string[]>([]); // 新增：可用日期列表
+  const [loadingDates, setLoadingDates] = useState(false); // 新增：加载日期状态
   const logContainerRef = useRef<HTMLDivElement>(null);
 
-  // 使用外部控制的days或内部state
-  const days = externalDays !== undefined ? externalDays : internalDays;
+  // 使用外部控制的date或内部state
+  const date = externalDate !== undefined ? externalDate : internalDate;
+
+  // 获取可用的日志日期列表
+  const fetchAvailableDates = useCallback(async () => {
+    if (!endpointId || !instanceId) return;
+    
+    setLoadingDates(true);
+    try {
+      const response = await fetch(
+        `/api/endpoints/${endpointId}/file-logs/dates?instanceId=${instanceId}`
+      );
+      
+      if (!response.ok) {
+        throw new Error('获取可用日志日期失败');
+      }
+      
+      const data = await response.json();
+      
+      if (data.success && Array.isArray(data.dates)) {
+        setAvailableDates(data.dates);
+        
+        // 如果没有外部控制的日期，且内部日期为空，则设置默认日期为最新的可用日期
+        if (externalDate === undefined && internalDate === "" && data.dates.length > 0) {
+          const latestDate = data.dates[0]; // 日期已经按最新排序
+          setInternalDate(latestDate);
+        }
+      } else {
+        setAvailableDates([]);
+      }
+    } catch (error) {
+      console.error('获取可用日志日期失败:', error);
+      setAvailableDates([]);
+    } finally {
+      setLoadingDates(false);
+    }
+  }, [endpointId, instanceId, externalDate, internalDate]);
 
   // 滚动到底部
   const scrollToBottom = useCallback(() => {
@@ -67,14 +104,14 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
 
   // 获取文件日志
   const fetchFileLogs = useCallback(async () => {
-    if (!endpointId || !instanceId) return;
+    if (!endpointId || !instanceId || !date) return; // 添加date检查
     
     setLoading(true);
     onLoadingChangeRef.current?.(true);
     
     try {
       const response = await fetch(
-        `/api/endpoints/${endpointId}/file-logs?instanceId=${instanceId}&days=${days}`
+        `/api/endpoints/${endpointId}/file-logs?instanceId=${instanceId}&date=${date}`
       );
       
       if (!response.ok) {
@@ -105,7 +142,7 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
       setLoading(false);
       onLoadingChangeRef.current?.(false);
     }
-  }, [endpointId, instanceId, days, scrollToBottom]);
+  }, [endpointId, instanceId, date, scrollToBottom]);
 
   // 稳定化清空日志的回调函数
   const onClearingChangeRef = useRef(onClearingChange);
@@ -118,7 +155,7 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
 
   // 清空日志
   const handleClearLogs = useCallback(async () => {
-    if (!endpointId || !instanceId || clearing) return;
+    if (!endpointId || !instanceId) return;
     
     setClearing(true);
     onClearingChangeRef.current?.(true);
@@ -133,23 +170,18 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
         throw new Error('清空日志失败');
       }
       
-      const data = await response.json();
+      // 清空本地日志
+      setLogs([]);
+      onLogsChangeRef.current?.([]);
       
-      if (data.success) {
-        setLogs([]);
-        onLogsChangeRef.current?.([]);
-        addToast({
-          title: "清空成功",
-          description: data.message || "文件日志已清空",
-          color: "success",
-        });
-        
-        if (onClearLogsRef.current) {
-          onClearLogsRef.current();
-        }
-      } else {
-        throw new Error(data.message || '清空失败');
-      }
+      // 调用外部清空回调
+      onClearLogsRef.current?.();
+      
+      addToast({
+        title: "清空成功",
+        description: "日志已清空",
+        color: "success",
+      });
     } catch (error) {
       console.error('清空日志失败:', error);
       addToast({
@@ -161,21 +193,26 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
       setClearing(false);
       onClearingChangeRef.current?.(false);
     }
-  }, [endpointId, instanceId, clearing]);
+  }, [endpointId, instanceId]);
 
-  // 暴露刷新和清空方法给外部使用 - 通过回调函数方式
-
-  // 初始加载和依赖变化时重新加载
+  // 初始加载：获取可用日期
   useEffect(() => {
-    fetchFileLogs();
-  }, [endpointId, instanceId, days]); // 直接依赖关键参数，避免fetchFileLogs循环
+    fetchAvailableDates();
+  }, [fetchAvailableDates]);
+
+  // 当有可用日期且有选中日期时，获取日志
+  useEffect(() => {
+    if (date && availableDates.length > 0) {
+      fetchFileLogs();
+    }
+  }, [date, availableDates, fetchFileLogs]);
 
   // 响应外部触发的刷新
   useEffect(() => {
-    if (triggerRefresh !== undefined && triggerRefresh > 0) {
+    if (triggerRefresh && triggerRefresh > 0) {
       fetchFileLogs();
     }
-  }, [triggerRefresh]); // 移除fetchFileLogs依赖，避免循环
+  }, [triggerRefresh, fetchFileLogs]);
 
   // 日志变化时自动滚动到底部
   useEffect(() => {
@@ -188,16 +225,17 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
   const appendLog = useCallback((logContent: string) => {
     if (!logContent) return;
     
-    // 创建新的日志条目
-    const newLogEntry: FileLogEntry = {
+    // 将content按\n分割，为每一行创建独立的日志条目
+    const lines = logContent.split('\n').filter(line => line.length > 0);
+    const newLogEntries: FileLogEntry[] = lines.map((line, index) => ({
       timestamp: new Date().toISOString(),
-      content: logContent,
+      content: line,
       filePath: 'live' // 标记为实时日志
-    };
+    }));
     
     // 追加到现有日志列表
     setLogs(prevLogs => {
-      const updatedLogs = [...prevLogs, newLogEntry];
+      const updatedLogs = [...prevLogs, ...newLogEntries];
       onLogsChangeRef.current?.(updatedLogs);
       return updatedLogs;
     });
@@ -207,20 +245,21 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
   }, [scrollToBottom]);
 
   // 暴露方法给外部组件
-  React.useEffect(() => {
+  useEffect(() => {
     // 将方法挂载到组件实例上，供外部调用
     const component = { 
       refresh: fetchFileLogs, 
       clear: handleClearLogs,
       scrollToBottom: scrollToBottom,
-      appendLog: appendLog
+      appendLog: appendLog,
+      getAvailableDates: fetchAvailableDates // 新增：获取可用日期的方法
     };
     (window as any).fileLogViewerRef = component;
     
     return () => {
       delete (window as any).fileLogViewerRef;
     };
-  }, [fetchFileLogs, handleClearLogs, scrollToBottom, appendLog]);
+  }, [fetchFileLogs, handleClearLogs, scrollToBottom, appendLog, fetchAvailableDates]);
 
   return (
     <div className={className}>
@@ -235,20 +274,24 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
           </div>
         ) : logs.length === 0 ? (
           <div className="text-gray-400">
-            暂无日志记录 (最近{days}天)
+            暂无日志记录 {date ? `(${date})` : ''}
           </div>
         ) : (
           <div className="space-y-1">
-            {logs.map((log, index) => (
-              <div key={index} className="text-gray-300 leading-5">
-                <span 
-                  className="break-all" 
-                  dangerouslySetInnerHTML={{ 
-                    __html: processAnsiColors(log.content) 
-                  }}
-                />
-              </div>
-            ))}
+            {logs.map((log, index) => {
+              // 将content按\n分割成多行，然后逐行显示
+              const lines = log.content.split('\n').filter(line => line.length > 0);
+              return lines.map((line, lineIndex) => (
+                <div key={`${index}-${lineIndex}`} className="text-gray-300 leading-5">
+                  <span 
+                    className="break-all" 
+                    dangerouslySetInnerHTML={{ 
+                      __html: processAnsiColors(line) 
+                    }}
+                  />
+                </div>
+              ));
+            }).flat()}
           </div>
         )}
       </div>

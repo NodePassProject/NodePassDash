@@ -6,6 +6,7 @@ import (
 	"io"
 	"os"
 	"path/filepath"
+	"sort"
 	"strings"
 	"sync"
 	"time"
@@ -88,8 +89,9 @@ func (fl *FileLogger) WriteLog(endpointID int64, instanceID, logContent string) 
 	}
 
 	// 写入日志（带时间戳）
-	timestamp := now.Format("2006-01-02 15:04:05")
-	logLine := fmt.Sprintf("[%s] %s\n", timestamp, logContent)
+	logLine := fmt.Sprintf("%s\n", logContent)
+	// timestamp := now.Format("2006-01-02 15:04:05")
+	// logLine := fmt.Sprintf("[%s] %s\n", timestamp, logContent)
 
 	fl.mu.Lock()
 	_, err = file.WriteString(logLine)
@@ -529,4 +531,48 @@ func (fl *FileLogger) SetLogCleanupConfig(retentionDays int, cleanupInterval tim
 func (fl *FileLogger) TriggerManualCleanup() {
 	Infof("手动触发日志清理")
 	fl.cleanupOldLogsAdvanced()
+}
+
+// GetAvailableLogDates 获取指定端点和实例的可用日志日期列表
+func (fl *FileLogger) GetAvailableLogDates(endpointID int64, instanceID string) ([]string, error) {
+	instanceDir := filepath.Join(fl.baseDir, fmt.Sprintf("endpoint_%d", endpointID), instanceID)
+
+	// 检查实例目录是否存在
+	if _, err := os.Stat(instanceDir); os.IsNotExist(err) {
+		return []string{}, nil // 目录不存在，返回空列表
+	}
+
+	var dates []string
+
+	// 遍历实例目录下的所有.log文件
+	err := filepath.Walk(instanceDir, func(path string, info os.FileInfo, err error) error {
+		if err != nil {
+			return nil // 忽略错误，继续处理其他文件
+		}
+
+		// 只处理.log文件
+		if !info.IsDir() && filepath.Ext(path) == ".log" {
+			// 从文件名提取日期 (格式: YYYY-MM-DD.log)
+			fileName := filepath.Base(path)
+			if len(fileName) >= 11 && strings.HasSuffix(fileName, ".log") {
+				dateStr := fileName[:10] // 提取 YYYY-MM-DD 部分
+				// 验证日期格式
+				if _, err := time.Parse("2006-01-02", dateStr); err == nil {
+					dates = append(dates, dateStr)
+				}
+			}
+		}
+		return nil
+	})
+
+	if err != nil {
+		return nil, fmt.Errorf("扫描日志文件失败: %v", err)
+	}
+
+	// 按日期排序（最新的在前）
+	sort.Slice(dates, func(i, j int) bool {
+		return dates[i] > dates[j]
+	})
+
+	return dates, nil
 }

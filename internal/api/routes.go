@@ -128,6 +128,7 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/endpoints/{id}/info", r.endpointHandler.HandleGetEndpointInfo).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{id}/file-logs", r.endpointHandler.HandleEndpointFileLogs).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{id}/file-logs/clear", r.endpointHandler.HandleClearEndpointFileLogs).Methods("DELETE")
+	r.router.HandleFunc("/api/endpoints/{id}/file-logs/dates", r.endpointHandler.HandleGetAvailableLogDates).Methods("GET")
 	r.router.HandleFunc("/api/endpoints/{id}/stats", r.endpointHandler.HandleEndpointStats).Methods("GET")
 
 	// 全局回收站
