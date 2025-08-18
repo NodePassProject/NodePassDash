@@ -36,3 +36,9 @@ const (
 	ConfigKeyAdminUsername = "admin_username"
 	ConfigKeyAdminPassword = "admin_password_hash"
 )
+
+// 默认账号密码常量
+const (
+	DefaultAdminUsername = "nodepass"
+	DefaultAdminPassword = "Np123456"
+)

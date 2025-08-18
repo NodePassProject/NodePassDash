@@ -127,6 +127,25 @@ func (s *Service) IsSystemInitialized() bool {
 	return value == "true"
 }
 
+// IsDefaultCredentials 检查当前账号密码是否是默认的
+func (s *Service) IsDefaultCredentials() bool {
+	storedUsername, _ := s.GetSystemConfig(ConfigKeyAdminUsername)
+	storedPasswordHash, _ := s.GetSystemConfig(ConfigKeyAdminPassword)
+
+	fmt.Printf("🔍 检查默认凭据: username=%s (expected=%s), hasHash=%v\n",
+		storedUsername, DefaultAdminUsername, storedPasswordHash != "")
+
+	if storedUsername != DefaultAdminUsername {
+		fmt.Printf("🔍 用户名不匹配，非默认凭据\n")
+		return false
+	}
+
+	// 验证密码是否是默认密码
+	isDefaultPassword := s.VerifyPassword(DefaultAdminPassword, storedPasswordHash)
+	fmt.Printf("🔍 密码验证结果: %v\n", isDefaultPassword)
+	return isDefaultPassword
+}
+
 // AuthenticateUser 用户登录验证
 func (s *Service) AuthenticateUser(username, password string) bool {
 	storedUsername, _ := s.GetSystemConfig(ConfigKeyAdminUsername)
@@ -277,8 +296,8 @@ func (s *Service) InitializeSystem() (string, string, error) {
 		return "", "", errors.New("系统已初始化")
 	}
 
-	username := "nodepass"
-	password := generateRandomPassword(12)
+	username := DefaultAdminUsername
+	password := DefaultAdminPassword
 
 	passwordHash, err := s.HashPassword(password)
 	if err != nil {
@@ -366,6 +385,11 @@ func (s *Service) ChangePassword(username, currentPassword, newPassword string) 
 		return false, "当前密码不正确"
 	}
 
+	// 验证新密码不能与默认密码相同
+	if newPassword == DefaultAdminPassword {
+		return false, "新密码不能与默认密码相同，请设置一个安全的密码"
+	}
+
 	// 加密新密码
 	hash, err := s.HashPassword(newPassword)
 	if err != nil {
@@ -389,6 +413,8 @@ func (s *Service) ChangeUsername(currentUsername, newUsername string) (bool, str
 		return false, "当前用户名不正确"
 	}
 
+	// 允许设置任何用户名，包括默认用户名
+
 	// 更新系统配置中的用户名
 	if err := s.SetSystemConfig(ConfigKeyAdminUsername, newUsername); err != nil {
 		return false, "更新用户名失败"
@@ -410,6 +436,56 @@ func (s *Service) ChangeUsername(currentUsername, newUsername string) (bool, str
 	// 使所有现有 Session 失效
 	s.invalidateAllSessions()
 	return true, "用户名修改成功"
+}
+
+// UpdateSecurity 同时修改用户名和密码
+func (s *Service) UpdateSecurity(currentUsername, currentPassword, newUsername, newPassword string) (bool, string) {
+	// 验证当前用户身份
+	if !s.AuthenticateUser(currentUsername, currentPassword) {
+		return false, "当前密码不正确"
+	}
+
+	// 验证新密码不能与默认密码相同
+	if newPassword == DefaultAdminPassword {
+		return false, "新密码不能与默认密码相同，请设置一个安全的密码"
+	}
+
+	// 允许设置任何用户名，包括默认用户名
+
+	// 加密新密码
+	hash, err := s.HashPassword(newPassword)
+	if err != nil {
+		return false, "密码加密失败"
+	}
+
+	// 更新用户名
+	if err := s.SetSystemConfig(ConfigKeyAdminUsername, newUsername); err != nil {
+		return false, "更新用户名失败"
+	}
+
+	// 更新密码
+	if err := s.SetSystemConfig(ConfigKeyAdminPassword, hash); err != nil {
+		// 如果密码更新失败，回滚用户名
+		s.SetSystemConfig(ConfigKeyAdminUsername, currentUsername)
+		return false, "更新密码失败"
+	}
+
+	// 更新数据库中的会话记录
+	s.db.Model(&models.UserSession{}).Where("username = ?", currentUsername).Update("username", newUsername)
+
+	// 更新缓存中的会话
+	sessionCache.Range(func(key, value interface{}) bool {
+		sess := value.(Session)
+		if sess.Username == currentUsername {
+			sess.Username = newUsername
+			sessionCache.Store(key, sess)
+		}
+		return true
+	})
+
+	// 使所有现有 Session 失效
+	s.invalidateAllSessions()
+	return true, "账号信息修改成功"
 }
 
 // ResetAdminPassword 重置管理员密码并返回新密码

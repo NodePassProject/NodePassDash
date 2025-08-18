@@ -102,11 +102,19 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 		SameSite: http.SameSiteLaxMode,
 	})
 
+	// 检查是否是默认账号密码
+	isDefaultCredentials := h.authService.IsDefaultCredentials()
+
+	// 调试日志
+	fmt.Printf("🔍 登录成功，检查默认凭据状态: %v\n", isDefaultCredentials)
+
 	// 返回成功响应
-	json.NewEncoder(w).Encode(auth.LoginResponse{
-		Success: true,
-		Message: "登录成功",
-	})
+	response := map[string]interface{}{
+		"success":              true,
+		"message":              "登录成功",
+		"isDefaultCredentials": isDefaultCredentials,
+	}
+	json.NewEncoder(w).Encode(response)
 }
 
 // HandleLogout 处理登出请求
@@ -237,6 +245,13 @@ type UsernameChangeRequest struct {
 	NewUsername string `json:"newUsername"`
 }
 
+// SecurityUpdateRequest 安全设置更新请求体（用户名+密码）
+type SecurityUpdateRequest struct {
+	CurrentPassword string `json:"currentPassword"`
+	NewUsername     string `json:"newUsername"`
+	NewPassword     string `json:"newPassword"`
+}
+
 // HandleChangePassword 修改密码
 func (h *AuthHandler) HandleChangePassword(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodPost {
@@ -329,6 +344,57 @@ func (h *AuthHandler) HandleChangeUsername(w http.ResponseWriter, r *http.Reques
 	}
 
 	ok2, msg := h.authService.ChangeUsername(sess.Username, req.NewUsername)
+	if !ok2 {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "message": msg})
+		return
+	}
+
+	json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "message": msg})
+}
+
+// HandleUpdateSecurity 同时修改用户名和密码
+func (h *AuthHandler) HandleUpdateSecurity(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodPost {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 获取 session cookie
+	cookie, err := r.Cookie("session")
+	if err != nil {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "message": "未登录"})
+		return
+	}
+
+	if !h.authService.ValidateSession(cookie.Value) {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "message": "会话无效"})
+		return
+	}
+
+	sess, ok := h.authService.GetSession(cookie.Value)
+	if !ok {
+		w.WriteHeader(http.StatusUnauthorized)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "message": "会话无效"})
+		return
+	}
+
+	var req SecurityUpdateRequest
+	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "message": "无效请求体"})
+		return
+	}
+
+	if req.CurrentPassword == "" || req.NewUsername == "" || req.NewPassword == "" {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "message": "缺少必填字段"})
+		return
+	}
+
+	ok2, msg := h.authService.UpdateSecurity(sess.Username, req.CurrentPassword, req.NewUsername, req.NewPassword)
 	if !ok2 {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "message": msg})

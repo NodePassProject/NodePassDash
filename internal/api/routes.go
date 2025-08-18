@@ -106,6 +106,7 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/auth/init", r.authHandler.HandleInitSystem).Methods("POST")
 	r.router.HandleFunc("/api/auth/change-password", r.authHandler.HandleChangePassword).Methods("POST")
 	r.router.HandleFunc("/api/auth/change-username", r.authHandler.HandleChangeUsername).Methods("POST")
+	r.router.HandleFunc("/api/auth/update-security", r.authHandler.HandleUpdateSecurity).Methods("POST")
 	r.router.HandleFunc("/api/auth/oauth2", r.authHandler.HandleOAuth2Provider).Methods("GET")
 
 	// OAuth2 回调

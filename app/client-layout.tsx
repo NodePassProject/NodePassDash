@@ -11,7 +11,8 @@ import { Footer } from "@/components/layout/footer";
 export function ClientLayout({ children }: { children: React.ReactNode }) {
   const pathname = usePathname();
   const isSimpleLayout = pathname === '/login' || pathname === '/login/' || 
-                        pathname === '/oauth-error' || pathname === '/oauth-error/';
+                        pathname === '/oauth-error' || pathname === '/oauth-error/' ||
+                        pathname === '/setup-guide' || pathname === '/setup-guide/';
 
   return (
     <AuthProvider>

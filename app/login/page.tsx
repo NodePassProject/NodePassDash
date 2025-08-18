@@ -114,8 +114,22 @@ export default function LoginPage() {
           localStorage.setItem('nodepass.user', JSON.stringify(loginUser));
         }
         
-        console.log('🚀 重定向到仪表盘');
-        router.push('/dashboard');
+        // 检查是否是默认账号密码，如果是则跳转到引导页面
+        console.log('🔍 检查默认凭据状态', { 
+          isDefaultCredentials: result.isDefaultCredentials,
+          type: typeof result.isDefaultCredentials 
+        });
+        
+        if (result.isDefaultCredentials === true) {
+          console.log('🔧 检测到默认凭据，重定向到安全设置引导页');
+          console.log('🔍 开始跳转到 /setup-guide');
+          
+          // 直接使用 window.location 进行跳转，避免与路由守卫冲突
+          window.location.href = '/setup-guide';
+        } else {
+          console.log('🚀 重定向到仪表盘');
+          router.push('/dashboard');
+        }
       } else {
         console.error('❌ 登录失败', result);
         setError(result.error || '登录失败');

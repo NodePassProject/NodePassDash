@@ -15,7 +15,7 @@ interface RouteGuardProps {
 // 公开路由列表（不需要身份验证）
 // 由于 next.config.js 中设置了 `trailingSlash: true`，导出后路径可能变成 `/login/`
 // 为兼容两种情况，统一在比较前去除末尾斜杠，再进行匹配
-const RAW_PUBLIC_ROUTES = ['/login', '/oauth-error'];
+const RAW_PUBLIC_ROUTES = ['/login', '/oauth-error', '/setup-guide'];
 
 /**
  * 规范化路径，去除末尾斜杠（根路径 `/` 除外）
@@ -44,10 +44,12 @@ export function RouteGuard({ children }: RouteGuardProps) {
       const isPublicRoute = PUBLIC_ROUTES.includes(normalizePath(pathname));
       
       console.log('🛡️ RouteGuard 路由检查', {
+        pathname,
         isPublicRoute,
         hasUser: !!user,
+        isSetupGuide: pathname === '/setup-guide',
         action: !user && !isPublicRoute ? '重定向到登录页' :
-               user && isPublicRoute ? '重定向到仪表盘' : '无需重定向'
+               user && isPublicRoute && pathname !== '/setup-guide' ? '重定向到仪表盘' : '无需重定向'
       });
       
       // 添加小延迟，避免与其他导航操作冲突
@@ -56,8 +58,9 @@ export function RouteGuard({ children }: RouteGuardProps) {
           // 用户未登录且访问私有路由，重定向到登录页
           console.log('🔒 执行重定向：用户未登录，前往登录页');
           router.replace('/login');
-        } else if (user && isPublicRoute) {
+        } else if (user && isPublicRoute && pathname !== '/setup-guide') {
           // 用户已登录但访问公开路由（如登录页），重定向到仪表盘
+          // 但是允许已登录用户访问引导页面
           console.log('👤 执行重定向：用户已登录，前往仪表盘');
           router.replace('/dashboard');
         }
@@ -83,7 +86,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
 
   // 检查是否应该显示内容
   const isPublicRoute = PUBLIC_ROUTES.includes(normalizePath(pathname));
-  const shouldShowContent = (user && !isPublicRoute) || (!user && isPublicRoute);
+  const shouldShowContent = (user && !isPublicRoute) || (!user && isPublicRoute) || (user && pathname === '/setup-guide');
 
   if (!shouldShowContent) {
     // 正在重定向中，显示加载状态
