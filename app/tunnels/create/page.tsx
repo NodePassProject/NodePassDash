@@ -151,6 +151,7 @@ export default function CreateTunnelPage() {
     password: "",
     min: "",
     max: "",
+    slot: "", // 最大连接数限制
     // 新增字段
     mode: "0", // 服务端/客户端模式：服务端默认0，客户端默认1
     read: "", // 数据读取超时
@@ -288,6 +289,7 @@ export default function CreateTunnelPage() {
             if (formData.type === 'server' && formData.max !== '') return formData.max;
             return undefined;
           })(),
+          slot: formData.slot ? formData.slot : undefined,
           // 新增字段
           mode: formData.mode || undefined, // 修复：使用正确的字段名
           read: (() => {
@@ -332,14 +334,13 @@ export default function CreateTunnelPage() {
 
       <div className="flex items-center gap-3 md:gap-4">
         <Button
-            isIconOnly
-            variant="flat"
-            size="sm"
-            onClick={() => router.back()}
-            className="bg-default-100 hover:bg-default-200 dark:bg-default-100/10 dark:hover:bg-default-100/20"
-          >
-            <FontAwesomeIcon icon={faArrowLeft} />
-        </Button>
+              isIconOnly
+              variant="flat"
+              onClick={() => router.back()}
+              className="bg-default-100 hover:bg-default-200 "
+            >
+              <FontAwesomeIcon icon={faArrowLeft} />
+          </Button>
         <h1 className="text-2xl font-bold">创建实例</h1>
       </div>
 
@@ -807,13 +808,19 @@ export default function CreateTunnelPage() {
         <CardBody className="p-6 space-y-6">
           {/* 连接池配置 */}
           {formData.type === 'server' ? (
-            // 服务端模式：三个input框并排
-            <div className="grid grid-cols-3 gap-4">
+            // 服务端模式：四个input框并排
+            <div className="grid grid-cols-4 gap-4">
               <Input 
                 label="连接池最大容量(可选)" 
                 value={formData.max} 
                 onChange={(e) => handleInputChange('max', e.target.value)} 
                 placeholder="1024(默认值)"
+              />
+              <Input 
+                label="最大连接数限制(可选)" 
+                value={formData.slot} 
+                onChange={(e) => handleInputChange('slot', e.target.value)} 
+                placeholder="100"
               />
               <Input 
                 label="数据读取超时(可选)" 
@@ -848,13 +855,19 @@ export default function CreateTunnelPage() {
           ) : (
             // 客户端模式
             formData.mode === '1' ? (
-              // 模式1：三个input框并排（最小容量、数据读取超时、速率限制）
-              <div className="grid grid-cols-3 gap-4">
+              // 模式1：四个input框并排（最小容量、最大连接数、数据读取超时、速率限制）
+              <div className="grid grid-cols-4 gap-4">
                 <Input 
                   label="连接池最小容量(可选)" 
                   value={formData.min} 
                   onChange={(e) => handleInputChange('min', e.target.value)} 
                   placeholder="64(默认值)"
+                />
+                <Input 
+                  label="最大连接数限制(可选)" 
+                  value={formData.slot} 
+                  onChange={(e) => handleInputChange('slot', e.target.value)} 
+                  placeholder="100"
                 />
                 <Input 
                   label="数据读取超时(可选)" 
@@ -887,8 +900,14 @@ export default function CreateTunnelPage() {
                 />
               </div>
             ) : (
-              // 模式2：两个input框并排
-              <div className="grid grid-cols-2 gap-4">
+              // 模式2：三个input框并排
+              <div className="grid grid-cols-3 gap-4">
+                <Input 
+                  label="最大连接数限制(可选)" 
+                  value={formData.slot} 
+                  onChange={(e) => handleInputChange('slot', e.target.value)} 
+                  placeholder="100"
+                />
                 <Input 
                   label="数据读取超时(可选)" 
                   value={formData.read} 
@@ -985,6 +1004,9 @@ export default function CreateTunnelPage() {
                 {(formData.type === "client" || formData.type === "server") && formData.max && (
                   <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">连接池最大容量：</span> {formData.max}</p>
                 )}
+                {formData.slot && (
+                  <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">最大连接数限制：</span> {formData.slot}</p>
+                )}
                 {formData.read && (
                   <p><span className="inline-block w-2 h-2 rounded-full bg-success mr-2"></span><span className="font-semibold">数据读取超时：</span> {formData.read}{formData.readUnit}</p>
                 )}
@@ -1035,6 +1057,9 @@ export default function CreateTunnelPage() {
                   }
                   if (formData.max) {
                     params.push(`max=${formData.max}`);
+                  }
+                  if (formData.slot) {
+                    params.push(`slot=${formData.slot}`);
                   }
                   
                   // 添加新增参数

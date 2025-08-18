@@ -94,43 +94,32 @@ export default function LoginPage() {
         headers: {
           'Content-Type': 'application/json',
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify(formData)
       });
-
-      console.log('📡 登录请求响应', { 
-        status: response.status, 
-        ok: response.ok 
-      });
-
-      const result = await response.json();
-      console.log('📋 登录响应数据', result);
 
       if (response.ok) {
+        const result = await response.json();
+        console.log('📋 登录响应数据', result);
+        
         console.log('✅ 登录成功，设置用户状态并持久化');
-        // 登录成功后直接设置用户状态并持久化
+        // 登录成功后设置用户状态并持久化
         const loginUser = { username: formData.username };
         setUserDirectly(loginUser);
         if (typeof window !== 'undefined') {
           localStorage.setItem('nodepass.user', JSON.stringify(loginUser));
         }
         
-        // 检查是否是默认账号密码，如果是则跳转到引导页面
-        console.log('🔍 检查默认凭据状态', { 
-          isDefaultCredentials: result.isDefaultCredentials,
-          type: typeof result.isDefaultCredentials 
-        });
-        
-        if (result.isDefaultCredentials === true) {
-          console.log('🔧 检测到默认凭据，重定向到安全设置引导页');
-          console.log('🔍 开始跳转到 /setup-guide');
-          
-          // 直接使用 window.location 进行跳转，避免与路由守卫冲突
-          window.location.href = '/setup-guide';
-        } else {
-          console.log('🚀 重定向到仪表盘');
-          router.push('/dashboard');
+        // 检查是否是默认凭据
+        if (result.isDefaultCredentials) {
+          console.log('🔧 检测到默认凭据，跳转到引导页');
+          router.push('/setup-guide');
+          return;
         }
+        
+        console.log('🚀 重定向到仪表盘');
+        router.push('/dashboard');
       } else {
+        const result = await response.json();
         console.error('❌ 登录失败', result);
         setError(result.error || '登录失败');
       }

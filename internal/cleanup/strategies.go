@@ -1,7 +1,6 @@
 package cleanup
 
 import (
-	"NodePassDash/internal/config"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"context"
@@ -26,7 +25,7 @@ func (s *RealtimeDataCleanupStrategy) Priority() int {
 	return 1
 }
 
-func (s *RealtimeDataCleanupStrategy) Execute(ctx context.Context, db *gorm.DB, config *config.CleanupConfig) (*CleanupResult, error) {
+func (s *RealtimeDataCleanupStrategy) Execute(ctx context.Context, db *gorm.DB, config *CleanupConfig) (*CleanupResult, error) {
 	startTime := time.Now()
 	result := &CleanupResult{
 		StrategyName:   s.Name(),
@@ -94,7 +93,7 @@ func (s *OrphanDataCleanupStrategy) Priority() int {
 	return 2
 }
 
-func (s *OrphanDataCleanupStrategy) Execute(ctx context.Context, db *gorm.DB, config *config.CleanupConfig) (*CleanupResult, error) {
+func (s *OrphanDataCleanupStrategy) Execute(ctx context.Context, db *gorm.DB, config *CleanupConfig) (*CleanupResult, error) {
 	startTime := time.Now()
 	result := &CleanupResult{
 		StrategyName:   s.Name(),
@@ -190,7 +189,7 @@ func (s *TrafficStatsCleanupStrategy) Priority() int {
 	return 3
 }
 
-func (s *TrafficStatsCleanupStrategy) Execute(ctx context.Context, db *gorm.DB, config *config.CleanupConfig) (*CleanupResult, error) {
+func (s *TrafficStatsCleanupStrategy) Execute(ctx context.Context, db *gorm.DB, config *CleanupConfig) (*CleanupResult, error) {
 	startTime := time.Now()
 	result := &CleanupResult{
 		StrategyName:   s.Name(),
@@ -258,7 +257,7 @@ func (s *MonitoringRecordsCleanupStrategy) Priority() int {
 	return 4
 }
 
-func (s *MonitoringRecordsCleanupStrategy) Execute(ctx context.Context, db *gorm.DB, config *config.CleanupConfig) (*CleanupResult, error) {
+func (s *MonitoringRecordsCleanupStrategy) Execute(ctx context.Context, db *gorm.DB, config *CleanupConfig) (*CleanupResult, error) {
 	startTime := time.Now()
 	result := &CleanupResult{
 		StrategyName:   s.Name(),
@@ -329,7 +328,7 @@ func (s *ServiceLogsCleanupStrategy) Priority() int {
 	return 5
 }
 
-func (s *ServiceLogsCleanupStrategy) Execute(ctx context.Context, db *gorm.DB, config *config.CleanupConfig) (*CleanupResult, error) {
+func (s *ServiceLogsCleanupStrategy) Execute(ctx context.Context, db *gorm.DB, config *CleanupConfig) (*CleanupResult, error) {
 	startTime := time.Now()
 	result := &CleanupResult{
 		StrategyName:   s.Name(),
@@ -379,7 +378,7 @@ func (s *DeletedEndpointsCleanupStrategy) Priority() int {
 	return 6
 }
 
-func (s *DeletedEndpointsCleanupStrategy) Execute(ctx context.Context, db *gorm.DB, config *config.CleanupConfig) (*CleanupResult, error) {
+func (s *DeletedEndpointsCleanupStrategy) Execute(ctx context.Context, db *gorm.DB, config *CleanupConfig) (*CleanupResult, error) {
 	startTime := time.Now()
 	result := &CleanupResult{
 		StrategyName:   s.Name(),

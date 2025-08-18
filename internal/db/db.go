@@ -4,6 +4,7 @@ import (
 	applog "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"context"
+	"database/sql"
 	"log"
 	"strings"
 	"sync"
@@ -55,28 +56,31 @@ func GetDB() *gorm.DB {
 			},
 		}
 
-		// 连接数据库
-		gormDB, err = gorm.Open(sqlite.Open(dsn), gormConfig)
+		// 连接数据库 - 使用纯Go SQLite驱动 (modernc.org/sqlite)
+		sqlDB, err := sql.Open("sqlite", dsn)
 		if err != nil {
-			log.Fatalf("连接SQLite数据库失败: %v", err)
+			log.Fatalf("打开SQLite数据库失败: %v", err)
 		}
 
-		// 获取底层sql.DB以配置连接池
-		sqlDB, err := gormDB.DB()
-		if err != nil {
-			log.Fatalf("获取sql.DB实例失败: %v", err)
-		}
-
-		// 配置连接池
+		// 配置连接池（必须在创建GORM之前）
 		sqlDB.SetMaxOpenConns(config.MaxOpenConns)
 		sqlDB.SetMaxIdleConns(config.MaxIdleConns)
 		sqlDB.SetConnMaxLifetime(config.MaxLifetime)
 		sqlDB.SetConnMaxIdleTime(config.MaxIdleTime)
 
-		// 测试数据库连接
+		// 测试连接并设置初始PRAGMA
 		if err := sqlDB.Ping(); err != nil {
 			log.Fatalf("数据库连接测试失败: %v", err)
 		}
+
+		gormDB, err = gorm.Open(sqlite.Dialector{
+			Conn: sqlDB,
+		}, gormConfig)
+		if err != nil {
+			log.Fatalf("连接SQLite数据库失败: %v", err)
+		}
+
+		// 连接池已配置，连接已测试
 
 		// 自动迁移数据库表结构
 		if err := AutoMigrate(gormDB); err != nil {
@@ -160,14 +164,12 @@ func QuickInitSchema(db *gorm.DB) error {
 		&models.SystemConfig{},
 		&models.UserSession{},
 		&models.Tag{},
-		&models.TunnelGroup{},
 
 		// 依赖表
 		&models.Tunnel{},
 		&models.TunnelRecycle{},
 		&models.TunnelOperationLog{},
 		&models.EndpointSSE{},
-		&models.TunnelGroupMember{},
 		&models.TunnelTag{},
 
 		// 流量统计表
@@ -188,14 +190,12 @@ func StandardMigrate(db *gorm.DB) error {
 		&models.SystemConfig{},
 		&models.UserSession{},
 		&models.Tag{},
-		&models.TunnelGroup{},
 
 		// 依赖表
 		&models.Tunnel{},
 		&models.TunnelRecycle{},
 		&models.TunnelOperationLog{},
 		&models.EndpointSSE{},
-		&models.TunnelGroupMember{},
 		&models.TunnelTag{},
 
 		// 流量统计表

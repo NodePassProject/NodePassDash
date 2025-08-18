@@ -2,7 +2,6 @@ package scheduler
 
 import (
 	"NodePassDash/internal/cleanup"
-	"NodePassDash/internal/config"
 	log "NodePassDash/internal/log"
 	"context"
 	"fmt"
@@ -15,7 +14,7 @@ import (
 // Scheduler 任务调度器
 type Scheduler struct {
 	db     *gorm.DB
-	config *config.CleanupConfig
+	config *cleanup.CleanupConfig
 
 	// 清理管理器
 	cleanupManager *cleanup.Manager
@@ -80,7 +79,7 @@ const (
 )
 
 // NewScheduler 创建新的调度器
-func NewScheduler(db *gorm.DB, config *config.CleanupConfig) *Scheduler {
+func NewScheduler(db *gorm.DB, config *cleanup.CleanupConfig) *Scheduler {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	s := &Scheduler{

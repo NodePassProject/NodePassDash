@@ -1,7 +1,6 @@
 package cleanup
 
 import (
-	"NodePassDash/internal/config"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"context"
@@ -15,7 +14,7 @@ import (
 // Manager 数据清理管理器
 type Manager struct {
 	db     *gorm.DB
-	config *config.CleanupConfig
+	config *CleanupConfig
 
 	// 上下文控制
 	ctx    context.Context
@@ -54,7 +53,7 @@ type CleanupStats struct {
 // CleanupStrategy 清理策略接口
 type CleanupStrategy interface {
 	Name() string
-	Execute(ctx context.Context, db *gorm.DB, config *config.CleanupConfig) (*CleanupResult, error)
+	Execute(ctx context.Context, db *gorm.DB, config *CleanupConfig) (*CleanupResult, error)
 	Priority() int // 执行优先级，数字越小优先级越高
 }
 
@@ -68,7 +67,7 @@ type CleanupResult struct {
 }
 
 // NewManager 创建清理管理器
-func NewManager(db *gorm.DB, config *config.CleanupConfig) *Manager {
+func NewManager(db *gorm.DB, config *CleanupConfig) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	m := &Manager{

@@ -849,7 +849,7 @@ export default function EndpointsPage() {
       return;
     }
     try {
-      const res = await fetch(buildApiUrl('/api/tunnels/quick'), {
+      const res = await fetch(buildApiUrl('/api/tunnels/create_by_url'), {
         method: 'POST',
         headers: {'Content-Type':'application/json'},
         body: JSON.stringify({endpointId: selectedEndpoint.id, url: tunnelUrl.trim(), name: tunnelName.trim()})

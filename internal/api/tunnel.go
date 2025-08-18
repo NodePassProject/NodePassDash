@@ -139,6 +139,7 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		Password       string          `json:"password"`
 		Min            json.RawMessage `json:"min"`
 		Max            json.RawMessage `json:"max"`
+		Slot           json.RawMessage `json:"slot"`                       // 新增：最大连接数限制
 		Mode           *string         `json:"mode,omitempty"`             // 新增：运行模式 (0, 1, 2)
 		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
 		Rate           *string         `json:"rate,omitempty"`             // 新增：带宽速率限制
@@ -190,25 +191,29 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
-	// 解析min/max字段，区分未设置和设置为0的情况
+	// 解析min/max/slot字段，区分未设置和设置为0的情况
 	minVal, minSet, err3 := parseIntFieldWithFlag(raw.Min)
 	maxVal, maxSet, err4 := parseIntFieldWithFlag(raw.Max)
-	if err3 != nil || err4 != nil {
+	slotVal, slotSet, err5 := parseIntFieldWithFlag(raw.Slot)
+	if err3 != nil || err4 != nil || err5 != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success: false,
-			Error:   "min/max 参数格式错误，应为数字",
+			Error:   "min/max/slot 参数格式错误，应为数字",
 		})
 		return
 	}
 
 	// 根据设置情况决定是否使用指针
-	var minPtr, maxPtr *int
+	var minPtr, maxPtr, slotPtr *int
 	if minSet {
 		minPtr = &minVal
 	}
 	if maxSet {
 		maxPtr = &maxVal
+	}
+	if slotSet {
+		slotPtr = &slotVal
 	}
 
 	// 处理新增字段的默认值
@@ -244,6 +249,7 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		Password:       raw.Password,
 		Min:            minPtr,
 		Max:            maxPtr,
+		Slot:           slotPtr,        // 新增：最大连接数限制
 		Mode:           modePtr,        // 新增：运行模式
 		Read:           raw.Read,       // 新增：数据读取超时时间
 		Rate:           raw.Rate,       // 新增：带宽速率限制
@@ -253,7 +259,7 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 
 	log.Infof("[Master-%v] 创建隧道请求: %v", req.EndpointID, req.Name)
 
-	// 使用等待模式创建隧道，超时时间为 3 秒
+	// 使用直接URL模式创建隧道，超时时间为 3 秒
 	newTunnel, err := h.tunnelService.CreateTunnelAndWait(req, 3*time.Second)
 	if err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -439,13 +445,8 @@ func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Reques
 			}
 		}
 	} else {
-		// 如果不是移入回收站，在删除前先解绑分组关系和清理标签关联
+		// 如果不是移入回收站，清理标签关联
 		if !req.Recycle {
-			if err := h.deleteTunnelFromGroups(tunnelID); err != nil {
-				log.Warnf("[API] 删除隧道分组关系失败: tunnelID=%d, err=%v", tunnelID, err)
-			} else {
-				log.Infof("[API] 已删除隧道分组关系: tunnelID=%d", tunnelID)
-			}
 
 			// 清理隧道标签关联
 			if _, err := h.tunnelService.DB().Exec("DELETE FROM tunnel_tags WHERE tunnel_id = ?", tunnelID); err != nil {
@@ -580,6 +581,7 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 		Password       string          `json:"password"`
 		Min            json.RawMessage `json:"min"`
 		Max            json.RawMessage `json:"max"`
+		Slot           json.RawMessage `json:"slot"`                       // 新增：最大连接数限制
 		Mode           *string         `json:"mode,omitempty"`             // 新增：运行模式
 		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
 		Rate           *string         `json:"rate,omitempty"`             // 新增：带宽速率限制
@@ -635,14 +637,18 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 		targetPort, _, _ := parseIntFieldLocal(rawCreate.TargetPort)
 		minVal, minSet, _ := parseIntFieldLocal(rawCreate.Min)
 		maxVal, maxSet, _ := parseIntFieldLocal(rawCreate.Max)
+		slotVal, slotSet, _ := parseIntFieldLocal(rawCreate.Slot)
 
 		// 根据设置情况决定是否使用指针
-		var minPtr, maxPtr *int
+		var minPtr, maxPtr, slotPtr *int
 		if minSet {
 			minPtr = &minVal
 		}
 		if maxSet {
 			maxPtr = &maxVal
+		}
+		if slotSet {
+			slotPtr = &slotVal
 		}
 
 		// 处理新增字段的默认值
@@ -678,6 +684,7 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 			Password:       rawCreate.Password,
 			Min:            minPtr,
 			Max:            maxPtr,
+			Slot:           slotPtr,        // 新增：最大连接数限制
 			Mode:           modePtr,        // 新增：运行模式
 			Read:           rawCreate.Read, // 新增：数据读取超时时间
 			Rate:           rawCreate.Rate, // 新增：带宽速率限制
@@ -685,7 +692,7 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 			EnableLogStore: enableLogStore, // 新增：是否启用日志存储
 		}
 
-		// 使用等待模式创建新隧道，超时时间为 3 秒
+		// 使用直接URL模式创建新隧道，超时时间为 3 秒
 		newTunnel, err := h.tunnelService.CreateTunnelAndWait(createReq, 3*time.Second)
 		if err != nil {
 			w.WriteHeader(http.StatusBadRequest)
@@ -1482,8 +1489,20 @@ func (h *TunnelHandler) HandleQuickCreateTunnel(w http.ResponseWriter, r *http.R
 		return
 	}
 
-	// 使用等待模式快速创建隧道，超时时间为 3 秒
-	if err := h.tunnelService.QuickCreateTunnelAndWait(req.EndpointID, req.URL, req.Name, 3*time.Second); err != nil {
+	// 使用直接URL模式创建隧道，避免重复解析
+	// 注意：这里仍然做基本验证，但使用新的直接URL方法避免重复解析->组装的过程
+	parsedTunnel := nodepass.ParseTunnelURL(req.URL)
+	if parsedTunnel == nil {
+		w.WriteHeader(http.StatusBadRequest)
+		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			Success: false,
+			Error:   "无效的隧道URL格式",
+		})
+		return
+	}
+
+	// 使用新的直接URL方法，避免重复解析，超时时间为 3 秒
+	if err := h.tunnelService.QuickCreateTunnelDirectURL(req.EndpointID, req.URL, req.Name, 3*time.Second); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
 		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 			Success: false,
@@ -1547,8 +1566,8 @@ func (h *TunnelHandler) HandleQuickBatchCreateTunnel(w http.ResponseWriter, r *h
 	var errorMessages []string
 
 	for i, rule := range req.Rules {
-		// 使用等待模式批量创建隧道，超时时间为 3 秒
-		if err := h.tunnelService.QuickCreateTunnelAndWait(rule.EndpointID, rule.URL, rule.Name, 3*time.Second); err != nil {
+		// 使用直接URL模式批量创建隧道，避免重复解析，超时时间为 3 秒
+		if err := h.tunnelService.QuickCreateTunnelDirectURL(rule.EndpointID, rule.URL, rule.Name, 3*time.Second); err != nil {
 			failCount++
 			errorMessages = append(errorMessages, fmt.Sprintf("第 %d 条规则失败：%s", i+1, err.Error()))
 			log.Errorf("[API] 批量创建隧道失败 - 规则 %d: %v", i+1, err)
@@ -1584,57 +1603,6 @@ func (h *TunnelHandler) getTunnelIDByName(tunnelName string) (int64, error) {
 	var tunnelID int64
 	err := h.tunnelService.DB().QueryRow(`SELECT id FROM tunnels WHERE name = ?`, tunnelName).Scan(&tunnelID)
 	return tunnelID, err
-}
-
-// createTunnelGroup 自动创建隧道分组
-func (h *TunnelHandler) createTunnelGroup(name, groupType, description string, tunnelIDs []int64) error {
-	db := h.tunnelService.DB()
-
-	// 开始事务
-	tx, err := db.Begin()
-	if err != nil {
-		return err
-	}
-	defer tx.Rollback()
-
-	// 插入分组记录
-	insertGroupQuery := `
-		INSERT INTO tunnel_groups (name, description, type, color, created_at, updated_at)
-		VALUES (?, ?, ?, ?, ?, ?)`
-
-	now := time.Now()
-	result, err := tx.Exec(insertGroupQuery, name, description, groupType, "#3B82F6", now, now)
-	if err != nil {
-		return err
-	}
-
-	groupID, err := result.LastInsertId()
-	if err != nil {
-		return err
-	}
-
-	// 添加分组成员
-	if len(tunnelIDs) > 0 {
-		insertMemberQuery := `
-			INSERT INTO tunnel_group_members (group_id, tunnel_id, role, created_at)
-			VALUES (?, ?, ?, ?)`
-
-		for _, tunnelID := range tunnelIDs {
-			_, err := tx.Exec(insertMemberQuery, groupID, strconv.FormatInt(tunnelID, 10), "member", now)
-			if err != nil {
-				return err
-			}
-		}
-	}
-
-	// 提交事务
-	return tx.Commit()
-}
-
-// deleteTunnelFromGroups 从所有分组中删除指定的隧道
-func (h *TunnelHandler) deleteTunnelFromGroups(tunnelID int64) error {
-	_, err := h.tunnelService.DB().Exec(`DELETE FROM tunnel_group_members WHERE tunnel_id = ?`, strconv.FormatInt(tunnelID, 10))
-	return err
 }
 
 // HandleTemplateCreate 处理模板创建请求
@@ -1731,8 +1699,8 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		// 生成隧道名称 - 单端模式使用主控名-single-时间戳
 		tunnelName := fmt.Sprintf("%s-single-%d", endpointName, time.Now().Unix())
 
-		// 使用等待模式创建隧道，超时时间为 3 秒
-		if err := h.tunnelService.QuickCreateTunnelAndWait(req.Inbounds.MasterID, tunnelURL, tunnelName, 3*time.Second); err != nil {
+		// 使用直接URL模式创建隧道，超时时间为 3 秒
+		if err := h.tunnelService.QuickCreateTunnelDirectURL(req.Inbounds.MasterID, tunnelURL, tunnelName, 3*time.Second); err != nil {
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
 				Success: false,
@@ -1878,9 +1846,9 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 
 		log.Infof("[API] 开始创建双端隧道 - 先创建server端，再创建client端")
 
-		// 第一步：创建server端隧道（使用等待模式）
+		// 第一步：创建server端隧道（使用直接URL模式）
 		log.Infof("[API] 步骤1: 在endpoint %d 创建server隧道 %s", serverConfig.MasterID, serverTunnelName)
-		if err := h.tunnelService.QuickCreateTunnelAndWait(serverConfig.MasterID, serverURL, serverTunnelName, 3*time.Second); err != nil {
+		if err := h.tunnelService.QuickCreateTunnelDirectURL(serverConfig.MasterID, serverURL, serverTunnelName, 3*time.Second); err != nil {
 			log.Errorf("[API] 创建server端隧道失败: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
@@ -1891,9 +1859,9 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		}
 		log.Infof("[API] 步骤1完成: server端隧道创建成功")
 
-		// 第二步：创建client端隧道（使用等待模式）
+		// 第二步：创建client端隧道（使用直接URL模式）
 		log.Infof("[API] 步骤2: 在endpoint %d 创建client隧道 %s", clientConfig.MasterID, clientTunnelName)
-		if err := h.tunnelService.QuickCreateTunnelAndWait(clientConfig.MasterID, clientURL, clientTunnelName, 3*time.Second); err != nil {
+		if err := h.tunnelService.QuickCreateTunnelDirectURL(clientConfig.MasterID, clientURL, clientTunnelName, 3*time.Second); err != nil {
 			log.Errorf("[API] 创建client端隧道失败: %v", err)
 			// 如果client端创建失败，可以考虑回滚server端，但这里先简单处理
 			w.WriteHeader(http.StatusBadRequest)
@@ -2050,9 +2018,9 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 
 		log.Infof("[API] 开始创建内网穿透隧道 - 先创建server端，再创建client端")
 
-		// 第一步：创建server端隧道（使用等待模式）
+		// 第一步：创建server端隧道（使用直接URL模式）
 		log.Infof("[API] 步骤1: 在endpoint %d 创建server隧道 %s", serverConfig.MasterID, serverTunnelName)
-		if err := h.tunnelService.QuickCreateTunnelAndWait(serverConfig.MasterID, serverURL, serverTunnelName, 3*time.Second); err != nil {
+		if err := h.tunnelService.QuickCreateTunnelDirectURL(serverConfig.MasterID, serverURL, serverTunnelName, 3*time.Second); err != nil {
 			log.Errorf("[API] 创建server端隧道失败: %v", err)
 			w.WriteHeader(http.StatusBadRequest)
 			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
@@ -2063,9 +2031,9 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		}
 		log.Infof("[API] 步骤1完成: server端隧道创建成功")
 
-		// 第二步：创建client端隧道（使用等待模式）
+		// 第二步：创建client端隧道（使用直接URL模式）
 		log.Infof("[API] 步骤2: 在endpoint %d 创建client隧道 %s", clientConfig.MasterID, clientTunnelName)
-		if err := h.tunnelService.QuickCreateTunnelAndWait(clientConfig.MasterID, clientURL, clientTunnelName, 3*time.Second); err != nil {
+		if err := h.tunnelService.QuickCreateTunnelDirectURL(clientConfig.MasterID, clientURL, clientTunnelName, 3*time.Second); err != nil {
 			log.Errorf("[API] 创建client端隧道失败: %v", err)
 			// 如果client端创建失败，可以考虑回滚server端，但这里先简单处理
 			w.WriteHeader(http.StatusBadRequest)
@@ -2202,13 +2170,7 @@ func (h *TunnelHandler) HandleBatchDeleteTunnels(w http.ResponseWriter, r *http.
 
 		// 如果不是移入回收站，先解绑分组关系
 		if !req.Recycle {
-			if tunnelID, exists := instanceTunnelMap[iid]; exists {
-				if err := h.deleteTunnelFromGroups(tunnelID); err != nil {
-					log.Warnf("[API] 批量删除-删除隧道分组关系失败: tunnelID=%d, instanceID=%s, err=%v", tunnelID, iid, err)
-				} else {
-					log.Infof("[API] 批量删除-已删除隧道分组关系: tunnelID=%d, instanceID=%s", tunnelID, iid)
-				}
-			}
+			// 清理标签关联等其他操作可以在这里进行
 		}
 
 		if err := h.tunnelService.DeleteTunnelAndWait(iid, 3*time.Second, req.Recycle); err != nil {
@@ -3154,6 +3116,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 		Password       string          `json:"password"`
 		Min            json.RawMessage `json:"min"`
 		Max            json.RawMessage `json:"max"`
+		Slot           json.RawMessage `json:"slot"`                       // 新增：最大连接数限制
 		Mode           *string         `json:"mode,omitempty"`             // 新增：运行模式
 		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
 		Rate           *string         `json:"rate,omitempty"`             // 新增：带宽速率限制
@@ -3222,20 +3185,27 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 		}
 	}
 	if raw.Type == "client" {
-		// 处理 min/max，区分未设置状态
+		// 处理 min/max/slot，区分未设置状态
 		minVal, minSet, _ := parseIntV2(raw.Min)
 		maxVal, maxSet, _ := parseIntV2(raw.Max)
+		slotVal, slotSet, _ := parseIntV2(raw.Slot)
 		if !minSet {
 			minVal = -1
 		}
 		if !maxSet {
 			maxVal = -1
 		}
+		if !slotSet {
+			slotVal = -1
+		}
 		if minVal >= 0 {
 			queryParams = append(queryParams, fmt.Sprintf("min=%d", minVal))
 		}
 		if maxVal >= 0 {
 			queryParams = append(queryParams, fmt.Sprintf("max=%d", maxVal))
+		}
+		if slotVal >= 0 {
+			queryParams = append(queryParams, fmt.Sprintf("slot=%d", slotVal))
 		}
 	}
 	if len(queryParams) > 0 {
@@ -3272,15 +3242,19 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 				return
 			}
 
-			// 重新创建，处理min/max未设置状态
+			// 重新创建，处理min/max/slot未设置状态
 			minVal, minSet, _ := parseIntV2(raw.Min)
 			maxVal, maxSet, _ := parseIntV2(raw.Max)
-			var minPtr, maxPtr *int
+			slotVal, slotSet, _ := parseIntV2(raw.Slot)
+			var minPtr, maxPtr, slotPtr *int
 			if minSet {
 				minPtr = &minVal
 			}
 			if maxSet {
 				maxPtr = &maxVal
+			}
+			if slotSet {
+				slotPtr = &slotVal
 			}
 			// 处理新增字段的默认值
 			enableSSEStore := true
@@ -3315,6 +3289,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 				Password:       raw.Password,
 				Min:            minPtr,
 				Max:            maxPtr,
+				Slot:           slotPtr,        // 新增：最大连接数限制
 				Mode:           modePtr,        // 新增：运行模式
 				Read:           raw.Read,       // 新增：数据读取超时时间
 				Rate:           raw.Rate,       // 新增：带宽速率限制
@@ -3351,14 +3326,18 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 	}
 
 	if !success {
-		// 超时，直接更新本地数据库，处理min/max未设置状态
+		// 超时，直接更新本地数据库，处理min/max/slot未设置状态
 		minVal, minSet, _ := parseIntV2(raw.Min)
 		maxVal, maxSet, _ := parseIntV2(raw.Max)
+		slotVal, slotSet, _ := parseIntV2(raw.Slot)
 		if !minSet {
 			minVal = -1
 		}
 		if !maxSet {
 			maxVal = -1
+		}
+		if !slotSet {
+			slotVal = -1
 		}
 		// 构建新字段的更新值
 		var modeVal interface{}
@@ -3392,7 +3371,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 			enableLogStore = *raw.EnableLogStore
 		}
 
-		_, _ = h.tunnelService.DB().Exec(`UPDATE tunnels SET name = ?, mode = ?, tunnel_address = ?, tunnel_port = ?, target_address = ?, target_port = ?, tls_mode = ?, cert_path = ?, key_path = ?, log_level = ?, command_line = ?, min = ?, max = ?, status = ?, updated_at = ?, read = ?, rate = ?, enable_sse_store = ?, enable_log_store = ? WHERE id = ?`,
+		_, _ = h.tunnelService.DB().Exec(`UPDATE tunnels SET name = ?, mode = ?, tunnel_address = ?, tunnel_port = ?, target_address = ?, target_port = ?, tls_mode = ?, cert_path = ?, key_path = ?, log_level = ?, command_line = ?, min = ?, max = ?, slot = ?, status = ?, updated_at = ?, read = ?, rate = ?, enable_sse_store = ?, enable_log_store = ? WHERE id = ?`,
 			raw.Name, modeVal, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine,
 			func() interface{} {
 				if minVal >= 0 {
@@ -3403,6 +3382,12 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 			func() interface{} {
 				if maxVal >= 0 {
 					return maxVal
+				}
+				return nil
+			}(),
+			func() interface{} {
+				if slotVal >= 0 {
+					return slotVal
 				}
 				return nil
 			}(),

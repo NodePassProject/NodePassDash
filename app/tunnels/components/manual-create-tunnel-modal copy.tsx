@@ -122,7 +122,7 @@ export default function ManualCreateTunnelModal({
     try {
       setSubmitting(true);
       
-      const response = await fetch(buildApiUrl(`/api/tunnels/quick`), {
+      const response = await fetch(buildApiUrl(`/api/tunnels/create_by_url`), {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',

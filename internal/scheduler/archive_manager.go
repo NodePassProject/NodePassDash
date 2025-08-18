@@ -1,7 +1,7 @@
 package scheduler
 
 import (
-	"NodePassDash/internal/config"
+	"NodePassDash/internal/cleanup"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"context"
@@ -15,7 +15,7 @@ import (
 // ArchiveManager 数据转存管理器
 type ArchiveManager struct {
 	db     *gorm.DB
-	config *config.CleanupConfig
+	config *cleanup.CleanupConfig
 
 	// 转存队列和批处理
 	archiveQueue chan *ArchiveRecord
@@ -117,7 +117,7 @@ type StatusChangeRecord struct {
 }
 
 // NewArchiveManager 创建转存管理器
-func NewArchiveManager(db *gorm.DB, config *config.CleanupConfig) *ArchiveManager {
+func NewArchiveManager(db *gorm.DB, config *cleanup.CleanupConfig) *ArchiveManager {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	am := &ArchiveManager{

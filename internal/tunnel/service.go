@@ -1514,17 +1514,15 @@ func (s *Service) DB() *sql.DB {
 
 // QuickCreateTunnel 根据完整 URL 快速创建隧道实例 (server://addr:port/target:port?params)
 func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string) error {
-	// 粗解析协议
-	idx := strings.Index(rawURL, "://")
-	if idx == -1 {
-		return errors.New("无效的隧道URL")
+	// 使用统一的parseUrl方法解析URL
+	parsedTunnel := nodepass.ParseTunnelURL(rawURL)
+	if parsedTunnel == nil {
+		return errors.New("无效的隧道URL格式")
 	}
-	typer := rawURL[:idx]
-	cfg := nodepass.ParseTunnelURL(rawURL)
 
 	// 端口转换
-	tp, _ := strconv.Atoi(cfg.TunnelPort)
-	sp, _ := strconv.Atoi(cfg.TargetPort)
+	tp, _ := strconv.Atoi(parsedTunnel.TunnelPort)
+	sp, _ := strconv.Atoi(parsedTunnel.TargetPort)
 
 	finalName := name
 	if strings.TrimSpace(finalName) == "" {
@@ -1533,60 +1531,60 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string
 	req := CreateTunnelRequest{
 		Name:          finalName,
 		EndpointID:    endpointID,
-		Type:          typer,
-		TunnelAddress: cfg.TunnelAddress,
+		Type:          string(parsedTunnel.Type),
+		TunnelAddress: parsedTunnel.TunnelAddress,
 		TunnelPort:    tp,
-		TargetAddress: cfg.TargetAddress,
+		TargetAddress: parsedTunnel.TargetAddress,
 		TargetPort:    sp,
-		TLSMode:       TLSMode(cfg.TLSMode),
+		TLSMode:       TLSMode(parsedTunnel.TLSMode),
 		CertPath: func() string {
-			if cfg.CertPath != nil {
-				return *cfg.CertPath
+			if parsedTunnel.CertPath != nil {
+				return *parsedTunnel.CertPath
 			}
 			return ""
 		}(),
 		KeyPath: func() string {
-			if cfg.KeyPath != nil {
-				return *cfg.KeyPath
+			if parsedTunnel.KeyPath != nil {
+				return *parsedTunnel.KeyPath
 			}
 			return ""
 		}(),
-		LogLevel: LogLevel(cfg.LogLevel),
+		LogLevel: LogLevel(parsedTunnel.LogLevel),
 		Password: func() string {
-			if cfg.Password != nil {
-				return *cfg.Password
+			if parsedTunnel.Password != nil {
+				return *parsedTunnel.Password
 			}
 			return ""
 		}(),
 		Min: func() *int {
-			if cfg.Min != nil {
-				val := int(*cfg.Min)
+			if parsedTunnel.Min != nil {
+				val := int(*parsedTunnel.Min)
 				return &val
 			}
 			return nil
 		}(),
 		Max: func() *int {
-			if cfg.Max != nil {
-				val := int(*cfg.Max)
+			if parsedTunnel.Max != nil {
+				val := int(*parsedTunnel.Max)
 				return &val
 			}
 			return nil
 		}(),
 		Mode: func() *TunnelMode {
-			if cfg.Mode != nil {
-				return (*TunnelMode)(cfg.Mode)
+			if parsedTunnel.Mode != nil {
+				return (*TunnelMode)(parsedTunnel.Mode)
 			}
 			return nil
 		}(),
 		Read: func() *string {
-			if cfg.Read != nil {
-				return cfg.Read
+			if parsedTunnel.Read != nil {
+				return parsedTunnel.Read
 			}
 			return nil
 		}(),
 		Rate: func() *string {
-			if cfg.Rate != nil {
-				return cfg.Rate
+			if parsedTunnel.Rate != nil {
+				return parsedTunnel.Rate
 			}
 			return nil
 		}(),
@@ -1599,17 +1597,15 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string
 
 // QuickCreateTunnelAndWait 根据完整 URL 快速创建隧道实例，使用等待模式
 func (s *Service) QuickCreateTunnelAndWait(endpointID int64, rawURL string, name string, timeout time.Duration) error {
-	// 粗解析协议
-	idx := strings.Index(rawURL, "://")
-	if idx == -1 {
-		return errors.New("无效的隧道URL")
+	// 使用统一的parseUrl方法解析URL
+	parsedTunnel := nodepass.ParseTunnelURL(rawURL)
+	if parsedTunnel == nil {
+		return errors.New("无效的隧道URL格式")
 	}
-	typer := rawURL[:idx]
-	cfg := nodepass.ParseTunnelURL(rawURL)
 
 	// 端口转换
-	tp, _ := strconv.Atoi(cfg.TunnelPort)
-	sp, _ := strconv.Atoi(cfg.TargetPort)
+	tp, _ := strconv.Atoi(parsedTunnel.TunnelPort)
+	sp, _ := strconv.Atoi(parsedTunnel.TargetPort)
 
 	finalName := name
 	if strings.TrimSpace(finalName) == "" {
@@ -1618,56 +1614,56 @@ func (s *Service) QuickCreateTunnelAndWait(endpointID int64, rawURL string, name
 
 	// 正确处理min和max值，区分未设置和设置为0的情况
 	var minVal, maxVal *int
-	if cfg.Min != nil {
-		val := int(*cfg.Min)
+	if parsedTunnel.Min != nil {
+		val := int(*parsedTunnel.Min)
 		minVal = &val
 	}
-	if cfg.Max != nil {
-		val := int(*cfg.Max)
+	if parsedTunnel.Max != nil {
+		val := int(*parsedTunnel.Max)
 		maxVal = &val
 	}
 
 	// 处理新字段
 	var modeVal *TunnelMode
-	if cfg.Mode != nil {
-		modeVal = (*TunnelMode)(cfg.Mode)
+	if parsedTunnel.Mode != nil {
+		modeVal = (*TunnelMode)(parsedTunnel.Mode)
 	}
 
 	var readVal *string
-	if cfg.Read != nil {
-		readVal = cfg.Read
+	if parsedTunnel.Read != nil {
+		readVal = parsedTunnel.Read
 	}
 
 	var rateVal *string
-	if cfg.Rate != nil {
-		rateVal = cfg.Rate
+	if parsedTunnel.Rate != nil {
+		rateVal = parsedTunnel.Rate
 	}
 
 	req := CreateTunnelRequest{
 		Name:          finalName,
 		EndpointID:    endpointID,
-		Type:          typer,
-		TunnelAddress: cfg.TunnelAddress,
+		Type:          string(parsedTunnel.Type),
+		TunnelAddress: parsedTunnel.TunnelAddress,
 		TunnelPort:    tp,
-		TargetAddress: cfg.TargetAddress,
+		TargetAddress: parsedTunnel.TargetAddress,
 		TargetPort:    sp,
-		TLSMode:       TLSMode(cfg.TLSMode),
+		TLSMode:       TLSMode(parsedTunnel.TLSMode),
 		CertPath: func() string {
-			if cfg.CertPath != nil {
-				return *cfg.CertPath
+			if parsedTunnel.CertPath != nil {
+				return *parsedTunnel.CertPath
 			}
 			return ""
 		}(),
 		KeyPath: func() string {
-			if cfg.KeyPath != nil {
-				return *cfg.KeyPath
+			if parsedTunnel.KeyPath != nil {
+				return *parsedTunnel.KeyPath
 			}
 			return ""
 		}(),
-		LogLevel: LogLevel(cfg.LogLevel),
+		LogLevel: LogLevel(parsedTunnel.LogLevel),
 		Password: func() string {
-			if cfg.Password != nil {
-				return *cfg.Password
+			if parsedTunnel.Password != nil {
+				return *parsedTunnel.Password
 			}
 			return ""
 		}(),
@@ -2787,4 +2783,120 @@ func (s *Service) getTunnelsByIDs(tunnelIDs []int) ([]models.Tunnel, error) {
 	}
 
 	return tunnels, nil
+}
+
+// QuickCreateTunnelDirectURL 根据完整 URL 快速创建隧道实例，直接传递URL给NodePass API
+// 这个方法避免了URL解析->重新组装的过程，提高性能并减少错误风险
+func (s *Service) QuickCreateTunnelDirectURL(endpointID int64, rawURL string, name string, timeout time.Duration) error {
+	// 1. 基本验证：只解析URL进行格式验证，但不使用解析结果重新组装
+	parsedTunnel := nodepass.ParseTunnelURL(rawURL)
+	if parsedTunnel == nil {
+		return errors.New("无效的隧道URL格式")
+	}
+
+	// 2. 生成隧道名称
+	finalName := name
+	if strings.TrimSpace(finalName) == "" {
+		finalName = fmt.Sprintf("auto-%d-%d", endpointID, time.Now().Unix())
+	}
+
+	// 3. 获取端点信息
+	var endpoint struct {
+		URL     string
+		APIPath string
+		APIKey  string
+		Name    string
+	}
+	err := s.db.Raw(`SELECT url, api_path, api_key, name FROM endpoints WHERE id = ?`, endpointID).Scan(&endpoint).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return errors.New("指定的端点不存在")
+		}
+		return fmt.Errorf("查询端点信息失败: %v", err)
+	}
+
+	// 4. 直接使用原始URL调用NodePass API创建实例
+	npClient := nodepass.NewClient(endpoint.URL, endpoint.APIPath, endpoint.APIKey, nil)
+	log.Infof("[NodePass] 直接URL创建实例 endpoint=%d url=%s", endpointID, rawURL)
+
+	instanceID, _, err := npClient.CreateInstance(rawURL)
+	if err != nil {
+		log.Errorf("[NodePass] 直接URL创建实例失败 endpoint=%d url=%s err=%v", endpointID, rawURL, err)
+		return err
+	}
+
+	log.Infof("[API] NodePass API 创建成功，instanceID=%s，开始等待SSE通知", instanceID)
+
+	// 5. 轮询等待数据库中存在该 endpointId+instanceId 记录（通过 SSE 通知）
+	deadline := time.Now().Add(timeout)
+	var tunnelID int64
+	waitSuccess := false
+
+	for time.Now().Before(deadline) {
+		var existingTunnel models.Tunnel
+		err := s.db.Select("id").Where("endpoint_id = ? AND instance_id = ?", endpointID, instanceID).First(&existingTunnel).Error
+		if err == nil {
+			tunnelID = existingTunnel.ID
+			waitSuccess = true
+			break
+		} else if err != gorm.ErrRecordNotFound {
+			log.Warnf("[API] 查询隧道记录时出错: %v", err)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	if waitSuccess {
+		log.Infof("[API] 直接URL等待SSE成功，更新隧道名称为: %s", finalName)
+
+		// 6. 更新隧道名称为指定的名称
+		err = s.db.Model(&models.Tunnel{}).Where("id = ?", tunnelID).Updates(map[string]interface{}{
+			"name":       finalName,
+			"updated_at": time.Now(),
+		}).Error
+		if err != nil {
+			log.Warnf("[API] 更新隧道名称失败: %v", err)
+		}
+
+		// 7. 记录操作日志
+		waitMessage := "隧道创建成功（直接URL模式）"
+		operationLog := models.TunnelOperationLog{
+			TunnelID:   &tunnelID,
+			TunnelName: finalName,
+			Action:     models.OperationActionCreate,
+			Status:     "success",
+			Message:    &waitMessage,
+			CreatedAt:  time.Now(),
+		}
+		s.db.Create(&operationLog)
+
+		// 8. 异步更新端点隧道计数
+		go func(endpointID int64) {
+			time.Sleep(50 * time.Millisecond)
+			s.updateEndpointTunnelCount(endpointID)
+		}(endpointID)
+
+		// 9. 设置隧道别名
+		if err := s.SetTunnelAlias(tunnelID, finalName); err != nil {
+			log.Warnf("[API] 设置隧道别名失败，但不影响创建: %v", err)
+		}
+
+		log.Infof("[API] 隧道创建成功（直接URL模式）: %s (ID: %d, InstanceID: %s)", finalName, tunnelID, instanceID)
+		return nil
+	}
+
+	// 10. 等待超时，记录警告但不执行手动创建（因为实例已经在NodePass中创建）
+	log.Warnf("[API] 直接URL等待SSE超时，但NodePass实例已创建: instanceID=%s", instanceID)
+
+	// 记录失败的操作日志
+	failMessage := "隧道创建超时（直接URL模式），NodePass实例已创建但数据库未同步"
+	operationLog := models.TunnelOperationLog{
+		TunnelName: finalName,
+		Action:     models.OperationActionCreate,
+		Status:     "warning",
+		Message:    &failMessage,
+		CreatedAt:  time.Now(),
+	}
+	s.db.Create(&operationLog)
+
+	return fmt.Errorf("等待数据库同步超时，但NodePass实例已创建(instanceID: %s)", instanceID)
 }

@@ -105,16 +105,15 @@ func (h *AuthHandler) HandleLogin(w http.ResponseWriter, r *http.Request) {
 	// 检查是否是默认账号密码
 	isDefaultCredentials := h.authService.IsDefaultCredentials()
 
-	// 调试日志
-	fmt.Printf("🔍 登录成功，检查默认凭据状态: %v\n", isDefaultCredentials)
-
 	// 返回成功响应
 	response := map[string]interface{}{
 		"success":              true,
 		"message":              "登录成功",
 		"isDefaultCredentials": isDefaultCredentials,
 	}
+
 	json.NewEncoder(w).Encode(response)
+
 }
 
 // HandleLogout 处理登出请求
@@ -381,6 +380,13 @@ func (h *AuthHandler) HandleUpdateSecurity(w http.ResponseWriter, r *http.Reques
 		return
 	}
 
+	// 验证系统是否仍使用默认凭据，只有使用默认凭据时才允许此操作
+	if !h.authService.IsDefaultCredentials() {
+		w.WriteHeader(http.StatusForbidden)
+		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "message": "此操作仅在首次设置时可用"})
+		return
+	}
+
 	var req SecurityUpdateRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
 		w.WriteHeader(http.StatusBadRequest)
@@ -402,6 +408,22 @@ func (h *AuthHandler) HandleUpdateSecurity(w http.ResponseWriter, r *http.Reques
 	}
 
 	json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "message": msg})
+}
+
+// HandleCheckDefaultCredentials 检查系统是否仍使用默认凭据
+func (h *AuthHandler) HandleCheckDefaultCredentials(w http.ResponseWriter, r *http.Request) {
+	if r.Method != http.MethodGet {
+		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
+		return
+	}
+
+	// 检查是否是默认凭据
+	isDefaultCredentials := h.authService.IsDefaultCredentials()
+
+	json.NewEncoder(w).Encode(map[string]interface{}{
+		"success":              true,
+		"isDefaultCredentials": isDefaultCredentials,
+	})
 }
 
 // HandleOAuth2Callback 处理第三方 OAuth2 回调

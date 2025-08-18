@@ -199,27 +199,18 @@ func main() {
 
 	log.Info("数据库连接成功")
 
-	// 创建并启动增强系统（内存优先数据管理、定时清理、分钟级数据聚合）
-	// lifecycleManager := lifecycle.NewManager(gormDB)
-	// if err := lifecycleManager.Start(); err != nil {
-	// 	log.Errorf("增强系统启动失败: %v", err)
-	// 	os.Exit(1)
-	// }
-	// log.Info("增强系统已启动：内存优先数据管理、定时清理、分钟级数据聚合")
-	// log.Info("增强系统已暂时禁用")
-
-	// 初始化服务
+	// 系统初始化（首次启动输出初始用户名和密码） - 在所有其他初始化之前
 	authService := auth.NewService(gormDB)
+	if _, _, err := authService.InitializeSystem(); err != nil && err.Error() != "系统已初始化" {
+		log.Errorf("系统初始化失败: %v", err)
+	}
+
+	// 初始化其他服务
 	endpointService := endpoint.NewService(gormDB)
 	tunnelService := tunnel.NewService(gormDB)
 	dashboardService := dashboard.NewService(gormDB)
 
-	// 初始化流量调度器（用于优化流量数据查询性能）
-	trafficScheduler := dashboard.NewTrafficScheduler(gormDB)
-	trafficScheduler.Start()
-	log.Info("流量数据优化调度器已启动")
-
-	// 创建SSE服务和管理器（需先于处理器创建）
+	// 创建SSE服务和管理器（延迟启动避免数据库竞争）
 	sseService := sse.NewService(gormDB, endpointService)
 	// 临时解决方案：从GORM获取底层的sql.DB用于SSE Manager
 	sqlDB, err := gormDB.DB()
@@ -231,15 +222,9 @@ func main() {
 
 	// 设置Manager引用到Service（避免循环依赖）
 	sseService.SetManager(sseManager)
-	sseService.StartStoreWorkers(8)
 
-	// 适当减少 worker 数量，避免过多并发写入
-	workerCount := runtime.NumCPU()
-	if workerCount > 4 {
-		workerCount = 4 // 最多4个worker
-	}
-	// 启动SSE守护进程（自动重连功能）
-	sseManager.StartDaemon()
+	// 延迟启动SSE组件和流量调度器
+	var trafficScheduler *dashboard.TrafficScheduler
 
 	// 设置版本号到 API 包
 	api.SetVersion(Version)
@@ -300,10 +285,7 @@ func main() {
 	ctx, cancel := context.WithCancel(context.Background())
 	defer cancel()
 
-	// 系统初始化（首次启动输出初始用户名和密码）
-	if _, _, err := authService.InitializeSystem(); err != nil && err.Error() != "系统已初始化" {
-		log.Errorf("系统初始化失败: %v", err)
-	}
+	// 系统初始化已在上面完成，此处删除重复
 
 	// 设置 disable-login 配置
 	// 优先级：命令行参数 > 环境变量
@@ -355,6 +337,28 @@ func main() {
 		}
 	}()
 
+	// 等待服务器启动完成，然后启动后台服务
+	time.Sleep(2 * time.Second)
+
+	// 启动流量调度器（用于优化流量数据查询性能）
+	trafficScheduler = dashboard.NewTrafficScheduler(gormDB)
+	go func() {
+		trafficScheduler.Start()
+		log.Info("流量数据优化调度器已启动")
+	}()
+
+	// 启动SSE相关服务
+	go func() {
+		sseService.StartStoreWorkers(4) // 减少worker数量
+		sseManager.StartDaemon()
+
+		// 初始化SSE系统
+		if err := sseManager.InitializeSystem(); err != nil {
+			log.Errorf("初始化SSE系统失败: %v", err)
+		}
+		log.Info("SSE系统已启动")
+	}()
+
 	// 记录未使用的变量以避免编译错误
 	_ = authService
 	_ = endpointService
@@ -379,11 +383,17 @@ func main() {
 	// }
 
 	// 关闭流量调度器
-	trafficScheduler.Stop()
+	if trafficScheduler != nil {
+		trafficScheduler.Stop()
+	}
 
 	// 关闭SSE系统
-	sseManager.Close()
-	sseService.Close()
+	if sseManager != nil {
+		sseManager.Close()
+	}
+	if sseService != nil {
+		sseService.Close()
+	}
 
 	// 优雅关闭HTTP服务器
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)

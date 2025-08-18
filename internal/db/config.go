@@ -1,13 +1,12 @@
 package db
 
 import (
+	log "NodePassDash/internal/log"
 	"flag"
 	"fmt"
 	"os"
 	"strconv"
 	"time"
-
-	log "NodePassDash/internal/log"
 )
 
 // DBConfig SQLite数据库配置结构
@@ -147,13 +146,18 @@ func validateConfig(config *DBConfig) error {
 
 // BuildDSN 构建SQLite连接字符串
 func (c *DBConfig) BuildDSN() string {
-	// 构建基本DSN
-	dsn := c.Database + "?_foreign_keys=on&_journal_mode=WAL"
+	// 为modernc.org/sqlite驱动构建DSN
+	dsn := c.Database + "?_pragma=foreign_keys(1)"
 
-	// 添加其他配置
-	if !c.WALMode {
-		dsn = c.Database + "?_foreign_keys=on"
+	if c.WALMode {
+		dsn += "&_pragma=journal_mode(WAL)"
 	}
+
+	// 添加更多优化配置以避免锁定
+	dsn += "&_pragma=busy_timeout(30000)" // 30秒超时
+	dsn += "&_pragma=synchronous(NORMAL)" // 平衡性能和安全
+	dsn += "&_pragma=cache_size(2000)"    // 缓存大小
+	dsn += "&_pragma=temp_store(memory)"  // 临时数据存储在内存
 
 	return dsn
 }

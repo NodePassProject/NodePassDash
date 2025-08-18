@@ -27,7 +27,6 @@ type Router struct {
 	dashboardHandler     *DashboardHandler
 	dataHandler          *DataHandler
 	versionHandler       *VersionHandler
-	groupHandler         *GroupHandler
 }
 
 // NewRouter 创建路由器实例
@@ -66,7 +65,6 @@ func NewRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager) *R
 	dataHandler := NewDataHandler(db, sseManager, endpointService, tunnelService)
 	dashboardHandler := NewDashboardHandler(dashboardService)
 	versionHandler := NewVersionHandler()
-	groupHandler := NewGroupHandler(db)
 
 	r := &Router{
 		router:               router,
@@ -79,7 +77,6 @@ func NewRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager) *R
 		dashboardHandler:     dashboardHandler,
 		dataHandler:          dataHandler,
 		versionHandler:       versionHandler,
-		groupHandler:         groupHandler,
 	}
 
 	// 注册路由
@@ -107,6 +104,7 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/auth/change-password", r.authHandler.HandleChangePassword).Methods("POST")
 	r.router.HandleFunc("/api/auth/change-username", r.authHandler.HandleChangeUsername).Methods("POST")
 	r.router.HandleFunc("/api/auth/update-security", r.authHandler.HandleUpdateSecurity).Methods("POST")
+	r.router.HandleFunc("/api/auth/check-default-credentials", r.authHandler.HandleCheckDefaultCredentials).Methods("GET")
 	r.router.HandleFunc("/api/auth/oauth2", r.authHandler.HandleOAuth2Provider).Methods("GET")
 
 	// OAuth2 回调
@@ -169,7 +167,7 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/tunnels/batch-new", r.tunnelHandler.HandleNewBatchCreateTunnels).Methods("POST")
 	r.router.HandleFunc("/api/tunnels/batch", r.tunnelHandler.HandleBatchDeleteTunnels).Methods("DELETE")
 	r.router.HandleFunc("/api/tunnels/batch/action", r.tunnelHandler.HandleBatchActionTunnels).Methods("POST")
-	r.router.HandleFunc("/api/tunnels/quick", r.tunnelHandler.HandleQuickCreateTunnel).Methods("POST")
+	r.router.HandleFunc("/api/tunnels/create_by_url", r.tunnelHandler.HandleQuickCreateTunnel).Methods("POST")
 	r.router.HandleFunc("/api/tunnels/quick-batch", r.tunnelHandler.HandleQuickBatchCreateTunnel).Methods("POST")
 	r.router.HandleFunc("/api/tunnels/template", r.tunnelHandler.HandleTemplateCreate).Methods("POST")
 	r.router.HandleFunc("/api/tunnels", r.tunnelHandler.HandlePatchTunnels).Methods("PATCH")
@@ -220,11 +218,6 @@ func (r *Router) registerRoutes() {
 	r.router.HandleFunc("/api/version/update-info", r.versionHandler.HandleGetUpdateInfo).Methods("GET")
 
 	// 分组相关路由
-	r.router.HandleFunc("/api/groups", r.groupHandler.HandleGetGroups).Methods("GET")
-	r.router.HandleFunc("/api/groups", r.groupHandler.HandleCreateGroup).Methods("POST")
-	r.router.HandleFunc("/api/groups/{id}", r.groupHandler.HandleUpdateGroup).Methods("PUT")
-	r.router.HandleFunc("/api/groups/{id}", r.groupHandler.HandleDeleteGroup).Methods("DELETE")
-	r.router.HandleFunc("/api/groups/from-template", r.groupHandler.HandleCreateGroupFromTemplate).Methods("POST")
 	r.router.HandleFunc("/api/version/history", r.versionHandler.HandleGetReleaseHistory).Methods("GET")
 	r.router.HandleFunc("/api/version/deployment-info", r.versionHandler.HandleGetDeploymentInfo).Methods("GET")
 	r.router.HandleFunc("/api/version/auto-update", r.versionHandler.HandleAutoUpdate).Methods("POST")
@@ -269,74 +262,4 @@ func corsMiddleware(next http.Handler) http.Handler {
 
 		next.ServeHTTP(w, r)
 	})
-}
-
-// 以下是各个处理函数的实现
-func handleLogin(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现登录逻辑
-}
-
-func handleLogout(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现登出逻辑
-}
-
-func handleGetMe(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现获取当前用户信息逻辑
-}
-
-func handleChangePassword(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现修改密码逻辑
-}
-
-func handleChangeUsername(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现修改用户名逻辑
-}
-
-func handleListTunnels(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现隧道列表逻辑
-}
-
-func handleCreateTunnel(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现创建隧道逻辑
-}
-
-func handleGetTunnel(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现获取隧道详情逻辑
-}
-
-func handleUpdateTunnel(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现更新隧道逻辑
-}
-
-func handleDeleteTunnel(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现删除隧道逻辑
-}
-
-func handleGetTunnelStatus(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现获取隧道状态逻辑
-}
-
-func handleGetTunnelLogs(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现获取隧道日志逻辑
-}
-
-func handleProxy(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现代理逻辑
-}
-
-func handleHealth(w http.ResponseWriter, r *http.Request) {
-	w.WriteHeader(http.StatusOK)
-	w.Write([]byte(`{"status": "ok"}`))
-}
-
-func handleTrafficTrend(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现流量趋势统计逻辑
-}
-
-func handleListUsers(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现用户列表逻辑
-}
-
-func handleCreateUser(w http.ResponseWriter, r *http.Request) {
-	// TODO: 实现创建用户逻辑
 }

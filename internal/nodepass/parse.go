@@ -27,6 +27,7 @@ type TunnelConfig struct {
 	Mode          string
 	Read          string
 	Rate          string
+	Slot          string
 }
 
 // ParseTunnelURL 解析隧道实例 URL 并返回 Tunnel 模型
@@ -40,13 +41,10 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 		TunnelAddress: "",
 		TunnelPort:    "",
 		TargetAddress: "",
+		CommandLine:   rawURL,
 		TargetPort:    "",
 		CreatedAt:     time.Now(),
 		UpdatedAt:     time.Now(),
-	}
-
-	if rawURL == "" {
-		return tunnel
 	}
 
 	// 提取协议部分并设置Type
@@ -186,6 +184,10 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 				if val != "" {
 					tunnel.Rate = &val
 				}
+			case "slot":
+				if slotVal, err := strconv.ParseInt(val, 10, 64); err == nil {
+					tunnel.Slot = &slotVal
+				}
 			}
 		}
 	}
@@ -241,6 +243,9 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 	if tunnel.Rate != nil {
 		updates["rate"] = tunnel.Rate
 	}
+	if tunnel.Slot != nil {
+		updates["slot"] = tunnel.Slot
+	}
 	return updates
 }
 
@@ -293,6 +298,7 @@ func ParseTunnelConfig(rawURL string) *TunnelConfig {
 	cfg.Mode = query.Get("mode")
 	cfg.Read = query.Get("read")
 	cfg.Rate = query.Get("rate")
+	cfg.Slot = query.Get("slot")
 
 	return cfg
 }
@@ -372,6 +378,10 @@ func (c *TunnelConfig) BuildTunnelURL() string {
 
 	if c.Rate != "" {
 		queryParams = append(queryParams, fmt.Sprintf("rate=%s", c.Rate))
+	}
+
+	if c.Slot != "" {
+		queryParams = append(queryParams, fmt.Sprintf("slot=%s", c.Slot))
 	}
 
 	// 添加查询参数

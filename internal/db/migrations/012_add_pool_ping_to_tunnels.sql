@@ -1,3 +1,0 @@
--- 为Tunnel表添加pool和ping字段
-ALTER TABLE "Tunnel" ADD COLUMN pool INTEGER DEFAULT NULL;
-ALTER TABLE "Tunnel" ADD COLUMN ping INTEGER DEFAULT NULL; 

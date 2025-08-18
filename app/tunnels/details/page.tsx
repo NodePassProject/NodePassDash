@@ -95,6 +95,7 @@ interface TunnelInfo {
     endpointLog?: string; // 主控的Log配置
     min?: number | null;
     max?: number | null;
+    slot?: number | null; // 最大连接数限制
     restart: boolean; // 添加 restart 字段
     certPath?: string; // TLS证书路径
     keyPath?: string; // TLS密钥路径
@@ -1801,6 +1802,18 @@ export default function TunnelDetailPage({
                     })()}
                   />
                 )}
+                
+            {tunnelInfo.config.slot !== undefined && tunnelInfo.config.slot !== null && (
+              <CellValue
+                label="最大连接数限制"
+                value={
+                  <span className="font-mono text-sm">
+                    {tunnelInfo.config.slot}
+                  </span>
+                }
+              />
+            )}
+            
                             {/* 仅服务端模式显示TLS设置 */}
             {tunnelInfo.type === "server" && (
                   <>
@@ -2348,18 +2361,32 @@ export default function TunnelDetailPage({
 
         {/* 日志 - 独立Card */}
         <Card className="p-2">
-          <CardHeader className="flex items-center  justify-between pb-0">
-            <div className="flex items-center gap-3">
+          <CardHeader className="flex flex-col sm:flex-row sm:items-center sm:justify-between pb-2 sm:pb-0 gap-2 sm:gap-0">
+            {/* 第一行：标题和实时开关 */}
+            <div className="flex items-center justify-between sm:justify-start gap-3">
               <div className="flex items-center gap-2">
                 <h3 className="text-lg font-semibold">日志</h3>
                 {/* <Chip variant="flat" color="primary" size="sm">
                   {logCount} 条记录 {logDate ? `(${logDate})` : ''}
                 </Chip> */}
               </div>
+              
+              {/* 实时日志开关 - 移动端第一行，桌面端第二行 */}
+              <div className="flex items-center gap-2 sm:hidden">
+                <span className="text-xs text-default-600">实时</span>
+                <Switch
+                  size="sm"
+                  isSelected={isRealtimeLogging}
+                  onValueChange={handleRealtimeLoggingToggle}
+                  color="primary"
+                />
+              </div>
             </div>
-            <div className="flex items-center gap-2">
-              {/* 实时日志开关 */}
-              <div className="flex items-center gap-2">
+            
+            {/* 第二行：剩余控件 */}
+            <div className="flex items-center justify-start sm:justify-end gap-2 overflow-x-auto">
+              {/* 实时日志开关 - 桌面端显示 */}
+              <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
                 <span className="text-sm text-default-600">实时输出</span>
                 <Switch
                   size="sm"
@@ -2372,7 +2399,7 @@ export default function TunnelDetailPage({
               {/* 日期选择 */}
               <DatePicker
                 size="sm"
-                className="w-40"
+                className="w-40 flex-shrink-0"
                 isDisabled={isRealtimeLogging}
                 value={selectedLogDate ? parseDate(selectedLogDate) : null}
                 onChange={(date) => {
@@ -2389,103 +2416,106 @@ export default function TunnelDetailPage({
                 granularity="day"
               />
 
-              {/* 刷新按钮 */}
-              <Tooltip content="刷新日志" placement="top">
-                <Button
-                  size="sm"
-                  variant="flat"
-                  isIconOnly
-                  onPress={handleLogRefresh}
-                  isLoading={logLoading}
-                  className="h-8 w-8 min-w-0"
-                >
-                  <FontAwesomeIcon icon={faRefresh} className="text-xs" />
-                </Button>
-              </Tooltip>
-
-              {/* 滚动到底部按钮 */}
-              <Tooltip content="滚动到底部" placement="top">
-                <Button
-                  size="sm"
-                  variant="flat"
-                  isIconOnly
-                  onPress={() => {
-                    if ((window as any).fileLogViewerRef) {
-                      (window as any).fileLogViewerRef.scrollToBottom();
-                    }
-                  }}
-                  className="h-8 w-8 min-w-0"
-                >
-                  <FontAwesomeIcon icon={faArrowDown} className="text-xs" />
-                </Button>
-              </Tooltip>
-
-              {/* 导出按钮 */}
-              <Tooltip content="导出日志文件" placement="top">
-                <Button
-                  size="sm"
-                  variant="flat"
-                  color="primary"
-                  isIconOnly
-                  onPress={handleExport}
-                  isLoading={exportLoading}
-                  isDisabled={exportLoading}
-                  className="h-8 w-8 min-w-0"
-                >
-                  <FontAwesomeIcon icon={faDownload} className="text-xs" />
-                </Button>
-              </Tooltip>
-
-              {/* 清空按钮 */}
-              <Popover
-                placement="bottom"
-                isOpen={clearPopoverOpen}
-                onOpenChange={setClearPopoverOpen}
-              >
-                <PopoverTrigger>
+              {/* 操作按钮组 */}
+              <div className="flex items-center gap-1 flex-shrink-0">
+                {/* 刷新按钮 */}
+                <Tooltip content="刷新日志" placement="top">
                   <Button
                     size="sm"
                     variant="flat"
-                    color="danger"
                     isIconOnly
-                    isLoading={logClearing}
-                    className="h-8 w-8 min-w-0"
+                    onPress={handleLogRefresh}
+                    isLoading={logLoading}
+                    className="h-7 w-7 sm:h-8 sm:w-8 min-w-0"
                   >
-                    <FontAwesomeIcon icon={faTrash} className="text-xs" />
+                    <FontAwesomeIcon icon={faRefresh} className="text-xs" />
                   </Button>
-                </PopoverTrigger>
-                <PopoverContent className="p-3">
-                  <div className="space-y-3">
-                    <p className="text-sm font-medium">确认清空日志</p>
-                    <p className="text-xs text-default-500">
-                      此操作将清空页面显示和所有已保存的日志文件，且不可撤销。
-                    </p>
-                    <div className="flex gap-2">
-                      <Button
-                        size="sm"
-                        color="danger"
-                        onPress={() => {
-                          if ((window as any).fileLogViewerRef) {
-                            (window as any).fileLogViewerRef.clear();
-                          }
-                          setClearPopoverOpen(false); // 关闭Popover
-                        }}
-                        className="flex-1"
-                      >
-                        确认清空
-                      </Button>
-                      <Button
-                        size="sm"
-                        variant="flat"
-                        onPress={() => setClearPopoverOpen(false)} // 关闭Popover
-                        className="flex-1"
-                      >
-                        取消
-                      </Button>
+                </Tooltip>
+
+                {/* 滚动到底部按钮 */}
+                <Tooltip content="滚动到底部" placement="top">
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    isIconOnly
+                    onPress={() => {
+                      if ((window as any).fileLogViewerRef) {
+                        (window as any).fileLogViewerRef.scrollToBottom();
+                      }
+                    }}
+                    className="h-7 w-7 sm:h-8 sm:w-8 min-w-0"
+                  >
+                    <FontAwesomeIcon icon={faArrowDown} className="text-xs" />
+                  </Button>
+                </Tooltip>
+
+                {/* 导出按钮 */}
+                <Tooltip content="导出日志文件" placement="top">
+                  <Button
+                    size="sm"
+                    variant="flat"
+                    color="primary"
+                    isIconOnly
+                    onPress={handleExport}
+                    isLoading={exportLoading}
+                    isDisabled={exportLoading}
+                    className="h-7 w-7 sm:h-8 sm:w-8 min-w-0"
+                  >
+                    <FontAwesomeIcon icon={faDownload} className="text-xs" />
+                  </Button>
+                </Tooltip>
+
+                {/* 清空按钮 */}
+                <Popover
+                  placement="bottom"
+                  isOpen={clearPopoverOpen}
+                  onOpenChange={setClearPopoverOpen}
+                >
+                  <PopoverTrigger>
+                    <Button
+                      size="sm"
+                      variant="flat"
+                      color="danger"
+                      isIconOnly
+                      isLoading={logClearing}
+                      className="h-7 w-7 sm:h-8 sm:w-8 min-w-0"
+                    >
+                      <FontAwesomeIcon icon={faTrash} className="text-xs" />
+                    </Button>
+                  </PopoverTrigger>
+                  <PopoverContent className="p-3">
+                    <div className="space-y-3">
+                      <p className="text-sm font-medium">确认清空日志</p>
+                      <p className="text-xs text-default-500">
+                        此操作将清空页面显示和所有已保存的日志文件，且不可撤销。
+                      </p>
+                      <div className="flex gap-2">
+                        <Button
+                          size="sm"
+                          color="danger"
+                          onPress={() => {
+                            if ((window as any).fileLogViewerRef) {
+                              (window as any).fileLogViewerRef.clear();
+                            }
+                            setClearPopoverOpen(false); // 关闭Popover
+                          }}
+                          className="flex-1"
+                        >
+                          确认清空
+                        </Button>
+                        <Button
+                          size="sm"
+                          variant="flat"
+                          onPress={() => setClearPopoverOpen(false)} // 关闭Popover
+                          className="flex-1"
+                        >
+                          取消
+                        </Button>
+                      </div>
                     </div>
-                  </div>
-                </PopoverContent>
-              </Popover>
+                  </PopoverContent>
+                </Popover>
+              </div>
             </div>
           </CardHeader>
           <CardBody>
@@ -2525,6 +2555,7 @@ export default function TunnelDetailPage({
             password: tunnelInfo.password,
             min: tunnelInfo.config.min,
             max: tunnelInfo.config.max,
+            slot: tunnelInfo.config.slot,
             certPath: tunnelInfo.config.certPath,
             keyPath: tunnelInfo.config.keyPath,
             // 新增字段

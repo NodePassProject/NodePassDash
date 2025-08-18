@@ -132,18 +132,12 @@ func (s *Service) IsDefaultCredentials() bool {
 	storedUsername, _ := s.GetSystemConfig(ConfigKeyAdminUsername)
 	storedPasswordHash, _ := s.GetSystemConfig(ConfigKeyAdminPassword)
 
-	fmt.Printf("🔍 检查默认凭据: username=%s (expected=%s), hasHash=%v\n",
-		storedUsername, DefaultAdminUsername, storedPasswordHash != "")
-
 	if storedUsername != DefaultAdminUsername {
-		fmt.Printf("🔍 用户名不匹配，非默认凭据\n")
 		return false
 	}
 
 	// 验证密码是否是默认密码
-	isDefaultPassword := s.VerifyPassword(DefaultAdminPassword, storedPasswordHash)
-	fmt.Printf("🔍 密码验证结果: %v\n", isDefaultPassword)
-	return isDefaultPassword
+	return s.VerifyPassword(DefaultAdminPassword, storedPasswordHash)
 }
 
 // AuthenticateUser 用户登录验证

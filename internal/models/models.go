@@ -77,6 +77,9 @@ type Tunnel struct {
 	Min *int64 `json:"min,omitempty" gorm:"column:min"`
 	Max *int64 `json:"max,omitempty" gorm:"column:max"`
 
+	// 最大连接数限制
+	Slot *int64 `json:"slot,omitempty" gorm:"column:slot"`
+
 	CreatedAt     time.Time  `json:"createdAt" gorm:"autoCreateTime;index;column:created_at"`
 	UpdatedAt     time.Time  `json:"updatedAt" gorm:"autoUpdateTime;column:updated_at"`
 	LastEventTime *time.Time `json:"lastEventTime,omitempty" gorm:"column:last_event_time"`
@@ -116,6 +119,7 @@ type TunnelRecycle struct {
 	UDPTx         int64      `json:"udpTx" gorm:"default:0;column:udp_tx"`
 	Min           *int64     `json:"min,omitempty" gorm:"column:min"`
 	Max           *int64     `json:"max,omitempty" gorm:"column:max"`
+	Slot          *int64     `json:"slot,omitempty" gorm:"column:slot"`
 	CreatedAt     time.Time  `json:"createdAt" gorm:"autoCreateTime;column:created_at"`
 	DeletedAt     time.Time  `json:"deletedAt" gorm:"autoCreateTime;column:deleted_at"`
 }
@@ -213,42 +217,6 @@ func (UserSession) TableName() string {
 	return "user_sessions"
 }
 
-// TunnelGroup 隧道分组 - GORM模型
-type TunnelGroup struct {
-	ID          int       `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
-	Name        string    `json:"name" gorm:"type:text;not null;column:name"`
-	Description string    `json:"description" gorm:"type:text;column:description"`
-	Type        string    `json:"type" gorm:"type:text;not null;column:type"`
-	Color       string    `json:"color" gorm:"type:text;default:'#007bff';column:color"`
-	CreatedAt   time.Time `json:"created_at" gorm:"autoCreateTime;column:created_at"`
-	UpdatedAt   time.Time `json:"updated_at" gorm:"autoUpdateTime;column:updated_at"`
-
-	// 关联
-	Members []TunnelGroupMember `json:"members,omitempty" gorm:"foreignKey:GroupID"`
-}
-
-// TableName 设置表名
-func (TunnelGroup) TableName() string {
-	return "tunnel_groups"
-}
-
-// TunnelGroupMember 隧道分组成员 - GORM模型
-type TunnelGroupMember struct {
-	ID        int       `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
-	GroupID   int       `json:"group_id" gorm:"not null;index;column:group_id"`
-	TunnelID  string    `json:"tunnel_id" gorm:"type:text;not null;index;column:tunnel_id"`
-	Role      string    `json:"role" gorm:"type:text;default:'member';column:role"`
-	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime;column:created_at"`
-
-	// 关联
-	Group TunnelGroup `json:"group,omitempty" gorm:"foreignKey:GroupID"`
-}
-
-// TableName 设置表名
-func (TunnelGroupMember) TableName() string {
-	return "tunnel_group_members"
-}
-
 // Tag 标签表 - GORM模型
 type Tag struct {
 	ID        int64     `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
@@ -282,12 +250,6 @@ func (TunnelTag) TableName() string {
 	return "tunnel_tags"
 }
 
-// TunnelGroupWithMembers 分组及其成员信息
-type TunnelGroupWithMembers struct {
-	TunnelGroup
-	Members []TunnelGroupMember `json:"members"`
-}
-
 // OAuthUser OAuth用户表 - GORM模型
 type OAuthUser struct {
 	ID         int64     `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
@@ -302,22 +264,6 @@ type OAuthUser struct {
 // TableName 设置表名
 func (OAuthUser) TableName() string {
 	return "oauth_users"
-}
-
-// CreateTunnelGroupRequest 创建分组请求
-type CreateTunnelGroupRequest struct {
-	Name        string `json:"name" binding:"required"`
-	Description string `json:"description"`
-	Type        string `json:"type" binding:"required"` // single, double, custom
-	TunnelIDs   []int  `json:"tunnel_ids"`
-}
-
-// UpdateTunnelGroupRequest 更新分组请求
-type UpdateTunnelGroupRequest struct {
-	Name        string `json:"name"`
-	Description string `json:"description"`
-	Type        string `json:"type"`
-	TunnelIDs   []int  `json:"tunnel_ids"`
 }
 
 // ServiceHistory 服务历史监控表 - GORM模型（类似Nezha的ServiceHistory表）
