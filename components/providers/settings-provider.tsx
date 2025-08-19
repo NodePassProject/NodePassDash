@@ -8,6 +8,12 @@ interface Settings {
   theme: 'light' | 'dark' | 'system';
   isBeginnerMode: boolean;
   isPrivacyMode: boolean;
+  isExperimentalMode: boolean;
+  autoCheckUpdates: boolean;
+  updateCheckFrequency: 'daily' | 'weekly' | 'monthly' | 'never';
+  updateCheckTime: string;
+  updateNotifications: boolean;
+  silentDownload: boolean;
 }
 
 // 默认设置
@@ -15,6 +21,12 @@ const defaultSettings: Settings = {
   theme: 'system',
   isBeginnerMode: false,
   isPrivacyMode: false,
+  isExperimentalMode: false,
+  autoCheckUpdates: true,
+  updateCheckFrequency: 'weekly',
+  updateCheckTime: '06:00',
+  updateNotifications: true,
+  silentDownload: false,
 };
 
 // 设置上下文类型
@@ -23,7 +35,12 @@ interface SettingsContextType {
   updateTheme: (theme: 'light' | 'dark' | 'system') => void;
   toggleBeginnerMode: () => void;
   togglePrivacyMode: () => void;
+  toggleExperimentalMode: () => void;
   updateSettings: (newSettings: Partial<Settings>) => void;
+  toggleAutoCheckUpdates: () => void;
+  toggleUpdateNotifications: () => void;
+  toggleSilentDownload: () => void;
+  handleManualCheck: () => void;
 }
 
 // 创建上下文
@@ -128,6 +145,41 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     saveSettings(newSettings);
   };
 
+  // 切换实验性功能
+  const toggleExperimentalMode = () => {
+    const newSettings = { ...settings, isExperimentalMode: !settings.isExperimentalMode };
+    setSettings(newSettings);
+    saveSettings(newSettings);
+  };
+
+  // 切换自动检查更新
+  const toggleAutoCheckUpdates = () => {
+    const newSettings = { ...settings, autoCheckUpdates: !settings.autoCheckUpdates };
+    setSettings(newSettings);
+    saveSettings(newSettings);
+  };
+
+  // 切换更新通知
+  const toggleUpdateNotifications = () => {
+    const newSettings = { ...settings, updateNotifications: !settings.updateNotifications };
+    setSettings(newSettings);
+    saveSettings(newSettings);
+  };
+
+  // 切换静默下载
+  const toggleSilentDownload = () => {
+    const newSettings = { ...settings, silentDownload: !settings.silentDownload };
+    setSettings(newSettings);
+    saveSettings(newSettings);
+  };
+
+  // 手动检查更新
+  const handleManualCheck = () => {
+    // TODO: 实现手动检查更新逻辑
+    console.log('手动检查更新...');
+    // 这里可以调用后端API检查更新
+  };
+
   // 更新多个设置
   const updateSettings = (newSettings: Partial<Settings>) => {
     const updatedSettings = { ...settings, ...newSettings };
@@ -145,7 +197,12 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({ chil
     updateTheme,
     toggleBeginnerMode,
     togglePrivacyMode,
+    toggleExperimentalMode,
     updateSettings,
+    toggleAutoCheckUpdates,
+    toggleUpdateNotifications,
+    toggleSilentDownload,
+    handleManualCheck,
   };
 
   return (

@@ -103,9 +103,9 @@ const ErrorState: React.FC<{ error: string; height: number; className?: string }
 
 // 空状态组件
 const EmptyState: React.FC<{ height: number; className?: string }> = ({ height, className }) => (
-  <div className={`flex items-end justify-center ${className}`} style={height ? { height } : {}}>
-    <div className="text-center pb-2">
-      <p className="text-default-400 text-xs">暂无连接数据</p>
+  <div className={`flex items-center justify-center ${className}`} style={height ? { height } : {}}>
+    <div className="text-center">
+      <p className="text-default-400 text-xs">暂无数据</p>
     </div>
   </div>
 );

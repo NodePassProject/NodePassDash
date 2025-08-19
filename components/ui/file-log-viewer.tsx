@@ -80,7 +80,7 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
     
     try {
       const response = await fetch(
-        `/api/endpoints/${endpointId}/file-logs?instanceId=${instanceId}&date=${date}`
+        `/api/tunnels/${instanceId}/file-logs?&date=${date}`
       );
       
       if (!response.ok) {
@@ -131,7 +131,7 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
     
     try {
       const response = await fetch(
-        `/api/endpoints/${endpointId}/file-logs/clear?instanceId=${instanceId}`,
+        `/api/tunnels/${instanceId}/file-logs/clear`,
         { method: 'DELETE' }
       );
       

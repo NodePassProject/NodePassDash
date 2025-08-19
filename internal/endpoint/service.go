@@ -32,12 +32,6 @@ func (s *Service) GetEndpoints() ([]EndpointWithStats, error) {
 	var endpoints []EndpointWithStats
 
 	err := s.db.Table("endpoints e").
-		Select(`
-			e.id, e.name, e.url, e.ip, e.api_path, e.api_key, e.status, e.color,
-			e.os, e.arch, e.ver, e.log, e.tls, e.crt, e.key_path, e.uptime,
-			e.last_check, e.created_at, e.updated_at,
-			e.tunnel_count
-		`).
 		Order("e.created_at DESC").
 		Scan(&endpoints).Error
 
@@ -168,6 +162,9 @@ func (s *Service) CreateEndpoint(req CreateEndpointRequest) (*Endpoint, error) {
 		return nil, err
 	}
 
+	// 添加到缓存
+	nodepass.GetCache().Set(endpoint.ID, endpoint.URL+endpoint.APIPath, endpoint.APIKey)
+
 	return endpoint, nil
 }
 
@@ -200,6 +197,7 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 			return nil, err
 		}
 		endpoint.Name = req.Name
+		// 名称更新不影响缓存，因为缓存只存储ID、URL和APIKey
 
 	case "update":
 		// 检查URL是否重复
@@ -241,6 +239,11 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 		if err := s.db.First(&endpoint, req.ID).Error; err != nil {
 			return nil, err
 		}
+
+		// 更新缓存（只有在URL或APIKey变化时才需要更新）
+		if req.URL != "" || req.APIKey != "" {
+			nodepass.GetCache().Update(endpoint.ID, endpoint.URL+endpoint.APIPath, endpoint.APIKey)
+		}
 	}
 
 	return &endpoint, nil
@@ -278,6 +281,9 @@ func (s *Service) DeleteEndpoint(id int64) error {
 		if result.RowsAffected == 0 {
 			return errors.New("端点不存在")
 		}
+
+		// 5) 从缓存中删除
+		nodepass.GetCache().Delete(id)
 
 		return nil
 	})

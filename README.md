@@ -1,4 +1,6 @@
-# 🚀 NodePassDash
+<div align="center">
+  <img src="docs/nodepassdash-logo.svg" alt="NodePassDash" height="80">
+</div>
 
 ![Version](https://img.shields.io/badge/version-2.2.1-blue.svg)
 ![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)

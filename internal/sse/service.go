@@ -415,31 +415,18 @@ func (s *Service) updateTunnelRuntimeInfo(payload SSEResp) {
 
 // fetchAndUpdateEndpointInfo 获取并更新端点系统信息
 func (s *Service) fetchAndUpdateEndpointInfo(endpointID int64) {
-	// 获取端点信息
-	ep, err := s.endpointService.GetEndpointByID(endpointID)
-	if err != nil {
-		log.Errorf("[Master-%d] 获取端点信息失败: %v", endpointID, err)
-		return
-	}
-
-	// 创建NodePass客户端
-	client := nodepass.NewClient(ep.URL, ep.APIPath, ep.APIKey, nil)
 
 	// 尝试获取系统信息 (处理低版本API不存在的情况)
 	var info *nodepass.EndpointInfoResult
-	func() {
-		defer func() {
-			if r := recover(); r != nil {
-				log.Warnf("[Master-%d] 获取系统信息失败(可能为低版本): %v", endpointID, r)
-			}
-		}()
+	if r := recover(); r != nil {
+		log.Warnf("[Master-%d] 获取系统信息失败(可能为低版本): %v", endpointID, r)
+	}
 
-		info, err = client.GetInfo()
-		if err != nil {
-			log.Warnf("[Master-%d] 获取系统信息失败: %v", endpointID, err)
-			// 不返回错误，继续处理
-		}
-	}()
+	info, err := nodepass.GetInfo(endpointID)
+	if err != nil {
+		log.Warnf("[Master-%d] 获取系统信息失败: %v", endpointID, err)
+		// 不返回错误，继续处理
+	}
 
 	// 如果成功获取到信息，更新数据库
 	if info != nil && err == nil {

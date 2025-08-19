@@ -412,7 +412,7 @@ export default function EndpointsPage() {
   };
   const handleExportData = async () => {
     try {
-      const response = await fetch('/api/data/export');
+      const response = await fetch('/api/endpoints/data/export');
       if (!response.ok) {
         throw new Error('导出失败');
       }
@@ -472,7 +472,7 @@ export default function EndpointsPage() {
       const fileContent = await selectedFile.text();
       const importData = JSON.parse(fileContent);
 
-      const response = await fetch('/api/data/import', {
+      const response = await fetch('/api/endpoints/data/import', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -736,40 +736,6 @@ export default function EndpointsPage() {
         title: "重命名失败",
         description: error instanceof Error ? error.message : "请稍后重试",
         color: "danger",
-      });
-    }
-  };
-
-  // 处理编辑主控
-  const handleEdit = async (endpointId: string, data: EndpointFormData) => {
-    try {
-      const response = await fetch(buildApiUrl(`/api/endpoints/${endpointId}`), {
-        method: 'PUT',
-        headers: {
-          'Content-Type': 'application/json'
-        },
-        body: JSON.stringify(data)
-      });
-
-      if (!response.ok) {
-        const error = await response.json();
-        throw new Error(error.message || '更新失败');
-      }
-
-      // 刷新主控列表
-      await fetchEndpoints();
-
-      addToast({
-        title: '成功',
-        description: '更新成功',
-        color: 'success'
-      });
-    } catch (error) {
-      console.error('更新主控失败:', error);
-      addToast({
-        title: '错误',
-        description: error instanceof Error ? error.message : '更新失败',
-        color: 'danger'
       });
     }
   };

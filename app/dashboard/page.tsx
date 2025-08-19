@@ -181,7 +181,7 @@ export default function DashboardPage() {
     if (operationLogs.length === 0) return;
     setClearingLogs(true);
     try {
-      const response = await fetch(buildApiUrl('/api/dashboard/logs'), {
+      const response = await fetch(buildApiUrl('/api/dashboard/operate_logs'), {
         method: 'DELETE',
       });
       const data = await response.json();
@@ -264,28 +264,6 @@ export default function DashboardPage() {
     { key: "status", label: "状态" },
   ];
 
-  // 获取总体统计数据
-  const fetchOverallStats = useCallback(async () => {
-    try {
-      const response = await fetch(buildApiUrl('/api/dashboard/overall-stats'));
-      
-      if (!response.ok) throw new Error('获取总体统计数据失败');
-      const data = await response.json();
-      
-      if (data.success && data.data) {
-        console.log('[仪表盘] 总体统计数据:', data.data);
-        setOverallStats(data.data);
-      }
-    } catch (error) {
-      console.error('获取总体统计数据失败:', error);
-      addToast({
-        title: '错误',
-        description: '获取总体统计数据失败',
-        color: 'danger'
-      });
-    }
-  }, []);
-
   // 获取主控数据
   const fetchEndpoints = useCallback(async () => {
     try {
@@ -307,7 +285,7 @@ export default function DashboardPage() {
   // 获取操作日志数据
   const fetchOperationLogs = useCallback(async () => {
     try {
-      const response = await fetch(buildApiUrl('/api/dashboard/logs?limit=1000'));
+      const response = await fetch(buildApiUrl('/api/dashboard/operate_logs?limit=1000'));
       
       if (!response.ok) throw new Error('获取操作日志失败');
       const data: OperationLog[] = await response.json();
@@ -436,7 +414,6 @@ export default function DashboardPage() {
       
       try {
         await Promise.all([
-          fetchOverallStats(), 
           fetchEndpoints(),
           fetchTunnelStats(),
           fetchOperationLogs(),
@@ -464,7 +441,7 @@ export default function DashboardPage() {
     return () => {
       abortController.abort();
     };
-  }, [fetchOverallStats, fetchEndpoints, fetchTunnelStats, fetchOperationLogs, fetchTrafficTrend]);
+  }, [  fetchEndpoints, fetchTunnelStats, fetchOperationLogs, fetchTrafficTrend]);
 
   return (
     <div className="space-y-4 md:space-y-6 p-4 md:p-0">

@@ -1,11 +1,12 @@
 package main
 
 import (
-	"NodePassDash/internal/api"
 	"NodePassDash/internal/auth"
 	"NodePassDash/internal/dashboard"
 	dbPkg "NodePassDash/internal/db"
 	"NodePassDash/internal/endpoint"
+	"NodePassDash/internal/nodepass"
+	"NodePassDash/internal/router"
 
 	// "NodePassDash/internal/lifecycle"
 	log "NodePassDash/internal/log"
@@ -26,7 +27,7 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 // Version 会在构建时通过 -ldflags "-X main.Version=xxx" 注入
@@ -205,6 +206,13 @@ func main() {
 		log.Errorf("系统初始化失败: %v", err)
 	}
 
+	// 初始化端点缓存
+	if err := nodepass.InitializeCache(gormDB); err != nil {
+		log.Errorf("初始化端点缓存失败: %v", err)
+	} else {
+		log.Infof("端点缓存初始化成功，加载了 %d 个端点", nodepass.GetCache().Count())
+	}
+
 	// 初始化其他服务
 	endpointService := endpoint.NewService(gormDB)
 	tunnelService := tunnel.NewService(gormDB)
@@ -226,37 +234,27 @@ func main() {
 	// 延迟启动SSE组件和流量调度器
 	var trafficScheduler *dashboard.TrafficScheduler
 
-	// 设置版本号到 API 包
-	api.SetVersion(Version)
+	// 使用 Gin 路由器 - 标准Go项目结构
+	log.Info("使用 Gin 路由器 (标准架构)")
+	gin.SetMode(gin.ReleaseMode) // 设置为生产模式
 
-	// 创建API路由器 (仅处理 /api/*)
-	apiRouter := api.NewRouter(gormDB, sseService, sseManager)
+	ginRouter := router.SetupRouter(router.RouterConfig{
+		DB:         gormDB,
+		SSEService: sseService,
+		SSEManager: sseManager,
+	})
 
-	// 顶层路由器，用于同时处理 API 和静态资源
-	rootRouter := mux.NewRouter()
-	rootRouter.StrictSlash(true)
-
-	// 注册 API 路由
-	rootRouter.PathPrefix("/api/").Handler(apiRouter)
-
-	// 静态文件服务 - 使用解压后的 dist 目录
-	fs := http.FileServer(http.Dir("dist"))
-	rootRouter.PathPrefix("/").HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		// 如果请求路径以 /api/ 开头，交给 API 处理器
-		if strings.HasPrefix(r.URL.Path, "/api/") {
-			apiRouter.ServeHTTP(w, r)
+	// 添加静态文件服务
+	ginRouter.Static("/assets", "dist/assets")               // 静态资源
+	ginRouter.StaticFile("/favicon.ico", "dist/favicon.ico") // favicon
+	ginRouter.NoRoute(func(c *gin.Context) {
+		// SPA 支持：如果是API路由但未找到，返回404；否则返回index.html
+		if strings.HasPrefix(c.Request.URL.Path, "/api/") {
+			c.JSON(404, gin.H{"error": "API route not found"})
 			return
 		}
-
-		// 检查文件是否存在
-		if _, err := http.Dir("dist").Open(r.URL.Path); err != nil {
-			// 如果文件不存在，返回 index.html 以支持 SPA
-			http.ServeFile(w, r, "dist/index.html")
-			return
-		}
-
-		// 提供静态文件
-		fs.ServeHTTP(w, r)
+		// 其他路径返回 index.html 支持 SPA
+		c.File("dist/index.html")
 	})
 
 	// 读取端口：命令行 > 环境变量 > 默认值
@@ -318,7 +316,7 @@ func main() {
 	// 创建HTTP服务器
 	server := &http.Server{
 		Addr:    addr,
-		Handler: rootRouter,
+		Handler: ginRouter,
 	}
 
 	// 启动HTTP/HTTPS服务器

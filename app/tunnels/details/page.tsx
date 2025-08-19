@@ -1071,7 +1071,7 @@ export default function TunnelDetailPage({
 
     try {
       const response = await fetch(
-        `/api/endpoints/${tunnelInfo.endpointId}/tcping`,
+        `/api/tunnels/${tunnelInfo.instanceId}/tcping`,
         {
           method: "POST",
           headers: { "Content-Type": "application/json" },
