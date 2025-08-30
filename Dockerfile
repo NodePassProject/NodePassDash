@@ -41,13 +41,21 @@ RUN apk add --no-cache git gcc g++ make musl-dev sqlite-dev
 
 # 将 go.mod 和 go.sum 拷贝并拉取依赖
 COPY go.mod go.sum ./
-RUN go mod download
+
+# 设置 Go module proxy 和超时
+ENV GOPROXY=https://proxy.golang.org,direct
+ENV GOSUMDB=sum.golang.org
+ENV GOTIMEOUT=600s
+
+# 增加网络重试和下载超时
+RUN go mod download -x
 
 # 复制剩余代码（包括先前前端生成的 dist）
 COPY --from=frontend-builder /app .
 
-# 启用 CGO
+# 启用 CGO 和设置编译标记以支持 musl
 ENV CGO_ENABLED=1
+ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
 
 # 编译 Backend 可执行文件，注入版本号
 RUN go build -ldflags "-s -w -X main.Version=${VERSION}" -o nodepassdash ./cmd/server

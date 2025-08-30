@@ -4,6 +4,7 @@ import (
 	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
 	"errors"
+	"fmt"
 	"net"
 	"net/url"
 	"strings"
@@ -163,7 +164,7 @@ func (s *Service) CreateEndpoint(req CreateEndpointRequest) (*Endpoint, error) {
 	}
 
 	// 添加到缓存
-	nodepass.GetCache().Set(endpoint.ID, endpoint.URL+endpoint.APIPath, endpoint.APIKey)
+	nodepass.GetCache().Set(fmt.Sprintf("%d", endpoint.ID), endpoint.URL+endpoint.APIPath, endpoint.APIKey)
 
 	return endpoint, nil
 }
@@ -242,7 +243,7 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 
 		// 更新缓存（只有在URL或APIKey变化时才需要更新）
 		if req.URL != "" || req.APIKey != "" {
-			nodepass.GetCache().Update(endpoint.ID, endpoint.URL+endpoint.APIPath, endpoint.APIKey)
+			nodepass.GetCache().Update(fmt.Sprintf("%d", endpoint.ID), endpoint.URL+endpoint.APIPath, endpoint.APIKey)
 		}
 	}
 
@@ -283,7 +284,7 @@ func (s *Service) DeleteEndpoint(id int64) error {
 		}
 
 		// 5) 从缓存中删除
-		nodepass.GetCache().Delete(id)
+		nodepass.GetCache().Delete(fmt.Sprintf("%d", id))
 
 		return nil
 	})

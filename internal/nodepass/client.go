@@ -89,7 +89,7 @@ func request(method, url, apiKey string, body interface{}, dest interface{}) err
 
 // GetInstances 获取所有隧道实例列表
 func GetInstances(endpointID int64) ([]InstanceResult, error) {
-	baseURL, apiKey, _ := GetCache().Get(endpointID)
+	baseURL, apiKey, _ := GetCache().Get(fmt.Sprintf("%d", endpointID))
 	// 创建临时客户端来执行请求
 	var resp []InstanceResult
 	if err := request(http.MethodGet, fmt.Sprintf("%s/instances", baseURL), apiKey, nil, &resp); err != nil {
@@ -100,7 +100,7 @@ func GetInstances(endpointID int64) ([]InstanceResult, error) {
 
 // CreateInstance 创建隧道实例，返回实例 ID 与状态(running/stopped 等)
 func CreateInstance(endpointID int64, commandLine string) (InstanceResult, error) {
-	baseURL, apiKey, _ := GetCache().Get(endpointID)
+	baseURL, apiKey, _ := GetCache().Get(fmt.Sprintf("%d", endpointID))
 
 	payload := map[string]string{"url": commandLine}
 
@@ -113,14 +113,14 @@ func CreateInstance(endpointID int64, commandLine string) (InstanceResult, error
 
 // DeleteInstance 删除指定实例
 func DeleteInstance(endpointID int64, instanceID string) error {
-	baseURL, apiKey, _ := GetCache().Get(endpointID)
+	baseURL, apiKey, _ := GetCache().Get(fmt.Sprintf("%d", endpointID))
 	return request(http.MethodDelete, fmt.Sprintf("%s/instances/%s", baseURL, instanceID), apiKey, nil, nil)
 }
 
 // UpdateInstance 更新指定实例的命令行 (PUT /instances/{id})
 func UpdateInstance(endpointID int64, instanceID, commandLine string) (InstanceResult, error) {
 	payload := map[string]string{"url": commandLine}
-	baseURL, apiKey, _ := GetCache().Get(endpointID)
+	baseURL, apiKey, _ := GetCache().Get(fmt.Sprintf("%d", endpointID))
 	var resp InstanceResult
 	if err := request(http.MethodPut, fmt.Sprintf("%s/instances/%s", baseURL, instanceID), apiKey, payload, &resp); err != nil {
 		return resp, err
@@ -132,7 +132,7 @@ func UpdateInstance(endpointID int64, instanceID, commandLine string) (InstanceR
 func PatchInstance(endpointID int64, instanceID string, body patchBody) (InstanceResult, error) {
 	var resp InstanceResult
 
-	baseURL, apiKey, _ := GetCache().Get(endpointID)
+	baseURL, apiKey, _ := GetCache().Get(fmt.Sprintf("%d", endpointID))
 	if err := request(http.MethodPatch, fmt.Sprintf("%s/instances/%s", baseURL, instanceID), apiKey, body, &resp); err != nil {
 		return resp, err
 	}
@@ -174,7 +174,7 @@ func ResetTraffic(endpointID int64, instanceID string) (InstanceResult, error) {
 // GetInfo 获取NodePass实例的系统信息
 func GetInfo(endpointID int64) (*EndpointInfoResult, error) {
 	var resp EndpointInfoResult
-	baseURL, apiKey, _ := GetCache().Get(endpointID)
+	baseURL, apiKey, _ := GetCache().Get(fmt.Sprintf("%d", endpointID))
 
 	// 创建临时客户端来执行请求
 
@@ -200,7 +200,7 @@ func TCPing(endpointID int64, target string) (*TCPingResult, error) {
 	var latencies []int64
 	var errors []string
 
-	baseURL, apiKey, _ := GetCache().Get(endpointID)
+	baseURL, apiKey, _ := GetCache().Get(fmt.Sprintf("%d", endpointID))
 
 	// 进行5次测试
 	for i := 0; i < testCount; i++ {
