@@ -17,7 +17,6 @@ import React, { useState } from "react";
 import { addToast } from "@heroui/toast";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faServer, faPen, faWifi, faSpinner, faEye, faEyeSlash, faFileImport, faFileExport } from "@fortawesome/free-solid-svg-icons";
-import { NodePassAPI } from "@/lib/api";
 
 // 表单数据接口
 interface FormData {
