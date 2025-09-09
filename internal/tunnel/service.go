@@ -839,18 +839,25 @@ func (s *Service) GetInstanceIDByTunnelID(id int64) (string, error) {
 	return *tunnel.InstanceID, nil
 }
 
-// GetInstanceIDByTunnelID 根据隧道数据库ID获取对应的实例ID (instanceId)
+// GetEndpointIDByTunnelID 根据隧道数据库ID获取对应的端点ID
 func (s *Service) GetEndpointIDByTunnelID(id int64) (int64, error) {
 	var tunnel models.Tunnel
 	err := s.db.Select("endpoint_id").Where("id = ?", id).First(&tunnel).Error
 	if err != nil {
+		return 0, err
 	}
 	return tunnel.EndpointID, nil
 }
+
+// GetEndpointIDByInstanceID 根据实例ID获取对应的端点ID
 func (s *Service) GetEndpointIDByInstanceID(instanceID string) (int64, error) {
 	var tunnel models.Tunnel
 	err := s.db.Select("endpoint_id").Where("instance_id = ?", instanceID).First(&tunnel).Error
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return 0, errors.New("实例不存在")
+		}
+		return 0, err
 	}
 	return tunnel.EndpointID, nil
 }

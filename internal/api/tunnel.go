@@ -3426,14 +3426,20 @@ func (h *TunnelHandler) HandleGetInstances(c *gin.Context) {
 	// 从路径参数中获取端点ID
 	endpointIDStr := c.Param("id")
 	if endpointIDStr == "" {
-		c.String(http.StatusBadRequest, "Missing endpointId parameter")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Missing endpointId parameter",
+		})
 		return
 	}
 
 	// 解析端点ID
 	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
 	if err != nil {
-		c.String(http.StatusBadRequest, "Invalid endpointId parameter")
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "Invalid endpointId parameter",
+		})
 		return
 	}
 
@@ -3441,22 +3447,34 @@ func (h *TunnelHandler) HandleGetInstances(c *gin.Context) {
 	var endpoint struct{ URL, APIPath, APIKey string }
 	if err := h.tunnelService.DB().QueryRow(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`, endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
 		if err == sql.ErrNoRows {
-			c.String(http.StatusNotFound, "Endpoint not found")
+			c.JSON(http.StatusNotFound, gin.H{
+				"success": false,
+				"error":   "Endpoint not found",
+			})
 			return
 		}
-		c.String(http.StatusInternalServerError, "Failed to get endpoint info")
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "Failed to get endpoint info",
+		})
 		return
 	}
 
 	// 获取实例列表
 	instances, err := nodepass.GetInstances(endpointID)
 	if err != nil {
-		c.String(http.StatusInternalServerError, err.Error())
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   err.Error(),
+		})
 		return
 	}
 
-	// 返回实例列表
-	c.JSON(http.StatusOK, instances)
+	// 返回包装后的实例列表
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    instances,
+	})
 }
 
 // HandleGetInstance 获取单个实例信息 (GET /api/endpoints/{endpointId}/instances/{instanceId})

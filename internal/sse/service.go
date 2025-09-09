@@ -433,11 +433,8 @@ func (s *Service) fetchAndUpdateEndpointInfo(endpointID int64) {
 		if updateErr := s.endpointService.UpdateEndpointInfo(endpointID, *info); updateErr != nil {
 			log.Errorf("[Master-%d] 更新系统信息失败: %v", endpointID, updateErr)
 		} else {
-			// 在日志中显示uptime信息（如果可用）
-			uptimeMsg := "未知"
-			if info.Uptime != nil {
-				uptimeMsg = fmt.Sprintf("%d秒", *info.Uptime)
-			}
+			// 在日志中显示uptime信息
+			uptimeMsg := fmt.Sprintf("%d秒", info.Uptime)
 			log.Infof("[Master-%d] 系统信息已更新: OS=%s, Arch=%s, Ver=%s, Uptime=%s", endpointID, info.OS, info.Arch, info.Ver, uptimeMsg)
 		}
 	}

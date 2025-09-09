@@ -98,6 +98,16 @@ func GetInstances(endpointID int64) ([]InstanceResult, error) {
 	return resp, nil
 }
 
+// GetInstance 获取指定实例信息
+func GetInstance(endpointID int64, instanceID string) (*InstanceResult, error) {
+	baseURL, apiKey, _ := GetCache().Get(fmt.Sprintf("%d", endpointID))
+	var resp InstanceResult
+	if err := request(http.MethodGet, fmt.Sprintf("%s/instances/%s", baseURL, instanceID), apiKey, nil, &resp); err != nil {
+		return nil, err
+	}
+	return &resp, nil
+}
+
 // CreateInstance 创建隧道实例，返回实例 ID 与状态(running/stopped 等)
 func CreateInstance(endpointID int64, commandLine string) (InstanceResult, error) {
 	baseURL, apiKey, _ := GetCache().Get(fmt.Sprintf("%d", endpointID))
@@ -296,6 +306,7 @@ type InstanceResult struct {
 	Restart *bool   `json:"restart,omitempty"`
 	TCPs    *int64  `json:"tcps,omitempty"`
 	UDPs    *int64  `json:"udps,omitempty"`
+	Mode    *int    `json:"mode,omitempty"`
 }
 
 type patchBody struct {
@@ -306,15 +317,25 @@ type patchBody struct {
 
 // EndpointInfoResult NodePass实例的系统信息
 type EndpointInfoResult struct {
-	OS     string `json:"os"`
-	Arch   string `json:"arch"`
-	Ver    string `json:"ver"`
-	Name   string `json:"name"`
-	Log    string `json:"log"`
-	TLS    string `json:"tls"`
-	Crt    string `json:"crt"`
-	Key    string `json:"key"`
-	Uptime *int64 `json:"uptime,omitempty"` // 使用指针类型，支持低版本兼容
+	OS        string `json:"os"`
+	Arch      string `json:"arch"`
+	Ver       string `json:"ver"`
+	Name      string `json:"name"`
+	Log       string `json:"log"`
+	TLS       string `json:"tls"`
+	Crt       string `json:"crt"`
+	Key       string `json:"key"`
+	CPU       int    `json:"cpu"`        // CPU核心使用百分比
+	MemFree   int64  `json:"mem_free"`   // 空闲内存(字节)
+	MemTotal  int64  `json:"mem_total"`  // 总内存(字节)
+	SwapFree  int64  `json:"swap_free"`  // 空闲交换空间(字节)
+	SwapTotal int64  `json:"swap_total"` // 总交换空间(字节)
+	DiskRead  int64  `json:"diskr"`      // 磁盘读取字节数
+	DiskWrite int64  `json:"diskw"`      // 磁盘写入字节数
+	NetRx     int64  `json:"netrx"`      // 网络接收字节数
+	NetTx     int64  `json:"nettx"`      // 网络发送字节数
+	SysUptime int64  `json:"sysup"`      // 系统运行时间(秒)
+	Uptime    int64  `json:"uptime"`     // NodePass运行时间(秒)
 }
 
 // TCPingResult 表示TCP连接测试的结果

@@ -86,3 +86,4 @@ nodepass-release.*
 logs/
 certs/
 gob/
+pkg/

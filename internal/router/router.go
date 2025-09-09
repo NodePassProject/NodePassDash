@@ -9,6 +9,7 @@ import (
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tag"
 	"NodePassDash/internal/tunnel"
+	"NodePassDash/internal/websocket"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -16,7 +17,7 @@ import (
 )
 
 // SetupRouter 创建并配置主路由器
-func SetupRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager) *gin.Engine {
+func SetupRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager, wsService *websocket.Service) *gin.Engine {
 	r := gin.Default()
 
 	// 全局中间件
@@ -28,13 +29,13 @@ func SetupRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager) 
 	})
 
 	// API路由
-	setupAPIRoutes(r, db, sseService, sseManager)
+	setupAPIRoutes(r, db, sseService, sseManager, wsService)
 
 	return r
 }
 
 // setupAPIRoutes 设置API路由
-func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager) {
+func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager, wsService *websocket.Service) {
 	apiGroup := r.Group("/api")
 	{
 		// 创建服务实例
@@ -53,6 +54,7 @@ func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseMana
 		api.SetupEndpointRoutes(apiGroup, endpointService, sseManager)
 		api.SetupTunnelRoutes(apiGroup, tunnelService, sseManager, sseProcessor)
 		api.SetupSSERoutes(apiGroup, sseService, sseManager)
+		api.SetupWebSocketRoutes(apiGroup, wsService)
 		api.SetupDashboardRoutes(apiGroup, dashboardService)
 		api.SetupDataRoutes(apiGroup, db, sseManager, endpointService, tunnelService)
 		api.SetupTagRoutes(apiGroup, tagService)

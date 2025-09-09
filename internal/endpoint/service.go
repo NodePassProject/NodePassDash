@@ -364,10 +364,8 @@ func (s *Service) UpdateEndpointInfo(id int64, info nodepass.EndpointInfoResult)
 		"updated_at": time.Now(),
 	}
 
-	// 处理uptime字段，如果为nil则保持NULL
-	if info.Uptime != nil {
-		updates["uptime"] = *info.Uptime
-	}
+	// 处理uptime字段
+	updates["uptime"] = info.Uptime
 
 	return s.db.Model(&models.Endpoint{}).Where("id = ?", id).Updates(updates).Error
 }

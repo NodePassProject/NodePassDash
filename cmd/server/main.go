@@ -12,6 +12,7 @@ import (
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
+	"NodePassDash/internal/websocket"
 	"archive/zip"
 	"context"
 	"embed"
@@ -231,6 +232,12 @@ func main() {
 	// 设置Manager引用到Service（避免循环依赖）
 	sseService.SetManager(sseManager)
 
+	// 创建WebSocket服务
+	wsService := websocket.NewService()
+
+	// 设置WebSocket服务的tunnel service依赖
+	wsService.SetTunnelService(tunnelService)
+
 	// 延迟启动SSE组件和流量调度器
 	var trafficScheduler *dashboard.TrafficScheduler
 
@@ -238,7 +245,7 @@ func main() {
 	log.Info("使用 Gin 路由器 (标准架构)")
 	gin.SetMode(gin.ReleaseMode) // 设置为生产模式
 
-	ginRouter := router.SetupRouter(gormDB, sseService, sseManager)
+	ginRouter := router.SetupRouter(gormDB, sseService, sseManager, wsService)
 
 	// 添加静态文件服务
 	ginRouter.Static("/assets", "dist/assets")               // 静态资源
@@ -353,6 +360,12 @@ func main() {
 		log.Info("SSE系统已启动")
 	}()
 
+	// 启动WebSocket服务
+	go func() {
+		wsService.Start()
+		log.Info("WebSocket系统已启动")
+	}()
+
 	// 记录未使用的变量以避免编译错误
 	_ = authService
 	_ = endpointService
@@ -361,6 +374,7 @@ func main() {
 	_ = sseService
 	_ = sseManager
 	_ = trafficScheduler
+	_ = wsService
 	_ = ctx
 
 	// 等待中断信号
@@ -379,6 +393,11 @@ func main() {
 	// 关闭流量调度器
 	if trafficScheduler != nil {
 		trafficScheduler.Stop()
+	}
+
+	// 关闭WebSocket系统
+	if wsService != nil {
+		wsService.Stop()
 	}
 
 	// 关闭SSE系统

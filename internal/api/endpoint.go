@@ -1248,11 +1248,8 @@ func (h *EndpointHandler) HandleGetEndpointInfo(c *gin.Context) {
 		if updateErr := h.endpointService.UpdateEndpointInfo(id, *info); updateErr != nil {
 			log.Errorf("[Master-%v] 更新系统信息失败: %v", ep.ID, updateErr)
 		} else {
-			// 在日志中显示uptime信息（如果可用）
-			uptimeMsg := "未知"
-			if info.Uptime != nil {
-				uptimeMsg = fmt.Sprintf("%d秒", *info.Uptime)
-			}
+			// 在日志中显示uptime信息
+			uptimeMsg := fmt.Sprintf("%d秒", info.Uptime)
 			log.Infof("[Master-%v] 系统信息已更新: OS=%s, Arch=%s, Ver=%s, Uptime=%s", ep.ID, info.OS, info.Arch, info.Ver, uptimeMsg)
 		}
 
@@ -1365,11 +1362,8 @@ func (h *EndpointHandler) HandleGetEndpointDetail(c *gin.Context) {
 			if updateErr := h.endpointService.UpdateEndpointInfo(id, *info); updateErr != nil {
 				log.Errorf("[Master-%v] 更新系统信息到数据库失败: %v", ep.ID, updateErr)
 			} else {
-				// 在日志中显示uptime信息（如果可用）
-				uptimeMsg := "未知"
-				if info.Uptime != nil {
-					uptimeMsg = fmt.Sprintf("%d秒", *info.Uptime)
-				}
+				// 在日志中显示uptime信息
+				uptimeMsg := fmt.Sprintf("%d秒", info.Uptime)
 				log.Infof("[Master-%v] 详情页刷新：系统信息已更新: OS=%s, Arch=%s, Ver=%s, Uptime=%s", ep.ID, info.OS, info.Arch, info.Ver, uptimeMsg)
 			}
 		}
