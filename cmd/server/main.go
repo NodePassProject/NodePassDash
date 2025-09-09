@@ -238,11 +238,7 @@ func main() {
 	log.Info("使用 Gin 路由器 (标准架构)")
 	gin.SetMode(gin.ReleaseMode) // 设置为生产模式
 
-	ginRouter := router.SetupRouter(router.RouterConfig{
-		DB:         gormDB,
-		SSEService: sseService,
-		SSEManager: sseManager,
-	})
+	ginRouter := router.SetupRouter(gormDB, sseService, sseManager)
 
 	// 添加静态文件服务
 	ginRouter.Static("/assets", "dist/assets")               // 静态资源

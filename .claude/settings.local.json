@@ -1,7 +1,10 @@
 {
   "permissions": {
     "allow": [
-      "Bash(grep:*)"
+      "Bash(grep:*)",
+      "Bash(go get:*)",
+      "Bash(go build:*)",
+      "Bash(find:*)"
     ],
     "deny": [],
     "ask": [],
