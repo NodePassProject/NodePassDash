@@ -18,6 +18,20 @@ func NewTagHandler(tagService *tag.Service) *TagHandler {
 	return &TagHandler{tagService: tagService}
 }
 
+// setupTagRoutes 设置标签相关路由
+func SetupTagRoutes(rg *gin.RouterGroup, tagService *tag.Service) {
+	// 创建TagHandler实例
+	tagHandler := NewTagHandler(tagService)
+
+	// 标签相关路由
+	rg.GET("/tags", tagHandler.GetTags)
+	rg.POST("/tags", tagHandler.CreateTag)
+	rg.PUT("/tags/:id", tagHandler.UpdateTag)
+	rg.DELETE("/tags/:id", tagHandler.DeleteTag)
+	rg.GET("/tunnels/:id/tag", tagHandler.GetTunnelTag)
+	rg.POST("/tunnels/:id/tag", tagHandler.AssignTagToTunnel)
+}
+
 // GetTags 获取所有标签
 func (h *TagHandler) GetTags(c *gin.Context) {
 	tags, err := h.tagService.GetTags()

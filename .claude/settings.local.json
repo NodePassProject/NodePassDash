@@ -4,7 +4,8 @@
       "Bash(grep:*)",
       "Bash(go get:*)",
       "Bash(go build:*)",
-      "Bash(find:*)"
+      "Bash(find:*)",
+      "Bash(go:*)"
     ],
     "deny": [],
     "ask": [],

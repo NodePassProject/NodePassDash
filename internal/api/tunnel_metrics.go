@@ -320,7 +320,7 @@ func (h *TunnelMetricsHandler) createZeroDataPoint(timeKey, metricType string) m
 // GET /api/tunnels/{instanceId}/metrics-trend
 func (h *TunnelMetricsHandler) HandleGetTunnelMetricsTrend(c *gin.Context) {
 
-	instanceId := c.Param("instanceId")
+	instanceId := c.Param("id")
 	if instanceId == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少实例ID"})
 		return

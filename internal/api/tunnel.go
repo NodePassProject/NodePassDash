@@ -2,6 +2,7 @@ package api
 
 import (
 	log "NodePassDash/internal/log"
+	"NodePassDash/internal/metrics"
 	"NodePassDash/internal/nodepass"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
@@ -20,7 +21,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 )
 
 // TunnelHandler 隧道相关的处理器
@@ -37,15 +38,56 @@ func NewTunnelHandler(tunnelService *tunnel.Service, sseManager *sse.Manager) *T
 	}
 }
 
-// HandleGetTunnels 获取隧道列表
-func (h *TunnelHandler) HandleGetTunnels(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+// setupTunnelRoutes 设置隧道相关路由
+func SetupTunnelRoutes(rg *gin.RouterGroup, tunnelService *tunnel.Service, sseManager *sse.Manager, sseProcessor *metrics.SSEProcessor) {
+	// 创建TunnelHandler实例
+	tunnelHandler := NewTunnelHandler(tunnelService, sseManager)
+	tunnelMetricsHandler := NewTunnelMetricsHandler(tunnelService, sseProcessor)
 
+	// 实例相关路由
+	// 实例相关路由
+	rg.GET("/endpoints/:id/instances", tunnelHandler.HandleGetInstances)
+	rg.GET("/endpoints/:id/instances/:instanceId", tunnelHandler.HandleGetInstance)
+	rg.POST("/endpoints/:id/instances/:instanceId/control", tunnelHandler.HandleControlInstance)
+
+	// 隧道相关路由
+	rg.GET("/tunnels", tunnelHandler.HandleGetTunnels)
+	rg.POST("/tunnels", tunnelHandler.HandleCreateTunnel)
+	rg.POST("/tunnels/batch", tunnelHandler.HandleBatchCreateTunnels)
+	rg.POST("/tunnels/batch-new", tunnelHandler.HandleNewBatchCreateTunnels)
+	rg.DELETE("/tunnels/batch", tunnelHandler.HandleBatchDeleteTunnels)
+	rg.POST("/tunnels/batch/action", tunnelHandler.HandleBatchActionTunnels)
+	rg.POST("/tunnels/create_by_url", tunnelHandler.HandleQuickCreateTunnel)
+	rg.POST("/tunnels/quick-batch", tunnelHandler.HandleQuickBatchCreateTunnel)
+	rg.POST("/tunnels/template", tunnelHandler.HandleTemplateCreate)
+	rg.PATCH("/tunnels", tunnelHandler.HandlePatchTunnels)
+	rg.PATCH("/tunnels/:id", tunnelHandler.HandlePatchTunnels)
+	rg.PATCH("/tunnels/:id/attributes", tunnelHandler.HandlePatchTunnelAttributes)
+	rg.PATCH("/tunnels/:id/restart", tunnelHandler.HandleSetTunnelRestart)
+	rg.GET("/tunnels/:id", tunnelHandler.HandleGetTunnels)
+	rg.PUT("/tunnels/:id", tunnelHandler.HandleUpdateTunnelV2)
+	rg.DELETE("/tunnels/:id", tunnelHandler.HandleDeleteTunnel)
+	rg.PATCH("/tunnels/:id/status", tunnelHandler.HandleControlTunnel)
+	rg.POST("/tunnels/:id/action", tunnelHandler.HandleControlTunnel)
+	rg.GET("/tunnels/:id/details", tunnelHandler.HandleGetTunnelDetails)
+	rg.GET("/tunnels/:id/file-logs", tunnelHandler.HandleTunnelFileLogs)
+	rg.GET("/tunnels/:id/traffic-trend", tunnelHandler.HandleGetTunnelTrafficTrend)
+	rg.GET("/tunnels/:id/ping-trend", tunnelHandler.HandleGetTunnelPingTrend)
+	rg.GET("/tunnels/:id/pool-trend", tunnelHandler.HandleGetTunnelPoolTrend)
+	rg.GET("/tunnels/:id/export-logs", tunnelHandler.HandleExportTunnelLogs)
+
+	// 新的统一 metrics 趋势接口 - 基于 ServiceHistory 表，使用 instanceId
+	rg.GET("/tunnels/:id/metrics-trend", tunnelMetricsHandler.HandleGetTunnelMetricsTrend)
+
+	// 隧道日志相关路由（使用dashboard路径但由tunnel handler处理）
+	rg.GET("/dashboard/operate_logs", tunnelHandler.HandleGetTunnelLogs)
+	rg.DELETE("/dashboard/operate_logs", tunnelHandler.HandleClearTunnelLogs)
+}
+
+// HandleGetTunnels 获取隧道列表
+func (h *TunnelHandler) HandleGetTunnels(c *gin.Context) {
 	// 获取查询参数
-	query := r.URL.Query()
+	query := c.Request.URL.Query()
 
 	// 筛选参数
 	searchFilter := query.Get("search")
@@ -103,8 +145,7 @@ func (h *TunnelHandler) HandleGetTunnels(w http.ResponseWriter, r *http.Request)
 			},
 		}
 
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(errorDetail)
+		c.JSON(http.StatusInternalServerError, errorDetail)
 		return
 	}
 
@@ -112,16 +153,11 @@ func (h *TunnelHandler) HandleGetTunnels(w http.ResponseWriter, r *http.Request)
 		result.Data = []tunnel.TunnelWithStats{}
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(result)
+	c.JSON(http.StatusOK, result)
 }
 
 // HandleCreateTunnel 创建新隧道
-func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *TunnelHandler) HandleCreateTunnel(c *gin.Context) {
 
 	// 兼容前端将端口作为字符串提交的情况
 	var raw struct {
@@ -147,9 +183,8 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	if err := c.ShouldBindJSON(&raw); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -183,8 +218,7 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 	tunnelPort, err1 := parseIntField(raw.TunnelPort)
 	targetPort, err2 := parseIntField(raw.TargetPort)
 	if err1 != nil || err2 != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "端口号格式错误，应为数字",
 		})
@@ -196,8 +230,7 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 	maxVal, maxSet, err4 := parseIntFieldWithFlag(raw.Max)
 	slotVal, slotSet, err5 := parseIntFieldWithFlag(raw.Slot)
 	if err3 != nil || err4 != nil || err5 != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "min/max/slot 参数格式错误，应为数字",
 		})
@@ -262,8 +295,7 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 	// 使用直接URL模式创建隧道，超时时间为 3 秒
 	newTunnel, err := h.tunnelService.CreateTunnelAndWait(req, 3*time.Second)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   err.Error(),
 		})
@@ -272,7 +304,7 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 
 	// CreateTunnelAndWait 已经包含了设置别名的逻辑，这里不需要再调用
 
-	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	c.JSON(http.StatusOK, tunnel.TunnelResponse{
 		Success: true,
 		Message: "隧道创建成功",
 		Tunnel:  newTunnel,
@@ -280,16 +312,10 @@ func (h *TunnelHandler) HandleCreateTunnel(w http.ResponseWriter, r *http.Reques
 }
 
 // HandleBatchCreateTunnels 批量创建隧道
-func (h *TunnelHandler) HandleBatchCreateTunnels(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *TunnelHandler) HandleBatchCreateTunnels(c *gin.Context) {
 	var req tunnel.BatchCreateTunnelRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.BatchCreateTunnelResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -298,8 +324,7 @@ func (h *TunnelHandler) HandleBatchCreateTunnels(w http.ResponseWriter, r *http.
 
 	// 验证请求
 	if len(req.Items) == 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.BatchCreateTunnelResponse{
 			Success: false,
 			Error:   "批量创建项目不能为空",
 		})
@@ -309,8 +334,7 @@ func (h *TunnelHandler) HandleBatchCreateTunnels(w http.ResponseWriter, r *http.
 	// 限制批量创建的数量，避免过多请求影响性能
 	const maxBatchSize = 50
 	if len(req.Items) > maxBatchSize {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.BatchCreateTunnelResponse{
 			Success: false,
 			Error:   fmt.Sprintf("批量创建数量不能超过 %d 个", maxBatchSize),
 		})
@@ -320,32 +344,28 @@ func (h *TunnelHandler) HandleBatchCreateTunnels(w http.ResponseWriter, r *http.
 	// 基础验证每个项目的必填字段
 	for i, item := range req.Items {
 		if item.EndpointID <= 0 {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.BatchCreateTunnelResponse{
 				Success: false,
 				Error:   fmt.Sprintf("第 %d 项的端点ID无效", i+1),
 			})
 			return
 		}
 		if item.InboundsPort <= 0 || item.InboundsPort > 65535 {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.BatchCreateTunnelResponse{
 				Success: false,
 				Error:   fmt.Sprintf("第 %d 项的入口端口无效", i+1),
 			})
 			return
 		}
 		if item.OutboundHost == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.BatchCreateTunnelResponse{
 				Success: false,
 				Error:   fmt.Sprintf("第 %d 项的出口地址不能为空", i+1),
 			})
 			return
 		}
 		if item.OutboundPort <= 0 || item.OutboundPort > 65535 {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.BatchCreateTunnelResponse{
 				Success: false,
 				Error:   fmt.Sprintf("第 %d 项的出口端口无效", i+1),
 			})
@@ -358,8 +378,7 @@ func (h *TunnelHandler) HandleBatchCreateTunnels(w http.ResponseWriter, r *http.
 	// 调用服务层批量创建
 	response, err := h.tunnelService.BatchCreateTunnels(req)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(tunnel.BatchCreateTunnelResponse{
+		c.JSON(http.StatusInternalServerError, tunnel.BatchCreateTunnelResponse{
 			Success: false,
 			Error:   "批量创建失败: " + err.Error(),
 		})
@@ -370,35 +389,28 @@ func (h *TunnelHandler) HandleBatchCreateTunnels(w http.ResponseWriter, r *http.
 	if response.Success {
 		if response.FailCount > 0 {
 			// 部分成功
-			w.WriteHeader(http.StatusPartialContent)
+			c.JSON(http.StatusPartialContent, response)
 		} else {
 			// 全部成功
-			w.WriteHeader(http.StatusOK)
+			c.JSON(http.StatusOK, response)
 		}
 	} else {
 		// 全部失败
-		w.WriteHeader(http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, response)
 	}
-
-	json.NewEncoder(w).Encode(response)
 }
 
 // HandleDeleteTunnel 删除隧道
-func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *TunnelHandler) HandleDeleteTunnel(c *gin.Context) {
 	var req struct {
 		InstanceID string `json:"instanceId"`
 		Recycle    bool   `json:"recycle"`
 	}
-	_ = json.NewDecoder(r.Body).Decode(&req) // 即使失败也无妨，后续再判断
+	_ = c.ShouldBindJSON(&req) // 即使失败也无妨，后续再判断
 
 	// 兼容前端使用 query 参数 recycle=1
 	if !req.Recycle {
-		q := r.URL.Query().Get("recycle")
+		q := c.Request.URL.Query().Get("recycle")
 		if q == "1" || strings.ToLower(q) == "true" {
 			req.Recycle = true
 		}
@@ -406,14 +418,13 @@ func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Reques
 
 	// 如果未提供 instanceId ，则尝试从路径参数中解析数据库 id
 	if req.InstanceID == "" {
-		vars := mux.Vars(r)
-		if idStr, ok := vars["id"]; ok && idStr != "" {
+		idStr := c.Param("id")
+		if idStr != "" {
 			if tunnelID, err := strconv.ParseInt(idStr, 10, 64); err == nil {
 				if iid, e := h.tunnelService.GetInstanceIDByTunnelID(tunnelID); e == nil {
 					req.InstanceID = iid
 				} else {
-					w.WriteHeader(http.StatusBadRequest)
-					json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+					c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 						Success: false,
 						Error:   e.Error(),
 					})
@@ -424,8 +435,7 @@ func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Reques
 	}
 
 	if req.InstanceID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "缺少隧道实例ID",
 		})
@@ -458,8 +468,7 @@ func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Reques
 	}
 
 	if err := h.tunnelService.DeleteTunnelAndWait(req.InstanceID, 3*time.Second, req.Recycle); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   err.Error(),
 		})
@@ -475,23 +484,17 @@ func (h *TunnelHandler) HandleDeleteTunnel(w http.ResponseWriter, r *http.Reques
 		}
 	}
 
-	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	c.JSON(http.StatusOK, tunnel.TunnelResponse{
 		Success: true,
 		Message: "隧道删除成功",
 	})
 }
 
 // HandleControlTunnel 控制隧道状态
-func (h *TunnelHandler) HandleControlTunnel(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *TunnelHandler) HandleControlTunnel(c *gin.Context) {
 	var req tunnel.TunnelActionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -500,14 +503,13 @@ func (h *TunnelHandler) HandleControlTunnel(w http.ResponseWriter, r *http.Reque
 
 	// 尝试从路径参数中获取数据库 ID 并转换为 instanceId（若 body 中缺失）
 	if req.InstanceID == "" {
-		vars := mux.Vars(r)
-		if idStr, ok := vars["id"]; ok && idStr != "" {
+		idStr := c.Param("id")
+		if idStr != "" {
 			if tunnelID, err := strconv.ParseInt(idStr, 10, 64); err == nil {
 				if iid, e := h.tunnelService.GetInstanceIDByTunnelID(tunnelID); e == nil {
 					req.InstanceID = iid
 				} else {
-					w.WriteHeader(http.StatusBadRequest)
-					json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+					c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 						Success: false,
 						Error:   e.Error(),
 					})
@@ -518,8 +520,7 @@ func (h *TunnelHandler) HandleControlTunnel(w http.ResponseWriter, r *http.Reque
 	}
 
 	if req.InstanceID == "" || req.Action == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "缺少隧道实例ID或操作类型",
 		})
@@ -527,8 +528,7 @@ func (h *TunnelHandler) HandleControlTunnel(w http.ResponseWriter, r *http.Reque
 	}
 
 	if req.Action != "start" && req.Action != "stop" && req.Action != "restart" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的操作类型，支持: start, stop, restart",
 		})
@@ -536,29 +536,26 @@ func (h *TunnelHandler) HandleControlTunnel(w http.ResponseWriter, r *http.Reque
 	}
 
 	if err := h.tunnelService.ControlTunnel(req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   err.Error(),
 		})
 		return
 	}
 
-	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	c.JSON(http.StatusOK, tunnel.TunnelResponse{
 		Success: true,
 		Message: "操作成功",
 	})
 }
 
 // HandleUpdateTunnel 更新隧道配置
-func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	tunnelIDStr := vars["id"]
+func (h *TunnelHandler) HandleUpdateTunnel(c *gin.Context) {
+	tunnelIDStr := c.Param("id")
 
 	tunnelID, err := strconv.ParseInt(tunnelIDStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的隧道ID",
 		})
@@ -589,9 +586,8 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&rawCreate); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	if err := c.ShouldBindJSON(&rawCreate); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -603,15 +599,13 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 		// 1. 获取旧 instanceId
 		instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: err.Error()})
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: err.Error()})
 			return
 		}
 
 		// 2. 删除旧实例（回收站=true）
 		if err := h.tunnelService.DeleteTunnelAndWait(instanceID, 3*time.Second, true); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，遭遇无法删除旧实例: " + err.Error()})
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，遭遇无法删除旧实例: " + err.Error()})
 			return
 		}
 		log.Infof("[Master-%v] 编辑实例=>删除旧实例: %v", rawCreate.EndpointID, instanceID)
@@ -695,29 +689,22 @@ func (h *TunnelHandler) HandleUpdateTunnel(w http.ResponseWriter, r *http.Reques
 		// 使用直接URL模式创建新隧道，超时时间为 3 秒
 		newTunnel, err := h.tunnelService.CreateTunnelAndWait(createReq, 3*time.Second)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，无法创建新实例: " + err.Error()})
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，无法创建新实例: " + err.Error()})
 			return
 		}
 		log.Infof("[Master-%v] 编辑实例=>创建新实例: %v", rawCreate.EndpointID, newTunnel.InstanceID)
 
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: true, Message: "编辑实例成功", Tunnel: newTunnel})
+		c.JSON(http.StatusOK, tunnel.TunnelResponse{Success: true, Message: "编辑实例成功", Tunnel: newTunnel})
 		return
 	}
 
 	// -------- 原局部更新逻辑 ----------
-	w.WriteHeader(http.StatusBadRequest)
-	json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "不支持的更新请求"})
+	c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "不支持的更新请求"})
 }
 
 // HandleGetTunnelLogs GET /api/tunnel-logs
-func (h *TunnelHandler) HandleGetTunnelLogs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	limitStr := r.URL.Query().Get("limit")
+func (h *TunnelHandler) HandleGetTunnelLogs(c *gin.Context) {
+	limitStr := c.Request.URL.Query().Get("limit")
 	limit := 50
 	if limitStr != "" {
 		if v, err := strconv.Atoi(limitStr); err == nil && v > 0 {
@@ -727,8 +714,7 @@ func (h *TunnelHandler) HandleGetTunnelLogs(w http.ResponseWriter, r *http.Reque
 
 	logs, err := h.tunnelService.GetOperationLogs(limit)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -754,28 +740,22 @@ func (h *TunnelHandler) HandleGetTunnelLogs(w http.ResponseWriter, r *http.Reque
 		})
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	c.JSON(http.StatusOK, resp)
 }
 
 // HandleClearTunnelLogs DELETE /api/dashboard/logs
 // 清空隧道操作日志
-func (h *TunnelHandler) HandleClearTunnelLogs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *TunnelHandler) HandleClearTunnelLogs(c *gin.Context) {
 	deleted, err := h.tunnelService.ClearOperationLogs()
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusInternalServerError, map[string]interface{}{
 			"success": false,
 			"error":   err.Error(),
 		})
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, map[string]interface{}{
 		"success":      true,
 		"deletedCount": deleted,
 	})
@@ -785,12 +765,7 @@ func (h *TunnelHandler) HandleClearTunnelLogs(w http.ResponseWriter, r *http.Req
 // 该接口兼容旧版前端：
 // 1. action 为 start/stop/restart 时，根据 instanceId 操作隧道状态
 // 2. action 为 rename 时，根据 id 修改隧道名称
-func (h *TunnelHandler) HandlePatchTunnels(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *TunnelHandler) HandlePatchTunnels(c *gin.Context) {
 	// 定义与旧版前端保持一致的请求结构
 	var raw struct {
 		// 用于状态控制
@@ -803,9 +778,8 @@ func (h *TunnelHandler) HandlePatchTunnels(w http.ResponseWriter, r *http.Reques
 		Name string `json:"name"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	if err := c.ShouldBindJSON(&raw); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -814,8 +788,8 @@ func (h *TunnelHandler) HandlePatchTunnels(w http.ResponseWriter, r *http.Reques
 
 	// 若 URL 中包含 {id}，且 body 中未提供 id，则从路径参数读取
 	if raw.ID == 0 {
-		vars := mux.Vars(r)
-		if idStr, ok := vars["id"]; ok && idStr != "" {
+		idStr := c.Param("id")
+		if idStr != "" {
 			if tid, err := strconv.ParseInt(idStr, 10, 64); err == nil {
 				raw.ID = tid
 			}
@@ -823,8 +797,7 @@ func (h *TunnelHandler) HandlePatchTunnels(w http.ResponseWriter, r *http.Reques
 	}
 
 	if raw.Action == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "缺少操作类型(action)",
 		})
@@ -834,8 +807,7 @@ func (h *TunnelHandler) HandlePatchTunnels(w http.ResponseWriter, r *http.Reques
 	switch raw.Action {
 	case "start", "stop", "restart":
 		if raw.InstanceID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "缺少隧道实例ID(instanceId)",
 			})
@@ -846,23 +818,21 @@ func (h *TunnelHandler) HandlePatchTunnels(w http.ResponseWriter, r *http.Reques
 			InstanceID: raw.InstanceID,
 			Action:     raw.Action,
 		}); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   err.Error(),
 			})
 			return
 		}
 
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusOK, tunnel.TunnelResponse{
 			Success: true,
 			Message: "操作成功",
 		})
 
 	case "reset":
 		if raw.InstanceID == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "重置操作需提供有效的隧道实例ID(instanceId)",
 			})
@@ -871,23 +841,21 @@ func (h *TunnelHandler) HandlePatchTunnels(w http.ResponseWriter, r *http.Reques
 
 		// 重置隧道的流量统计信息
 		if err := h.tunnelService.ResetTunnelTrafficByInstanceID(raw.InstanceID); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   err.Error(),
 			})
 			return
 		}
 
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusOK, tunnel.TunnelResponse{
 			Success: true,
 			Message: "隧道流量信息重置成功",
 		})
 
 	case "rename":
 		if raw.ID == 0 || raw.Name == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "重命名操作需提供有效的 id 和 name",
 			})
@@ -895,22 +863,20 @@ func (h *TunnelHandler) HandlePatchTunnels(w http.ResponseWriter, r *http.Reques
 		}
 
 		if err := h.tunnelService.RenameTunnel(raw.ID, raw.Name); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   err.Error(),
 			})
 			return
 		}
 
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusOK, tunnel.TunnelResponse{
 			Success: true,
 			Message: "隧道重命名成功",
 		})
 
 	default:
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的操作类型，支持: start, stop, restart, reset, rename",
 		})
@@ -919,18 +885,11 @@ func (h *TunnelHandler) HandlePatchTunnels(w http.ResponseWriter, r *http.Reques
 
 // HandlePatchTunnelAttributes 处理隧道属性更新 (PATCH /api/tunnels/{id}/attributes)
 // 支持更新别名和重启策略
-func (h *TunnelHandler) HandlePatchTunnelAttributes(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *TunnelHandler) HandlePatchTunnelAttributes(c *gin.Context) {
 	// 获取隧道ID
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+	idStr := c.Param("id")
 	if idStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "缺少隧道ID",
 		})
@@ -939,8 +898,7 @@ func (h *TunnelHandler) HandlePatchTunnelAttributes(w http.ResponseWriter, r *ht
 
 	tunnelID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的隧道ID",
 		})
@@ -949,9 +907,8 @@ func (h *TunnelHandler) HandlePatchTunnelAttributes(w http.ResponseWriter, r *ht
 
 	// 解析请求体
 	var updates map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&updates); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	if err := c.ShouldBindJSON(&updates); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -962,8 +919,7 @@ func (h *TunnelHandler) HandlePatchTunnelAttributes(w http.ResponseWriter, r *ht
 	if alias, ok := updates["alias"]; ok {
 		aliasStr, ok := alias.(string)
 		if !ok {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "alias 必须是字符串类型",
 			})
@@ -972,40 +928,31 @@ func (h *TunnelHandler) HandlePatchTunnelAttributes(w http.ResponseWriter, r *ht
 
 		filteredUpdates := map[string]interface{}{"alias": aliasStr}
 		if err := h.tunnelService.PatchTunnel(tunnelID, filteredUpdates); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   err.Error(),
 			})
 			return
 		}
 
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusOK, tunnel.TunnelResponse{
 			Success: true,
 			Message: "隧道别名更新成功",
 		})
 		return
 	}
 
-	w.WriteHeader(http.StatusBadRequest)
-	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 		Success: false,
 		Error:   "只允许更新 alias 字段",
 	})
 }
 
 // HandleSetTunnelRestart 设置隧道重启策略的专用接口
-func (h *TunnelHandler) HandleSetTunnelRestart(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+func (h *TunnelHandler) HandleSetTunnelRestart(c *gin.Context) {
+	idStr := c.Param("id")
 	if idStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "缺少隧道ID",
 		})
@@ -1014,8 +961,7 @@ func (h *TunnelHandler) HandleSetTunnelRestart(w http.ResponseWriter, r *http.Re
 
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的隧道ID",
 		})
@@ -1025,9 +971,8 @@ func (h *TunnelHandler) HandleSetTunnelRestart(w http.ResponseWriter, r *http.Re
 	var requestData struct {
 		Restart bool `json:"restart"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&requestData); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	if err := c.ShouldBindJSON(&requestData); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -1035,38 +980,29 @@ func (h *TunnelHandler) HandleSetTunnelRestart(w http.ResponseWriter, r *http.Re
 	}
 
 	if err := h.tunnelService.SetTunnelRestart(id, requestData.Restart); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   err.Error(),
 		})
 		return
 	}
 
-	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	c.JSON(http.StatusOK, tunnel.TunnelResponse{
 		Success: true,
 		Message: fmt.Sprintf("自动重启已%s", map[bool]string{true: "开启", false: "关闭"}[requestData.Restart]),
 	})
 }
 
 // HandleGetTunnelDetails 获取隧道详细信息 (GET /api/tunnels/{id}/details)
-func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
+	idStr := c.Param("id")
 	if idStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "缺少隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "缺少隧道ID"})
 		return
 	}
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "无效的隧道ID"})
 		return
 	}
 
@@ -1155,12 +1091,10 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		&tunnelRecord.Rate,
 	); err != nil {
 		if err == sql.ErrNoRows {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]interface{}{"error": "隧道不存在"})
+			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "隧道不存在"})
 			return
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -1307,27 +1241,19 @@ func (h *TunnelHandler) HandleGetTunnelDetails(w http.ResponseWriter, r *http.Re
 		},
 	}
 
-	json.NewEncoder(w).Encode(resp)
+	c.JSON(http.StatusOK, resp)
 }
 
 // HandleTunnelLogs 获取指定隧道日志 (GET /api/tunnels/{id}/logs)
-func (h *TunnelHandler) HandleTunnelLogs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+func (h *TunnelHandler) HandleTunnelLogs(c *gin.Context) {
+	idStr := c.Param("id")
 	if idStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "缺少隧道ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少隧道ID"})
 		return
 	}
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的隧道ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的隧道ID"})
 		return
 	}
 
@@ -1338,18 +1264,16 @@ func (h *TunnelHandler) HandleTunnelLogs(w http.ResponseWriter, r *http.Request)
 	var instanceID sql.NullString
 	if err := db.QueryRow(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`, id).Scan(&endpointID, &instanceID); err != nil {
 		if err == sql.ErrNoRows {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]interface{}{"error": "隧道不存在"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "隧道不存在"})
 			return
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	if !instanceID.Valid || instanceID.String == "" {
-		json.NewEncoder(w).Encode(map[string]interface{}{
+		c.JSON(http.StatusOK, gin.H{
 			"success": true,
-			"data": map[string]interface{}{
+			"data": gin.H{
 				"logs":        []interface{}{},
 				"trafficData": []interface{}{},
 			},
@@ -1360,8 +1284,7 @@ func (h *TunnelHandler) HandleTunnelLogs(w http.ResponseWriter, r *http.Request)
 	// 获取日志
 	logRows, err := db.Query(`SELECT id, logs, tcp_rx, tcp_tx, udp_rx, udp_tx, created_at FROM endpoint_sse WHERE endpoint_id = ? AND instance_id = ? AND event_type = 'log' ORDER BY created_at DESC LIMIT 100`, endpointID, instanceID.String)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
 	defer logRows.Close()
@@ -1411,11 +1334,96 @@ func (h *TunnelHandler) HandleTunnelLogs(w http.ResponseWriter, r *http.Request)
 		return trafficTrend[i]["timestamp"].(string) < trafficTrend[j]["timestamp"].(string)
 	})
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data": map[string]interface{}{
 			"logs":        logs,
 			"trafficData": trafficTrend,
+		},
+	})
+}
+
+// HandleTunnelFileLogs 获取指定隧道的文件日志 (GET /api/tunnels/{id}/file-logs?date=YYYY-MM-DD)
+func (h *TunnelHandler) HandleTunnelFileLogs(c *gin.Context) {
+	idStr := c.Param("id")
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少隧道ID"})
+		return
+	}
+	//id, err := strconv.ParseInt(idStr, 10, 64)
+	//if err != nil {
+	//	c.JSON(http.StatusBadRequest, gin.H{"error": "无效的隧道ID"})
+	//	return
+	//}
+
+	// 获取日期参数
+	dateStr := c.Query("date")
+	if dateStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少date参数，格式为YYYY-MM-DD"})
+		return
+	}
+
+	// 解析日期
+	targetDate, err := time.Parse("2006-01-02", dateStr)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "日期格式无效，应为YYYY-MM-DD"})
+		return
+	}
+
+	db := h.tunnelService.DB()
+
+	// 查询隧道获得 endpointId 与 instanceId
+	var endpointID int64
+	if err := db.QueryRow(`SELECT endpoint_id FROM tunnels WHERE instance_id = ?`, idStr).Scan(&endpointID); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "隧道不存在"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 检查是否有FileLogger
+	if h.sseManager == nil || h.sseManager.GetFileLogger() == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "文件日志服务不可用"})
+		return
+	}
+
+	fileLogger := h.sseManager.GetFileLogger()
+
+	// 读取指定日期的日志
+	logEntries, err := fileLogger.ReadLogs(endpointID, idStr, targetDate, 1000) // 限制1000条
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("读取日志失败: %v", err)})
+		return
+	}
+
+	// 转换为API响应格式
+	logs := make([]map[string]interface{}, 0)
+	for i, logContent := range logEntries {
+		logs = append(logs, map[string]interface{}{
+			"id":        i + 1,
+			"message":   processAnsiColors(logContent),
+			"isHtml":    true,
+			"timestamp": targetDate.Add(time.Duration(i) * time.Second), // 简单的时间戳分配
+		})
+	}
+
+	// 获取可用的日期列表，用于判断是否还有其他日志
+	availableDates, err := fileLogger.GetAvailableLogDates(endpointID, idStr)
+	hasMoreDays := len(availableDates) > 1 || (len(availableDates) == 1 && availableDates[0] != dateStr)
+	if err != nil {
+		// 如果获取日期列表失败，不影响主要功能
+		hasMoreDays = false
+	}
+
+	c.JSON(http.StatusOK, map[string]interface{}{
+		"success": true,
+		"data": map[string]interface{}{
+			"logs":        logs,
+			"date":        dateStr,
+			"hasMoreDays": hasMoreDays,
+			"totalCount":  len(logs),
 		},
 	})
 }
@@ -1460,20 +1468,14 @@ func ptrString(ns sql.NullString) string {
 }
 
 // HandleQuickCreateTunnel 根据 URL 快速创建隧道
-func (h *TunnelHandler) HandleQuickCreateTunnel(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *TunnelHandler) HandleQuickCreateTunnel(c *gin.Context) {
 	var req struct {
 		EndpointID int64  `json:"endpointId"`
 		URL        string `json:"url"`
 		Name       string `json:"name"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -1481,8 +1483,7 @@ func (h *TunnelHandler) HandleQuickCreateTunnel(w http.ResponseWriter, r *http.R
 	}
 
 	if req.EndpointID == 0 || req.URL == "" || strings.TrimSpace(req.Name) == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "endpointId、url、name 均不能为空",
 		})
@@ -1493,8 +1494,7 @@ func (h *TunnelHandler) HandleQuickCreateTunnel(w http.ResponseWriter, r *http.R
 	// 注意：这里仍然做基本验证，但使用新的直接URL方法避免重复解析->组装的过程
 	parsedTunnel := nodepass.ParseTunnelURL(req.URL)
 	if parsedTunnel == nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的隧道URL格式",
 		})
@@ -1503,27 +1503,21 @@ func (h *TunnelHandler) HandleQuickCreateTunnel(w http.ResponseWriter, r *http.R
 
 	// 使用新的直接URL方法，避免重复解析，超时时间为 3 秒
 	if err := h.tunnelService.QuickCreateTunnelDirectURL(req.EndpointID, req.URL, req.Name, 3*time.Second); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   err.Error(),
 		})
 		return
 	}
 
-	json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	c.JSON(http.StatusOK, tunnel.TunnelResponse{
 		Success: true,
 		Message: "隧道创建成功",
 	})
 }
 
 // HandleQuickBatchCreateTunnel 批量快速创建隧道
-func (h *TunnelHandler) HandleQuickBatchCreateTunnel(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *TunnelHandler) HandleQuickBatchCreateTunnel(c *gin.Context) {
 	var req struct {
 		Rules []struct {
 			EndpointID int64  `json:"endpointId"`
@@ -1531,9 +1525,8 @@ func (h *TunnelHandler) HandleQuickBatchCreateTunnel(w http.ResponseWriter, r *h
 			Name       string `json:"name"`
 		} `json:"rules"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -1541,8 +1534,7 @@ func (h *TunnelHandler) HandleQuickBatchCreateTunnel(w http.ResponseWriter, r *h
 	}
 
 	if len(req.Rules) == 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "请至少提供一条隧道规则",
 		})
@@ -1552,8 +1544,7 @@ func (h *TunnelHandler) HandleQuickBatchCreateTunnel(w http.ResponseWriter, r *h
 	// 验证所有规则
 	for i, rule := range req.Rules {
 		if rule.EndpointID == 0 || rule.URL == "" || strings.TrimSpace(rule.Name) == "" {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   fmt.Sprintf("第 %d 条规则：endpointId、url、name 均不能为空", i+1),
 			})
@@ -1579,18 +1570,17 @@ func (h *TunnelHandler) HandleQuickBatchCreateTunnel(w http.ResponseWriter, r *h
 
 	// 返回结果
 	if failCount == 0 {
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusOK, tunnel.TunnelResponse{
 			Success: true,
 			Message: fmt.Sprintf("成功创建 %d 个隧道", successCount),
 		})
 	} else if successCount == 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   fmt.Sprintf("所有隧道创建失败：%s", strings.Join(errorMessages, "; ")),
 		})
 	} else {
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusOK, tunnel.TunnelResponse{
 			Success: true,
 			Message: fmt.Sprintf("部分成功：成功创建 %d 个隧道，失败 %d 个。失败原因：%s",
 				successCount, failCount, strings.Join(errorMessages, "; ")),
@@ -1606,11 +1596,7 @@ func (h *TunnelHandler) getTunnelIDByName(tunnelName string) (int64, error) {
 }
 
 // HandleTemplateCreate 处理模板创建请求
-func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 
 	// 定义请求结构体
 	var req struct {
@@ -1635,9 +1621,8 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		} `json:"outbounds,omitempty"`
 	}
 
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -1649,8 +1634,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 	switch req.Mode {
 	case "single":
 		if req.Inbounds == nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "单端模式缺少inbounds配置",
 			})
@@ -1658,23 +1642,21 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		}
 
 		// 获取中转主控信息
-		var endpointURL, endpointAPIPath, endpointAPIKey, endpointName string
+		var endpointName string
 		db := h.tunnelService.DB()
 		err := db.QueryRow(
-			"SELECT url, api_path, api_key, name FROM endpoints WHERE id = ?",
+			"SELECT name FROM endpoints WHERE id = ?",
 			req.Inbounds.MasterID,
-		).Scan(&endpointURL, &endpointAPIPath, &endpointAPIKey, &endpointName)
+		).Scan(&endpointName)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 					Success: false,
 					Error:   "指定的中转主控不存在",
 				})
 				return
 			}
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "查询中转主控失败",
 			})
@@ -1701,16 +1683,15 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 
 		// 使用直接URL模式创建隧道，超时时间为 3 秒
 		if err := h.tunnelService.QuickCreateTunnelDirectURL(req.Inbounds.MasterID, tunnelURL, tunnelName, 3*time.Second); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "创建单端隧道失败: " + err.Error(),
 			})
 			return
 		}
 
-		// 获取创建的隧道ID并自动创建分组
-		tunnelID, err := h.getTunnelIDByName(tunnelName)
+		// 获取创建的隧道ID
+		tunnelID, _ := h.getTunnelIDByName(tunnelName)
 		// if err == nil {
 		// 	groupName := endpointName
 		// 	if err := h.createTunnelGroup(groupName, "single", "单端转发分组", []int64{tunnelID}); err != nil {
@@ -1718,7 +1699,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		// 	}
 		// }
 
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusOK, tunnel.TunnelResponse{
 			Success:   true,
 			Message:   "单端转发隧道创建成功",
 			TunnelIDs: []int64{tunnelID}, // 返回创建的隧道ID
@@ -1726,8 +1707,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 
 	case "bothway":
 		if req.Inbounds == nil || req.Outbounds == nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "双端模式缺少inbounds或outbounds配置",
 			})
@@ -1767,15 +1747,13 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 					Success: false,
 					Error:   "指定的服务端主控不存在",
 				})
 				return
 			}
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "查询服务端主控失败",
 			})
@@ -1789,15 +1767,13 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 					Success: false,
 					Error:   "指定的客户端主控不存在",
 				})
 				return
 			}
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "查询客户端主控失败",
 			})
@@ -1850,8 +1826,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		log.Infof("[API] 步骤1: 在endpoint %d 创建server隧道 %s", serverConfig.MasterID, serverTunnelName)
 		if err := h.tunnelService.QuickCreateTunnelDirectURL(serverConfig.MasterID, serverURL, serverTunnelName, 3*time.Second); err != nil {
 			log.Errorf("[API] 创建server端隧道失败: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "创建server端隧道失败: " + err.Error(),
 			})
@@ -1864,8 +1839,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		if err := h.tunnelService.QuickCreateTunnelDirectURL(clientConfig.MasterID, clientURL, clientTunnelName, 3*time.Second); err != nil {
 			log.Errorf("[API] 创建client端隧道失败: %v", err)
 			// 如果client端创建失败，可以考虑回滚server端，但这里先简单处理
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "创建client端隧道失败: " + err.Error(),
 			})
@@ -1890,7 +1864,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		// 	}
 		// }
 
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusOK, tunnel.TunnelResponse{
 			Success:   true,
 			Message:   "双端转发隧道创建成功",
 			TunnelIDs: tunnelIDs, // 返回创建的隧道ID列表
@@ -1898,8 +1872,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 
 	case "intranet":
 		if req.Inbounds == nil || req.Outbounds == nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "内网穿透模式缺少inbounds或outbounds配置",
 			})
@@ -1939,15 +1912,13 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 					Success: false,
 					Error:   "指定的服务端主控不存在",
 				})
 				return
 			}
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "查询服务端主控失败",
 			})
@@ -1961,15 +1932,13 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 					Success: false,
 					Error:   "指定的客户端主控不存在",
 				})
 				return
 			}
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "查询客户端主控失败",
 			})
@@ -2022,8 +1991,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		log.Infof("[API] 步骤1: 在endpoint %d 创建server隧道 %s", serverConfig.MasterID, serverTunnelName)
 		if err := h.tunnelService.QuickCreateTunnelDirectURL(serverConfig.MasterID, serverURL, serverTunnelName, 3*time.Second); err != nil {
 			log.Errorf("[API] 创建server端隧道失败: %v", err)
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "创建server端隧道失败: " + err.Error(),
 			})
@@ -2036,8 +2004,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		if err := h.tunnelService.QuickCreateTunnelDirectURL(clientConfig.MasterID, clientURL, clientTunnelName, 3*time.Second); err != nil {
 			log.Errorf("[API] 创建client端隧道失败: %v", err)
 			// 如果client端创建失败，可以考虑回滚server端，但这里先简单处理
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 				Success: false,
 				Error:   "创建client端隧道失败: " + err.Error(),
 			})
@@ -2062,15 +2029,14 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 		// 	}
 		// }
 
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusOK, tunnel.TunnelResponse{
 			Success:   true,
 			Message:   "内网穿透隧道创建成功",
 			TunnelIDs: tunnelIDs, // 返回创建的隧道ID列表
 		})
 
 	default:
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "不支持的隧道模式: " + req.Mode,
 		})
@@ -2079,11 +2045,7 @@ func (h *TunnelHandler) HandleTemplateCreate(w http.ResponseWriter, r *http.Requ
 }
 
 // HandleBatchDeleteTunnels 批量删除隧道 (DELETE /api/tunnels/batch)
-func (h *TunnelHandler) HandleBatchDeleteTunnels(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *TunnelHandler) HandleBatchDeleteTunnels(c *gin.Context) {
 
 	type batchDeleteRequest struct {
 		// 根据数据库 ID 删除，可选
@@ -2110,9 +2072,8 @@ func (h *TunnelHandler) HandleBatchDeleteTunnels(w http.ResponseWriter, r *http.
 	}
 
 	var req batchDeleteRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(batchDeleteResponse{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, batchDeleteResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -2121,8 +2082,7 @@ func (h *TunnelHandler) HandleBatchDeleteTunnels(w http.ResponseWriter, r *http.
 
 	// 至少提供一种 ID
 	if len(req.IDs) == 0 && len(req.InstanceIDs) == 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(batchDeleteResponse{
+		c.JSON(http.StatusBadRequest, batchDeleteResponse{
 			Success: false,
 			Error:   "缺少隧道ID",
 		})
@@ -2137,8 +2097,7 @@ func (h *TunnelHandler) HandleBatchDeleteTunnels(w http.ResponseWriter, r *http.
 	}
 
 	if len(req.InstanceIDs) == 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(batchDeleteResponse{
+		c.JSON(http.StatusBadRequest, batchDeleteResponse{
 			Success: false,
 			Error:   "没有有效的隧道实例ID",
 		})
@@ -2202,28 +2161,20 @@ func (h *TunnelHandler) HandleBatchDeleteTunnels(w http.ResponseWriter, r *http.
 	// 设置状态码
 	if resp.Success {
 		if resp.FailCount > 0 {
-			w.WriteHeader(http.StatusPartialContent)
+			c.JSON(http.StatusPartialContent, resp)
 		} else {
-			w.WriteHeader(http.StatusOK)
+			c.JSON(http.StatusOK, resp)
 		}
 	} else {
-		w.WriteHeader(http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, resp)
 	}
-
-	_ = json.NewEncoder(w).Encode(resp)
 }
 
 // HandleNewBatchCreateTunnels 新的批量创建隧道处理
-func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *TunnelHandler) HandleNewBatchCreateTunnels(c *gin.Context) {
 	var req tunnel.NewBatchCreateRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -2236,8 +2187,7 @@ func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *ht
 
 	// 验证请求模式
 	if req.Mode == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+		c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 			Success: false,
 			Error:   "请求模式不能为空",
 		})
@@ -2248,8 +2198,7 @@ func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *ht
 	switch req.Mode {
 	case "standard":
 		if len(req.Standard) == 0 {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+			c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 				Success: false,
 				Error:   "标准模式批量创建项目不能为空",
 			})
@@ -2259,8 +2208,7 @@ func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *ht
 		// 限制批量创建的数量
 		const maxBatchSize = 50
 		if len(req.Standard) > maxBatchSize {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+			c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 				Success: false,
 				Error:   fmt.Sprintf("标准模式批量创建数量不能超过 %d 个", maxBatchSize),
 			})
@@ -2270,40 +2218,35 @@ func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *ht
 		// 验证每个项目的必填字段
 		for i, item := range req.Standard {
 			if item.EndpointID <= 0 {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+				c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 					Success: false,
 					Error:   fmt.Sprintf("第 %d 项的端点ID无效", i+1),
 				})
 				return
 			}
 			if item.TunnelPort <= 0 || item.TunnelPort > 65535 {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+				c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 					Success: false,
 					Error:   fmt.Sprintf("第 %d 项的隧道端口无效", i+1),
 				})
 				return
 			}
 			if item.TargetHost == "" {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+				c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 					Success: false,
 					Error:   fmt.Sprintf("第 %d 项的目标地址不能为空", i+1),
 				})
 				return
 			}
 			if item.TargetPort <= 0 || item.TargetPort > 65535 {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+				c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 					Success: false,
 					Error:   fmt.Sprintf("第 %d 项的目标端口无效", i+1),
 				})
 				return
 			}
 			if item.Name == "" {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+				c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 					Success: false,
 					Error:   fmt.Sprintf("第 %d 项的隧道名称不能为空", i+1),
 				})
@@ -2313,8 +2256,7 @@ func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *ht
 
 	case "config":
 		if len(req.Config) == 0 {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+			c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 				Success: false,
 				Error:   "配置模式批量创建项目不能为空",
 			})
@@ -2329,8 +2271,7 @@ func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *ht
 
 		const maxBatchSize = 50
 		if totalConfigs > maxBatchSize {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+			c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 				Success: false,
 				Error:   fmt.Sprintf("配置模式批量创建数量不能超过 %d 个", maxBatchSize),
 			})
@@ -2340,8 +2281,7 @@ func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *ht
 		// 验证每个配置项
 		for i, configItem := range req.Config {
 			if configItem.EndpointID <= 0 {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+				c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 					Success: false,
 					Error:   fmt.Sprintf("第 %d 个配置组的端点ID无效", i+1),
 				})
@@ -2349,8 +2289,7 @@ func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *ht
 			}
 
 			if len(configItem.Config) == 0 {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+				c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 					Success: false,
 					Error:   fmt.Sprintf("第 %d 个配置组的配置列表不能为空", i+1),
 				})
@@ -2359,24 +2298,21 @@ func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *ht
 
 			for j, config := range configItem.Config {
 				if config.ListenPort <= 0 || config.ListenPort > 65535 {
-					w.WriteHeader(http.StatusBadRequest)
-					json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+					c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 						Success: false,
 						Error:   fmt.Sprintf("第 %d 个配置组第 %d 项的监听端口无效", i+1, j+1),
 					})
 					return
 				}
 				if config.Dest == "" {
-					w.WriteHeader(http.StatusBadRequest)
-					json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+					c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 						Success: false,
 						Error:   fmt.Sprintf("第 %d 个配置组第 %d 项的目标地址不能为空", i+1, j+1),
 					})
 					return
 				}
 				if config.Name == "" {
-					w.WriteHeader(http.StatusBadRequest)
-					json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+					c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 						Success: false,
 						Error:   fmt.Sprintf("第 %d 个配置组第 %d 项的隧道名称不能为空", i+1, j+1),
 					})
@@ -2386,8 +2322,7 @@ func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *ht
 		}
 
 	default:
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+		c.JSON(http.StatusBadRequest, tunnel.NewBatchCreateResponse{
 			Success: false,
 			Error:   "不支持的批量创建模式: " + req.Mode,
 		})
@@ -2399,8 +2334,7 @@ func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *ht
 	// 调用服务层新的批量创建
 	response, err := h.tunnelService.NewBatchCreateTunnels(req)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(tunnel.NewBatchCreateResponse{
+		c.JSON(http.StatusInternalServerError, tunnel.NewBatchCreateResponse{
 			Success: false,
 			Error:   "新批量创建失败: " + err.Error(),
 		})
@@ -2411,25 +2345,19 @@ func (h *TunnelHandler) HandleNewBatchCreateTunnels(w http.ResponseWriter, r *ht
 	if response.Success {
 		if response.FailCount > 0 {
 			// 部分成功
-			w.WriteHeader(http.StatusPartialContent)
+			c.JSON(http.StatusPartialContent, response)
 		} else {
 			// 全部成功
-			w.WriteHeader(http.StatusOK)
+			c.JSON(http.StatusOK, response)
 		}
 	} else {
 		// 全部失败
-		w.WriteHeader(http.StatusBadRequest)
+		c.JSON(http.StatusBadRequest, response)
 	}
-
-	json.NewEncoder(w).Encode(response)
 }
 
 // HandleBatchActionTunnels 批量操作隧道（启动、停止、重启）
-func (h *TunnelHandler) HandleBatchActionTunnels(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *TunnelHandler) HandleBatchActionTunnels(c *gin.Context) {
 
 	// 请求结构体
 	type batchActionRequest struct {
@@ -2459,9 +2387,8 @@ func (h *TunnelHandler) HandleBatchActionTunnels(w http.ResponseWriter, r *http.
 	}
 
 	var req batchActionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(batchActionResponse{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, batchActionResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -2470,8 +2397,7 @@ func (h *TunnelHandler) HandleBatchActionTunnels(w http.ResponseWriter, r *http.
 
 	// 验证操作类型
 	if req.Action != "start" && req.Action != "stop" && req.Action != "restart" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(batchActionResponse{
+		c.JSON(http.StatusBadRequest, batchActionResponse{
 			Success: false,
 			Error:   "无效的操作类型，支持: start, stop, restart",
 		})
@@ -2480,8 +2406,7 @@ func (h *TunnelHandler) HandleBatchActionTunnels(w http.ResponseWriter, r *http.
 
 	// 验证 ID 列表
 	if len(req.IDs) == 0 {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(batchActionResponse{
+		c.JSON(http.StatusBadRequest, batchActionResponse{
 			Success: false,
 			Error:   "请提供要操作的隧道ID列表",
 		})
@@ -2491,8 +2416,7 @@ func (h *TunnelHandler) HandleBatchActionTunnels(w http.ResponseWriter, r *http.
 	// 限制批量操作的数量
 	const maxBatchSize = 50
 	if len(req.IDs) > maxBatchSize {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(batchActionResponse{
+		c.JSON(http.StatusBadRequest, batchActionResponse{
 			Success: false,
 			Error:   fmt.Sprintf("批量操作数量不能超过 %d 个", maxBatchSize),
 		})
@@ -2572,30 +2496,21 @@ func (h *TunnelHandler) HandleBatchActionTunnels(w http.ResponseWriter, r *http.
 		statusCode = http.StatusBadRequest
 	}
 
-	w.WriteHeader(statusCode)
-	json.NewEncoder(w).Encode(response)
+	c.JSON(statusCode, response)
 
 	log.Infof("[API] 批量%s操作完成 - 成功: %d, 失败: %d", req.Action, successCount, failCount)
 }
 
 // HandleGetTunnelTrafficTrend 获取隧道流量趋势数据 (GET /api/tunnels/{id}/traffic-trend)
-func (h *TunnelHandler) HandleGetTunnelTrafficTrend(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+func (h *TunnelHandler) HandleGetTunnelTrafficTrend(c *gin.Context) {
+	idStr := c.Param("id")
 	if idStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "缺少隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "缺少隧道ID"})
 		return
 	}
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "无效的隧道ID"})
 		return
 	}
 
@@ -2606,12 +2521,10 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(w http.ResponseWriter, r *ht
 	var instanceID sql.NullString
 	if err := db.QueryRow(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`, id).Scan(&endpointID, &instanceID); err != nil {
 		if err == sql.ErrNoRows {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]interface{}{"error": "隧道不存在"})
+			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "隧道不存在"})
 			return
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -2800,30 +2713,22 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(w http.ResponseWriter, r *ht
 	}
 
 	// 返回流量趋势数据
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, map[string]interface{}{
 		"success":      true,
 		"trafficTrend": trafficTrend,
 	})
 }
 
 // HandleGetTunnelPingTrend 获取隧道延迟趋势数据 (GET /api/tunnels/{id}/ping-trend)
-func (h *TunnelHandler) HandleGetTunnelPingTrend(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+func (h *TunnelHandler) HandleGetTunnelPingTrend(c *gin.Context) {
+	idStr := c.Param("id")
 	if idStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "缺少隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "缺少隧道ID"})
 		return
 	}
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "无效的隧道ID"})
 		return
 	}
 
@@ -2834,12 +2739,10 @@ func (h *TunnelHandler) HandleGetTunnelPingTrend(w http.ResponseWriter, r *http.
 	var instanceID sql.NullString
 	if err := db.QueryRow(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`, id).Scan(&endpointID, &instanceID); err != nil {
 		if err == sql.ErrNoRows {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]interface{}{"error": "隧道不存在"})
+			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "隧道不存在"})
 			return
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -2937,30 +2840,22 @@ func (h *TunnelHandler) HandleGetTunnelPingTrend(w http.ResponseWriter, r *http.
 	}
 
 	// 返回延迟趋势数据
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, map[string]interface{}{
 		"success":   true,
 		"pingTrend": pingTrend,
 	})
 }
 
 // HandleGetTunnelPoolTrend 获取隧道连接池趋势数据 (GET /api/tunnels/{id}/pool-trend)
-func (h *TunnelHandler) HandleGetTunnelPoolTrend(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+func (h *TunnelHandler) HandleGetTunnelPoolTrend(c *gin.Context) {
+	idStr := c.Param("id")
 	if idStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "缺少隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "缺少隧道ID"})
 		return
 	}
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "无效的隧道ID"})
 		return
 	}
 
@@ -2971,12 +2866,10 @@ func (h *TunnelHandler) HandleGetTunnelPoolTrend(w http.ResponseWriter, r *http.
 	var instanceID sql.NullString
 	if err := db.QueryRow(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`, id).Scan(&endpointID, &instanceID); err != nil {
 		if err == sql.ErrNoRows {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]interface{}{"error": "隧道不存在"})
+			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "隧道不存在"})
 			return
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		c.JSON(http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -3074,7 +2967,7 @@ func (h *TunnelHandler) HandleGetTunnelPoolTrend(w http.ResponseWriter, r *http.
 	}
 
 	// 返回连接池趋势数据
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, map[string]interface{}{
 		"success":   true,
 		"poolTrend": poolTrend,
 	})
@@ -3085,18 +2978,11 @@ func (h *TunnelHandler) HandleGetTunnelPoolTrend(w http.ResponseWriter, r *http.
 // 1. 不再删除后重建，而是构建命令行后调用 NodePass PUT /v1/instance/{id}
 // 2. 调用成功后等待 SSE 更新数据库中的 commandLine 字段；超时则直接更新本地数据库。
 // 3. 若远端返回 405 等错误，则回退到旧逻辑 HandleUpdateTunnel。
-func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(r)
-	tunnelIDStr := vars["id"]
+func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
+	tunnelIDStr := c.Param("id")
 	tunnelID, err := strconv.ParseInt(tunnelIDStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "无效的隧道ID"})
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "无效的隧道ID"})
 		return
 	}
 
@@ -3124,9 +3010,8 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
 		ResetTraffic   bool            `json:"resetTraffic"`               // 新增：是否重置流量统计
 	}
-	if err := json.NewDecoder(r.Body).Decode(&raw); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "无效的请求数据"})
+	if err := c.ShouldBindJSON(&raw); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "无效的请求数据"})
 		return
 	}
 
@@ -3150,8 +3035,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 	tunnelPort, _, err1 := parseIntV2(raw.TunnelPort)
 	targetPort, _, err2 := parseIntV2(raw.TargetPort)
 	if err1 != nil || err2 != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "端口号格式错误，应为数字"})
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "端口号格式错误，应为数字"})
 		return
 	}
 
@@ -3215,8 +3099,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 	// 获取实例ID
 	instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: err.Error()})
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: err.Error()})
 		return
 	}
 
@@ -3226,8 +3109,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 		URL, APIPath, APIKey string
 	}
 	if err := h.tunnelService.DB().QueryRow(`SELECT e.id, url, api_path, api_key FROM endpoints e JOIN tunnels t ON e.id = t.endpoint_id WHERE t.id = ?`, tunnelID).Scan(&endpoint.ID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "查询端点信息失败"})
+		c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{Success: false, Error: "查询端点信息失败"})
 		return
 	}
 	log.Infof("[API] 准备调用 UpdateInstance: instanceID=%s, commandLine=%s", instanceID, commandLine)
@@ -3238,8 +3120,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 			log.Infof("[API] 检测到405/404错误，回退到旧逻辑")
 			// 删除旧实例
 			if delErr := h.tunnelService.DeleteTunnelAndWait(instanceID, 3*time.Second, true); delErr != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，删除旧实例错误: " + delErr.Error()})
+				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，删除旧实例错误: " + delErr.Error()})
 				return
 			}
 
@@ -3299,16 +3180,14 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 			}
 			newTunnel, crtErr := h.tunnelService.CreateTunnelAndWait(createReq, 3*time.Second)
 			if crtErr != nil {
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，创建新实例错误: " + crtErr.Error()})
+				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，创建新实例错误: " + crtErr.Error()})
 				return
 			}
-			json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: true, Message: "编辑实例成功(回退旧逻辑)", Tunnel: newTunnel})
+			c.JSON(http.StatusOK, tunnel.TunnelResponse{Success: true, Message: "编辑实例成功(回退旧逻辑)", Tunnel: newTunnel})
 			return
 		}
 		// 其他错误
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: false, Error: err.Error()})
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: err.Error()})
 		return
 	}
 
@@ -3406,23 +3285,17 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(w http.ResponseWriter, r *http.Requ
 		}
 	}
 
-	json.NewEncoder(w).Encode(tunnel.TunnelResponse{Success: true, Message: "编辑实例成功"})
+	c.JSON(http.StatusOK, tunnel.TunnelResponse{Success: true, Message: "编辑实例成功"})
 }
 
 // HandleExportTunnelLogs 导出隧道的所有日志文件和EndpointSSE记录
-func (h *TunnelHandler) HandleExportTunnelLogs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(r)
-	tunnelIDStr := vars["id"]
+func (h *TunnelHandler) HandleExportTunnelLogs(c *gin.Context) {
+	tunnelIDStr := c.Param("id")
 
 	// 解析隧道ID
 	tunnelID, err := strconv.ParseInt(tunnelIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid tunnel ID", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Invalid tunnel ID")
 		return
 	}
 
@@ -3439,11 +3312,11 @@ func (h *TunnelHandler) HandleExportTunnelLogs(w http.ResponseWriter, r *http.Re
 
 	if err != nil {
 		if err == sql.ErrNoRows {
-			http.Error(w, "Tunnel not found", http.StatusNotFound)
+			c.String(http.StatusNotFound, "Tunnel not found")
 			return
 		}
 		log.Errorf("[API] 获取隧道信息失败: %v", err)
-		http.Error(w, "Failed to get tunnel info", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "Failed to get tunnel info")
 		return
 	}
 
@@ -3507,18 +3380,18 @@ func (h *TunnelHandler) HandleExportTunnelLogs(w http.ResponseWriter, r *http.Re
 	err = zipWriter.Close()
 	if err != nil {
 		log.Errorf("[API] 关闭zip writer失败: %v", err)
-		http.Error(w, "Failed to create zip file", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "Failed to create zip file")
 		return
 	}
 
 	// 设置响应头
 	filename := fmt.Sprintf("%s_logs_%s.zip", tunnelName, time.Now().Format("2006-01-02"))
-	w.Header().Set("Content-Type", "application/zip")
-	w.Header().Set("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
-	w.Header().Set("Content-Length", fmt.Sprintf("%d", zipBuffer.Len()))
+	c.Header("Content-Type", "application/zip")
+	c.Header("Content-Disposition", fmt.Sprintf("attachment; filename=\"%s\"", filename))
+	c.Header("Content-Length", fmt.Sprintf("%d", zipBuffer.Len()))
 
 	// 发送zip文件
-	_, err = w.Write(zipBuffer.Bytes())
+	_, err = c.Writer.Write(zipBuffer.Bytes())
 	if err != nil {
 		log.Errorf("[API] 发送zip文件失败: %v", err)
 		return
@@ -3549,32 +3422,18 @@ func escapeCSVField(field string) string {
 // ========== Instance 相关处理函数 ==========
 
 // HandleGetInstances 获取实例列表 (GET /api/endpoints/{endpointId}/instances)
-func (h *TunnelHandler) HandleGetInstances(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// 从URL中获取端点ID
-	endpointIDStr := r.URL.Query().Get("endpointId")
+func (h *TunnelHandler) HandleGetInstances(c *gin.Context) {
+	// 从路径参数中获取端点ID
+	endpointIDStr := c.Param("id")
 	if endpointIDStr == "" {
-		// 尝试从路径 /api/endpoints/{endpointId}/instances 提取
-		parts := strings.Split(strings.Trim(r.URL.Path, "/"), "/")
-		// 期望格式: api, endpoints, {endpointId}, instances
-		if len(parts) >= 4 {
-			endpointIDStr = parts[2]
-		}
-	}
-
-	if endpointIDStr == "" {
-		http.Error(w, "Missing endpointId parameter", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Missing endpointId parameter")
 		return
 	}
 
 	// 解析端点ID
 	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid endpointId parameter", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Invalid endpointId parameter")
 		return
 	}
 
@@ -3582,45 +3441,34 @@ func (h *TunnelHandler) HandleGetInstances(w http.ResponseWriter, r *http.Reques
 	var endpoint struct{ URL, APIPath, APIKey string }
 	if err := h.tunnelService.DB().QueryRow(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`, endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
 		if err == sql.ErrNoRows {
-			http.Error(w, "Endpoint not found", http.StatusNotFound)
+			c.String(http.StatusNotFound, "Endpoint not found")
 			return
 		}
-		http.Error(w, "Failed to get endpoint info", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "Failed to get endpoint info")
 		return
 	}
 
 	// 获取实例列表
 	instances, err := nodepass.GetInstances(endpointID)
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
 
 	// 返回实例列表
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(instances)
+	c.JSON(http.StatusOK, instances)
 }
 
 // HandleGetInstance 获取单个实例信息 (GET /api/endpoints/{endpointId}/instances/{instanceId})
-func (h *TunnelHandler) HandleGetInstance(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// 从URL中获取端点ID和实例ID
-	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 5 {
-		http.Error(w, "Invalid URL", http.StatusBadRequest)
-		return
-	}
-	endpointIDStr := parts[3]
-	instanceID := parts[4]
+func (h *TunnelHandler) HandleGetInstance(c *gin.Context) {
+	// 从路径参数中获取端点ID和实例ID
+	endpointIDStr := c.Param("endpointId")
+	instanceID := c.Param("instanceId")
 
 	// 解析端点ID
 	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid endpointId parameter", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Invalid endpointId parameter")
 		return
 	}
 
@@ -3628,17 +3476,17 @@ func (h *TunnelHandler) HandleGetInstance(w http.ResponseWriter, r *http.Request
 	var endpoint struct{ URL, APIPath, APIKey string }
 	if err := h.tunnelService.DB().QueryRow(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`, endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
 		if err == sql.ErrNoRows {
-			http.Error(w, "Endpoint not found", http.StatusNotFound)
+			c.String(http.StatusNotFound, "Endpoint not found")
 			return
 		}
-		http.Error(w, "Failed to get endpoint info", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "Failed to get endpoint info")
 		return
 	}
 
 	// 获取实例信息 - 使用ControlInstance获取状态
 	status, err := nodepass.ControlInstance(endpointID, instanceID, "status")
 	if err != nil {
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -3649,45 +3497,34 @@ func (h *TunnelHandler) HandleGetInstance(w http.ResponseWriter, r *http.Request
 	}
 
 	// 返回实例信息
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(instance)
+	c.JSON(http.StatusOK, instance)
 }
 
 // HandleControlInstance 控制实例状态 (PATCH /api/endpoints/{endpointId}/instances/{instanceId})
-func (h *TunnelHandler) HandleControlInstance(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	// 从URL中获取端点ID和实例ID
-	parts := strings.Split(r.URL.Path, "/")
-	if len(parts) < 5 {
-		http.Error(w, "Invalid URL", http.StatusBadRequest)
-		return
-	}
-	endpointIDStr := parts[3]
-	instanceID := parts[4]
+func (h *TunnelHandler) HandleControlInstance(c *gin.Context) {
+	// 从路径参数中获取端点ID和实例ID
+	endpointIDStr := c.Param("endpointId")
+	instanceID := c.Param("instanceId")
 
 	// 解析请求体
 	var req struct {
 		Action string `json:"action"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.String(http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	// 验证action
 	if req.Action != "start" && req.Action != "stop" && req.Action != "restart" {
-		http.Error(w, "Invalid action", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Invalid action")
 		return
 	}
 
 	// 解析端点ID
 	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid endpointId parameter", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Invalid endpointId parameter")
 		return
 	}
 
@@ -3695,10 +3532,10 @@ func (h *TunnelHandler) HandleControlInstance(w http.ResponseWriter, r *http.Req
 	var endpoint struct{ URL, APIPath, APIKey string }
 	if err := h.tunnelService.DB().QueryRow(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`, endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
 		if err == sql.ErrNoRows {
-			http.Error(w, "Endpoint not found", http.StatusNotFound)
+			c.String(http.StatusNotFound, "Endpoint not found")
 			return
 		}
-		http.Error(w, "Failed to get endpoint info", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "Failed to get endpoint info")
 		return
 	}
 
@@ -3706,11 +3543,10 @@ func (h *TunnelHandler) HandleControlInstance(w http.ResponseWriter, r *http.Req
 	_, err2 := nodepass.ControlInstance(endpointID, instanceID, req.Action)
 
 	if err2 != nil {
-		http.Error(w, err2.Error(), http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, err2.Error())
 		return
 	}
 
 	// 返回成功响应
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]bool{"success": true})
+	c.JSON(http.StatusOK, map[string]bool{"success": true})
 }

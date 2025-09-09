@@ -32,6 +32,15 @@ func NewDataHandler(db *gorm.DB, mgr *sse.Manager, endpointService *endpoint.Ser
 	}
 }
 
+func SetupDataRoutes(rg *gin.RouterGroup, db *gorm.DB, sseManager *sse.Manager, endpointService *endpoint.Service, tunnelService *tunnel.Service) {
+	// 创建DataHandler实例
+	dataHandler := NewDataHandler(db, sseManager, endpointService, tunnelService)
+
+	// 数据导入导出
+	rg.GET("/data/export", dataHandler.HandleExport)
+	rg.POST("/data/import", dataHandler.HandleImport)
+}
+
 // EndpointExport 导出端点结构（简化版，仅包含基本配置信息）
 type EndpointExport struct {
 	Name    string `json:"name"`

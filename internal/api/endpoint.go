@@ -19,7 +19,7 @@ import (
 	"strings"
 	"time"
 
-	"github.com/gorilla/mux"
+	"github.com/gin-gonic/gin"
 	"github.com/mattn/go-ieproxy"
 	"gorm.io/gorm"
 )
@@ -38,17 +38,39 @@ func NewEndpointHandler(endpointService *endpoint.Service, mgr *sse.Manager) *En
 	}
 }
 
-// HandleGetEndpoints 获取端点列表
-func (h *EndpointHandler) HandleGetEndpoints(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+// SetupEndpointRoutes 设置端点相关路由
+func SetupEndpointRoutes(rg *gin.RouterGroup, endpointService *endpoint.Service, sseManager *sse.Manager) {
+	// 创建EndpointHandler实例
+	endpointHandler := NewEndpointHandler(endpointService, sseManager)
 
+	// 端点相关路由
+	rg.GET("/endpoints", endpointHandler.HandleGetEndpoints)
+	rg.POST("/endpoints", endpointHandler.HandleCreateEndpoint)
+	rg.PUT("/endpoints/:id", endpointHandler.HandleUpdateEndpoint)
+	rg.DELETE("/endpoints/:id", endpointHandler.HandleDeleteEndpoint)
+	rg.PATCH("/endpoints/:id", endpointHandler.HandlePatchEndpoint)
+	rg.PATCH("/endpoints", endpointHandler.HandlePatchEndpoint)
+	rg.GET("/endpoints/simple", endpointHandler.HandleGetSimpleEndpoints)
+	rg.POST("/endpoints/test", endpointHandler.HandleTestEndpoint)
+	rg.GET("/endpoints/status", endpointHandler.HandleEndpointStatus)
+	rg.GET("/endpoints/:id/detail", endpointHandler.HandleGetEndpointDetail)
+	rg.GET("/endpoints/:id/info", endpointHandler.HandleGetEndpointInfo)
+	rg.GET("/endpoints/:id/file-logs", endpointHandler.HandleEndpointFileLogs)
+	rg.DELETE("/endpoints/:id/file-logs/clear", endpointHandler.HandleClearEndpointFileLogs)
+	rg.GET("/endpoints/:id/file-logs/dates", endpointHandler.HandleGetAvailableLogDates)
+	rg.GET("/endpoints/:id/stats", endpointHandler.HandleEndpointStats)
+	rg.POST("/endpoints/:id/tcping", endpointHandler.HandleTCPing)
+
+	// 全局回收站
+	rg.GET("/recycle", endpointHandler.HandleRecycleListAll)
+	rg.DELETE("/recycle", endpointHandler.HandleRecycleClearAll)
+}
+
+// HandleGetEndpoints 获取端点列表
+func (h *EndpointHandler) HandleGetEndpoints(c *gin.Context) {
 	endpoints, err := h.endpointService.GetEndpoints()
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{
 			Success: false,
 			Error:   "获取端点列表失败: " + err.Error(),
 		})
@@ -58,20 +80,14 @@ func (h *EndpointHandler) HandleGetEndpoints(w http.ResponseWriter, r *http.Requ
 	if endpoints == nil {
 		endpoints = []endpoint.EndpointWithStats{}
 	}
-	json.NewEncoder(w).Encode(endpoints)
+	c.JSON(http.StatusOK, endpoints)
 }
 
 // HandleCreateEndpoint 创建新端点
-func (h *EndpointHandler) HandleCreateEndpoint(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *EndpointHandler) HandleCreateEndpoint(c *gin.Context) {
 	var req endpoint.CreateEndpointRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -86,8 +102,7 @@ func (h *EndpointHandler) HandleCreateEndpoint(w http.ResponseWriter, r *http.Re
 
 	// 验证请求数据
 	if req.Name == "" || req.URL == "" || req.APIPath == "" || req.APIKey == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
 			Error:   "缺少必填字段",
 		})
@@ -96,8 +111,7 @@ func (h *EndpointHandler) HandleCreateEndpoint(w http.ResponseWriter, r *http.Re
 
 	newEndpoint, err := h.endpointService.CreateEndpoint(req)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
 			Error:   err.Error(),
 		})
@@ -114,7 +128,7 @@ func (h *EndpointHandler) HandleCreateEndpoint(w http.ResponseWriter, r *http.Re
 		}(newEndpoint)
 	}
 
-	json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+	c.JSON(http.StatusOK, endpoint.EndpointResponse{
 		Success:  true,
 		Message:  "端点创建成功",
 		Endpoint: newEndpoint,
@@ -122,18 +136,11 @@ func (h *EndpointHandler) HandleCreateEndpoint(w http.ResponseWriter, r *http.Re
 }
 
 // HandleUpdateEndpoint 更新端点信息 (PUT /api/endpoints/{id})
-func (h *EndpointHandler) HandleUpdateEndpoint(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPut {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+func (h *EndpointHandler) HandleUpdateEndpoint(c *gin.Context) {
+	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
 			Error:   "无效的端点ID",
 		})
@@ -146,9 +153,8 @@ func (h *EndpointHandler) HandleUpdateEndpoint(w http.ResponseWriter, r *http.Re
 		APIPath string `json:"apiPath"`
 		APIKey  string `json:"apiKey"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -172,15 +178,14 @@ func (h *EndpointHandler) HandleUpdateEndpoint(w http.ResponseWriter, r *http.Re
 
 	updatedEndpoint, err := h.endpointService.UpdateEndpoint(req)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
 			Error:   err.Error(),
 		})
 		return
 	}
 
-	json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+	c.JSON(http.StatusOK, endpoint.EndpointResponse{
 		Success:  true,
 		Message:  "端点更新成功",
 		Endpoint: updatedEndpoint,
@@ -188,18 +193,11 @@ func (h *EndpointHandler) HandleUpdateEndpoint(w http.ResponseWriter, r *http.Re
 }
 
 // HandleDeleteEndpoint 删除端点 (DELETE /api/endpoints/{id})
-func (h *EndpointHandler) HandleDeleteEndpoint(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+func (h *EndpointHandler) HandleDeleteEndpoint(c *gin.Context) {
+	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
 			Error:   "无效的端点ID",
 		})
@@ -240,8 +238,7 @@ func (h *EndpointHandler) HandleDeleteEndpoint(w http.ResponseWriter, r *http.Re
 	log.Infof("[Master-%v] 开始删除端点数据", id)
 	if err := h.endpointService.DeleteEndpoint(id); err != nil {
 		log.Errorf("[Master-%v] 删除端点失败: %v", id, err)
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
 			Error:   err.Error(),
 		})
@@ -261,27 +258,20 @@ func (h *EndpointHandler) HandleDeleteEndpoint(w http.ResponseWriter, r *http.Re
 
 	log.Infof("[Master-%v] 端点及其隧道已删除", id)
 
-	json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+	c.JSON(http.StatusOK, endpoint.EndpointResponse{
 		Success: true,
 		Message: "端点删除成功",
 	})
 }
 
 // HandlePatchEndpoint PATCH /api/endpoints/{id}
-func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPatch {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
+	idStr := c.Param("id")
 
 	// 先解析 body，可能包含 id
 	var body map[string]interface{}
-	if err := json.NewDecoder(r.Body).Decode(&body); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+	if err := c.ShouldBindJSON(&body); err != nil {
+		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
@@ -292,8 +282,7 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 	if idStr != "" {
 		parsed, err := strconv.ParseInt(idStr, 10, 64)
 		if err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+			c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 				Success: false,
 				Error:   "无效的端点ID",
 			})
@@ -305,8 +294,7 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 		if idVal, ok := body["id"].(float64); ok {
 			id = int64(idVal)
 		} else {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+			c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 				Success: false,
 				Error:   "缺少端点ID",
 			})
@@ -325,11 +313,10 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 			Name:   name,
 		}
 		if _, err := h.endpointService.UpdateEndpoint(req); err != nil {
-			w.WriteHeader(http.StatusBadRequest)
-			json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: false, Error: err.Error()})
+			c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{Success: false, Error: err.Error()})
 			return
 		}
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusOK, endpoint.EndpointResponse{
 			Success: true,
 			Message: "端点名称已更新",
 			Endpoint: map[string]interface{}{
@@ -341,16 +328,14 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 		if h.sseManager != nil {
 			ep, err := h.endpointService.GetEndpointByID(id)
 			if err != nil {
-				w.WriteHeader(http.StatusInternalServerError)
-				json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: false, Error: "获取端点信息失败: " + err.Error()})
+				c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{Success: false, Error: "获取端点信息失败: " + err.Error()})
 				return
 			}
 
 			// 先测试端点连接
 			if err := h.testEndpointConnection(ep.URL, ep.APIPath, ep.APIKey, 5000); err != nil {
 				log.Warnf("[Master-%v] 端点连接测试失败: %v", id, err)
-				w.WriteHeader(http.StatusBadRequest)
-				json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: false, Error: "主控离线或无法连接: " + err.Error()})
+				c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{Success: false, Error: "主控离线或无法连接: " + err.Error()})
 				return
 			}
 
@@ -361,7 +346,7 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 				}
 			}(id)
 		}
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: true, Message: "端点已重连"})
+		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "端点已重连"})
 	case "disconnect":
 		if h.sseManager != nil {
 			go func(eid int64) {
@@ -376,39 +361,31 @@ func (h *EndpointHandler) HandlePatchEndpoint(w http.ResponseWriter, r *http.Req
 				// }
 			}(id)
 		}
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: true, Message: "端点已断开"})
+		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "端点已断开"})
 	case "refresTunnel":
 		if err := h.refreshTunnels(id); err != nil {
-			w.WriteHeader(http.StatusInternalServerError)
-			json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: false, Error: err.Error()})
+			c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{Success: false, Error: err.Error()})
 			return
 		}
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: true, Message: "隧道刷新完成"})
+		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "隧道刷新完成"})
 	default:
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: false, Error: "不支持的操作类型"})
+		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{Success: false, Error: "不支持的操作类型"})
 	}
 }
 
 // HandleGetSimpleEndpoints GET /api/endpoints/simple
-func (h *EndpointHandler) HandleGetSimpleEndpoints(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	excludeFailed := r.URL.Query().Get("excludeFailed") == "true"
+func (h *EndpointHandler) HandleGetSimpleEndpoints(c *gin.Context) {
+	excludeFailed := c.Query("excludeFailed") == "true"
 	endpoints, err := h.endpointService.GetSimpleEndpoints(excludeFailed)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{Success: false, Error: err.Error()})
+		c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{Success: false, Error: err.Error()})
 		return
 	}
 
 	if endpoints == nil {
 		endpoints = []endpoint.SimpleEndpoint{}
 	}
-	json.NewEncoder(w).Encode(endpoints)
+	c.JSON(http.StatusOK, endpoints)
 }
 
 // TestConnectionRequest 测试端点连接请求
@@ -420,16 +397,10 @@ type TestConnectionRequest struct {
 }
 
 // HandleTestEndpoint POST /api/endpoints/test
-func (h *EndpointHandler) HandleTestEndpoint(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
+func (h *EndpointHandler) HandleTestEndpoint(c *gin.Context) {
 	var req TestConnectionRequest
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "无效请求体"})
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"success": false, "error": "无效请求体"})
 		return
 	}
 
@@ -453,8 +424,7 @@ func (h *EndpointHandler) HandleTestEndpoint(w http.ResponseWriter, r *http.Requ
 
 	httpReq, err := http.NewRequest("GET", testURL, nil)
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": err.Error()})
+		c.JSON(http.StatusInternalServerError, map[string]interface{}{"success": false, "error": err.Error()})
 		return
 	}
 	httpReq.Header.Set("X-API-Key", req.APIKey)
@@ -462,36 +432,31 @@ func (h *EndpointHandler) HandleTestEndpoint(w http.ResponseWriter, r *http.Requ
 
 	resp, err := client.Do(httpReq)
 	if err != nil {
-		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": err.Error()})
+		c.JSON(http.StatusOK, map[string]interface{}{"success": false, "error": err.Error()})
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		json.NewEncoder(w).Encode(map[string]interface{}{"success": false, "error": "HTTP错误", "status": resp.StatusCode, "details": string(bodyBytes)})
+		c.JSON(http.StatusOK, map[string]interface{}{"success": false, "error": "HTTP错误", "status": resp.StatusCode, "details": string(bodyBytes)})
 		return
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{"success": true, "message": "端点连接测试成功", "status": resp.StatusCode})
+	c.JSON(http.StatusOK, map[string]interface{}{"success": true, "message": "端点连接测试成功", "status": resp.StatusCode})
 }
 
 // HandleEndpointStatus GET /api/endpoints/status (SSE)
-func (h *EndpointHandler) HandleEndpointStatus(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	flusher, ok := w.(http.Flusher)
+func (h *EndpointHandler) HandleEndpointStatus(c *gin.Context) {
+	flusher, ok := c.Writer.(http.Flusher)
 	if !ok {
-		http.Error(w, "Streaming unsupported", http.StatusInternalServerError)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Streaming unsupported"})
 		return
 	}
 
-	w.Header().Set("Content-Type", "text/event-stream")
-	w.Header().Set("Cache-Control", "no-cache")
-	w.Header().Set("Connection", "keep-alive")
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
 
 	send := func() {
 		endpoints, err := h.endpointService.GetEndpoints()
@@ -499,7 +464,7 @@ func (h *EndpointHandler) HandleEndpointStatus(w http.ResponseWriter, r *http.Re
 			return
 		}
 		data, _ := json.Marshal(endpoints)
-		fmt.Fprintf(w, "data: %s\n\n", data)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", data)
 		flusher.Flush()
 	}
 
@@ -508,7 +473,7 @@ func (h *EndpointHandler) HandleEndpointStatus(w http.ResponseWriter, r *http.Re
 	ticker := time.NewTicker(30 * time.Second)
 	defer ticker.Stop()
 
-	notify := r.Context().Done()
+	notify := c.Request.Context().Done()
 	for {
 		select {
 		case <-notify:
@@ -520,46 +485,42 @@ func (h *EndpointHandler) HandleEndpointStatus(w http.ResponseWriter, r *http.Re
 }
 
 // HandleEndpointLogs 根据 endpointId 查询最近 limit 条日志(从文件读取)
-func (h *EndpointHandler) HandleEndpointLogs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *EndpointHandler) HandleEndpointLogs(c *gin.Context) {
+	// Method validation removed - handled by Gin router
 
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+	idStr := c.Param("id")
 	if idStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "缺少端点ID"})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": "缺少端点ID"})
 		return
 	}
 
 	endpointID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的端点ID"})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": "无效的端点ID"})
 		return
 	}
 
 	// 解析 limit 参数，默认 1000
 	limit := 1000
-	if l := r.URL.Query().Get("limit"); l != "" {
+	if l := c.Query("limit"); l != "" {
 		if v, err := strconv.Atoi(l); err == nil && v > 0 {
 			limit = v
 		}
 	}
 
 	// 解析 instanceId 参数
-	instanceID := r.URL.Query().Get("instanceId")
+	instanceID := c.Query("instanceId")
 	if instanceID == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "缺少实例ID"})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": "缺少实例ID"})
 		return
 	}
 
 	// 解析 days 参数，默认查询最近3天
 	days := 3
-	if d := r.URL.Query().Get("days"); d != "" {
+	if d := c.Query("days"); d != "" {
 		if v, err := strconv.Atoi(d); err == nil && v > 0 && v <= 30 {
 			days = v
 		}
@@ -578,7 +539,7 @@ func (h *EndpointHandler) HandleEndpointLogs(w http.ResponseWriter, r *http.Requ
 	}
 
 	// 返回数据，兼容旧前端结构
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, map[string]interface{}{
 		"logs":        logs,
 		"success":     true,
 		"storageMode": "file", // 标识为文件存储模式
@@ -588,36 +549,31 @@ func (h *EndpointHandler) HandleEndpointLogs(w http.ResponseWriter, r *http.Requ
 
 // HandleSearchEndpointLogs GET /api/endpoints/{id}/logs/search
 // 支持查询条件: level, instanceId, start, end, page, size
-func (h *EndpointHandler) HandleSearchEndpointLogs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *EndpointHandler) HandleSearchEndpointLogs(c *gin.Context) {
+	// Method validation removed - handled by Gin router
 
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+	idStr := c.Param("id")
 	if idStr == "" {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "缺少端点ID"})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": "缺少端点ID"})
 		return
 	}
 	endpointID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的端点ID"})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": "无效的端点ID"})
 		return
 	}
 
-	q := r.URL.Query()
-	level := strings.ToLower(q.Get("level"))
-	instanceID := q.Get("instanceId")
-	start := q.Get("start")
-	end := q.Get("end")
-	page, _ := strconv.Atoi(q.Get("page"))
+	level := strings.ToLower(c.Query("level"))
+	instanceID := c.Query("instanceId")
+	start := c.Query("start")
+	end := c.Query("end")
+	page, _ := strconv.Atoi(c.Query("page"))
 	if page <= 0 {
 		page = 1
 	}
-	size, _ := strconv.Atoi(q.Get("size"))
+	size, _ := strconv.Atoi(c.Query("size"))
 	if size <= 0 {
 		size = 20
 	}
@@ -661,8 +617,8 @@ func (h *EndpointHandler) HandleSearchEndpointLogs(w http.ResponseWriter, r *htt
 	// 查询总数
 	var total int64
 	if err := query.Count(&total).Error; err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -670,8 +626,8 @@ func (h *EndpointHandler) HandleSearchEndpointLogs(w http.ResponseWriter, r *htt
 	offset := (page - 1) * size
 	var endpointSSEList []models.EndpointSSE
 	if err := query.Select("id, created_at, logs, instance_id").Order("created_at DESC").Limit(size).Offset(offset).Find(&endpointSSEList).Error; err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -709,7 +665,7 @@ func (h *EndpointHandler) HandleSearchEndpointLogs(w http.ResponseWriter, r *htt
 		})
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, map[string]interface{}{
 		"success": true,
 		"total":   total,
 		"page":    page,
@@ -730,17 +686,13 @@ func (h *EndpointHandler) HandleSearchEndpointLogs(w http.ResponseWriter, r *htt
 }
 
 // HandleRecycleList 获取指定端点回收站隧道 (GET /api/endpoints/{id}/recycle)
-func (h *EndpointHandler) HandleRecycleList(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+func (h *EndpointHandler) HandleRecycleList(c *gin.Context) {
+	// Method validation removed - handled by Gin router
+	idStr := c.Param("id")
 	endpointID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的端点ID"})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": "无效的端点ID"})
 		return
 	}
 
@@ -749,8 +701,8 @@ func (h *EndpointHandler) HandleRecycleList(w http.ResponseWriter, r *http.Reque
 	// 查询 TunnelRecycle 表所有字段
 	var recycledTunnels []models.TunnelRecycle
 	if err := db.Where("endpoint_id = ?", endpointID).Order("id DESC").Find(&recycledTunnels).Error; err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -817,21 +769,17 @@ func (h *EndpointHandler) HandleRecycleList(w http.ResponseWriter, r *http.Reque
 		list = append(list, item)
 	}
 
-	json.NewEncoder(w).Encode(list)
+	c.JSON(http.StatusOK, list)
 }
 
 // HandleRecycleCount 获取回收站数量 (GET /api/endpoints/{id}/recycle/count)
-func (h *EndpointHandler) HandleRecycleCount(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+func (h *EndpointHandler) HandleRecycleCount(c *gin.Context) {
+	// Method validation removed - handled by Gin router
+	idStr := c.Param("id")
 	endpointID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的端点ID"})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": "无效的端点ID"})
 		return
 	}
 
@@ -839,29 +787,25 @@ func (h *EndpointHandler) HandleRecycleCount(w http.ResponseWriter, r *http.Requ
 	var count int64
 	err = db.Model(&models.TunnelRecycle{}).Where("endpoint_id = ?", endpointID).Count(&count).Error
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": err.Error()})
 		return
 	}
-	json.NewEncoder(w).Encode(map[string]interface{}{"count": count})
+	c.JSON(http.StatusOK, map[string]interface{}{"count": count})
 }
 
 // HandleRecycleDelete 删除回收站记录并清空相关 SSE (DELETE /api/endpoints/{endpointId}/recycle/{recycleId})
-func (h *EndpointHandler) HandleRecycleDelete(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *EndpointHandler) HandleRecycleDelete(c *gin.Context) {
+	// Method validation removed - handled by Gin router
 
-	vars := mux.Vars(r)
-	epStr := vars["endpointId"]
-	recStr := vars["recycleId"]
+	epStr := c.Param("endpointId")
+	recStr := c.Param("recycleId")
 
 	endpointID, err1 := strconv.ParseInt(epStr, 10, 64)
 	recycleID, err2 := strconv.ParseInt(recStr, 10, 64)
 	if err1 != nil || err2 != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": "无效的ID"})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": "无效的ID"})
 		return
 	}
 
@@ -872,12 +816,12 @@ func (h *EndpointHandler) HandleRecycleDelete(w http.ResponseWriter, r *http.Req
 	err := db.Select("instance_id").Where("id = ? AND endpoint_id = ?", recycleID, endpointID).First(&tunnelRecycle).Error
 	if err != nil {
 		if err == gorm.ErrRecordNotFound {
-			w.WriteHeader(http.StatusNotFound)
-			json.NewEncoder(w).Encode(map[string]interface{}{"error": "记录不存在"})
+			// Status handled by c.JSON
+			c.JSON(http.StatusOK, map[string]interface{}{"error": "记录不存在"})
 			return
 		}
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -898,8 +842,8 @@ func (h *EndpointHandler) HandleRecycleDelete(w http.ResponseWriter, r *http.Req
 	})
 
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -912,31 +856,28 @@ func (h *EndpointHandler) HandleRecycleDelete(w http.ResponseWriter, r *http.Req
 		}
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+	c.JSON(http.StatusOK, map[string]interface{}{"success": true})
 }
 
 // HandleRecycleListAll 获取全部端点的回收站隧道 (GET /api/recycle)
-func (h *EndpointHandler) HandleRecycleListAll(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *EndpointHandler) HandleRecycleListAll(c *gin.Context) {
+	// Method validation removed - handled by Gin router
 
 	db := h.endpointService.DB()
 
 	// 使用GORM查询TunnelRecycle
 	var recycledTunnels []models.TunnelRecycle
 	if err := db.Order("id DESC").Find(&recycledTunnels).Error; err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
 	// 获取所有端点信息用于映射
 	var endpoints []models.Endpoint
 	if err := db.Find(&endpoints).Error; err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -1013,15 +954,12 @@ func (h *EndpointHandler) HandleRecycleListAll(w http.ResponseWriter, r *http.Re
 		list = append(list, item)
 	}
 
-	json.NewEncoder(w).Encode(list)
+	c.JSON(http.StatusOK, list)
 }
 
 // HandleRecycleClearAll 清空全部回收站记录 (DELETE /api/recycle)
-func (h *EndpointHandler) HandleRecycleClearAll(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *EndpointHandler) HandleRecycleClearAll(c *gin.Context) {
+	// Method validation removed - handled by Gin router
 
 	db := h.endpointService.DB()
 
@@ -1062,8 +1000,8 @@ func (h *EndpointHandler) HandleRecycleClearAll(w http.ResponseWriter, r *http.R
 	})
 
 	if err != nil {
-		w.WriteHeader(http.StatusInternalServerError)
-		json.NewEncoder(w).Encode(map[string]interface{}{"error": err.Error()})
+		// Status handled by c.JSON
+		c.JSON(http.StatusOK, map[string]interface{}{"error": err.Error()})
 		return
 	}
 
@@ -1080,7 +1018,7 @@ func (h *EndpointHandler) HandleRecycleClearAll(w http.ResponseWriter, r *http.R
 		}
 	}
 
-	json.NewEncoder(w).Encode(map[string]interface{}{"success": true})
+	c.JSON(http.StatusOK, map[string]interface{}{"success": true})
 }
 
 // refreshTunnels 同步指定端点的隧道信息
@@ -1268,18 +1206,11 @@ func (h *EndpointHandler) testEndpointConnection(url, apiPath, apiKey string, ti
 }
 
 // HandleGetEndpointInfo 获取端点系统信息
-func (h *EndpointHandler) HandleGetEndpointInfo(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+func (h *EndpointHandler) HandleGetEndpointInfo(c *gin.Context) {
+	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
 			Error:   "无效的端点ID",
 		})
@@ -1289,8 +1220,7 @@ func (h *EndpointHandler) HandleGetEndpointInfo(w http.ResponseWriter, r *http.R
 	// 获取端点信息
 	ep, err := h.endpointService.GetEndpointByID(id)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusNotFound, endpoint.EndpointResponse{
 			Success: false,
 			Error:   err.Error(),
 		})
@@ -1326,7 +1256,7 @@ func (h *EndpointHandler) HandleGetEndpointInfo(w http.ResponseWriter, r *http.R
 			log.Infof("[Master-%v] 系统信息已更新: OS=%s, Arch=%s, Ver=%s, Uptime=%s", ep.ID, info.OS, info.Arch, info.Ver, uptimeMsg)
 		}
 
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusOK, endpoint.EndpointResponse{
 			Success:  true,
 			Message:  "系统信息获取成功",
 			Endpoint: info,
@@ -1385,7 +1315,7 @@ func (h *EndpointHandler) HandleGetEndpointInfo(w http.ResponseWriter, r *http.R
 			Uptime: storedUptime,
 		}
 
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusOK, endpoint.EndpointResponse{
 			Success:  true,
 			Message:  "返回已存储的系统信息",
 			Endpoint: infoResponse,
@@ -1394,18 +1324,11 @@ func (h *EndpointHandler) HandleGetEndpointInfo(w http.ResponseWriter, r *http.R
 }
 
 // HandleGetEndpointDetail 获取端点详细信息
-func (h *EndpointHandler) HandleGetEndpointDetail(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
-
-	vars := mux.Vars(r)
-	idStr := vars["id"]
+func (h *EndpointHandler) HandleGetEndpointDetail(c *gin.Context) {
+	idStr := c.Param("id")
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		w.WriteHeader(http.StatusBadRequest)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
 			Error:   "无效的端点ID",
 		})
@@ -1415,8 +1338,7 @@ func (h *EndpointHandler) HandleGetEndpointDetail(w http.ResponseWriter, r *http
 	// 先获取端点基本信息（用于连接NodePass API）
 	ep, err := h.endpointService.GetEndpointByID(id)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusNotFound, endpoint.EndpointResponse{
 			Success: false,
 			Error:   err.Error(),
 		})
@@ -1456,15 +1378,14 @@ func (h *EndpointHandler) HandleGetEndpointDetail(w http.ResponseWriter, r *http
 	// 重新从数据库获取最新的端点详细信息
 	updatedEp, err := h.endpointService.GetEndpointByID(id)
 	if err != nil {
-		w.WriteHeader(http.StatusNotFound)
-		json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+		c.JSON(http.StatusNotFound, endpoint.EndpointResponse{
 			Success: false,
 			Error:   err.Error(),
 		})
 		return
 	}
 
-	json.NewEncoder(w).Encode(endpoint.EndpointResponse{
+	c.JSON(http.StatusOK, endpoint.EndpointResponse{
 		Success:  true,
 		Message:  "获取端点详情成功",
 		Endpoint: updatedEp,
@@ -1472,24 +1393,21 @@ func (h *EndpointHandler) HandleGetEndpointDetail(w http.ResponseWriter, r *http
 }
 
 // HandleEndpointFileLogs 获取端点文件日志
-func (h *EndpointHandler) HandleEndpointFileLogs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *EndpointHandler) HandleEndpointFileLogs(c *gin.Context) {
+	// Method validation removed - handled by Gin router
 
-	vars := mux.Vars(r)
-	endpointID, err := strconv.ParseInt(vars["id"], 10, 64)
+	endpointIDStr := c.Param("id")
+	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid endpoint ID", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Invalid endpoint ID")
 		return
 	}
 
 	// 获取查询参数
-	instanceID := r.URL.Query().Get("instanceId")
-	dateStr := r.URL.Query().Get("date") // 改为date参数
+	instanceID := c.Query("instanceId")
+	dateStr := c.Query("date") // 改为date参数
 	if instanceID == "" {
-		http.Error(w, "Missing instanceId parameter", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Missing instanceId parameter")
 		return
 	}
 
@@ -1499,7 +1417,7 @@ func (h *EndpointHandler) HandleEndpointFileLogs(w http.ResponseWriter, r *http.
 		var parseErr error
 		targetDate, parseErr = time.Parse("2006-01-02", dateStr)
 		if parseErr != nil {
-			http.Error(w, "Invalid date format, expected YYYY-MM-DD", http.StatusBadRequest)
+			c.String(http.StatusBadRequest, "Invalid date format, expected YYYY-MM-DD")
 			return
 		}
 	} else {
@@ -1511,7 +1429,7 @@ func (h *EndpointHandler) HandleEndpointFileLogs(w http.ResponseWriter, r *http.
 	logs, err := h.sseManager.GetFileLogger().ReadLogs(endpointID, instanceID, targetDate, 1000)
 	if err != nil {
 		log.Warnf("[API]读取文件日志失败: %v", err)
-		http.Error(w, "Failed to read file logs", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "Failed to read file logs")
 		return
 	}
 
@@ -1548,28 +1466,24 @@ func (h *EndpointHandler) HandleEndpointFileLogs(w http.ResponseWriter, r *http.
 		"timestamp": time.Now(),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // HandleClearEndpointFileLogs 清空端点文件日志
-func (h *EndpointHandler) HandleClearEndpointFileLogs(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodDelete {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *EndpointHandler) HandleClearEndpointFileLogs(c *gin.Context) {
+	// Method validation removed - handled by Gin router
 
-	vars := mux.Vars(r)
-	endpointID, err := strconv.ParseInt(vars["id"], 10, 64)
+	endpointIDStr := c.Param("id")
+	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid endpoint ID", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Invalid endpoint ID")
 		return
 	}
 
 	// 获取查询参数
-	instanceID := r.URL.Query().Get("instanceId")
+	instanceID := c.Query("instanceId")
 	if instanceID == "" {
-		http.Error(w, "Missing instanceId parameter", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Missing instanceId parameter")
 		return
 	}
 
@@ -1577,7 +1491,7 @@ func (h *EndpointHandler) HandleClearEndpointFileLogs(w http.ResponseWriter, r *
 	err = h.sseManager.GetFileLogger().ClearLogs(endpointID, instanceID)
 	if err != nil {
 		log.Warnf("[API]清空文件日志失败: %v", err)
-		http.Error(w, "Failed to clear file logs", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "Failed to clear file logs")
 		return
 	}
 
@@ -1586,22 +1500,18 @@ func (h *EndpointHandler) HandleClearEndpointFileLogs(w http.ResponseWriter, r *
 		"message": "文件日志已清空",
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // HandleEndpointStats 获取端点统计信息
 // GET /api/endpoints/{id}/stats
-func (h *EndpointHandler) HandleEndpointStats(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *EndpointHandler) HandleEndpointStats(c *gin.Context) {
+	// Method validation removed - handled by Gin router
 
-	vars := mux.Vars(r)
-	endpointID, err := strconv.ParseInt(vars["id"], 10, 64)
+	endpointIDStr := c.Param("id")
+	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid endpoint ID", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Invalid endpoint ID")
 		return
 	}
 
@@ -1609,7 +1519,7 @@ func (h *EndpointHandler) HandleEndpointStats(w http.ResponseWriter, r *http.Req
 	tunnelCount, totalTcpIn, totalTcpOut, totalUdpIn, totalUdpOut, err := h.getTunnelStats(endpointID)
 	if err != nil {
 		log.Errorf("获取隧道统计失败: %v", err)
-		http.Error(w, "获取隧道统计失败", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "获取隧道统计失败")
 		return
 	}
 
@@ -1638,8 +1548,7 @@ func (h *EndpointHandler) HandleEndpointStats(w http.ResponseWriter, r *http.Req
 		"udpTrafficOut":   totalUdpOut,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(map[string]interface{}{
+	c.JSON(http.StatusOK, map[string]interface{}{
 		"success": true,
 		"data":    stats,
 	})
@@ -1724,23 +1633,20 @@ func updateEndpointTunnelCount(endpointID int64) {
 }
 
 // HandleGetAvailableLogDates 获取指定端点和实例的可用日志日期列表
-func (h *EndpointHandler) HandleGetAvailableLogDates(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodGet {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *EndpointHandler) HandleGetAvailableLogDates(c *gin.Context) {
+	// Method validation removed - handled by Gin router
 
-	vars := mux.Vars(r)
-	endpointID, err := strconv.ParseInt(vars["id"], 10, 64)
+	endpointIDStr := c.Param("id")
+	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid endpoint ID", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Invalid endpoint ID")
 		return
 	}
 
 	// 获取查询参数
-	instanceID := r.URL.Query().Get("instanceId")
+	instanceID := c.Query("instanceId")
 	if instanceID == "" {
-		http.Error(w, "Missing instanceId parameter", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Missing instanceId parameter")
 		return
 	}
 
@@ -1748,7 +1654,7 @@ func (h *EndpointHandler) HandleGetAvailableLogDates(w http.ResponseWriter, r *h
 	dates, err := h.sseManager.GetFileLogger().GetAvailableLogDates(endpointID, instanceID)
 	if err != nil {
 		log.Warnf("[API]获取可用日志日期失败: %v", err)
-		http.Error(w, "Failed to get available log dates", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "Failed to get available log dates")
 		return
 	}
 
@@ -1758,21 +1664,17 @@ func (h *EndpointHandler) HandleGetAvailableLogDates(w http.ResponseWriter, r *h
 		"count":   len(dates),
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }
 
 // HandleTCPing TCPing诊断测试 (POST /api/endpoints/{id}/tcping)
-func (h *EndpointHandler) HandleTCPing(w http.ResponseWriter, r *http.Request) {
-	if r.Method != http.MethodPost {
-		http.Error(w, "Method not allowed", http.StatusMethodNotAllowed)
-		return
-	}
+func (h *EndpointHandler) HandleTCPing(c *gin.Context) {
+	// Method validation removed - handled by Gin router
 
-	vars := mux.Vars(r)
-	endpointID, err := strconv.ParseInt(vars["id"], 10, 64)
+	endpointIDStr := c.Param("id")
+	endpointID, err := strconv.ParseInt(endpointIDStr, 10, 64)
 	if err != nil {
-		http.Error(w, "Invalid endpoint ID", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Invalid endpoint ID")
 		return
 	}
 
@@ -1780,13 +1682,13 @@ func (h *EndpointHandler) HandleTCPing(w http.ResponseWriter, r *http.Request) {
 	var req struct {
 		Target string `json:"target"`
 	}
-	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
-		http.Error(w, "Invalid request body", http.StatusBadRequest)
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.String(http.StatusBadRequest, "Invalid request body")
 		return
 	}
 
 	if req.Target == "" {
-		http.Error(w, "Missing target parameter", http.StatusBadRequest)
+		c.String(http.StatusBadRequest, "Missing target parameter")
 		return
 	}
 
@@ -1800,10 +1702,10 @@ func (h *EndpointHandler) HandleTCPing(w http.ResponseWriter, r *http.Request) {
 	db := h.endpointService.DB()
 	if err := db.Raw(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`, endpointID).Scan(&endpoint).Error; err != nil {
 		if err == sql.ErrNoRows {
-			http.Error(w, "Endpoint not found", http.StatusNotFound)
+			c.String(http.StatusNotFound, "Endpoint not found")
 			return
 		}
-		http.Error(w, "Failed to get endpoint info", http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, "Failed to get endpoint info")
 		return
 	}
 
@@ -1811,7 +1713,7 @@ func (h *EndpointHandler) HandleTCPing(w http.ResponseWriter, r *http.Request) {
 	result, err := nodepass.TCPing(endpointID, req.Target)
 	if err != nil {
 		log.Errorf("[API]TCPing测试失败: target=%s, err=%v", req.Target, err)
-		http.Error(w, err.Error(), http.StatusInternalServerError)
+		c.String(http.StatusInternalServerError, err.Error())
 		return
 	}
 
@@ -1821,6 +1723,5 @@ func (h *EndpointHandler) HandleTCPing(w http.ResponseWriter, r *http.Request) {
 		"result":  result,
 	}
 
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(response)
+	c.JSON(http.StatusOK, response)
 }

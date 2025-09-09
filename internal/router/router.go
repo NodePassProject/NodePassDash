@@ -1,6 +1,7 @@
 package router
 
 import (
+	"NodePassDash/internal/api"
 	"NodePassDash/internal/auth"
 	"NodePassDash/internal/dashboard"
 	"NodePassDash/internal/endpoint"
@@ -13,13 +14,6 @@ import (
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
-
-// httpToGin 将传统HTTP handler转换为Gin handler
-func httpToGin(handler func(http.ResponseWriter, *http.Request)) gin.HandlerFunc {
-	return func(c *gin.Context) {
-		handler(c.Writer, c.Request)
-	}
-}
 
 // SetupRouter 创建并配置主路由器
 func SetupRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager) *gin.Engine {
@@ -41,7 +35,7 @@ func SetupRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager) 
 
 // setupAPIRoutes 设置API路由
 func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager) {
-	api := r.Group("/api")
+	apiGroup := r.Group("/api")
 	{
 		// 创建服务实例
 		authService := auth.NewService(db)
@@ -55,14 +49,14 @@ func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseMana
 		sseProcessor := metrics.NewSSEProcessor(metricsAggregator)
 
 		// 设置各模块的路由
-		setupAuthRoutes(api, authService)
-		setupEndpointRoutes(api, endpointService, sseManager)
-		setupTunnelRoutes(api, tunnelService, sseManager, sseProcessor)
-		setupSSERoutes(api, sseService, sseManager)
-		setupDashboardRoutes(api, dashboardService)
-		setupDataRoutes(api, db, sseManager, endpointService, tunnelService)
-		setupTagRoutes(api, tagService)
-		setupVersionRoutes(api)
+		api.SetupAuthRoutes(apiGroup, authService)
+		api.SetupEndpointRoutes(apiGroup, endpointService, sseManager)
+		api.SetupTunnelRoutes(apiGroup, tunnelService, sseManager, sseProcessor)
+		api.SetupSSERoutes(apiGroup, sseService, sseManager)
+		api.SetupDashboardRoutes(apiGroup, dashboardService)
+		api.SetupDataRoutes(apiGroup, db, sseManager, endpointService, tunnelService)
+		api.SetupTagRoutes(apiGroup, tagService)
+		api.SetupVersionRoutes(apiGroup)
 	}
 }
 

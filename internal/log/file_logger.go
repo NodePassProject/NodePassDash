@@ -156,7 +156,7 @@ func (fl *FileLogger) ReadLogs(endpointID int64, instanceID string, date time.Ti
 
 	// 按行分割并限制数量
 	lines := []string{}
-	for _, line := range []string{string(content)} {
+	for _, line := range strings.Split(string(content), "\n") {
 		if line != "" {
 			lines = append(lines, line)
 			if limit > 0 && len(lines) >= limit {

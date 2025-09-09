@@ -86,6 +86,20 @@ func SetVersion(version string) {
 	Version = version
 }
 
+// setupVersionRoutes 设置版本相关路由
+func SetupVersionRoutes(rg *gin.RouterGroup) {
+	// 创建VersionHandler实例
+	versionHandler := NewVersionHandler()
+
+	// 版本相关路由
+	rg.GET("/version/current", versionHandler.HandleGetCurrentVersion)
+	rg.GET("/version/check-update", versionHandler.HandleCheckUpdate)
+	rg.GET("/version/update-info", versionHandler.HandleGetUpdateInfo)
+	rg.GET("/version/history", versionHandler.HandleGetReleaseHistory)
+	rg.GET("/version/deployment-info", versionHandler.HandleGetDeploymentInfo)
+	rg.POST("/version/auto-update", versionHandler.HandleAutoUpdate)
+}
+
 // HandleGetCurrentVersion 获取当前版本信息
 func (h *VersionHandler) HandleGetCurrentVersion(c *gin.Context) {
 	versionInfo := VersionInfo{
