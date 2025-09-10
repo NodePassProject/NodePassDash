@@ -3,7 +3,7 @@ name: Docker CI (beta)
 on:
   push:
     tags: [ 'v*.*.*-beta*' ]
-    branches: [ '*-beta' ]
+    branches: [ '*-beta*' ]
 
 jobs:
   build-and-push:
@@ -50,7 +50,7 @@ jobs:
             fi
           else
             # 分支触发处理
-            VERSION=$(node -p "require('./package.json').version")
+            VERSION=$(node -p "require('./web/package.json').version")
             BRANCH_NAME=${GITHUB_REF#refs/heads/}
             RAW_VERSION="branch-${BRANCH_NAME}"
             IS_BETA_TAG=false

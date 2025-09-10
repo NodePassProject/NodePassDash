@@ -1,0 +1,32 @@
+services:
+  # NodePass 应用
+  nodepassdash:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: nodepassdash
+    ports:
+      - "4000:3000"
+    # enenvironment:
+    #   - PORT=3000
+    #   - LOG-LEVEL=INFO
+    #   - TLS_CERT=/path/to/cert.pem
+    #   - TLS_KEY=/path/to/key.pem
+    #   - DISABLE_LOGIN=true
+    volumes:
+      - /etc/localtime:/etc/localtime:ro 
+      # TLS证书
+      # - /path/to/cert.pem:/path/to/cert.pem
+      # - /path/to/key.pem:/path/to/key.pem
+      # 挂载日志
+      - ./log:/app/log:ro
+      # SQLite 数据库文件
+      - ./public:/app/public
+    restart: unless-stopped
+    # 健康检查
+    healthcheck:
+      test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 60s

@@ -5,7 +5,7 @@
 ![Version](https://img.shields.io/badge/version-2.2.1-blue.svg)
 ![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)
 
-NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + Next.js 14、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
+NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + React + Vite、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
 
 > **⚠️ 重大版本升级通知**  
 > **version 2.x 是一个重大的架构迁移版本！** 从 Node.js 后端完全重构为 Go 后端，带来了更高的性能和稳定性。 
@@ -31,17 +31,15 @@ NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + Nex
 
 ## 📂 目录结构（简化）
 ```text
-├─ app/                 前端页面 (Next.js App Router)
-│  ├─ ...
+├─ web/                 前端应用 (React + Vite + HeroUI)
+│  ├─ src/              React 组件和页面
+│  ├─ public/           静态资源 (logo, favicon 等)
+│  └─ package.json      前端依赖和构建脚本
 ├─ internal/            Go 业务代码
-│  ├─ api/              HTTP 处理器 / 路由
-│  ├─ sse/              SSE Manager & Service
-│  └─ ...
-├─ cmd/server/          Go 入口 (`main.go`)
-├─ public/              SQLite 数据库 / 静态资源
-├─ dist/                ⚙️ 前端构建产物（由 `pnpm build` 生成）
-├─ Dockerfile           多阶段镜像构建
-└─ scripts/             构建辅助脚本
+├─ cmd/server/          Go 应用入口
+├─ Dockerfile           多阶段容器构建
+├─ build.sh             本地构建脚本
+└─ .github/workflows/   CI/CD 自动化构建
 ```
 
 ## ⚡️ 快速开始
@@ -50,7 +48,7 @@ NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + Nex
   <a href="https://dash.nodepass.eu/">
     <img src="https://img.shields.io/badge/点击体验_Demo-000?style=for-the-badge&logo=heroui&logoColor=white&labelColor=000" alt="Deploy to NodePassDash">
   </a>
-  <span><strong>演示账号：</strong> <code>nodepass</code> / <code>np123456</code></span>
+  <span><strong>演示账号：</strong> <code>nodepass</code> / <code>Np123456</code></span>
 </div>
 
 > ⚠️ **重要提醒：演示环境，请勿更改密码，请勿填写任何敏感信息**
@@ -122,22 +120,6 @@ docker run -d \
   ./nodepassdash --port 8080
 ```
 
-### 配置文件位置
-
-- 数据库文件: `./public/sqlite.db`
-- 日志文件: `./logs/`
-- 配置目录: `./public/`
-
-## 🤝 贡献指南
-
-欢迎贡献代码！请遵循以下步骤：
-
-1. Fork 本仓库
-2. 创建功能分支 (`git checkout -b features/amazing-features`)
-3. 提交更改 (`git commit -m 'Add some amazing features'`)
-4. 推送到分支 (`git push origin features/samazing-features`)
-5. 开启 Pull Request
-
 ## 📄 许可证
 
 本项目基于 [BSD-3-Clause 许可证](LICENSE) 开源。
@@ -149,7 +131,6 @@ docker run -d \
 ## 📞 支持
 
 - 🐛 问题报告: [GitHub Issues](https://github.com/NodePassProject/NodePassDash/issues)
-- 🐳 Docker 部署: [Docker 指南](docs/DOCKER.md)
 - 💬 社区讨论: [Telegram 群组](https://t.me/NodePassGroup)
 - 📢 频道: [Telegram 频道](https://t.me/NodePassChannel)
 

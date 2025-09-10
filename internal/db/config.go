@@ -21,11 +21,11 @@ type DBConfig struct {
 }
 
 // GetDBConfig 获取数据库配置，支持多种来源
-func GetDBConfig() DBConfig {
+func GetDBConfig(dbDir string) DBConfig {
 	config := DBConfig{
 		// 默认值 - SQLite配置
-		Database:     "public/database.db", // 默认数据库文件路径
-		MaxOpenConns: 10,                   // SQLite推荐的连接数较小
+		Database:     dbDir + "/database.db", // 默认数据库文件路径
+		MaxOpenConns: 10,                     // SQLite推荐的连接数较小
 		MaxIdleConns: 5,
 		MaxLifetime:  5 * time.Minute,
 		MaxIdleTime:  2 * time.Minute,

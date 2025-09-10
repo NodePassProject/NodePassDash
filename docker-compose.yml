@@ -1,12 +1,11 @@
 services:
-  # NodePass 应用
+  # NodePass 应用 - 使用GitHub发布的镜像
   nodepassdash:
-    build:
-      context: .
-      dockerfile: Dockerfile
+    image: ghcr.io/nodepassproject/nodepassdash:latest
     container_name: nodepassdash
+    # network_mode: "host" # 如需要ipv6，可考虑使用host模式
     ports:
-      - "4000:3000"
+      - "3000:3000"  # 整合的Next.js应用
     # enenvironment:
     #   - PORT=3000
     #   - LOG-LEVEL=INFO
@@ -23,7 +22,6 @@ services:
       # SQLite 数据库文件
       - ./public:/app/public
     restart: unless-stopped
-    # 健康检查
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
       interval: 30s

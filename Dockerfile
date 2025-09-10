@@ -4,32 +4,25 @@
 # ========= 前端构建阶段 =========
 FROM node:20-alpine AS frontend-builder
 
-# 安装必要工具（包括 zip）
-RUN apk add --no-cache zip
-
 # 使用 corepack 预装 pnpm
 RUN corepack enable && corepack prepare pnpm@latest --activate
 
+# 设置 pnpm 环境变量，避免交互式提示
+ENV PNPM_HOME="/pnpm"
+ENV PATH="$PNPM_HOME:$PATH"
+ENV CI=true
+
 WORKDIR /app
 
-# 缓存依赖层
-COPY package.json pnpm-lock.yaml ./
-RUN pnpm install --frozen-lockfile --prod=false
-
 # 复制前端源代码
-COPY . .
+COPY web/ ./web/
 
-# 运行构建脚本，生成静态文件到 dist/
-RUN pnpm build
-
-# 📦 压缩前端文件为 dist.zip（Go embed 需要）
-RUN cd dist && zip -r ../dist.zip . && cd ..
-
-# 📋 复制 dist.zip 到 cmd/server/ 目录（Go embed 需要）
-RUN cp dist.zip cmd/server/
-
-# 清理 dev 依赖，减少后续镜像体积
-RUN pnpm prune --prod
+# 进入 web 目录，清理并安装依赖，然后构建
+RUN cd web && \
+    rm -rf node_modules && \
+    pnpm install --frozen-lockfile --prod=false --ignore-scripts && \
+    pnpm build && \
+    pnpm prune --prod
 
 # ========= Go 构建阶段 =========
 FROM golang:1.23-alpine AS backend-builder
@@ -50,8 +43,12 @@ ENV GOTIMEOUT=600s
 # 增加网络重试和下载超时
 RUN go mod download -x
 
-# 复制剩余代码（包括先前前端生成的 dist）
-COPY --from=frontend-builder /app .
+# 复制 Go 后端代码
+COPY cmd/ ./cmd/
+COPY internal/ ./internal/
+
+# 复制前端构建产物到 cmd/server/dist 目录
+COPY --from=frontend-builder /app/cmd/server/dist ./cmd/server/dist
 
 # 启用 CGO 和设置编译标记以支持 musl
 ENV CGO_ENABLED=1
@@ -67,10 +64,8 @@ LABEL org.opencontainers.image.version=$VERSION
 ENV APP_VERSION=$VERSION
 WORKDIR /app
 
-# 拷贝可执行文件、静态资源、public 目录
+# 只需要拷贝可执行文件（静态资源已通过 embed 嵌入）
 COPY --from=backend-builder /app/nodepassdash ./
-COPY --from=backend-builder /app/dist ./dist
-COPY --from=backend-builder /app/public ./public
 
 # 默认端口
 EXPOSE 3000

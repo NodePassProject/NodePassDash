@@ -245,6 +245,89 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 		if req.URL != "" || req.APIKey != "" {
 			nodepass.GetCache().Update(fmt.Sprintf("%d", endpoint.ID), endpoint.URL+endpoint.APIPath, endpoint.APIKey)
 		}
+
+	case "updateConfig":
+		// 修改配置：更新名称、URL、API路径，可选的API密钥
+		updates := make(map[string]interface{})
+		needUpdateCache := false
+
+		if req.Name != "" {
+			// 检查新名称是否已存在
+			var count int64
+			if err := s.db.Model(&models.Endpoint{}).Where("name = ? AND id != ?", req.Name, req.ID).Count(&count).Error; err != nil {
+				return nil, err
+			}
+			if count > 0 {
+				return nil, errors.New("端点名称已存在")
+			}
+			updates["name"] = req.Name
+		}
+
+		if req.URL != "" && req.URL != endpoint.URL {
+			// 检查URL是否重复
+			var count int64
+			if err := s.db.Model(&models.Endpoint{}).Where("url = ? AND id != ?", req.URL, req.ID).Count(&count).Error; err != nil {
+				return nil, err
+			}
+			if count > 0 {
+				return nil, errors.New("该URL已存在")
+			}
+			updates["url"] = req.URL
+			// 更新IP字段
+			if extractedIP := extractIPFromURL(req.URL); extractedIP != "" {
+				updates["ip"] = extractedIP
+			}
+			needUpdateCache = true
+		}
+
+		if req.APIPath != "" && req.APIPath != endpoint.APIPath {
+			updates["api_path"] = req.APIPath
+			needUpdateCache = true
+		}
+
+		if req.APIKey != "" && req.APIKey != endpoint.APIKey {
+			updates["api_key"] = req.APIKey
+			needUpdateCache = true
+		}
+
+		updates["updated_at"] = time.Now()
+
+		if err := s.db.Model(&endpoint).Updates(updates).Error; err != nil {
+			return nil, err
+		}
+
+		// 重新获取更新后的数据
+		if err := s.db.First(&endpoint, req.ID).Error; err != nil {
+			return nil, err
+		}
+
+		// 更新缓存
+		if needUpdateCache {
+			nodepass.GetCache().Update(fmt.Sprintf("%d", endpoint.ID), endpoint.URL+endpoint.APIPath, endpoint.APIKey)
+		}
+
+	case "updateApiKey":
+		// 仅更新API密钥
+		if req.APIKey == "" {
+			return nil, errors.New("API密钥不能为空")
+		}
+
+		updates := map[string]interface{}{
+			"api_key":    req.APIKey,
+			"updated_at": time.Now(),
+		}
+
+		if err := s.db.Model(&endpoint).Updates(updates).Error; err != nil {
+			return nil, err
+		}
+
+		// 重新获取更新后的数据
+		if err := s.db.First(&endpoint, req.ID).Error; err != nil {
+			return nil, err
+		}
+
+		// 更新缓存
+		nodepass.GetCache().Update(fmt.Sprintf("%d", endpoint.ID), endpoint.URL+endpoint.APIPath, endpoint.APIKey)
 	}
 
 	return &endpoint, nil
@@ -364,10 +447,8 @@ func (s *Service) UpdateEndpointInfo(id int64, info nodepass.EndpointInfoResult)
 		"updated_at": time.Now(),
 	}
 
-	// 处理uptime字段，如果为nil则保持NULL
-	if info.Uptime != nil {
-		updates["uptime"] = *info.Uptime
-	}
+	// 处理uptime字段
+	updates["uptime"] = info.Uptime
 
 	return s.db.Model(&models.Endpoint{}).Where("id = ?", id).Updates(updates).Error
 }

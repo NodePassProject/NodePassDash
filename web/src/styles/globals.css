@@ -1,0 +1,52 @@
+@import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Fira+Code:wght@400;500&display=swap');
+
+/* @layer theme, base, components, utilities; */
+@import "tailwindcss";
+/* @plugin './hero.ts'; */
+/* Note: You may need to change the path to fit your project structure */
+/* @custom-variant dark (&:is(.dark *)); */
+/* Note: You may need to change the path to fit your project structure */
+@config "../../tailwind.config.js";
+
+/* 仅为仪表盘统计卡片定义字体变量 */
+:root {
+  --font-inter: 'Inter', ui-sans-serif, system-ui, sans-serif;
+}
+
+/* 仪表盘专用字体类 */
+.font-inter {
+  font-family: var(--font-inter);
+}/* 自定义滚动条样式 */
+.scrollbar-thin {
+  scrollbar-width: thin;
+}
+
+.scrollbar-thin::-webkit-scrollbar {
+  width: 6px;
+}
+
+.scrollbar-thin::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+.scrollbar-thin::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--heroui-default-300));
+  border-radius: 3px;
+}
+
+.scrollbar-thin:hover::-webkit-scrollbar-thumb {
+  background-color: hsl(var(--heroui-default-400));
+}
+
+/* 隐藏滚动条但保持滚动功能 */
+.scrollbar-hide {
+  scrollbar-width: none;
+  /* Firefox */
+  -ms-overflow-style: none;
+  /* IE and Edge */
+}
+
+.scrollbar-hide::-webkit-scrollbar {
+  display: none;
+  /* Chrome, Safari and Opera */
+}

@@ -58,7 +58,7 @@ jobs:
             echo "🏷️ Tag触发，版本: $VERSION (正式发布)"
           else
             # 非tag触发，使用package.json版本
-            VERSION=$(node -p "require('./package.json').version")
+            VERSION=$(node -p "require('./web/package.json').version")
             IS_RELEASE=false
             echo "📦 非tag触发，使用package.json版本: $VERSION (开发版本)"
           fi
@@ -82,8 +82,8 @@ jobs:
           labels: |
             org.opencontainers.image.version=${{ steps.get_version.outputs.version }}
             org.opencontainers.image.revision=${{ github.sha }}
-            org.opencontainers.image.title=NodePass Dashboard
-            org.opencontainers.image.description=NodePass Dashboard - 隧道管理面板
+            org.opencontainers.image.title=NodePassDash
+            org.opencontainers.image.description=NodePassDash - 隧道管理面板
             org.opencontainers.image.source=${{ github.server_url }}/${{ github.repository }}
             org.opencontainers.image.url=${{ github.server_url }}/${{ github.repository }}
 

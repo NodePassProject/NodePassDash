@@ -839,18 +839,25 @@ func (s *Service) GetInstanceIDByTunnelID(id int64) (string, error) {
 	return *tunnel.InstanceID, nil
 }
 
-// GetInstanceIDByTunnelID 根据隧道数据库ID获取对应的实例ID (instanceId)
+// GetEndpointIDByTunnelID 根据隧道数据库ID获取对应的端点ID
 func (s *Service) GetEndpointIDByTunnelID(id int64) (int64, error) {
 	var tunnel models.Tunnel
 	err := s.db.Select("endpoint_id").Where("id = ?", id).First(&tunnel).Error
 	if err != nil {
+		return 0, err
 	}
 	return tunnel.EndpointID, nil
 }
+
+// GetEndpointIDByInstanceID 根据实例ID获取对应的端点ID
 func (s *Service) GetEndpointIDByInstanceID(instanceID string) (int64, error) {
 	var tunnel models.Tunnel
 	err := s.db.Select("endpoint_id").Where("instance_id = ?", instanceID).First(&tunnel).Error
 	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return 0, errors.New("实例不存在")
+		}
+		return 0, err
 	}
 	return tunnel.EndpointID, nil
 }
@@ -2128,7 +2135,7 @@ func (s *Service) ResetTunnelTraffic(tunnelID int64) error {
 		log.Warnf("[API] 隧道没有关联的实例ID，只重置本地数据库流量统计")
 	} else {
 		// 先调用 NodePass API 重置流量统计
-		if _, err := nodepass.ResetTraffic(tunnelWithEndpoint.Endpoint.ID, *tunnelWithEndpoint.InstanceID); err != nil {
+		if _, err := nodepass.ControlInstance(tunnelWithEndpoint.Endpoint.ID, *tunnelWithEndpoint.InstanceID, "reset"); err != nil {
 			// 检查是否为 404 错误（旧版本 NodePass 不支持）
 			if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
 				log.Warnf("[API] NodePass API 不支持重置流量功能（可能是旧版本）: %v", err)
@@ -2189,7 +2196,7 @@ func (s *Service) ResetTunnelTrafficByInstanceID(instanceID string) error {
 	}
 
 	// 先调用 NodePass API 重置流量统计
-	if _, err := nodepass.ResetTraffic(tunnelWithEndpoint.Endpoint.ID, instanceID); err != nil {
+	if _, err := nodepass.ControlInstance(tunnelWithEndpoint.Endpoint.ID, instanceID, "reset"); err != nil {
 		// 检查是否为 404 错误（旧版本 NodePass 不支持）
 		if strings.Contains(err.Error(), "404") || strings.Contains(err.Error(), "Not Found") {
 			log.Warnf("[API] NodePass API 不支持重置流量功能（可能是旧版本）: %v", err)

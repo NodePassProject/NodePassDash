@@ -13,56 +13,49 @@ NC='\033[0m' # No Color
 echo -e "${GREEN}Starting build process...${NC}"
 echo -e "${CYAN}Current directory: $(pwd)${NC}"
 
-# Step 1: pnpm build
-echo -e "\n${YELLOW}Step 1: Running pnpm build...${NC}"
+# Step 1: Build frontend
+echo -e "\n${YELLOW}Step 1: Building frontend...${NC}"
+
+# Check if web directory exists
+if [ ! -d "web" ]; then
+    echo -e "${RED}ERROR: web directory not found!${NC}"
+    exit 1
+fi
+
+# Go to web directory and build
+cd web
+if ! pnpm install --frozen-lockfile; then
+    echo -e "${RED}ERROR: pnpm install failed!${NC}"
+    exit 1
+fi
+
 if ! pnpm build; then
     echo -e "${RED}ERROR: pnpm build failed!${NC}"
     exit 1
 fi
-echo -e "${GREEN}pnpm build completed successfully!${NC}"
+echo -e "${GREEN}Frontend built successfully!${NC}"
 
-# Step 2: Compress dist folder
-echo -e "\n${YELLOW}Step 2: Compressing dist folder...${NC}"
+# Go back to root directory
+cd ..
 
-# Remove existing dist.zip if exists
-if [ -f "dist.zip" ]; then
-    rm -f dist.zip
-fi
+# Step 2: Verify frontend build output
+echo -e "\n${YELLOW}Step 2: Verifying build output...${NC}"
 
-# Check if dist folder exists
-if [ ! -d "dist" ]; then
-    echo -e "${RED}ERROR: dist folder not found after build!${NC}"
+# Check if dist folder exists in cmd/server/
+if [ ! -d "cmd/server/dist" ]; then
+    echo -e "${RED}ERROR: Frontend build output not found at cmd/server/dist!${NC}"
     exit 1
 fi
 
-# Use bandizip command line tool
-# Format: bz a -r <archive> <files>
-if ! bz a -r dist.zip dist/; then
-    echo -e "${RED}ERROR: Failed to compress dist folder!${NC}"
-    exit 1
-fi
-echo -e "${GREEN}dist folder compressed successfully!${NC}"
+echo -e "${GREEN}Build output verified at cmd/server/dist/${NC}"
+echo -e "${CYAN}Build contents:${NC}"
+ls -la cmd/server/dist/ | head -10
 
-# Step 3: Move dist.zip to cmd/server/
-echo -e "\n${YELLOW}Step 3: Moving dist.zip to cmd/server/...${NC}"
+# Step 3: Go cross compilation
+echo -e "\n${YELLOW}Step 3: Running Go cross compilation...${NC}"
 
-# Create cmd/server directory if it doesn't exist
-mkdir -p cmd/server
-
-# Remove existing dist.zip in target directory
-if [ -f "cmd/server/dist.zip" ]; then
-    rm -f cmd/server/dist.zip
-fi
-
-# Move the file
-if ! mv dist.zip cmd/server/; then
-    echo -e "${RED}ERROR: Failed to move dist.zip!${NC}"
-    exit 1
-fi
-echo -e "${GREEN}dist.zip moved successfully!${NC}"
-
-# Step 4: Go cross compilation
-echo -e "\n${YELLOW}Step 4: Running Go cross compilation...${NC}"
+# Create release directory
+mkdir -p release
 
 # Set environment variables for cross compilation
 export CGO_ENABLED=0
@@ -71,27 +64,30 @@ export CGO_ENABLED=0
 echo -e "${CYAN}Building Linux binary...${NC}"
 export GOOS=linux
 export GOARCH=amd64
-if ! go build -o nodepassplus ./cmd/server; then
+if ! go build -o release/nodepassdash ./cmd/server; then
     echo -e "${RED}ERROR: Linux Go compilation failed!${NC}"
     exit 1
 fi
-echo -e "${GREEN}Linux binary (nodepassplus) built successfully!${NC}"
+echo -e "${GREEN}Linux binary (release/nodepassdash) built successfully!${NC}"
 
 # Build Windows binary
 echo -e "${CYAN}Building Windows binary...${NC}"
 export GOOS=windows
 export GOARCH=amd64
-if ! go build -o nodepassplus.exe ./cmd/server; then
+if ! go build -o release/nodepassdash.exe ./cmd/server; then
     echo -e "${RED}ERROR: Windows Go compilation failed!${NC}"
     exit 1
 fi
-echo -e "${GREEN}Windows binary (nodepassplus.exe) built successfully!${NC}"
+echo -e "${GREEN}Windows binary (release/nodepassdash.exe) built successfully!${NC}"
 
 # Success message
 echo -e "\n${GREEN}✓ Build process completed!${NC}"
-echo -e "${CYAN}- Frontend built and compressed to: cmd/server/dist.zip${NC}"
-echo -e "${CYAN}- Go Linux binary generated: nodepassplus${NC}"
-echo -e "${CYAN}- Go Windows binary generated: nodepassplus.exe${NC}"
+echo -e "${CYAN}- Frontend built and embedded to: cmd/server/dist/${NC}"
+echo -e "${CYAN}- Go Linux binary generated: release/nodepassdash${NC}"
+echo -e "${CYAN}- Go Windows binary generated: release/nodepassdash.exe${NC}"
+
+echo -e "\n${GREEN}Release files:${NC}"
+ls -la release/
 
 echo -e "\n${YELLOW}Press any key to exit...${NC}"
 read -n 1

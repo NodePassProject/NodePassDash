@@ -6,6 +6,7 @@ import (
 	"context"
 	"database/sql"
 	"log"
+	"os"
 	"strings"
 	"sync"
 	"time"
@@ -26,8 +27,14 @@ var (
 
 // GetDB 获取GORM数据库实例
 func GetDB() *gorm.DB {
+	// 确保public目录存在
+	dbDir := "db"
+	if err := ensureDir(dbDir); err != nil {
+		return nil
+	}
+
 	once.Do(func() {
-		config := GetDBConfig()
+		config := GetDBConfig(dbDir)
 		var err error
 
 		// 构建SQLite DSN
@@ -376,4 +383,12 @@ func UpdateEndpointTunnelCountSync(endpointID int64) error {
 		return db.Model(&models.Endpoint{}).Where("id = ?", endpointID).
 			Update("tunnel_count", db.Model(&models.Tunnel{}).Where("endpoint_id = ?", endpointID).Count(nil)).Error
 	})
+}
+
+// ensureDir 确保目录存在，如果不存在则创建
+func ensureDir(dir string) error {
+	if _, err := os.Stat(dir); os.IsNotExist(err) {
+		return os.MkdirAll(dir, 0755)
+	}
+	return nil
 }
