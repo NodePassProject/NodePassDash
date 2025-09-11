@@ -284,6 +284,11 @@ func buildTunnel(payload SSEResp) *models.Tunnel {
 	tunnel.Restart = payload.Instance.Restart
 	tunnel.Name = *payload.Instance.Alias
 	tunnel.Status = models.TunnelStatus(payload.Instance.Status)
+	log.Infof("%v解析mode=%v", tunnel.InstanceID, tunnel.Mode)
+	if tunnel.Mode == nil {
+		log.Infof("%v url未显式模式，尝试使用mode字段", tunnel.InstanceID)
+		tunnel.Mode = (*models.TunnelMode)(payload.Instance.Mode)
+	}
 	return tunnel
 }
 

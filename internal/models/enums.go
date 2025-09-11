@@ -51,12 +51,12 @@ const (
 )
 
 // TLSMode TLS模式枚举
-type TunnelMode string
+type TunnelMode int
 
 const (
-	Mode0 TunnelMode = "0"
-	Mode1 TunnelMode = "1"
-	Mode2 TunnelMode = "2"
+	Mode0 TunnelMode = 0
+	Mode1 TunnelMode = 1
+	Mode2 TunnelMode = 2
 )
 
 // LogLevel 日志级别枚举

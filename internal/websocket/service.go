@@ -252,7 +252,7 @@ func (s *Service) endpointMonitorWorker(ctx context.Context, endpointID int64) {
 
 // instanceMonitorWorker instance监控worker，每2秒查询一次instance接口
 func (s *Service) instanceMonitorWorker(ctx context.Context, instanceID string) {
-	ticker := time.NewTicker(2 * time.Second)
+	ticker := time.NewTicker(4 * time.Second)
 	defer ticker.Stop()
 
 	log.Infof("Instance %s 监控worker已启动，开始每2秒查询instance接口", instanceID)
