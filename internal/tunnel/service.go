@@ -448,6 +448,11 @@ func (s *Service) DeleteTunnel(instanceID string) error {
 		}
 	}
 
+	// 先删除相关的操作日志记录，避免外键约束错误
+	if err := s.db.Where("tunnel_id = ?", tunnelWithEndpoint.ID).Delete(&models.TunnelOperationLog{}).Error; err != nil {
+		log.Warnf("[API] 删除隧道操作日志失败: tunnelID=%d, err=%v", tunnelWithEndpoint.ID, err)
+	}
+
 	// 使用GORM删除隧道记录
 	result := s.db.Where("id = ?", tunnelWithEndpoint.ID).Delete(&models.Tunnel{})
 	if result.Error != nil {
@@ -465,18 +470,7 @@ func (s *Service) DeleteTunnel(instanceID string) error {
 		s.updateEndpointTunnelCount(endpointID)
 	}(tunnelWithEndpoint.EndpointID)
 
-	// 记录操作日志
-	deleteMessage := "隧道删除成功"
-	operationLog := models.TunnelOperationLog{
-		TunnelID:   &tunnelWithEndpoint.ID,
-		TunnelName: tunnelWithEndpoint.Name,
-		Action:     models.OperationActionDelete,
-		Status:     "success",
-		Message:    &deleteMessage,
-		CreatedAt:  time.Now(),
-	}
-	err = s.db.Create(&operationLog).Error
-	return err
+	return nil
 }
 
 // UpdateTunnelStatus 更新隧道状态
@@ -891,35 +885,6 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 		return err
 	}
 
-	// 在删除之前，如选择移入回收站，则先复制记录到回收站
-	if recycle {
-		recycleRecord := models.TunnelRecycle{
-			Name:          tunnelWithEndpoint.Name,
-			EndpointID:    tunnelWithEndpoint.EndpointID,
-			Mode:          tunnelWithEndpoint.Type,
-			TunnelAddress: tunnelWithEndpoint.TunnelAddress,
-			TunnelPort:    tunnelWithEndpoint.TunnelPort,
-			TargetAddress: tunnelWithEndpoint.TargetAddress,
-			TargetPort:    tunnelWithEndpoint.TargetPort,
-			TLSMode:       tunnelWithEndpoint.TLSMode,
-			CertPath:      tunnelWithEndpoint.CertPath,
-			KeyPath:       tunnelWithEndpoint.KeyPath,
-			LogLevel:      tunnelWithEndpoint.LogLevel,
-			CommandLine:   tunnelWithEndpoint.CommandLine,
-			InstanceID:    tunnelWithEndpoint.InstanceID,
-			Password:      tunnelWithEndpoint.Password,
-			Restart:       *tunnelWithEndpoint.Restart,
-			TCPRx:         tunnelWithEndpoint.TCPRx,
-			TCPTx:         tunnelWithEndpoint.TCPTx,
-			UDPRx:         tunnelWithEndpoint.UDPRx,
-			UDPTx:         tunnelWithEndpoint.UDPTx,
-			Min:           tunnelWithEndpoint.Min,
-			Max:           tunnelWithEndpoint.Max,
-			CreatedAt:     time.Now(),
-		}
-		s.db.Create(&recycleRecord)
-	}
-
 	// 调用 NodePass API 删除实例
 	if err := nodepass.DeleteInstance(tunnelWithEndpoint.Endpoint.ID, instanceID); err != nil {
 		// 如果收到401或404错误，说明NodePass核心已经没有这个实例了，按删除成功处理
@@ -945,6 +910,11 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 
 	// 超时仍未删除，执行本地强制删除并刷新计数
 	log.Warnf("[API] 等待删除超时，执行本地删除: %v", instanceID)
+
+	// 先删除相关的操作日志记录，避免外键约束错误
+	if err := s.db.Where("tunnel_id = ?", tunnelWithEndpoint.ID).Delete(&models.TunnelOperationLog{}).Error; err != nil {
+		log.Warnf("[API] 删除隧道操作日志失败: tunnelID=%d, err=%v", tunnelWithEndpoint.ID, err)
+	}
 
 	// 删除隧道记录
 	result := s.db.Where("id = ?", tunnelWithEndpoint.ID).Delete(&models.Tunnel{})

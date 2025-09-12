@@ -42,7 +42,6 @@ export function Providers({ children }: { children: React.ReactNode }) {
         placement="top-center"
         toastOffset={80}
         maxVisibleToasts={1}
-        // toastProps={{ timeout: 1000 }}
       />
       <ThemeProvider
         attribute="class"

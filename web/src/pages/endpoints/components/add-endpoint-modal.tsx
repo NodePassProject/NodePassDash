@@ -217,7 +217,8 @@ export default function AddEndpointModal({
                     label="主控名称"
                     labelPlacement="outside"
                     placeholder="主服务器"
-                    maxLength={30}
+                    maxLength={25}
+                    endContent={<span className="text-xs text-default-500">{formData.name.length}/25</span>}
                     value={formData.name}
                     onValueChange={(value) => handleInputChange('name', value)}
                   />

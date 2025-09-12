@@ -16,6 +16,7 @@ import OAuthErrorPage from "./pages/oauth-error";
 import DebugPage from "./pages/debug";
 import EndpointDetailsPage from "./pages/endpoints/details";
 import EndpointSSEDebugPage from "./pages/endpoints/sse-debug";
+import ExamplesPage from "./pages/examples";
 
 function App() {
   return (
@@ -34,6 +35,7 @@ function App() {
         <Route path="/endpoints/sse-debug" element={<EndpointSSEDebugPage />} />
         <Route path="/settings" element={<SettingsPage />} />
         <Route path="/settings/version-history" element={<VersionHistoryPage />} />
+        <Route path="/docs" element={<ExamplesPage />} />
         <Route path="/debug" element={<DebugPage />} />
         <Route path="/" element={<DashboardPage />} />
       </Routes>

@@ -32,6 +32,7 @@ import { Snippet } from "@/components/ui/snippet";
 import React, { useEffect } from "react";
 // 引入 SimpleCreateTunnelModal 组件
 import SimpleCreateTunnelModal from "@/components/tunnels/simple-create-tunnel-modal";
+import RenameTunnelModal from "@/components/tunnels/rename-tunnel-modal";
 import { FullscreenChartModal } from "./fullscreen-chart-modal";
 
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -74,7 +75,7 @@ import TunnelStatsCharts from "@/components/ui/tunnel-stats-charts";
 import { useSettings } from "@/components/providers/settings-provider";
 
 interface TunnelInfo {
-  id: string;
+  id: number;
   instanceId: string;
   name: string;
   type: "server" | "client"; // 统一使用英文类型
@@ -100,7 +101,7 @@ interface TunnelInfo {
     restart: boolean; // 添加 restart 字段
     certPath?: string; // TLS证书路径
     keyPath?: string; // TLS密钥路径
-    mode?: string; // 隧道模式 (0, 1, 2)
+    mode?: number | null; // 隧道模式 (0, 1, 2)
     read?: string; // 读取配置
     rate?: string; // 速率限制配置
   };
@@ -227,31 +228,33 @@ const getTLSModeText = (tlsValue: string): string => {
 };
 
 // 将隧道模式数字转换为对应的模式文案
-const getTunnelModeText = (type: string, modeValue: string): string => {
+const getTunnelModeText = (type: string, modeValue?: number | null): string => {
+  if (modeValue == null) return "未设置";
+  
   if (type === "client") {
     switch (modeValue) {
-      case "0":
+      case 0:
         return "自动模式";
-      case "1":
+      case 1:
         return "单端转发";
-      case "2":
-        return "强制正向";
+      case 2:
+        return "双端转发";
       default:
-        return modeValue || "未设置";
+        return `未知模式(${modeValue})`;
     }
   } else if (type === "server") {
     switch (modeValue) {
-      case "0":
+      case 0:
         return "自动检测";
-      case "1":
+      case 1:
         return "强制反向";
-      case "2":
+      case 2:
         return "强制正向";
       default:
-        return modeValue || "未设置";
+        return `未知模式(${modeValue})`;
     }
   }
-  return modeValue || "未设置";
+  return `未知模式(${modeValue})`;
 };
 
 // 添加流量历史记录类型
@@ -342,8 +345,6 @@ export default function TunnelDetailPage() {
 
   // 重命名模态控制
   const [isRenameModalOpen, setIsRenameModalOpen] = React.useState(false);
-  const [newTunnelName, setNewTunnelName] = React.useState("");
-  const [isRenameLoading, setIsRenameLoading] = React.useState(false);
 
   // 是否移入回收站
   const [moveToRecycle, setMoveToRecycle] = React.useState(false);
@@ -1182,48 +1183,15 @@ export default function TunnelDetailPage() {
 
   // 重命名处理函数
   const handleRenameClick = () => {
-    setNewTunnelName(tunnelInfo?.name || "");
     setIsRenameModalOpen(true);
   };
 
-  const handleRenameSubmit = async () => {
-    if (!tunnelInfo || !newTunnelName.trim()) return;
-
-    try {
-      setIsRenameLoading(true);
-      const response = await fetch(`/api/tunnels/${tunnelInfo.id}`, {
-        method: "PATCH",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({
-          action: "rename",
-          name: newTunnelName.trim(),
-        }),
-      });
-
-      if (!response.ok) throw new Error("修改名称失败");
-
-      // 更新本地状态
-      setTunnelInfo((prev) =>
-        prev ? { ...prev, name: newTunnelName.trim() } : null
-      );
-
-      addToast({
-        title: "修改成功",
-        description: "实例名称已更新",
-        color: "success",
-      });
-
-      setIsRenameModalOpen(false);
-    } catch (error) {
-      console.error("修改名称失败:", error);
-      addToast({
-        title: "修改失败",
-        description: error instanceof Error ? error.message : "未知错误",
-        color: "danger",
-      });
-    } finally {
-      setIsRenameLoading(false);
-    }
+  // 重命名成功回调
+  const handleRenameSuccess = (newName: string) => {
+    // 更新本地状态
+    setTunnelInfo((prev) =>
+      prev ? { ...prev, name: newName } : null
+    );
   };
 
   // 如果正在加载或没有数据，显示加载状态
@@ -1676,7 +1644,7 @@ export default function TunnelDetailPage() {
                       <div className="flex items-center gap-2">
                         {tunnelInfo.instanceId}
                         {/* 新增字段显示 */}
-                        {tunnelInfo.config.mode && (
+                        {tunnelInfo.config.mode != null && (
                           <Chip variant="flat" color="secondary" size="sm">
                             {getTunnelModeText(
                               tunnelInfo.type,
@@ -2671,51 +2639,13 @@ export default function TunnelDetailPage() {
       )}
 
       {/* 重命名模态框 */}
-      <Modal
+      <RenameTunnelModal
         isOpen={isRenameModalOpen}
         onOpenChange={setIsRenameModalOpen}
-        placement="center"
-      >
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <FontAwesomeIcon icon={faPen} className="text-primary" />
-                  修改实例名称
-                </div>
-              </ModalHeader>
-              <ModalBody>
-                <Input
-                  label="实例名称"
-                  placeholder="请输入新的实例名称"
-                  value={newTunnelName}
-                  onValueChange={setNewTunnelName}
-                  variant="bordered"
-                  isDisabled={isRenameLoading}
-                />
-              </ModalBody>
-              <ModalFooter>
-                <Button
-                  color="default"
-                  variant="light"
-                  onPress={onClose}
-                  isDisabled={isRenameLoading}
-                >
-                  取消
-                </Button>
-                <Button
-                  color="primary"
-                  onPress={handleRenameSubmit}
-                  isLoading={isRenameLoading}
-                >
-                  确认修改
-                </Button>
-              </ModalFooter>
-            </>
-          )}
-        </ModalContent>
-      </Modal>
+        tunnelId={tunnelInfo?.id || 0}
+        currentName={tunnelInfo?.name || ""}
+        onRenamed={handleRenameSuccess}
+      />
 
       {/* 全屏图表模态 */}
       <FullscreenChartModal

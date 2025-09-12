@@ -50,7 +50,7 @@ const (
 	TLS2           TLSMode = "2"
 )
 
-// TLSMode TLS模式枚举
+// TunnelMode 隧道模式枚举
 type TunnelMode int
 
 const (

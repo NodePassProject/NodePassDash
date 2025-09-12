@@ -59,6 +59,7 @@ func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseMana
 		api.SetupDataRoutes(apiGroup, db, sseManager, endpointService, tunnelService)
 		api.SetupTagRoutes(apiGroup, tagService)
 		api.SetupVersionRoutes(apiGroup)
+		api.SetupDebugRoutes(apiGroup)
 	}
 }
 

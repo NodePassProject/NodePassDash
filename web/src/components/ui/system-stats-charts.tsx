@@ -713,14 +713,17 @@ export default function SystemStatsCharts({ endpointId, isExperimentalMode = tru
     }
   });
 
-  // 格式化字节为可读格式
+  // 格式化字节速率为比特速率格式
   const formatBytes = (bytes: number) => {
-    if (bytes === 0) return '0 B/s';
-    if (bytes < 0) return '0 B/s'; // 防止负数
-    const k = 1024;
-    const sizes = ['B/s', 'KB/s', 'MB/s', 'GB/s', 'TB/s'];
-    const i = Math.floor(Math.log(Math.abs(bytes)) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+    if (bytes === 0) return '0 b/s';
+    if (bytes < 0) return '0 b/s'; // 防止负数
+    
+    // 将字节转换为比特（乘以8）
+    const bits = bytes * 8;
+    const k = 1000; // 使用1000作为进制
+    const sizes = ['b/s', 'Kb/s', 'Mb/s', 'Gb/s', 'Tb/s'];
+    const i = Math.floor(Math.log(Math.abs(bits)) / Math.log(k));
+    return parseFloat((bits / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
   };
 
   // 根据历史数据生成图表数据

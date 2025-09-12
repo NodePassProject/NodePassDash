@@ -336,12 +336,28 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 // DeleteEndpoint 删除端点
 func (s *Service) DeleteEndpoint(id int64) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		// 1) 删除关联隧道
+		// 1) 删除隧道标签关联表记录（通过隧道ID关联）
+		if err := tx.Exec("DELETE FROM tunnel_tags WHERE tunnel_id IN (SELECT id FROM tunnels WHERE endpoint_id = ?)", id).Error; err != nil {
+			// 忽略记录不存在的错误
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("删除隧道标签关联失败: %v", err)
+			}
+		}
+
+		// 2) 删除隧道操作日志，避免外键约束错误
+		if err := tx.Exec("DELETE FROM tunnel_operation_logs WHERE tunnel_id IN (SELECT id FROM tunnels WHERE endpoint_id = ?)", id).Error; err != nil {
+			// 忽略记录不存在的错误
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("删除隧道操作日志失败: %v", err)
+			}
+		}
+
+		// 3) 删除关联隧道
 		if err := tx.Where("endpoint_id = ?", id).Delete(&models.Tunnel{}).Error; err != nil {
 			return err
 		}
 
-		// 2) 删除SSE日志
+		// 4) 删除SSE日志
 		if err := tx.Where("endpoint_id = ?", id).Delete(&models.EndpointSSE{}).Error; err != nil {
 			// 忽略记录不存在的错误
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -349,7 +365,7 @@ func (s *Service) DeleteEndpoint(id int64) error {
 			}
 		}
 
-		// 3) 删除回收站记录
+		// 4) 删除回收站记录
 		if err := tx.Where("endpoint_id = ?", id).Delete(&models.TunnelRecycle{}).Error; err != nil {
 			// 忽略记录不存在的错误
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
@@ -357,7 +373,36 @@ func (s *Service) DeleteEndpoint(id int64) error {
 			}
 		}
 
-		// 4) 删除端点
+		// 5) 删除流量历史汇总记录
+		if err := tx.Exec("DELETE FROM traffic_hourly_summary WHERE endpoint_id = ?", id).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("删除流量历史记录失败: %v", err)
+			}
+		}
+
+		// 6) 删除服务历史记录
+		if err := tx.Where("endpoint_id = ?", id).Delete(&models.ServiceHistory{}).Error; err != nil {
+			if !errors.Is(err, gorm.ErrRecordNotFound) {
+				return fmt.Errorf("删除服务历史记录失败: %v", err)
+			}
+		}
+
+		// 7) 删除流量归档记录（如果存在）
+		if err := tx.Exec("DELETE FROM traffic_archive_records WHERE endpoint_id = ?", id).Error; err != nil {
+			// 这个表可能不存在，忽略错误
+		}
+
+		// 8) 删除状态变化记录（如果存在）
+		if err := tx.Exec("DELETE FROM status_change_records WHERE endpoint_id = ?", id).Error; err != nil {
+			// 这个表可能不存在，忽略错误
+		}
+
+		// 9) 删除流量历史记录（如果存在）
+		if err := tx.Exec("DELETE FROM traffic_history WHERE endpoint_id = ?", id).Error; err != nil {
+			// 这个表可能不存在，忽略错误
+		}
+
+		// 10) 删除端点
 		result := tx.Delete(&models.Endpoint{}, id)
 		if result.Error != nil {
 			return result.Error
@@ -366,7 +411,7 @@ func (s *Service) DeleteEndpoint(id int64) error {
 			return errors.New("端点不存在")
 		}
 
-		// 5) 从缓存中删除
+		// 11) 从缓存中删除
 		nodepass.GetCache().Delete(fmt.Sprintf("%d", id))
 
 		return nil

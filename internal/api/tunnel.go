@@ -266,8 +266,7 @@ func (h *TunnelHandler) HandleCreateTunnel(c *gin.Context) {
 	// 处理Mode字段的类型转换
 	var modePtr *tunnel.TunnelMode
 	if raw.Mode != nil {
-		mode := tunnel.TunnelMode(*raw.Mode)
-		modePtr = &mode
+		modePtr = (*tunnel.TunnelMode)(raw.Mode)
 	}
 
 	req := tunnel.CreateTunnelRequest{
@@ -411,14 +410,6 @@ func (h *TunnelHandler) HandleDeleteTunnel(c *gin.Context) {
 	}
 	_ = c.ShouldBindJSON(&req) // 即使失败也无妨，后续再判断
 
-	// 兼容前端使用 query 参数 recycle=1
-	if !req.Recycle {
-		q := c.Request.URL.Query().Get("recycle")
-		if q == "1" || strings.ToLower(q) == "true" {
-			req.Recycle = true
-		}
-	}
-
 	// 如果未提供 instanceId ，则尝试从路径参数中解析数据库 id
 	if req.InstanceID == "" {
 		idStr := c.Param("id")
@@ -448,25 +439,13 @@ func (h *TunnelHandler) HandleDeleteTunnel(c *gin.Context) {
 	// 在删除前先获取隧道数据库ID，用于清理分组关系和文件日志
 	var tunnelID int64
 	var endpointID int64
-	var shouldClearLogs = !req.Recycle
 	if err := h.tunnelService.DB().QueryRow(`SELECT id, endpoint_id FROM tunnels WHERE instance_id = ?`, req.InstanceID).Scan(&tunnelID, &endpointID); err != nil {
-		// 如果从Tunnel表获取失败，尝试从EndpointSSE表获取端点ID
-		if shouldClearLogs {
-			if err := h.tunnelService.DB().QueryRow(`SELECT DISTINCT endpoint_id FROM endpoint_sse WHERE instance_id = ? LIMIT 1`, req.InstanceID).Scan(&endpointID); err != nil {
-				log.Warnf("[API] 无法获取端点ID用于清理文件日志: instanceID=%s, err=%v", req.InstanceID, err)
-				shouldClearLogs = false
-			}
-		}
 	} else {
-		// 如果不是移入回收站，清理标签关联
-		if !req.Recycle {
-
-			// 清理隧道标签关联
-			if _, err := h.tunnelService.DB().Exec("DELETE FROM tunnel_tags WHERE tunnel_id = ?", tunnelID); err != nil {
-				log.Warnf("[API] 删除隧道标签关联失败: tunnelID=%d, err=%v", tunnelID, err)
-			} else {
-				log.Infof("[API] 已删除隧道标签关联: tunnelID=%d", tunnelID)
-			}
+		// 清理隧道标签关联
+		if _, err := h.tunnelService.DB().Exec("DELETE FROM tunnel_tags WHERE tunnel_id = ?", tunnelID); err != nil {
+			log.Warnf("[API] 删除隧道标签关联失败: tunnelID=%d, err=%v", tunnelID, err)
+		} else {
+			log.Infof("[API] 已删除隧道标签关联: tunnelID=%d", tunnelID)
 		}
 	}
 
@@ -479,7 +458,7 @@ func (h *TunnelHandler) HandleDeleteTunnel(c *gin.Context) {
 	}
 
 	// 如果不是移入回收站，则清理文件日志
-	if shouldClearLogs && h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
+	if h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
 		if err := h.sseManager.GetFileLogger().ClearLogs(endpointID, req.InstanceID); err != nil {
 			log.Warnf("[API] 清理隧道文件日志失败: endpointID=%d, instanceID=%s, err=%v", endpointID, req.InstanceID, err)
 		} else {
@@ -582,7 +561,7 @@ func (h *TunnelHandler) HandleUpdateTunnel(c *gin.Context) {
 		Min            json.RawMessage `json:"min"`
 		Max            json.RawMessage `json:"max"`
 		Slot           json.RawMessage `json:"slot"`                       // 新增：最大连接数限制
-		Mode           *int            `json:"mode,omitempty"`             // 新增：运行模式
+		Mode           *string         `json:"mode,omitempty"`             // 新增：运行模式
 		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
 		Rate           *string         `json:"rate,omitempty"`             // 新增：带宽速率限制
 		EnableSSEStore *bool           `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
@@ -662,7 +641,10 @@ func (h *TunnelHandler) HandleUpdateTunnel(c *gin.Context) {
 		// 处理Mode字段的类型转换
 		var modePtr *tunnel.TunnelMode
 		if rawCreate.Mode != nil {
-			modePtr = (*tunnel.TunnelMode)(rawCreate.Mode)
+			if modeInt, err := strconv.Atoi(*rawCreate.Mode); err == nil {
+				mode := tunnel.TunnelMode(modeInt)
+				modePtr = &mode
+			}
 		}
 
 		createReq := tunnel.CreateTunnelRequest{
@@ -1152,16 +1134,9 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 	targetPort, _ := strconv.Atoi(tunnelRecord.TargetPort)
 
 	// 处理新字段的NULL值
-	var mode interface{}
+	mode := ""
 	if tunnelRecord.Mode.Valid {
-		modeInt, err := strconv.Atoi(tunnelRecord.Mode.String)
-		if err != nil {
-			mode = nil
-		} else {
-			mode = modeInt
-		}
-	} else {
-		mode = nil
+		mode = tunnelRecord.Mode.String
 	}
 	read := ""
 	if tunnelRecord.Read.Valid {
@@ -1743,6 +1718,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		var serverEndpoint, clientEndpoint struct {
 			ID      int64
 			URL     string
+			IP      string
 			APIPath string
 			APIKey  string
 			Name    string
@@ -1751,9 +1727,9 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		db := h.tunnelService.DB()
 		// 获取server endpoint信息
 		err := db.QueryRow(
-			"SELECT id, url, api_path, api_key, name FROM endpoints WHERE id = ?",
+			"SELECT id, url, ip, api_path, api_key, name FROM endpoints WHERE id = ?",
 			serverConfig.MasterID,
-		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
+		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.IP, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
@@ -1771,9 +1747,9 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 
 		// 获取client endpoint信息
 		err = db.QueryRow(
-			"SELECT id, url, apiPath, apiKey, name FROM \"Endpoint\" WHERE id = ?",
+			"SELECT id, url, ip, api_path, api_key, name FROM endpoints WHERE id = ?",
 			clientConfig.MasterID,
-		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
+		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.IP, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
@@ -1789,14 +1765,18 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 			return
 		}
 
-		// 从server端URL中提取IP
-		serverIP := strings.TrimPrefix(serverEndpoint.URL, "http://")
-		serverIP = strings.TrimPrefix(serverIP, "https://")
-		if idx := strings.Index(serverIP, ":"); idx != -1 {
-			serverIP = serverIP[:idx]
-		}
-		if idx := strings.Index(serverIP, "/"); idx != -1 {
-			serverIP = serverIP[:idx]
+		// 使用数据库中存储的server端IP
+		serverIP := serverEndpoint.IP
+		if serverIP == "" {
+			// 如果数据库中没有IP，降级到从URL提取
+			serverIP = strings.TrimPrefix(serverEndpoint.URL, "http://")
+			serverIP = strings.TrimPrefix(serverIP, "https://")
+			if idx := strings.Index(serverIP, ":"); idx != -1 {
+				serverIP = serverIP[:idx]
+			}
+			if idx := strings.Index(serverIP, "/"); idx != -1 {
+				serverIP = serverIP[:idx]
+			}
 		}
 
 		// 双端转发：server端监听listen_port，转发到outbounds的target
@@ -1908,6 +1888,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		var serverEndpoint, clientEndpoint struct {
 			ID      int64
 			URL     string
+			IP      string
 			APIPath string
 			APIKey  string
 			Name    string
@@ -1916,9 +1897,9 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		db := h.tunnelService.DB()
 		// 获取server endpoint信息
 		err := db.QueryRow(
-			"SELECT id, url, api_path, api_key, name FROM endpoints WHERE id = ?",
+			"SELECT id, url, ip, api_path, api_key, name FROM endpoints WHERE id = ?",
 			serverConfig.MasterID,
-		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
+		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.IP, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
@@ -1936,9 +1917,9 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 
 		// 获取client endpoint信息
 		err = db.QueryRow(
-			"SELECT id, url, apiPath, apiKey, name FROM \"Endpoint\" WHERE id = ?",
+			"SELECT id, url, ip, api_path, api_key, name FROM endpoints WHERE id = ?",
 			clientConfig.MasterID,
-		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
+		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.IP, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
@@ -1954,14 +1935,18 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 			return
 		}
 
-		// 从server端URL中提取IP
-		serverIP := strings.TrimPrefix(serverEndpoint.URL, "http://")
-		serverIP = strings.TrimPrefix(serverIP, "https://")
-		if idx := strings.Index(serverIP, ":"); idx != -1 {
-			serverIP = serverIP[:idx]
-		}
-		if idx := strings.Index(serverIP, "/"); idx != -1 {
-			serverIP = serverIP[:idx]
+		// 使用数据库中存储的server端IP
+		serverIP := serverEndpoint.IP
+		if serverIP == "" {
+			// 如果数据库中没有IP，降级到从URL提取
+			serverIP = strings.TrimPrefix(serverEndpoint.URL, "http://")
+			serverIP = strings.TrimPrefix(serverIP, "https://")
+			if idx := strings.Index(serverIP, ":"); idx != -1 {
+				serverIP = serverIP[:idx]
+			}
+			if idx := strings.Index(serverIP, "/"); idx != -1 {
+				serverIP = serverIP[:idx]
+			}
 		}
 
 		// 内网穿透：server端监听listen_port，目标是用户要访问的地址
@@ -3012,7 +2997,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 		Min            json.RawMessage `json:"min"`
 		Max            json.RawMessage `json:"max"`
 		Slot           json.RawMessage `json:"slot"`                       // 新增：最大连接数限制
-		Mode           *int            `json:"mode,omitempty"`             // 新增：运行模式
+		Mode           *string         `json:"mode,omitempty"`             // 新增：运行模式
 		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
 		Rate           *string         `json:"rate,omitempty"`             // 新增：带宽速率限制
 		EnableSSEStore *bool           `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
@@ -3161,7 +3146,10 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 			// 处理Mode字段的类型转换
 			var modePtr *tunnel.TunnelMode
 			if raw.Mode != nil {
-				modePtr = (*tunnel.TunnelMode)(raw.Mode)
+				if modeInt, err := strconv.Atoi(*raw.Mode); err == nil {
+					mode := tunnel.TunnelMode(modeInt)
+					modePtr = &mode
+				}
 			}
 
 			createReq := tunnel.CreateTunnelRequest{

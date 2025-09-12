@@ -399,7 +399,13 @@ func (s *DeletedEndpointsCleanupStrategy) Execute(ctx context.Context, db *gorm.
 		log.Infof("发现 %d 个已删除端点需要永久清理", len(deletedEndpoints))
 
 		for _, endpoint := range deletedEndpoints {
-			// 首先删除该端点的所有隧道
+			// 首先删除该端点隧道的操作日志，避免外键约束错误
+			err = db.Unscoped().Exec("DELETE FROM tunnel_operation_logs WHERE tunnel_id IN (SELECT id FROM tunnels WHERE endpoint_id = ?)", endpoint.ID).Error
+			if err != nil {
+				log.Errorf("删除端点 %d 的隧道操作日志失败: %v", endpoint.ID, err)
+			}
+			
+			// 然后删除该端点的所有隧道
 			err = db.Unscoped().Where("endpoint_id = ?", endpoint.ID).Delete(&models.Tunnel{}).Error
 			if err != nil {
 				log.Errorf("删除端点 %d 的隧道失败: %v", endpoint.ID, err)

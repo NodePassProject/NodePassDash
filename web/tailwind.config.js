@@ -1,7 +1,7 @@
 /** @type {import('tailwindcss').Config} */
-import {heroui} from "@heroui/theme"
+const {heroui} = require("@heroui/theme");
 
-export default{
+module.exports = {
   content: [
     "./index.html",
     './src/layouts/**/*.{js,ts,jsx,tsx,mdx}',
@@ -76,4 +76,4 @@ export default{
     'dark:text-cyan-400',
     'dark:text-gray-400'
   ],
-}
+};

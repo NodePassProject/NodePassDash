@@ -518,6 +518,15 @@ func (s *Service) persistTunnelState(endpointID int64, event models.EndpointSSE)
 		// 创建逻辑在原有的 SSE Service 中处理，这里只做补充
 		return nil
 	case models.SSEEventTypeDelete:
+		// 先获取隧道ID，用于删除相关的操作日志
+		var tunnel models.Tunnel
+		if err := s.db.Where("endpoint_id = ? AND instance_id = ?", endpointID, event.InstanceID).First(&tunnel).Error; err == nil {
+			// 先删除相关的操作日志记录，避免外键约束错误
+			if err := s.db.Where("tunnel_id = ?", tunnel.ID).Delete(&models.TunnelOperationLog{}).Error; err != nil {
+				log.Warnf("删除隧道 %d 操作日志失败: %v", tunnel.ID, err)
+			}
+		}
+		
 		err := s.db.Where("endpoint_id = ? AND instance_id = ?", endpointID, event.InstanceID).
 			Delete(&models.Tunnel{}).Error
 		if err != nil {

@@ -4,10 +4,10 @@ import { useNavigate } from "react-router-dom";
 import { buildApiUrl } from '@/lib/utils';
 
 export interface TunnelActionOptions {
-  tunnelId: string;
+  tunnelId: number;
   tunnelName: string;
   instanceId: string;
-  onStatusChange?: (tunnelId: string, isRunning: boolean) => void;
+  onStatusChange?: (tunnelId: number, isRunning: boolean) => void;
   redirectAfterDelete?: boolean;
   onSuccess?: () => void;
   recycle?: boolean;

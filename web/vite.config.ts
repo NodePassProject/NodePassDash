@@ -1,8 +1,8 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
-import tailwindcss from "@tailwindcss/vite";
 import { readFileSync } from "fs";
+import tailwindcss from "@tailwindcss/vite"
 
 // 读取package.json获取版本号
 const packageJson = JSON.parse(readFileSync("./package.json", "utf-8"));
@@ -24,6 +24,12 @@ export default defineConfig(({ mode }) => ({
         changeOrigin: true,
         secure: false,
         ws: true, // 启用 WebSocket 代理
+      },
+      '/docs-proxy': {
+        target: 'https://raw.githubusercontent.com',
+        changeOrigin: true,
+        secure: true,
+        rewrite: (path) => path.replace(/^\/docs-proxy/, ''),
       },
     },
   },

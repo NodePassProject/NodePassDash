@@ -370,7 +370,7 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 			c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{Success: false, Error: err.Error()})
 			return
 		}
-		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "隧道刷新完成"})
+		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "实例同步完成"})
 	case "updateConfig":
 		// 修改配置：直接更新配置和缓存，SSE会自动使用新的缓存配置
 		var req endpoint.UpdateEndpointRequest
@@ -1055,6 +1055,34 @@ func (h *EndpointHandler) HandleRecycleClearAll(c *gin.Context) {
 	c.JSON(http.StatusOK, map[string]interface{}{"success": true})
 }
 
+// buildTunnelFromInstance 从实例数据构建隧道模型，类似 sse/service.go 的 buildTunnel
+func buildTunnelFromInstance(endpointID int64, inst nodepass.InstanceResult) *models.Tunnel {
+	// 使用 nodepass.ParseTunnelURL 解析 URL 获取基本信息
+	tunnel := nodepass.ParseTunnelURL(inst.URL)
+	// 补充从EndpointSSE获取的信息
+	tunnel.EndpointID = endpointID
+	tunnel.InstanceID = &inst.ID
+	tunnel.TCPRx = inst.TCPRx
+	tunnel.TCPTx = inst.TCPTx
+	tunnel.UDPRx = inst.UDPRx
+	tunnel.UDPTx = inst.UDPTx
+	tunnel.TCPs = inst.TCPs
+	tunnel.UDPs = inst.UDPs
+	tunnel.Pool = inst.Pool
+	tunnel.Ping = inst.Ping
+	// tunnel.LastEventTime = &payload.TimeStamp
+	tunnel.EnableLogStore = true
+	tunnel.Restart = inst.Restart
+	tunnel.Name = *inst.Alias
+	tunnel.Status = models.TunnelStatus(inst.Status)
+
+	if tunnel.Mode == nil {
+		tunnel.Mode = (*models.TunnelMode)(inst.Mode)
+	}
+
+	return tunnel
+}
+
 // refreshTunnels 同步指定端点的隧道信息
 func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 	log.Infof("[API] 刷新端点 %v 的隧道信息", endpointID)
@@ -1076,122 +1104,70 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 
 	// 使用事务执行
 	err = db.Transaction(func(tx *gorm.DB) error {
-		// Upsert 操作
+		// 处理每个实例
 		for _, inst := range instances {
 			if inst.Type == "" {
+				log.Debugf("[API] 端点 %d: 跳过空类型实例 %s", endpointID, inst.ID)
 				continue
 			}
+
 			instanceIDSet[inst.ID] = struct{}{}
 
-			parsed := nodepass.ParseTunnelURL(inst.URL)
-			if parsed == nil {
-				log.Warnf("[API] 端点 %d 更新：无法解析隧道URL: %s", endpointID, inst.URL)
+			// 使用新的 buildTunnelFromInstance 方法构建隧道模型
+			tunnel := buildTunnelFromInstance(endpointID, inst)
+			if tunnel == nil {
+				log.Warnf("[API] 端点 %d: 无法构建隧道模型，跳过实例 %s", endpointID, inst.ID)
 				continue
 			}
 
-			// 设置必要的字段
-			parsed.EndpointID = endpointID
-			parsed.InstanceID = &inst.ID
-			parsed.Status = models.TunnelStatus(inst.Status)
-			parsed.TCPRx = inst.TCPRx
-			parsed.TCPTx = inst.TCPTx
-			parsed.UDPRx = inst.UDPRx
-			parsed.UDPTx = inst.UDPTx
-			parsed.Restart = inst.Restart
-			parsed.CommandLine = inst.URL
-			parsed.UpdatedAt = time.Now()
-
-			// 检查隧道是否存在
-			var tunnel models.Tunnel
-			err := tx.Where("instance_id = ? AND endpoint_id = ?", inst.ID, endpointID).First(&tunnel).Error
-			if err != nil && err != gorm.ErrRecordNotFound {
-				return fmt.Errorf("查询隧道失败: %v", err)
-			}
+			// 检查隧道是否已存在
+			var existingTunnel models.Tunnel
+			err := tx.Where("endpoint_id = ? AND instance_id = ?", endpointID, inst.ID).First(&existingTunnel).Error
 
 			if err == gorm.ErrRecordNotFound {
-				// 插入新隧道
-				name := fmt.Sprintf("auto-%s", inst.ID)
-				if *inst.Alias != "" {
-					name = *inst.Alias
-					log.Infof("[API] 端点 %d 更新：使用别名作为隧道名称: %s -> %s", endpointID, inst.ID, name)
-				}
-				parsed.Name = name
-
-				err = tx.Create(parsed).Error
-				if err != nil {
+				// 创建新隧道 - 类似 handleInitialEvent 逻辑
+				if err = tx.Create(tunnel).Error; err != nil {
+					log.Errorf("[API] 端点 %d: 创建隧道 %s 失败: %v", endpointID, inst.ID, err)
 					return fmt.Errorf("创建隧道失败: %v", err)
 				}
-				log.Infof("[API] 端点 %d 更新：插入新隧道 %v", endpointID, inst.ID)
+				log.Infof("[API] 端点 %d: 创建新隧道 %s (%s)", endpointID, inst.ID, tunnel.Name)
+			} else if err != nil {
+				// 查询出错
+				log.Errorf("[API] 端点 %d: 查询隧道 %s 失败: %v", endpointID, inst.ID, err)
+				return fmt.Errorf("查询隧道失败: %v", err)
 			} else {
-				// 更新已有隧道
-				var nameParam interface{}
-				if *inst.Alias != "" {
-					nameParam = inst.Alias
-					log.Infof("[API] 端点 %d 更新：使用别名更新隧道名称: %s -> %s", endpointID, inst.ID, inst.Alias)
-				}
-
-				// 准备更新数据
-				updateData := map[string]interface{}{
-					"type":             parsed.Type,
-					"tunnel_address":   parsed.TunnelAddress,
-					"tunnel_port":      parsed.TunnelPort,
-					"target_address":   parsed.TargetAddress,
-					"target_port":      parsed.TargetPort,
-					"tls_mode":         parsed.TLSMode,
-					"log_level":        parsed.LogLevel,
-					"command_line":     inst.URL,
-					"status":           models.TunnelStatus(inst.Status),
-					"tcp_rx":           inst.TCPRx,
-					"tcp_tx":           inst.TCPTx,
-					"udp_rx":           inst.UDPRx,
-					"udp_tx":           inst.UDPTx,
-					"restart":          inst.Restart,
-					"mode":             parsed.Mode,
-					"read":             parsed.Read,
-					"rate":             parsed.Rate,
-					"cert_path":        parsed.CertPath,
-					"key_path":         parsed.KeyPath,
-					"password":         parsed.Password,
-					"min":              parsed.Min,
-					"max":              parsed.Max,
-					"enable_sse_store": true,
-					"enable_log_store": true,
-					"updated_at":       time.Now(),
-				}
-
-				// 如果有别名，则更新名称
-				if nameParam != nil {
-					updateData["name"] = nameParam
-				}
-
-				err = tx.Model(&models.Tunnel{}).Where("id = ?", tunnel.ID).Updates(updateData).Error
-				if err != nil {
+				updates := nodepass.TunnelToMap(tunnel)
+				if err = tx.Model(&models.Tunnel{}).Where("id = ?", existingTunnel.ID).Updates(updates).Error; err != nil {
+					log.Errorf("[API] 端点 %d: 更新隧道 %s 失败: %v", endpointID, inst.ID, err)
 					return fmt.Errorf("更新隧道失败: %v", err)
 				}
-				log.Infof("[API] 端点 %d 更新：更新隧道信息 %v", endpointID, inst.ID)
+				log.Debugf("[API] 端点 %d: 更新隧道 %s (%s) 运行时信息", endpointID, inst.ID, tunnel.Name)
 			}
 		}
 
-		// 删除已不存在的隧道
+		// 删除不再存在的隧道
 		var existingTunnels []models.Tunnel
-		err = tx.Select("id, instance_id").Where("endpoint_id = ?", endpointID).Find(&existingTunnels).Error
-		if err != nil {
+		if err = tx.Select("id, instance_id").Where("endpoint_id = ?", endpointID).Find(&existingTunnels).Error; err != nil {
 			return fmt.Errorf("查询现有隧道失败: %v", err)
 		}
 
 		for _, tunnel := range existingTunnels {
 			if tunnel.InstanceID != nil {
-				if _, ok := instanceIDSet[*tunnel.InstanceID]; !ok {
-					err = tx.Delete(&models.Tunnel{}, tunnel.ID).Error
-					if err != nil {
+				if _, exists := instanceIDSet[*tunnel.InstanceID]; !exists {
+					// 先删除相关的操作日志记录，避免外键约束错误
+					if err = tx.Where("tunnel_id = ?", tunnel.ID).Delete(&models.TunnelOperationLog{}).Error; err != nil {
+						log.Warnf("[API] 删除隧道 %d 操作日志失败: %v", tunnel.ID, err)
+					}
+					
+					if err = tx.Delete(&models.Tunnel{}, tunnel.ID).Error; err != nil {
 						return fmt.Errorf("删除隧道失败: %v", err)
 					}
-					log.Infof("[API] 端点 %d 更新：删除隧道 %v", endpointID, tunnel.ID)
+					log.Infof("[API] 端点 %d: 删除不存在的隧道 %d (实例 %s)", endpointID, tunnel.ID, *tunnel.InstanceID)
 				}
 			}
 		}
 
-		log.Infof("[API] 端点 %d 更新：将异步更新隧道数量", endpointID)
+		log.Debugf("[API] 端点 %d: 隧道信息同步完成", endpointID)
 		return nil
 	})
 
@@ -1199,7 +1175,6 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 	if err == nil {
 		go func(id int64) {
 			time.Sleep(50 * time.Millisecond)
-			// 调用端点服务的隧道计数更新方法
 			updateEndpointTunnelCount(id)
 		}(endpointID)
 	}

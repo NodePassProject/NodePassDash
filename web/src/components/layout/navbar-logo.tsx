@@ -5,11 +5,11 @@ import { fontSans } from "@/config/fonts";
 
 // NodePass Logo 组件
 const NodePassLogo = () => {
-  const { theme } = useTheme();
+  const { theme, resolvedTheme } = useTheme();
   const isSSR = useIsSSR();
   
-  // 根据主题选择颜色
-  const isDark = !isSSR && theme === "dark";
+  // 根据主题选择颜色 - 使用 resolvedTheme 来正确处理 system 主题
+  const isDark = !isSSR && resolvedTheme === "dark";
   const pathColor = isDark ? "#FFFFFF" : "#000000";
 
   return (

@@ -4,10 +4,9 @@ import {
   faServer,
   faPlus,
   faLayerGroup,
-  faBolt,
-  faHammer,
   faBug
 } from "@fortawesome/free-solid-svg-icons";
+import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
 
 /**
@@ -23,42 +22,54 @@ export function QuickEntryCard() {
       icon: faServer,
       label: "添加主控",
       route: "/endpoints",
-      color: "bg-blue-500 hover:bg-blue-600"
+      color: "bg-blue-500 hover:bg-blue-600",
+      iconType: "fontawesome",
+      external: false
     },
     {
       id: "create-tunnel",
-      icon: faPlus,
+      icon: "solar:transmission-bold",
       label: "创建实例",
       route: "/tunnels/create",
-      color: "bg-green-500 hover:bg-green-600"
+      color: "bg-green-500 hover:bg-green-600",
+      iconType: "iconify",
+      external: false
     },
     {
       id: "template-create",
       icon: faLayerGroup,
       label: "场景创建",
       route: "/templates",
-      color: "bg-purple-500 hover:bg-purple-600"
+      color: "bg-purple-500 hover:bg-purple-600",
+      iconType: "fontawesome",
+      external: false
     },
     {
-      id: "quick-create",
-      icon: faBolt,
-      label: "快速创建",
-      route: "/tunnels",
-      color: "bg-orange-500 hover:bg-orange-600"
+      id: "settings",
+      icon: "solar:settings-bold",
+      label: "设置",
+      route: "/settings",
+      color: "bg-gray-500 hover:bg-gray-600",
+      iconType: "iconify",
+      external: false
     },
     {
-      id: "manual-create",
-      icon: faHammer,
-      label: "手搓创建",
-      route: "/tunnels",
-      color: "bg-red-500 hover:bg-red-600"
+      id: "docs",
+      icon: "solar:document-text-bold",
+      label: "文档",
+      route: "/docs",
+      color: "bg-indigo-500 hover:bg-indigo-600",
+      iconType: "iconify",
+      external: false
     },
     {
       id: "debug-tools",
       icon: faBug,
       label: "调试工具",
       route: "/debug",
-      color: "bg-teal-500 hover:bg-teal-600"
+      color: "bg-teal-500 hover:bg-teal-600",
+      iconType: "fontawesome",
+      external: false
     }
   ];
 
@@ -73,16 +84,30 @@ export function QuickEntryCard() {
             <Button
               isIconOnly
               key={action.id}
-              onPress={() => navigate(action.route)}
+              onPress={() => {
+                if (action.external) {
+                  window.open(action.route, '_blank');
+                } else {
+                  navigate(action.route);
+                }
+              }}
               title={action.label}
               variant="solid"
               className={`${action.color} text-white transition-colors duration-200`}
             >
-              <FontAwesomeIcon 
-                icon={action.icon} 
-                className="!w-5 !h-5" 
-                style={{ width: '20px', height: '20px' }}
-              />
+              {action.iconType === "fontawesome" ? (
+                <FontAwesomeIcon 
+                  icon={action.icon} 
+                  className="!w-5 !h-5" 
+                  style={{ width: '20px', height: '20px' }}
+                />
+              ) : (
+                <Icon 
+                  icon={action.icon} 
+                  width={20} 
+                  height={20}
+                />
+              )}
             </Button>
           ))}
         </div>

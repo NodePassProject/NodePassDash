@@ -74,6 +74,7 @@ import BatchUrlCreateTunnelModal from "@/components/tunnels/batch-url-create-tun
 import TagManagementModal from "@/components/tunnels/tag-management-modal";
 import SimpleTagModal from "@/components/tunnels/simple-tag-modal";
 import ScenarioCreateModal, { ScenarioType } from "@/components/tunnels/scenario-create-modal";
+import RenameTunnelModal from "@/components/tunnels/rename-tunnel-modal";
 import { useSettings } from "@/components/providers/settings-provider";
 import { useIsMobile } from "@/lib/hooks/use-media-query";
 
@@ -148,11 +149,9 @@ export default function TunnelsPage() {
   );
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
 
-  // 添加编辑名称相关的状态
-  const [editModalTunnel, setEditModalTunnel] = useState<Tunnel | null>(null);
-  const [newTunnelName, setNewTunnelName] = useState("");
-  const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-  const [isEditLoading, setIsEditLoading] = useState(false);
+  // 重命名模态框状态
+  const [renameModalTunnel, setRenameModalTunnel] = useState<Tunnel | null>(null);
+  const [isRenameModalOpen, setIsRenameModalOpen] = useState(false);
 
   // 导出配置模态框状态
   const [exportModalOpen, setExportModalOpen] = useState(false);
@@ -169,7 +168,6 @@ export default function TunnelsPage() {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
-  const [endpointsLoading, setEndpointsLoading] = useState(true);
 
   // 是否移入回收站
   const [moveToRecycle, setMoveToRecycle] = useState(false);
@@ -290,7 +288,6 @@ export default function TunnelsPage() {
   // 获取主控列表
   const fetchEndpoints = useCallback(async () => {
     try {
-      setEndpointsLoading(true);
       const response = await fetch(buildApiUrl("/api/endpoints/simple"));
       if (!response.ok) throw new Error("获取主控列表失败");
       const data = await response.json();
@@ -303,7 +300,6 @@ export default function TunnelsPage() {
         color: "danger",
       });
     } finally {
-      setEndpointsLoading(false);
     }
   }, []);
 
@@ -1107,7 +1103,7 @@ export default function TunnelsPage() {
   );
 
   // 更新实例状态的函数
-  const handleStatusChange = (tunnelId: string, isRunning: boolean) => {
+  const handleStatusChange = (tunnelId: number, isRunning: boolean) => {
     setTunnels((prev) =>
       prev.map((tunnel) =>
         tunnel.id === tunnelId
@@ -1162,7 +1158,7 @@ export default function TunnelsPage() {
     });
   };
 
-  const handleDeleteClick = (tunnel: any) => {
+  const handleDeleteClick = (tunnel: Tunnel) => {
     setDeleteModalTunnel(tunnel);
     onOpen();
   };
@@ -1184,59 +1180,23 @@ export default function TunnelsPage() {
     setMoveToRecycle(false);
   };
 
-  // 添加修改名称的处理函数
+  // 重命名处理函数
   const handleEditClick = (tunnel: Tunnel) => {
-    setEditModalTunnel(tunnel);
-    setNewTunnelName(tunnel.name);
-    setIsEditModalOpen(true);
+    setRenameModalTunnel(tunnel);
+    setIsRenameModalOpen(true);
   };
 
-  const handleEditSubmit = async () => {
-    if (!editModalTunnel || !newTunnelName.trim()) return;
-
-    try {
-      setIsEditLoading(true);
-      const response = await fetch(
-        buildApiUrl(`/api/tunnels/${editModalTunnel.id}`),
-        {
-          method: "PATCH",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            action: "rename",
-            name: newTunnelName.trim(),
-          }),
-        }
-      );
-
-      if (!response.ok) throw new Error("修改名称失败");
-
+  // 重命名成功回调
+  const handleRenameSuccess = (newName: string) => {
+    if (renameModalTunnel) {
       // 更新本地状态
       setTunnels((prev) =>
         prev.map((tunnel) =>
-          tunnel.id === editModalTunnel.id
-            ? { ...tunnel, name: newTunnelName.trim() }
+          tunnel.id === renameModalTunnel.id
+            ? { ...tunnel, name: newName }
             : tunnel
         )
       );
-
-      addToast({
-        title: "修改成功",
-        description: "实例名称已更新",
-        color: "success",
-      });
-
-      setIsEditModalOpen(false);
-    } catch (error) {
-      console.error("修改名称失败:", error);
-      addToast({
-        title: "修改失败",
-        description: error instanceof Error ? error.message : "未知错误",
-        color: "danger",
-      });
-    } finally {
-      setIsEditLoading(false);
     }
   };
 
@@ -1659,7 +1619,6 @@ export default function TunnelsPage() {
               }}
               className="w-28"
               size="sm"
-              isLoading={endpointsLoading}
               classNames={{
                 trigger: "text-xs",
                 value: "text-xs",
@@ -1742,7 +1701,6 @@ export default function TunnelsPage() {
                 }}
                 className="w-36"
                 size="sm"
-                isLoading={endpointsLoading}
                 classNames={{
                   trigger: "text-xs",
                   value: "text-xs",
@@ -2091,7 +2049,7 @@ export default function TunnelsPage() {
                             <div className="text-default-400">{tunnel.instanceId}</div>
                           </div>
                         } size="sm">
-                          <div className="text-sm font-semibold max-w-[120px] leading-tight cursor-help overflow-hidden max-h-[2.5em]" style={{ wordBreak: 'break-all' }}>
+                          <div className="text-sm font-semibold max-w-[120px] leading-tight cursor-help overflow-hidden max-h-[2.5em] text-ellipsis " style={{ wordBreak: 'break-all' }}>
                             {tunnel.name}
                             <Tooltip content="修改名称" size="sm">
                               <FontAwesomeIcon
@@ -2125,9 +2083,9 @@ export default function TunnelsPage() {
                             variant="bordered"
                             color="default"
                             size="sm"
-                            className="cursor-help hover:opacity-80 h-auto py-1"
+                            className="cursor-help hover:opacity-80 h-auto max-w-[128px]"
                           >
-                            <div className="line-clamp-2 overflow-hidden text-ellipsis leading-tight text-xs">
+                            <div className="line-clamp-2 overflow-hidden text-ellipsis leading-tight text-xs whitespace-normal break-words">
                               {tunnel.endpoint}
                             </div>
                           </Chip>
@@ -2351,52 +2309,14 @@ export default function TunnelsPage() {
         </ModalContent>
       </Modal>
 
-      {/* 编辑名称模态框 */}
-      <Modal
-        isOpen={isEditModalOpen}
-        onOpenChange={setIsEditModalOpen}
-        placement="center"
-      >
-        <ModalContent>
-          {(onClose) => (
-            <>
-              <ModalHeader className="flex flex-col gap-1">
-                <div className="flex items-center gap-2">
-                  <FontAwesomeIcon icon={faPen} className="text-primary" />
-                  修改实例名称
-                </div>
-              </ModalHeader>
-              <ModalBody>
-                <Input
-                  label="实例名称"
-                  placeholder="请输入新的实例名称"
-                  value={newTunnelName}
-                  onValueChange={setNewTunnelName}
-                  variant="bordered"
-                  isDisabled={isEditLoading}
-                />
-              </ModalBody>
-              <ModalFooter>
-                <Button
-                  color="default"
-                  variant="light"
-                  onPress={onClose}
-                  isDisabled={isEditLoading}
-                >
-                  取消
-                </Button>
-                <Button
-                  color="primary"
-                  onPress={handleEditSubmit}
-                  isLoading={isEditLoading}
-                >
-                  确认修改
-                </Button>
-              </ModalFooter>
-            </>
-          )}
-        </ModalContent>
-      </Modal>
+      {/* 重命名模态框 */}
+      <RenameTunnelModal
+        isOpen={isRenameModalOpen}
+        onOpenChange={setIsRenameModalOpen}
+        tunnelId={renameModalTunnel?.id || ""}
+        currentName={renameModalTunnel?.name || ""}
+        onRenamed={handleRenameSuccess}
+      />
 
       {/* 批量删除确认模态框 */}
       <Modal

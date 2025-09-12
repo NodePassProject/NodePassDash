@@ -5,10 +5,15 @@ import (
 	"NodePassDash/internal/endpoint"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
+	"NodePassDash/internal/nodepass"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
 	"encoding/json"
+	"fmt"
+	"net"
 	"net/http"
+	"net/url"
+	"strings"
 	"time"
 
 	"github.com/gin-gonic/gin"
@@ -30,6 +35,73 @@ func NewDataHandler(db *gorm.DB, mgr *sse.Manager, endpointService *endpoint.Ser
 		endpointService: endpointService,
 		tunnelService:   tunnelService,
 	}
+}
+
+// extractIPFromURL 从URL中提取IP地址（IPv4或IPv6）
+func extractIPFromURL(urlStr string) string {
+	// 尝试解析URL
+	parsedURL, err := url.Parse(urlStr)
+	if err != nil {
+		// 如果URL解析失败，尝试手动提取
+		return extractIPFromString(urlStr)
+	}
+
+	// 从解析后的URL中提取主机名
+	host := parsedURL.Hostname()
+	if host == "" {
+		return ""
+	}
+
+	// 检查是否为有效的IP地址
+	if ip := net.ParseIP(host); ip != nil {
+		return ip.String()
+	}
+
+	// 如果不是IP地址，返回空字符串
+	return ""
+}
+
+// extractIPFromString 从字符串中手动提取IP地址（备用方法）
+func extractIPFromString(input string) string {
+	// 去除协议部分
+	if idx := strings.Index(input, "://"); idx != -1 {
+		input = input[idx+3:]
+	}
+
+	// 去除用户认证信息
+	if atIdx := strings.Index(input, "@"); atIdx != -1 {
+		input = input[atIdx+1:]
+	}
+
+	// 去除路径部分
+	if slashIdx := strings.Index(input, "/"); slashIdx != -1 {
+		input = input[:slashIdx]
+	}
+
+	// 处理IPv6地址（方括号包围的地址）
+	if strings.HasPrefix(input, "[") {
+		if end := strings.Index(input, "]"); end != -1 {
+			// 提取方括号内的IPv6地址
+			ipv6Addr := input[1:end]
+			// 检查是否为有效的IPv6地址
+			if ip := net.ParseIP(ipv6Addr); ip != nil {
+				return ip.String()
+			}
+		}
+		return ""
+	}
+
+	// 去除端口部分（IPv4）
+	if colonIdx := strings.Index(input, ":"); colonIdx != -1 {
+		input = input[:colonIdx]
+	}
+
+	// 检查是否为有效的IP地址
+	if ip := net.ParseIP(input); ip != nil {
+		return ip.String()
+	}
+
+	return ""
 }
 
 func SetupDataRoutes(rg *gin.RouterGroup, db *gorm.DB, sseManager *sse.Manager, endpointService *endpoint.Service, tunnelService *tunnel.Service) {
@@ -203,9 +275,13 @@ func (h *DataHandler) handleImportV1(c *gin.Context, baseData struct {
 				}
 			}
 
+			// 从URL中提取IP地址
+			extractedIP := extractIPFromURL(ep.URL)
+
 			newEndpoint := models.Endpoint{
 				Name:      ep.Name,
 				URL:       ep.URL,
+				IP:        extractedIP, // 填充提取的IP地址
 				APIPath:   ep.APIPath,
 				APIKey:    ep.APIKey,
 				Status:    status,
@@ -217,6 +293,9 @@ func (h *DataHandler) handleImportV1(c *gin.Context, baseData struct {
 				log.Errorf("插入端点失败: %v", err)
 				continue
 			}
+
+			// 添加到缓存
+			nodepass.GetCache().Set(fmt.Sprintf("%d", newEndpoint.ID), newEndpoint.URL+newEndpoint.APIPath, newEndpoint.APIKey)
 
 			// 保存端点信息用于后续启动SSE
 			newEndpoints = append(newEndpoints, struct {
@@ -401,10 +480,14 @@ func (h *DataHandler) handleImportV2(c *gin.Context, baseData struct {
 				continue
 			}
 
+			// 从URL中提取IP地址
+			extractedIP := extractIPFromURL(ep.URL)
+
 			// 插入端点，设置默认状态为 OFFLINE
 			newEndpoint := models.Endpoint{
 				Name:      ep.Name,
 				URL:       ep.URL,
+				IP:        extractedIP, // 填充提取的IP地址
 				APIPath:   ep.APIPath,
 				APIKey:    ep.APIKey,
 				Status:    models.EndpointStatusOffline,
@@ -421,6 +504,9 @@ func (h *DataHandler) handleImportV2(c *gin.Context, baseData struct {
 				log.Errorf("插入端点失败: %v", err)
 				continue
 			}
+
+			// 添加到缓存
+			nodepass.GetCache().Set(fmt.Sprintf("%d", newEndpoint.ID), newEndpoint.URL+newEndpoint.APIPath, newEndpoint.APIKey)
 
 			// 保存端点信息用于后续启动SSE
 			newEndpoints = append(newEndpoints, struct {

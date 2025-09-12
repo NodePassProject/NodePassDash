@@ -1009,15 +1009,29 @@ export default function EndpointsPage() {
 
                 {/* 主要内容区域 */}
                 <CardBody className="relative h-[140px] bg-gradient-to-br from-content1 to-default-100/50 p-6">
-                  <div className="flex items-center gap-2 mb-2 pr-20">
+                  <div className="flex items-center gap-2 mb-2 pr-15">
+                    {/*  */}
+                    { endpoint.name.length < 10 &&
                     <h2 className="inline bg-gradient-to-br from-foreground-800 to-foreground-500 bg-clip-text text-2xl font-semibold tracking-tight text-transparent dark:to-foreground-200">
                       {endpoint.name}
                     </h2>
-                    {endpoint.ver && (
+                    }
+                    {endpoint.name.length < 10 &&endpoint.ver && (
                       <Chip size="sm" variant="flat" className="text-xs">
                         {endpoint.ver}
                       </Chip>
                     )}
+                    { endpoint.name.length >=10 &&
+                    <h2 className={`leading-tight cursor-help overflow-hidden max-h-[2.5em] bg-gradient-to-br from-foreground-800 to-foreground-500 bg-clip-text text-xl font-semibold tracking-tight text-transparent dark:to-foreground-200`} 
+                    style={{ wordBreak: 'break-all' }}>
+                            {endpoint.name}
+                            {endpoint.ver && (
+                      <Chip size="sm" variant="flat" className="text-xs cursor-pointer ml-1 align-middle">
+                        {endpoint.ver}
+                      </Chip>
+                    )}
+                    </h2>
+                   }
                   </div>
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-default-400">
@@ -1107,33 +1121,35 @@ export default function EndpointsPage() {
                   <TableRow key={ep.id}>
                     <TableCell>{ep.id}</TableCell>
                     <TableCell className="truncate min-w-[140px]">
-                      <Tooltip 
-                        content={
-                          realTimeData.status === 'ONLINE' ? '在线' :
-                          realTimeData.status === 'FAIL' ? '异常' :
-                          realTimeData.status === 'DISCONNECT' ? '断开' : '离线'
-                        }
-                        size="sm"
-                      >
-                        <span className={
-                          `inline-block w-2 h-2 rounded-full mr-2 cursor-help ${
-                            realTimeData.status === 'ONLINE' ? 'bg-success-500' :
-                            realTimeData.status === 'FAIL' ? 'bg-danger-500' :
-                            realTimeData.status === 'DISCONNECT' ? 'bg-default-400' : 'bg-warning-500'
-                          }`
-                        } />
-                      </Tooltip>
-                      <span className="text-xs md:text-sm truncate max-w-[120px] md:max-w-none">
-                        {ep.name}&nbsp;
-                      </span>
-                      <span className="text-default-400 text-small">[{realTimeData.tunnelCount}实例]</span> 
-                      <Tooltip content="修改名称" size="sm">
-                        <FontAwesomeIcon 
-                          icon={faPen} 
-                          className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer ps-1" 
-                          onClick={()=>handleCardClick(ep)}
-                        />
-                      </Tooltip>
+                      <div className="flex items-center gap-1 max-w-[220px] min-w-0">
+                        <Tooltip 
+                          content={
+                            realTimeData.status === 'ONLINE' ? '在线' :
+                            realTimeData.status === 'FAIL' ? '异常' :
+                            realTimeData.status === 'DISCONNECT' ? '断开' : '离线'
+                          }
+                          size="sm"
+                        >
+                          <span className={
+                            `inline-block w-2 h-2 rounded-full cursor-help flex-shrink-0 ${
+                              realTimeData.status === 'ONLINE' ? 'bg-success-500' :
+                              realTimeData.status === 'FAIL' ? 'bg-danger-500' :
+                              realTimeData.status === 'DISCONNECT' ? 'bg-default-400' : 'bg-warning-500'
+                            }`
+                          } />
+                        </Tooltip>
+                        <span className="text-xs md:text-sm truncate flex-1 min-w-0">
+                          {ep.name}
+                        </span>
+                        <span className="text-default-400 text-xs flex-shrink-0">[{realTimeData.tunnelCount}实例]</span> 
+                        <Tooltip content="修改名称" size="sm">
+                          <FontAwesomeIcon 
+                            icon={faPen} 
+                            className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer flex-shrink-0" 
+                            onClick={()=>handleCardClick(ep)}
+                          />
+                        </Tooltip>
+                      </div>
                     </TableCell>
                     <TableCell className="w-32">
                       <Chip size="sm" variant="flat" className="text-xs">

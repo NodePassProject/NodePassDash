@@ -40,7 +40,7 @@ interface SimpleCreateTunnelModalProps {
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
   mode?: "create" | "edit";
-  editData?: Partial<Record<string, any>> & { id?: string };
+  editData?: Partial<Record<string, any>> & { id?: number };
 }
 
 // 版本比较函数
@@ -109,7 +109,7 @@ export default function SimpleCreateTunnelModal({
     certPath: "",
     keyPath: "",
     // 新增字段
-    mode: "0", // 服务端/客户端模式：服务端默认0，客户端默认1
+    mode: 0, // 服务端/客户端模式：服务端默认0，客户端默认1
     read: "", // 数据读取超时
     rate: "", // 速率限制
   });
@@ -168,7 +168,7 @@ export default function SimpleCreateTunnelModal({
         keyPath: editData.keyPath || "",
         apiEndpoint: String(editData.endpointId || prev.apiEndpoint),
         // 新增字段
-        mode: editData.mode || (editData.type === "server" ? "0" : "1"),
+        mode: editData.mode != null ? editData.mode : (editData.type === "server" ? 0 : 1),
         read: editData.read || "",
         rate: editData.rate || "",
       }));
@@ -208,7 +208,7 @@ export default function SimpleCreateTunnelModal({
     }
 
     // 客户端模式校验（由于有默认值，这里主要是确保值有效）
-    if (type === "client" && !["1", "2"].includes(mode)) {
+    if (type === "client" && ![1, 2].includes(Number(mode))) {
       addToast({
         title: "请选择有效的客户端模式",
         description: "客户端模式必须为模式1或模式2",
@@ -275,7 +275,7 @@ export default function SimpleCreateTunnelModal({
               : undefined,
           slot: slot !== "" ? slot : undefined,
           // 新增字段
-          mode: mode || undefined,
+          mode: mode != null ? Number(mode) : undefined,
           read: read || undefined,
           rate: rate || undefined,
           resetTraffic: modalMode === "edit" ? resetChecked : undefined,
@@ -311,8 +311,11 @@ export default function SimpleCreateTunnelModal({
       setIsPasswordVisible(false);
     } else if (field === "type") {
       // 切换类型时自动设置默认模式
-      const defaultMode = value === "server" ? "0" : "1";
+      const defaultMode = value === "server" ? 0 : 1;
       setFormData((prev) => ({ ...prev, [field]: value, mode: defaultMode }));
+    } else if (field === "mode") {
+      // mode字段需要转换为数字类型
+      setFormData((prev) => ({ ...prev, [field]: parseInt(value) }));
     } else {
       setFormData((prev) => ({ ...prev, [field]: value }));
     }
@@ -427,7 +430,7 @@ export default function SimpleCreateTunnelModal({
                     {formData.type === "server" && (
                       <Select
                         label="服务端模式"
-                        selectedKeys={[formData.mode]}
+                        selectedKeys={[String(formData.mode)]}
                         onSelectionChange={(keys) =>
                           handleField("mode", Array.from(keys)[0] as string)
                         }
@@ -442,7 +445,7 @@ export default function SimpleCreateTunnelModal({
                     {formData.type === "client" && (
                       <Select
                         label="客户端模式"
-                        selectedKeys={[formData.mode]}
+                        selectedKeys={[String(formData.mode)]}
                         onSelectionChange={(keys) =>
                           handleField("mode", Array.from(keys)[0] as string)
                         }

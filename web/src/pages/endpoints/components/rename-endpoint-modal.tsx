@@ -70,6 +70,8 @@ export default function RenameEndpointModal({
                 variant="bordered"
                 isRequired
                 autoFocus
+                maxLength={25}
+                endContent={<span className="text-xs text-default-500">{newName.length}/25</span>}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     handleSubmit();

@@ -495,10 +495,17 @@ export default function BatchCreateModal({
 
             <ModalBody>
               <Tabs 
+                variant="solid"
+                color="primary" 
                 aria-label="批量创建类型" 
                 selectedKey={activeTab}
                 onSelectionChange={(key) => setActiveTab(key as string)}
                 fullWidth={true}
+                classNames={{
+                  tabList: "bg-default-100 p-1 rounded-lg",
+                  cursor: "!bg-primary !text-primary-foreground shadow-sm",
+                  tab: "data-[selected=true]:!text-primary-foreground px-4 py-2"
+                }}
               >
                 <Tab
                   key="standard"

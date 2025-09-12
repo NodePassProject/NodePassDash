@@ -438,7 +438,7 @@ export default function DashboardPage() {
       <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-5 gap-4">
         <Card 
           // ⚠️ 渐变样式: from-primary-50 to-primary-100/50 在Vite版本中透明度渲染效果与Next.js不一致
-          className="p-3 md:p-4 bg-gradient-to-br from-primary-50 to-primary-100/50 dark:from-primary-900/20 dark:to-primary-900/10 cursor-pointer transition-transform hover:scale-[1.02]"
+          className="p-3 md:p-4 bg-gradient-to-br from-primary-50 to-primary-100/50 dark:from-primary-200/20 dark:to-primary-700/10 cursor-pointer transition-transform hover:scale-[1.02]"
           classNames={{
             // 手动覆盖HeroUI基础样式以匹配Next.js版本的outline和transition行为
             base: "bg-content1 outline-none transition-transform-background motion-reduce:transition-none"

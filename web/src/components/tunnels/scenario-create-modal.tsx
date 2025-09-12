@@ -227,7 +227,7 @@ export default function ScenarioCreateModal({
             type: "client"
           },
           outbounds: {
-            target_host: "127.0.0.1",
+            target_host: "",
             target_port: parseInt(formData.targetServicePort2),
             master_id: getEndpointIdByName(formData.relayServerEndpoint2),
             type: "server"

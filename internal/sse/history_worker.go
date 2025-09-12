@@ -62,6 +62,8 @@ type HistoryWorker struct {
 	dataInputChan chan MonitoringData // SSE数据输入通道
 	stopChan      chan struct{}       // 停止信号通道
 	wg            sync.WaitGroup      // 等待组
+	closed        bool                // 关闭标志
+	closeMu       sync.Mutex          // 保护关闭状态
 }
 
 // NewHistoryWorker 创建历史数据处理Worker（参照Nezha设计）
@@ -87,6 +89,15 @@ func NewHistoryWorker(db *gorm.DB) *HistoryWorker {
 
 // Dispatch 将SSE update事件推送到数据处理通道（参照Nezha的设计）
 func (hw *HistoryWorker) Dispatch(payload SSEResp) {
+	// 检查是否已关闭
+	hw.closeMu.Lock()
+	if hw.closed {
+		hw.closeMu.Unlock()
+		log.Debug("HistoryWorker 已关闭，跳过数据分发")
+		return
+	}
+	hw.closeMu.Unlock()
+
 	// 构建监控数据点
 	data := MonitoringData{
 		EndpointID: payload.EndpointID,
@@ -382,17 +393,38 @@ func (hw *HistoryWorker) calculateDelta(current, last int64) int64 {
 
 // Close 关闭Worker
 func (hw *HistoryWorker) Close() {
+	hw.closeMu.Lock()
+	defer hw.closeMu.Unlock()
+	
+	// 检查是否已经关闭
+	if hw.closed {
+		log.Debug("HistoryWorker 已经关闭，跳过重复关闭")
+		return
+	}
+	
 	log.Info("正在关闭历史数据处理Worker")
 
-	// 发送停止信号
-	close(hw.stopChan)
+	// 标记为已关闭
+	hw.closed = true
+
+	// 安全关闭停止通道
+	select {
+	case <-hw.stopChan:
+		// 通道已经关闭
+	default:
+		close(hw.stopChan)
+	}
 
 	// 等待所有协程完成
 	hw.wg.Wait()
 
-	// 关闭通道（保护：避免重复关闭）
-	defer func() { recover() }()
-	close(hw.dataInputChan)
+	// 安全关闭数据通道
+	select {
+	case <-hw.dataInputChan:
+		// 通道已经关闭或为空
+	default:
+		close(hw.dataInputChan)
+	}
 
 	log.Info("历史数据处理Worker已关闭")
 }

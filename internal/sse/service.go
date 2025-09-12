@@ -88,10 +88,6 @@ func (s *Service) Close() {
 		s.historyWorker.Close()
 	}
 
-	if s.historyWorker != nil {
-		s.historyWorker.Close()
-	}
-
 	// 关闭所有客户端
 	s.mu.Lock()
 	for clientID, client := range s.clients {
@@ -284,11 +280,11 @@ func buildTunnel(payload SSEResp) *models.Tunnel {
 	tunnel.Restart = payload.Instance.Restart
 	tunnel.Name = *payload.Instance.Alias
 	tunnel.Status = models.TunnelStatus(payload.Instance.Status)
-	log.Infof("%v解析mode=%v", tunnel.InstanceID, tunnel.Mode)
+
 	if tunnel.Mode == nil {
-		log.Infof("%v url未显式模式，尝试使用mode字段", tunnel.InstanceID)
 		tunnel.Mode = (*models.TunnelMode)(payload.Instance.Mode)
 	}
+
 	return tunnel
 }
 
@@ -338,6 +334,20 @@ func (s *Service) handleUpdateEvent(payload SSEResp) {
 }
 
 func (s *Service) handleDeleteEvent(payload SSEResp) {
+	// 先获取隧道ID，用于删除相关的操作日志
+	var tunnel models.Tunnel
+	if err := s.db.Where("endpoint_id = ? AND instance_id = ?", payload.EndpointID, payload.Instance.ID).First(&tunnel).Error; err != nil {
+		if err != gorm.ErrRecordNotFound {
+			log.Errorf("[Master-%d]获取隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
+		}
+		return
+	}
+
+	// 先删除相关的操作日志记录，避免外键约束错误
+	if err := s.db.Where("tunnel_id = ?", tunnel.ID).Delete(&models.TunnelOperationLog{}).Error; err != nil {
+		log.Warnf("[Master-%d]删除隧道 %s 操作日志失败: %v", payload.EndpointID, payload.Instance.ID, err)
+	}
+
 	// 删除隧道记录
 	err := s.db.Where("endpoint_id = ? AND instance_id = ?", payload.EndpointID, payload.Instance.ID).Delete(&models.Tunnel{}).Error
 

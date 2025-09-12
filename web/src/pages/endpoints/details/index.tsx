@@ -418,6 +418,16 @@ export default function EndpointDetailPage() {
     if (!endpointId) return;
     
     try {
+      addToast({
+        title: "开始重置密钥",
+        description: "正在断开当前连接...",
+        color: "primary",
+      });
+
+      // 1. 先断开连接
+      await handleDisconnect();
+
+      // 2. 调用重置密钥接口
       const response = await fetch(buildApiUrl(`/api/endpoints/${endpointId}/reset-key`), {
         method: 'POST'
       });
@@ -430,16 +440,19 @@ export default function EndpointDetailPage() {
       const result = await response.json();
       addToast({
         title: "密钥重置成功",
-        description: "新密钥已生成，主控将重新连接",
+        description: "新密钥已生成，正在重新连接...",
         color: "success",
       });
 
       onResetApiKeyOpenChange();
       
-      // 延迟刷新页面以显示新的连接状态
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      // 3. 刷新端点详情
+      await fetchEndpointDetail();
+      
+      // 4. 延迟重新连接
+      setTimeout(async () => {
+        await handleConnect();
+      }, 1500);
 
     } catch (error) {
       addToast({
@@ -565,7 +578,17 @@ export default function EndpointDetailPage() {
     }
 
     try {
-      // 后端会自动判断是否需要重连，这里不需要手动断开
+      // 如果有URL或密钥变更，需要先断开连接
+      if (hasUrlChange || hasApiKeyChange) {
+        addToast({
+          title: "开始更新配置",
+          description: "正在断开当前连接...",
+          color: "primary",
+        });
+        
+        // 1. 先断开连接
+        await handleDisconnect();
+      }
       
       // 构建请求数据
       const updateData: any = {
@@ -595,16 +618,21 @@ export default function EndpointDetailPage() {
 
       addToast({
         title: "配置更新成功",
-        description: "配置已更新，正在刷新页面...",
+        description: "配置已更新，正在重新连接...",
         color: "success",
       });
 
       onEditConfigOpenChange();
       
-      // 延迟刷新整个页面
-      setTimeout(() => {
-        window.location.reload();
-      }, 1000);
+      // 刷新端点详情
+      await fetchEndpointDetail();
+      
+      // 如果有URL或密钥变更，延迟重新连接
+      if (hasUrlChange || hasApiKeyChange) {
+        setTimeout(async () => {
+          await handleConnect();
+        }, 1500);
+      }
 
     } catch (error) {
       addToast({
@@ -697,7 +725,7 @@ export default function EndpointDetailPage() {
           </Button>
           {endpointDetail ? (
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-lg md:text-2xl font-bold truncate">{endpointDetail.name}</h1>
+              <h1 className="text-lg md:text-2xl font-bold truncate max-w-[200px] md:max-w-none">{endpointDetail.name}</h1>
               {endpointDetail.ver && (
                 <Chip variant="flat" color="secondary">
                   {endpointDetail.ver}
@@ -1123,7 +1151,7 @@ export default function EndpointDetailPage() {
         <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-4">
             <h3 className="text-lg font-semibold">主控实例</h3>
-            <span className="text-sm text-default-500">({instances.length} 个实例)</span>
+            {/* <span className="text-sm text-default-500">({instances.length} 个实例)</span> */}
             {/* 类型和状态提示 */}
             {/* <div className="flex items-center gap-3 text-tiny">
               <div className="flex items-center gap-1 text-default-500">
@@ -1172,21 +1200,11 @@ export default function EndpointDetailPage() {
               {instances.map((ins) => (
                 <Card 
                   key={ins.instanceId} 
-                  className={`h-[100px] shadow-none border-1 transition-all cursor-pointer relative ${
+                  className={`h-[100px] shadow-none border-1 transition-all relative ${
                     ins.type === 'server' 
                       ? 'bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-700' 
                       : 'bg-secondary-50 border-secondary-200'
                   }`}
-                  isPressable
-                  onPress={() => {
-                    // 复制实例ID到剪贴板
-                    navigator.clipboard.writeText(ins.instanceId);
-                    addToast({
-                      title: "已复制",
-                      description: `实例ID: ${ins.instanceId}`,
-                      color: "success"
-                    });
-                  }}
                 >
                   {/* 状态指示器 */}
                   {getInstanceStatusIndicator(ins.status)}
@@ -1308,6 +1326,8 @@ export default function EndpointDetailPage() {
                     value={configForm.name}
                     onValueChange={(value) => setConfigForm(prev => ({...prev, name: value}))}
                     isRequired
+                    maxLength={25}
+                    endContent={<span className="text-xs text-default-500">{configForm.name.length}/25</span>}
                   />
                   
                   <Input

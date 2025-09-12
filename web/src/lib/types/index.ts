@@ -119,7 +119,7 @@ export interface Endpoint {
 }
 
 export interface Tunnel {
-  id: string;
+  id: number;
   name: string;
   endpointId: string;
   endpointName?: string; // 主控名称

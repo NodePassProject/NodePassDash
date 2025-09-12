@@ -55,7 +55,7 @@ type Tunnel struct {
 	Password      *string      `json:"password,omitempty" gorm:"type:text;column:password"`
 	InstanceID    *string      `json:"instanceId,omitempty" gorm:"type:text;index;column:instance_id;uniqueIndex:idx_tunnel_unique"`
 	Restart       *bool        `json:"restart" gorm:"type:bool;column:restart"`
-	Mode          *TunnelMode  `json:"mode,omitempty" gorm:"type:text;column:mode"`
+	Mode          *TunnelMode  `json:"mode,omitempty" gorm:"type:int;column:mode"`
 	Rate          *string      `json:"rate,omitempty" gorm:"type:text;column:rate"`
 	Read          *string      `json:"read,omitempty" gorm:"type:text;column:read"`
 

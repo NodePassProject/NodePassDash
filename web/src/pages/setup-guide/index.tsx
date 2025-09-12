@@ -91,7 +91,7 @@ export default function SetupGuidePage() {
       if (response.ok && result.success) {
         addToast({
           title: "设置完成",
-          description: "您的账号信息已成功更新，正在跳转到登录页...",
+          description: "您的账号信息已成功更新",
           color: "success",
         });
 

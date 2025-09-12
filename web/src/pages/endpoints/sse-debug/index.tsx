@@ -13,7 +13,7 @@ import { buildApiUrl } from "@/lib/utils";
 import { LogViewer, LogEntry } from "@/components/ui/log-viewer";
 import { useNodePassSSE } from "@/lib/hooks/use-nodepass-sse";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft } from "@fortawesome/free-solid-svg-icons";
+import { faArrowLeft, faPlug, faPlugCircleXmark } from "@fortawesome/free-solid-svg-icons";
 
 // 主控详情接口定义
 interface EndpointDetail {
@@ -240,7 +240,7 @@ export default function SSEDebugPage() {
                   isDisabled={!endpointDetail}
                   onPress={connect}
                   startContent={
-                    <Icon icon="solar:wifi-router-bold" className="w-4 h-4" />
+                    <FontAwesomeIcon icon={faPlug} />
                   }
                 >
                   连接
@@ -252,7 +252,7 @@ export default function SSEDebugPage() {
                   variant="flat"
                   onPress={disconnect}
                   startContent={
-                    <Icon icon="solar:close-circle-bold" className="w-4 h-4" />
+                    <FontAwesomeIcon icon={faPlugCircleXmark} />
                   }
                 >
                   断开
@@ -272,7 +272,7 @@ export default function SSEDebugPage() {
                   isDisabled={!endpointDetail}
                   onPress={connect}
                   startContent={
-                    <Icon icon="solar:wifi-router-bold" className="w-4 h-4" />
+                    <FontAwesomeIcon icon={faPlug} />
                   }
                 >
                   连接
@@ -284,7 +284,7 @@ export default function SSEDebugPage() {
                   variant="flat"
                   onPress={disconnect}
                   startContent={
-                    <Icon icon="solar:close-circle-bold" className="w-4 h-4" />
+                    <FontAwesomeIcon icon={faPlugCircleXmark} />
                   }
                 >
                   断开
