@@ -18,9 +18,11 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X main.Version={{ .Tag }}
+      - -X main.Version={{ .Version }}
     tags:
       - sqlite_omit_load_extension
+      - sqlite_fts
+      - sqlite_stat4
       
   # Linux ARM64 (aarch64) - 新款ARM服务器、树莓派4 64位
   - id: linux-arm64
@@ -38,9 +40,11 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X main.Version={{ .Tag }}
+      - -X main.Version={{ .Version }}
     tags:
       - sqlite_omit_load_extension
+      - sqlite_fts
+      - sqlite_stat4
       
   # Linux ARMv7 (hard-float) - 树莓派2/3/4 32位、大多数ARM设备
   - id: linux-armv7
@@ -60,9 +64,11 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X main.Version={{ .Tag }}
+      - -X main.Version={{ .Version }}
     tags:
       - sqlite_omit_load_extension
+      - sqlite_fts
+      - sqlite_stat4
       
   # Linux ARMv6 (soft-float) - 树莓派1、老款ARM设备
   - id: linux-armv6
@@ -82,9 +88,11 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X main.Version={{ .Tag }}
+      - -X main.Version={{ .Version }}
     tags:
       - sqlite_omit_load_extension
+      - sqlite_fts
+      - sqlite_stat4
 
   # ==================== Windows 构建 ====================
       
@@ -104,9 +112,11 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X main.Version={{ .Tag }}
+      - -X main.Version={{ .Version }}
     tags:
       - sqlite_omit_load_extension
+      - sqlite_fts
+      - sqlite_stat4
       
   # Windows 386 - 32位Windows系统
   - id: windows-386
@@ -124,9 +134,11 @@ builds:
     ldflags:
       - -s
       - -w
-      - -X main.Version={{ .Tag }}
+      - -X main.Version={{ .Version }}
     tags:
       - sqlite_omit_load_extension
+      - sqlite_fts
+      - sqlite_stat4
 
 archives:
   - format: tar.gz
@@ -152,12 +164,12 @@ release:
   # 自动检测预发布版本 (包含 alpha, beta, rc 等)
   prerelease: auto
   # 发布名称模板
-  name_template: "NodePassDash {{ .Tag }}"
+  name_template: "NodePassDash {{ .Version }}"
   # 允许替换已存在的发布
   replace_existing_draft: true
   # 发布说明
   header: |
-    ## NodePassDash {{ .Tag }}
+    ## NodePassDash {{ .Version }}
     
     ### Feature
     
@@ -175,7 +187,7 @@ release:
     
     ### 🐳 Docker 镜像
     ```bash
-    docker pull ghcr.io/nodepassproject/nodepassdash:{{ .Tag }}
+    docker pull ghcr.io/nodepassproject/nodepassdash:{{ .Version }}
     ```
     
     ### 🔧 使用说明
