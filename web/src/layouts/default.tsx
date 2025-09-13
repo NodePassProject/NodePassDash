@@ -10,7 +10,7 @@ interface DefaultLayoutProps {
 
 export default function DefaultLayout({ children }: DefaultLayoutProps) {
   const { pathname } = useLocation();
-  const isSimpleLayout = pathname === '/login' || pathname === '/oauth-error' || pathname === '/setup-guide';
+  const isSimpleLayout = pathname.replace(/\/$/, '') === '/login' || pathname.replace(/\/$/, '') === '/oauth-error' || pathname.replace(/\/$/, '') === '/setup-guide';
 
   return isSimpleLayout ? (
     // 登录页面和错误页面：简洁布局，无导航栏
