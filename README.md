@@ -2,25 +2,26 @@
   <img src="docs/nodepassdash-logo.svg" alt="NodePassDash" height="80">
 </div>
 
-![Version](https://img.shields.io/badge/version-2.2.1-blue.svg)
+![Version](https://img.shields.io/badge/version-3.0.0-blue.svg)
 ![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)
 
 NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + React + Vite、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
 
-> **⚠️ 重大版本升级通知**  
-> **version 2.x 是一个重大的架构迁移版本！** 从 Node.js 后端完全重构为 Go 后端，带来了更高的性能和稳定性。 
-> 
-> ***升级前请务必备份好你的数据！*** 新版本支持数据迁移，但建议在安全的环境中先进行测试。
+> **⚠️ 重大版本升级通知**
+> **version 3.x 是一个重大版本更新！** 核心架构全面重构，从 Next.js 迁移至 Vite，后端升级至 GORM + Gin 架构。
+>
+> ***此版本不向下兼容，升级前请务必备份/导出主控数据，建议全新创建主控避免旧数据的影响！***
 
 ## ✨ 主要特性
 
-- 🚀 **高性能 Go 后端**: 完全重构的 Go 后端，性能提升 300%+，内存占用降低 60%
-- 🎯 **实时监控**: 通过 Server-Sent Events (SSE) 实现实时隧道状态更新
-- 📊 **流量统计**: 可视化显示隧道流量数据和性能指标
-- 🎨 **现代UI**: 基于 HeroUI 的响应式设计，支持深色/浅色主题
-- 📱 **移动适配**: 完整的移动端响应式布局，支持各种设备访问
-- 🐳 **容器化**: 开箱即用的 Docker 部署方案
-- 🔧 **命令行工具**: 支持密码重置和自定义端口等管理功能
+- 🚀 **架构全新升级**: 从 Next.js 迁移至 Vite，构建速度显著提升；后端升级至 GORM + Gin 架构
+- 🎯 **实时监控升级**: 通过 SSE 实时推送隧道状态、流量数据和日志信息
+- 📊 **数据可视化增强**: 支持多时间段切换（24h/12h/6h/1h）和图表放大查看
+- 🎨 **个性化配置**: 新增个性化配置按钮，支持隐私设置、新手模式等
+- 🎬 **场景化创建**: 参考 iOS 版本设计，提供场景化隧道创建体验
+- 🔍 **网络诊断工具**: 内置网络调试和诊断功能，方便问题排查
+- 📱 **移动端APP联动**: 增加适配移动端APP的二维码导入显示
+- 🐳 **Docker 优化**: 多阶段构建，支持多架构部署
 
 ## 📸 界面预览
 
@@ -75,7 +76,7 @@ NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + Rea
 
 ## 🔧 命令行工具
 
-NodePassDash v2.0.0 提供了命令行参数来管理和配置应用：
+NodePassDash v3.0.0 提供了命令行参数来管理和配置应用：
 
 ### 基本参数
 
