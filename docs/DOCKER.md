@@ -49,7 +49,7 @@ docker logs nodepassdash | grep -A 6 "系统初始化完成"
 默认情况下，使用ipv4:
 ```bash
 # 1. 下载 Docker Compose 文件并重命名
-wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-compose.release.yml -O docker-compose.yml
+wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-compose.yml -O docker-compose.yml
 
 # 2. 创建必要目录
 mkdir -p logs public && chmod 777 logs public
@@ -82,14 +82,14 @@ systemctl daemon-reload && systemctl restart docker
 # 1. 创建ipv6网络 (如果未创建)
 docker network create --ipv6 --subnet 2001:db8::/64 ipv6net
 # 2. 下载 Docker Compose v6版文件并重命名
-wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-compose.releasev6.yml -O docker-compose.yml
+wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-compose-v6.yml -O docker-compose.yml
 # 3. 启动服务
 docker compose up -d
 ```
 方式二：使用docker-compose启动时自动创建ipv6网络
 ```bash
 # 1. 下载 Docker Compose v6版文件并重命名
-wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-compose.releasev6-create.yml -O docker-compose.yml
+wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-compose-v6-create.yml -O docker-compose.yml
 # 2. 启动服务
 docker compose up -d
 ```

@@ -253,9 +253,10 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		if req.Min != nil {
 			queryParams = append(queryParams, fmt.Sprintf("min=%d", *req.Min))
 		}
-		if req.Max != nil {
-			queryParams = append(queryParams, fmt.Sprintf("max=%d", *req.Max))
-		}
+	}
+	// Max 参数对服务端和客户端都适用
+	if req.Max != nil {
+		queryParams = append(queryParams, fmt.Sprintf("max=%d", *req.Max))
 	}
 
 	// 添加新的字段到命令行
@@ -266,7 +267,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		queryParams = append(queryParams, fmt.Sprintf("read=%s", *req.Read))
 	}
 	if req.Rate != nil {
-		queryParams = append(queryParams, fmt.Sprintf("rate=%s", *req.Rate))
+		queryParams = append(queryParams, fmt.Sprintf("rate=%d", *req.Rate))
 	}
 
 	if len(queryParams) > 0 {
@@ -1017,19 +1018,23 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		if req.Min != nil {
 			queryParams = append(queryParams, fmt.Sprintf("min=%d", *req.Min))
 		}
-		if req.Max != nil {
-			queryParams = append(queryParams, fmt.Sprintf("max=%d", *req.Max))
-		}
+	}
+	// Max 参数对服务端和客户端都适用
+	if req.Max != nil {
+		queryParams = append(queryParams, fmt.Sprintf("max=%d", *req.Max))
 	}
 	// 添加新的字段到命令行
 	if req.Mode != nil {
-		queryParams = append(queryParams, fmt.Sprintf("mode=%s", *req.Mode))
+		queryParams = append(queryParams, fmt.Sprintf("mode=%d", *req.Mode))
 	}
 	if req.Read != nil {
 		queryParams = append(queryParams, fmt.Sprintf("read=%s", *req.Read))
 	}
 	if req.Rate != nil {
-		queryParams = append(queryParams, fmt.Sprintf("rate=%s", *req.Rate))
+		queryParams = append(queryParams, fmt.Sprintf("rate=%d", *req.Rate))
+	}
+	if req.Slot != nil {
+		queryParams = append(queryParams, fmt.Sprintf("slot=%d", *req.Slot))
 	}
 
 	if len(queryParams) > 0 {
@@ -1072,11 +1077,33 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 	if waitSuccess {
 		log.Infof("[API] 等待SSE成功，更新隧道名称为: %s", req.Name)
 
-		// 3. 更新隧道名称为指定的名称
-		err = s.db.Model(&models.Tunnel{}).Where("id = ?", tunnelID).Updates(map[string]interface{}{
+		// 3. 更新隧道字段（包括名称和其他配置字段）
+		updateFields := map[string]interface{}{
 			"name":       req.Name,
 			"updated_at": now,
-		}).Error
+		}
+		
+		// 添加可选配置字段
+		if req.Min != nil {
+			updateFields["min"] = int64(*req.Min)
+		}
+		if req.Max != nil {
+			updateFields["max"] = int64(*req.Max)
+		}
+		if req.Slot != nil {
+			updateFields["slot"] = int64(*req.Slot)
+		}
+		if req.Rate != nil {
+			updateFields["rate"] = int64(*req.Rate)
+		}
+		if req.Mode != nil {
+			updateFields["mode"] = int(*req.Mode)
+		}
+		if req.Read != nil {
+			updateFields["read"] = *req.Read
+		}
+		
+		err = s.db.Model(&models.Tunnel{}).Where("id = ?", tunnelID).Updates(updateFields).Error
 		if err != nil {
 			log.Warnf("[API] 更新隧道名称失败: %v", err)
 		}
@@ -1530,9 +1557,10 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string
 			}
 			return nil
 		}(),
-		Rate: func() *string {
+		Rate: func() *int {
 			if parsedTunnel.Rate != nil {
-				return parsedTunnel.Rate
+				rate := int(*parsedTunnel.Rate)
+				return &rate
 			}
 			return nil
 		}(),
@@ -1582,9 +1610,10 @@ func (s *Service) QuickCreateTunnelAndWait(endpointID int64, rawURL string, name
 		readVal = parsedTunnel.Read
 	}
 
-	var rateVal *string
+	var rateVal *int
 	if parsedTunnel.Rate != nil {
-		rateVal = parsedTunnel.Rate
+		rate := int(*parsedTunnel.Rate)
+		rateVal = &rate
 	}
 
 	req := CreateTunnelRequest{
@@ -2345,7 +2374,7 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 			t.id, t.name, t.endpoint_id, t.type, t.tunnel_address, t.tunnel_port, 
 			t.target_address, t.target_port, t.tls_mode, t.log_level, t.status, 
 			t.created_at, t.updated_at, t.min, t.max, t.password, t.restart, 
-			t.pool, t.ping, t.instance_id, t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.mode, t.read, t.rate
+			t.pool, t.ping, t.instance_id, t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.mode, t.read, t.rate, t.slot
 	`
 
 	// 执行主查询
@@ -2370,7 +2399,7 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 			&tunnel.Min, &tunnel.Max, &tunnel.Password, &tunnel.Restart,
 			&tunnel.Pool, &tunnel.Ping, &tunnel.InstanceID,
 			&tunnel.TCPRx, &tunnel.TCPTx, &tunnel.UDPRx, &tunnel.UDPTx,
-			&tunnel.Mode, &tunnel.Read, &tunnel.Rate,
+			&tunnel.Mode, &tunnel.Read, &tunnel.Rate, &tunnel.Slot,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("扫描隧道数据失败: %v", err)

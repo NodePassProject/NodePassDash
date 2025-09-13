@@ -281,13 +281,13 @@ export default function CreateTunnelPage() {
             const supportsPassword = selectedEndpoint ? isVersionSupportsPassword(selectedEndpoint.version) : false;
             return supportsPassword && formData.password ? formData.password : undefined;
           })(),
-          min: formData.type === 'client' && formData.min ? formData.min : undefined,
+          min: formData.type === 'client' && formData.min ? parseInt(formData.min) : undefined,
           max: (() => {
-            if (formData.type === 'client' && formData.max !== '') return formData.max;
-            if (formData.type === 'server' && formData.max !== '') return formData.max;
+            if (formData.type === 'client' && formData.max !== '') return parseInt(formData.max);
+            if (formData.type === 'server' && formData.max !== '') return parseInt(formData.max);
             return undefined;
           })(),
-          slot: formData.slot ? formData.slot : undefined,
+          slot: formData.slot ? parseInt(formData.slot) : undefined,
           // 新增字段
           mode: formData.mode || undefined, // 修复：使用正确的字段名
           read: (() => {
@@ -296,7 +296,7 @@ export default function CreateTunnelPage() {
             }
             return undefined;
           })(),
-          rate: formData.rate || undefined,
+          rate: formData.rate ? parseInt(formData.rate) : undefined,
         }),
       });
 

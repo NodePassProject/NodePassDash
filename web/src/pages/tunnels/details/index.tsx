@@ -247,9 +247,9 @@ const getTunnelModeText = (type: string, modeValue?: number | null): string => {
       case 0:
         return "自动检测";
       case 1:
-        return "强制反向";
+        return "反向转发";
       case 2:
-        return "强制正向";
+        return "正向转发";
       default:
         return `未知模式(${modeValue})`;
     }

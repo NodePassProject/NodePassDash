@@ -176,12 +176,12 @@ func (h *TunnelHandler) HandleCreateTunnel(c *gin.Context) {
 		KeyPath        string          `json:"keyPath"`
 		LogLevel       string          `json:"logLevel"`
 		Password       string          `json:"password"`
-		Min            json.RawMessage `json:"min"`
-		Max            json.RawMessage `json:"max"`
-		Slot           json.RawMessage `json:"slot"`                       // 新增：最大连接数限制
+		Min            *int            `json:"min,omitempty"`
+		Max            *int            `json:"max,omitempty"`
+		Slot           *int            `json:"slot,omitempty"`             // 新增：最大连接数限制
 		Mode           *int            `json:"mode,omitempty"`             // 新增：运行模式 (0, 1, 2)
 		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
-		Rate           *string         `json:"rate,omitempty"`             // 新增：带宽速率限制
+		Rate           *int            `json:"rate,omitempty"`             // 新增：带宽速率限制
 		EnableSSEStore *bool           `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
 		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
 	}
@@ -194,28 +194,21 @@ func (h *TunnelHandler) HandleCreateTunnel(c *gin.Context) {
 		return
 	}
 
-	// 解析整数工具（针对 min/max 字段，允许字符串或数字）
-	// 返回值：第一个int是解析结果，第二个bool表示是否有值（区分nil和0），第三个error是解析错误
-	parseIntFieldWithFlag := func(j json.RawMessage) (int, bool, error) {
+
+	// 端口解析函数
+	parseIntField := func(j json.RawMessage) (int, error) {
 		if j == nil {
-			return 0, false, nil // 返回false表示字段未设置
+			return 0, fmt.Errorf("字段为空")
 		}
 		var i int
 		if err := json.Unmarshal(j, &i); err == nil {
-			return i, true, nil // 返回true表示字段有值
+			return i, nil
 		}
 		var s string
 		if err := json.Unmarshal(j, &s); err == nil {
-			val, err := strconv.Atoi(s)
-			return val, true, err
+			return strconv.Atoi(s)
 		}
-		return 0, false, strconv.ErrSyntax
-	}
-
-	// 为了兼容性，保留原函数用于端口解析
-	parseIntField := func(j json.RawMessage) (int, error) {
-		val, _, err := parseIntFieldWithFlag(j)
-		return val, err
+		return 0, fmt.Errorf("无法解析为整数")
 	}
 
 	tunnelPort, err1 := parseIntField(raw.TunnelPort)
@@ -228,29 +221,7 @@ func (h *TunnelHandler) HandleCreateTunnel(c *gin.Context) {
 		return
 	}
 
-	// 解析min/max/slot字段，区分未设置和设置为0的情况
-	minVal, minSet, err3 := parseIntFieldWithFlag(raw.Min)
-	maxVal, maxSet, err4 := parseIntFieldWithFlag(raw.Max)
-	slotVal, slotSet, err5 := parseIntFieldWithFlag(raw.Slot)
-	if err3 != nil || err4 != nil || err5 != nil {
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
-			Success: false,
-			Error:   "min/max/slot 参数格式错误，应为数字",
-		})
-		return
-	}
-
-	// 根据设置情况决定是否使用指针
-	var minPtr, maxPtr, slotPtr *int
-	if minSet {
-		minPtr = &minVal
-	}
-	if maxSet {
-		maxPtr = &maxVal
-	}
-	if slotSet {
-		slotPtr = &slotVal
-	}
+	// min/max/slot 字段现在直接作为 *int 类型接收
 
 	// 处理新增字段的默认值
 	enableSSEStore := true
@@ -282,9 +253,9 @@ func (h *TunnelHandler) HandleCreateTunnel(c *gin.Context) {
 		KeyPath:        raw.KeyPath,
 		LogLevel:       tunnel.LogLevel(raw.LogLevel),
 		Password:       raw.Password,
-		Min:            minPtr,
-		Max:            maxPtr,
-		Slot:           slotPtr,        // 新增：最大连接数限制
+		Min:            raw.Min,
+		Max:            raw.Max,
+		Slot:           raw.Slot,       // 新增：最大连接数限制
 		Mode:           modePtr,        // 新增：运行模式
 		Read:           raw.Read,       // 新增：数据读取超时时间
 		Rate:           raw.Rate,       // 新增：带宽速率限制
@@ -558,12 +529,12 @@ func (h *TunnelHandler) HandleUpdateTunnel(c *gin.Context) {
 		KeyPath        string          `json:"keyPath"`
 		LogLevel       string          `json:"logLevel"`
 		Password       string          `json:"password"`
-		Min            json.RawMessage `json:"min"`
-		Max            json.RawMessage `json:"max"`
-		Slot           json.RawMessage `json:"slot"`                       // 新增：最大连接数限制
+		Min            *int            `json:"min,omitempty"`
+		Max            *int            `json:"max,omitempty"`
+		Slot           *int            `json:"slot,omitempty"`             // 新增：最大连接数限制
 		Mode           *string         `json:"mode,omitempty"`             // 新增：运行模式
 		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
-		Rate           *string         `json:"rate,omitempty"`             // 新增：带宽速率限制
+		Rate           *int            `json:"rate,omitempty"`             // 新增：带宽速率限制
 		EnableSSEStore *bool           `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
 		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
 	}
@@ -592,40 +563,25 @@ func (h *TunnelHandler) HandleUpdateTunnel(c *gin.Context) {
 		}
 		log.Infof("[Master-%v] 编辑实例=>删除旧实例: %v", rawCreate.EndpointID, instanceID)
 
-		// 工具函数解析 int 字段（复用上面定义的函数逻辑）
-		parseIntFieldLocal := func(j json.RawMessage) (int, bool, error) {
+		// 端口解析函数（复用逻辑）
+		parseIntFieldLocal := func(j json.RawMessage) (int, error) {
 			if j == nil {
-				return 0, false, nil
+				return 0, fmt.Errorf("字段为空")
 			}
 			var i int
 			if err := json.Unmarshal(j, &i); err == nil {
-				return i, true, nil
+				return i, nil
 			}
 			var s string
 			if err := json.Unmarshal(j, &s); err == nil {
-				val, err := strconv.Atoi(s)
-				return val, true, err
+				return strconv.Atoi(s)
 			}
-			return 0, false, strconv.ErrSyntax
+			return 0, fmt.Errorf("无法解析为整数")
 		}
 
-		tunnelPort, _, _ := parseIntFieldLocal(rawCreate.TunnelPort)
-		targetPort, _, _ := parseIntFieldLocal(rawCreate.TargetPort)
-		minVal, minSet, _ := parseIntFieldLocal(rawCreate.Min)
-		maxVal, maxSet, _ := parseIntFieldLocal(rawCreate.Max)
-		slotVal, slotSet, _ := parseIntFieldLocal(rawCreate.Slot)
-
-		// 根据设置情况决定是否使用指针
-		var minPtr, maxPtr, slotPtr *int
-		if minSet {
-			minPtr = &minVal
-		}
-		if maxSet {
-			maxPtr = &maxVal
-		}
-		if slotSet {
-			slotPtr = &slotVal
-		}
+		tunnelPort, _ := parseIntFieldLocal(rawCreate.TunnelPort)
+		targetPort, _ := parseIntFieldLocal(rawCreate.TargetPort)
+		// min/max/slot 字段现在直接作为 *int 类型接收
 
 		// 处理新增字段的默认值
 		enableSSEStore := true
@@ -660,9 +616,9 @@ func (h *TunnelHandler) HandleUpdateTunnel(c *gin.Context) {
 			KeyPath:        rawCreate.KeyPath,
 			LogLevel:       tunnel.LogLevel(rawCreate.LogLevel),
 			Password:       rawCreate.Password,
-			Min:            minPtr,
-			Max:            maxPtr,
-			Slot:           slotPtr,        // 新增：最大连接数限制
+			Min:            rawCreate.Min,
+			Max:            rawCreate.Max,
+			Slot:           rawCreate.Slot, // 新增：最大连接数限制
 			Mode:           modePtr,        // 新增：运行模式
 			Read:           rawCreate.Read, // 新增：数据读取超时时间
 			Rate:           rawCreate.Rate, // 新增：带宽速率限制
@@ -1025,16 +981,17 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		Min             sql.NullInt64
 		Max             sql.NullInt64
 		Restart         bool
-		Mode            sql.NullString
+		Mode            sql.NullInt64
 		Read            sql.NullString
-		Rate            sql.NullString
+		Rate            sql.NullInt64
+		Slot            sql.NullInt64
 	}
 
 	query := `SELECT t.id, t.instance_id, t.name, t.type, t.status, t.endpoint_id,
 		   e.name, e.tls, e.log, e.ver, t.tunnel_port, t.target_port, t.tls_mode, t.log_level,
 		   t.tunnel_address, t.target_address, t.command_line, t.password, t.cert_path, t.key_path,
 		   t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.pool, t.ping, t.tcps, t.udps,
-		   t.min, t.max, ifnull(t.restart, 0), t.mode, t.read, t.rate
+		   t.min, t.max, ifnull(t.restart, 0), t.mode, t.read, t.rate, t.slot
 		   FROM tunnels t
 		   LEFT JOIN endpoints e ON t.endpoint_id = e.id
 		   WHERE t.id = ?`
@@ -1073,6 +1030,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		&tunnelRecord.Mode,
 		&tunnelRecord.Read,
 		&tunnelRecord.Rate,
+		&tunnelRecord.Slot,
 	); err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "隧道不存在"})
@@ -1134,17 +1092,13 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 	targetPort, _ := strconv.Atoi(tunnelRecord.TargetPort)
 
 	// 处理新字段的NULL值
-	mode := ""
-	if tunnelRecord.Mode.Valid {
-		mode = tunnelRecord.Mode.String
-	}
+	// var mode int
+	// if tunnelRecord.Mode.Valid {
+	// 	mode = tunnelRecord.Mode
+	// }
 	read := ""
 	if tunnelRecord.Read.Valid {
 		read = tunnelRecord.Read.String
-	}
-	rate := ""
-	if tunnelRecord.Rate.Valid {
-		rate = tunnelRecord.Rate.String
 	}
 
 	// 2. 组装响应（不再包含日志数据）
@@ -1185,9 +1139,25 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 					return nil
 				}(),
 				"restart": tunnelRecord.Restart,
-				"mode":    mode, // 新增字段
-				"read":    read, // 新增字段
-				"rate":    rate, // 新增字段
+				"mode": func() interface{} {
+					if tunnelRecord.Mode.Valid {
+						return tunnelRecord.Mode.Int64
+					}
+					return nil
+				}(),
+				"read": read,
+				"rate": func() interface{} {
+					if tunnelRecord.Rate.Valid {
+						return tunnelRecord.Rate.Int64
+					}
+					return nil
+				}(),
+				"slot": func() interface{} {
+					if tunnelRecord.Slot.Valid {
+						return tunnelRecord.Slot.Int64
+					}
+					return nil
+				}(),
 			},
 			"traffic": map[string]interface{}{
 				"tcpRx": tunnelRecord.TCPRx,
@@ -1366,6 +1336,9 @@ func (h *TunnelHandler) HandleTunnelFileLogs(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
+	
+	// Debug: 添加调试日志
+	log.Infof("[DEBUG] 文件日志查询 - instanceID: %s, endpointID: %d, date: %s", idStr, endpointID, dateStr)
 
 	// 检查是否有FileLogger
 	if h.sseManager == nil || h.sseManager.GetFileLogger() == nil {
@@ -2986,20 +2959,20 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 		EndpointID     int64           `json:"endpointId"`
 		Type           string          `json:"type"`
 		TunnelAddress  string          `json:"tunnelAddress"`
-		TunnelPort     json.RawMessage `json:"tunnelPort"`
+		TunnelPort     string          `json:"tunnelPort"`
 		TargetAddress  string          `json:"targetAddress"`
-		TargetPort     json.RawMessage `json:"targetPort"`
+		TargetPort     string          `json:"targetPort"`
 		TLSMode        string          `json:"tlsMode"`
 		CertPath       string          `json:"certPath"`
 		KeyPath        string          `json:"keyPath"`
 		LogLevel       string          `json:"logLevel"`
 		Password       string          `json:"password"`
-		Min            json.RawMessage `json:"min"`
-		Max            json.RawMessage `json:"max"`
-		Slot           json.RawMessage `json:"slot"`                       // 新增：最大连接数限制
-		Mode           *string         `json:"mode,omitempty"`             // 新增：运行模式
+		Min            *int            `json:"min,omitempty"`
+		Max            *int            `json:"max,omitempty"`
+		Slot           *int            `json:"slot,omitempty"`             // 新增：最大连接数限制
+		Mode           *int            `json:"mode,omitempty"`             // 新增：运行模式
 		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
-		Rate           *string         `json:"rate,omitempty"`             // 新增：带宽速率限制
+		Rate           *int            `json:"rate,omitempty"`             // 新增：带宽速率限制
 		EnableSSEStore *bool           `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
 		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
 		ResetTraffic   bool            `json:"resetTraffic"`               // 新增：是否重置流量统计
@@ -3009,25 +2982,9 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 		return
 	}
 
-	// 工具函数解析 int 字段（复用前面定义的函数逻辑）
-	parseIntV2 := func(j json.RawMessage) (int, bool, error) {
-		if j == nil {
-			return 0, false, nil
-		}
-		var i int
-		if err := json.Unmarshal(j, &i); err == nil {
-			return i, true, nil
-		}
-		var s string
-		if err := json.Unmarshal(j, &s); err == nil {
-			val, err := strconv.Atoi(s)
-			return val, true, err
-		}
-		return 0, false, strconv.ErrSyntax
-	}
-
-	tunnelPort, _, err1 := parseIntV2(raw.TunnelPort)
-	targetPort, _, err2 := parseIntV2(raw.TargetPort)
+	// 直接解析端口字符串
+	tunnelPort, err1 := strconv.Atoi(raw.TunnelPort)
+	targetPort, err2 := strconv.Atoi(raw.TargetPort)
 	if err1 != nil || err2 != nil {
 		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "端口号格式错误，应为数字"})
 		return
@@ -3062,29 +3019,24 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 			queryParams = append(queryParams, fmt.Sprintf("crt=%s", url.QueryEscape(raw.CertPath)), fmt.Sprintf("key=%s", url.QueryEscape(raw.KeyPath)))
 		}
 	}
-	if raw.Type == "client" {
-		// 处理 min/max/slot，区分未设置状态
-		minVal, minSet, _ := parseIntV2(raw.Min)
-		maxVal, maxSet, _ := parseIntV2(raw.Max)
-		slotVal, slotSet, _ := parseIntV2(raw.Slot)
-		if !minSet {
-			minVal = -1
-		}
-		if !maxSet {
-			maxVal = -1
-		}
-		if !slotSet {
-			slotVal = -1
-		}
-		if minVal >= 0 {
-			queryParams = append(queryParams, fmt.Sprintf("min=%d", minVal))
-		}
-		if maxVal >= 0 {
-			queryParams = append(queryParams, fmt.Sprintf("max=%d", maxVal))
-		}
-		if slotVal >= 0 {
-			queryParams = append(queryParams, fmt.Sprintf("slot=%d", slotVal))
-		}
+	// 处理通用参数
+	if raw.Min != nil {
+		queryParams = append(queryParams, fmt.Sprintf("min=%d", *raw.Min))
+	}
+	if raw.Max != nil {
+		queryParams = append(queryParams, fmt.Sprintf("max=%d", *raw.Max))
+	}
+	if raw.Slot != nil {
+		queryParams = append(queryParams, fmt.Sprintf("slot=%d", *raw.Slot))
+	}
+	if raw.Mode != nil {
+		queryParams = append(queryParams, fmt.Sprintf("mode=%d", *raw.Mode))
+	}
+	if raw.Read != nil && *raw.Read != "" {
+		queryParams = append(queryParams, fmt.Sprintf("read=%s", *raw.Read))
+	}
+	if raw.Rate != nil {
+		queryParams = append(queryParams, fmt.Sprintf("rate=%d", *raw.Rate))
 	}
 	if len(queryParams) > 0 {
 		commandLine += "?" + strings.Join(queryParams, "&")
@@ -3118,20 +3070,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 				return
 			}
 
-			// 重新创建，处理min/max/slot未设置状态
-			minVal, minSet, _ := parseIntV2(raw.Min)
-			maxVal, maxSet, _ := parseIntV2(raw.Max)
-			slotVal, slotSet, _ := parseIntV2(raw.Slot)
-			var minPtr, maxPtr, slotPtr *int
-			if minSet {
-				minPtr = &minVal
-			}
-			if maxSet {
-				maxPtr = &maxVal
-			}
-			if slotSet {
-				slotPtr = &slotVal
-			}
+			// 重新创建，直接使用指针类型
 			// 处理新增字段的默认值
 			enableSSEStore := true
 			if raw.EnableSSEStore != nil {
@@ -3146,10 +3085,8 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 			// 处理Mode字段的类型转换
 			var modePtr *tunnel.TunnelMode
 			if raw.Mode != nil {
-				if modeInt, err := strconv.Atoi(*raw.Mode); err == nil {
-					mode := tunnel.TunnelMode(modeInt)
-					modePtr = &mode
-				}
+				mode := tunnel.TunnelMode(*raw.Mode)
+				modePtr = &mode
 			}
 
 			createReq := tunnel.CreateTunnelRequest{
@@ -3165,9 +3102,9 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 				KeyPath:        raw.KeyPath,
 				LogLevel:       tunnel.LogLevel(raw.LogLevel),
 				Password:       raw.Password,
-				Min:            minPtr,
-				Max:            maxPtr,
-				Slot:           slotPtr,        // 新增：最大连接数限制
+				Min:            raw.Min,
+				Max:            raw.Max,
+				Slot:           raw.Slot,       // 新增：最大连接数限制
 				Mode:           modePtr,        // 新增：运行模式
 				Read:           raw.Read,       // 新增：数据读取超时时间
 				Rate:           raw.Rate,       // 新增：带宽速率限制
@@ -3202,19 +3139,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 	}
 
 	if !success {
-		// 超时，直接更新本地数据库，处理min/max/slot未设置状态
-		minVal, minSet, _ := parseIntV2(raw.Min)
-		maxVal, maxSet, _ := parseIntV2(raw.Max)
-		slotVal, slotSet, _ := parseIntV2(raw.Slot)
-		if !minSet {
-			minVal = -1
-		}
-		if !maxSet {
-			maxVal = -1
-		}
-		if !slotSet {
-			slotVal = -1
-		}
+		// 超时，直接更新本地数据库，处理min/max/slot字段
 		// 构建新字段的更新值
 		var modeVal interface{}
 		if raw.Mode != nil {
@@ -3249,24 +3174,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 
 		_, _ = h.tunnelService.DB().Exec(`UPDATE tunnels SET name = ?, mode = ?, tunnel_address = ?, tunnel_port = ?, target_address = ?, target_port = ?, tls_mode = ?, cert_path = ?, key_path = ?, log_level = ?, command_line = ?, min = ?, max = ?, slot = ?, status = ?, updated_at = ?, read = ?, rate = ?, enable_sse_store = ?, enable_log_store = ? WHERE id = ?`,
 			raw.Name, modeVal, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine,
-			func() interface{} {
-				if minVal >= 0 {
-					return minVal
-				}
-				return nil
-			}(),
-			func() interface{} {
-				if maxVal >= 0 {
-					return maxVal
-				}
-				return nil
-			}(),
-			func() interface{} {
-				if slotVal >= 0 {
-					return slotVal
-				}
-				return nil
-			}(),
+			raw.Min, raw.Max, raw.Slot,
 			"running", time.Now(), readVal, rateVal, enableSSEStore, enableLogStore, tunnelID)
 	}
 

@@ -332,7 +332,7 @@ type InstanceResult struct {
 }
 
 type patchBody struct {
-	Restart bool   `json:"restart,omitempty"`
+	Restart bool   `json:"restart"`
 	Action  string `json:"action,omitempty"` // start|stop|restart|reset
 	Alias   string `json:"alias,omitempty"`
 }

@@ -182,7 +182,9 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 				}
 			case "rate":
 				if val != "" {
-					tunnel.Rate = &val
+					if rateVal, err := strconv.ParseInt(val, 10, 64); err == nil {
+						tunnel.Rate = &rateVal
+					}
 				}
 			case "slot":
 				if slotVal, err := strconv.ParseInt(val, 10, 64); err == nil {

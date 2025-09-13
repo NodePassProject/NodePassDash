@@ -118,7 +118,7 @@ type CreateTunnelRequest struct {
 	Restart        bool        `json:"restart"`
 	Mode           *TunnelMode `json:"mode,omitempty"`
 	Read           *string     `json:"read,omitempty"`
-	Rate           *string     `json:"rate,omitempty"`
+	Rate           *int        `json:"rate,omitempty"`
 	Slot           *int        `json:"slot,omitempty"`
 	EnableSSEStore bool        `json:"enable_sse_store,omitempty"`
 	EnableLogStore bool        `json:"enable_log_store,omitempty"`
@@ -216,7 +216,7 @@ type UpdateTunnelRequest struct {
 	Restart        bool        `json:"restart"`
 	Mode           *TunnelMode `json:"mode,omitempty"`
 	Read           *string     `json:"read,omitempty"`
-	Rate           *string     `json:"rate,omitempty"`
+	Rate           *int        `json:"rate,omitempty"`
 	Slot           *int        `json:"slot,omitempty"`
 	EnableSSEStore bool        `json:"enable_sse_store,omitempty"`
 	EnableLogStore bool        `json:"enable_log_store,omitempty"`

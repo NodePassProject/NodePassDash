@@ -267,17 +267,17 @@ export default function SimpleCreateTunnelModal({
             type === "server" && tlsMode === "2" ? keyPath.trim() : undefined,
           logLevel: logLevel || undefined,
           password: password || undefined,
-          min: type === "client" && min !== "" ? min : undefined,
+          min: type === "client" && min !== "" ? parseInt(min) : undefined,
           max:
             (type === "client" && max !== "") ||
             (type === "server" && max !== "")
-              ? max
+              ? parseInt(max)
               : undefined,
-          slot: slot !== "" ? slot : undefined,
+          slot: slot !== "" ? parseInt(slot) : undefined,
           // 新增字段
           mode: mode != null ? Number(mode) : undefined,
           read: read || undefined,
-          rate: rate || undefined,
+          rate: rate !== "" ? parseInt(rate) : undefined,
           resetTraffic: modalMode === "edit" ? resetChecked : undefined,
         }),
       });
@@ -651,7 +651,7 @@ export default function SimpleCreateTunnelModal({
                         className="overflow-hidden"
                       >
                         <div className="space-y-4">
-                          {(formData.type === "client"&&formData.mode === "2") && (
+                          {(formData.type === "client"&&formData.mode === 2) && (
                             <div className={`grid grid-cols-2 gap-2`} >
                               {renderPasswordInput()}
                               <Input

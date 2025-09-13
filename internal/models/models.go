@@ -56,7 +56,7 @@ type Tunnel struct {
 	InstanceID    *string      `json:"instanceId,omitempty" gorm:"type:text;index;column:instance_id;uniqueIndex:idx_tunnel_unique"`
 	Restart       *bool        `json:"restart" gorm:"type:bool;column:restart"`
 	Mode          *TunnelMode  `json:"mode,omitempty" gorm:"type:int;column:mode"`
-	Rate          *string      `json:"rate,omitempty" gorm:"type:text;column:rate"`
+	Rate          *int64       `json:"rate,omitempty" gorm:"type:int;column:rate"`
 	Read          *string      `json:"read,omitempty" gorm:"type:text;column:read"`
 
 	EnableLogStore bool `json:"enable_log_store,omitempty" gorm:"default:true;type:bool;column:enable_log_store"`

@@ -137,8 +137,13 @@ func (fl *FileLogger) ReadLogs(endpointID int64, instanceID string, date time.Ti
 	fileName := fmt.Sprintf("%s.log", date.Format("2006-01-02"))
 	filePath := filepath.Join(fl.baseDir, fmt.Sprintf("endpoint_%d", endpointID), instanceID, fileName)
 
+	// Debug: 添加调试日志
+	fmt.Printf("[DEBUG] ReadLogs - baseDir: %s, endpointID: %d, instanceID: %s, fileName: %s, filePath: %s\n", 
+		fl.baseDir, endpointID, instanceID, fileName, filePath)
+
 	// 检查文件是否存在
 	if _, err := os.Stat(filePath); os.IsNotExist(err) {
+		fmt.Printf("[DEBUG] ReadLogs - 文件不存在: %s\n", filePath)
 		return []string{}, nil
 	}
 
