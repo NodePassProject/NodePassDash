@@ -10,14 +10,18 @@ import (
 	"NodePassDash/internal/tag"
 	"NodePassDash/internal/tunnel"
 	"NodePassDash/internal/websocket"
+	"fmt"
+	"io"
 	"net/http"
+	"strings"
+	"time"
 
 	"github.com/gin-gonic/gin"
 	"gorm.io/gorm"
 )
 
 // SetupRouter 创建并配置主路由器
-func SetupRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager, wsService *websocket.Service) *gin.Engine {
+func SetupRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager, wsService *websocket.Service, version string) *gin.Engine {
 	r := gin.Default()
 
 	// 全局中间件
@@ -28,14 +32,17 @@ func SetupRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager, 
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
 
+	// 文档代理路由
+	r.Any("/docs-proxy/*path", docsProxyHandler)
+
 	// API路由
-	setupAPIRoutes(r, db, sseService, sseManager, wsService)
+	setupAPIRoutes(r, db, sseService, sseManager, wsService, version)
 
 	return r
 }
 
 // setupAPIRoutes 设置API路由
-func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager, wsService *websocket.Service) {
+func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager, wsService *websocket.Service, version string) {
 	apiGroup := r.Group("/api")
 	{
 		// 创建服务实例
@@ -58,9 +65,87 @@ func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseMana
 		api.SetupDashboardRoutes(apiGroup, dashboardService)
 		api.SetupDataRoutes(apiGroup, db, sseManager, endpointService, tunnelService)
 		api.SetupTagRoutes(apiGroup, tagService)
-		api.SetupVersionRoutes(apiGroup)
+		api.SetupVersionRoutes(apiGroup, version)
 		api.SetupDebugRoutes(apiGroup)
 	}
+}
+
+// docsProxyHandler 文档代理处理器
+func docsProxyHandler(c *gin.Context) {
+	// 获取路径参数
+	path := c.Param("path")
+	
+	// 构建目标 URL
+	targetURL := fmt.Sprintf("https://raw.githubusercontent.com%s", path)
+	
+	// 创建 HTTP 客户端
+	client := &http.Client{
+		Timeout: 30 * time.Second,
+	}
+	
+	// 创建请求
+	req, err := http.NewRequest(c.Request.Method, targetURL, c.Request.Body)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建请求失败"})
+		return
+	}
+	
+	// 复制请求头（排除某些不需要的头）
+	for name, values := range c.Request.Header {
+		if !shouldSkipHeader(name) {
+			for _, value := range values {
+				req.Header.Add(name, value)
+			}
+		}
+	}
+	
+	// 发送请求
+	resp, err := client.Do(req)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "代理请求失败"})
+		return
+	}
+	defer resp.Body.Close()
+	
+	// 复制响应头
+	for name, values := range resp.Header {
+		if !shouldSkipHeader(name) {
+			for _, value := range values {
+				c.Header(name, value)
+			}
+		}
+	}
+	
+	// 设置状态码
+	c.Status(resp.StatusCode)
+	
+	// 复制响应体
+	_, err = io.Copy(c.Writer, resp.Body)
+	if err != nil {
+		// 日志记录错误，但不再发送响应（因为已经开始写入）
+		fmt.Printf("复制响应体失败: %v\n", err)
+	}
+}
+
+// shouldSkipHeader 检查是否应该跳过某些头部
+func shouldSkipHeader(name string) bool {
+	skipHeaders := []string{
+		"Connection",
+		"Proxy-Connection",
+		"Proxy-Authenticate",
+		"Proxy-Authorization",
+		"Te",
+		"Trailers",
+		"Transfer-Encoding",
+		"Upgrade",
+	}
+	
+	for _, skip := range skipHeaders {
+		if strings.EqualFold(name, skip) {
+			return true
+		}
+	}
+	return false
 }
 
 // corsMiddleware CORS中间件

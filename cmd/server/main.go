@@ -369,7 +369,7 @@ func main() {
 	log.Info("使用 Gin 路由器 (标准架构)")
 	gin.SetMode(gin.ReleaseMode) // 设置为生产模式
 
-	ginRouter := router.SetupRouter(gormDB, sseService, sseManager, wsService)
+	ginRouter := router.SetupRouter(gormDB, sseService, sseManager, wsService, Version)
 
 	// 配置静态文件服务
 	if err := setupStaticFiles(ginRouter); err != nil {

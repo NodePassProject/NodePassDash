@@ -53,10 +53,11 @@ type GitHubRelease struct {
 
 // UpdateInfo 更新信息结构
 type UpdateInfo struct {
-	Current       VersionInfo    `json:"current"`
-	Latest        *GitHubRelease `json:"latest,omitempty"`
-	HasUpdate     bool           `json:"hasUpdate"`
-	UpdateContent string         `json:"updateContent,omitempty"`
+	Current         VersionInfo    `json:"current"`
+	Stable          *GitHubRelease `json:"stable,omitempty"`
+	Beta            *GitHubRelease `json:"beta,omitempty"`
+	HasStableUpdate bool           `json:"hasStableUpdate"`
+	HasBetaUpdate   bool           `json:"hasBetaUpdate"`
 }
 
 // UpdateResult 更新结果结构
@@ -87,7 +88,10 @@ func SetVersion(version string) {
 }
 
 // setupVersionRoutes 设置版本相关路由
-func SetupVersionRoutes(rg *gin.RouterGroup) {
+func SetupVersionRoutes(rg *gin.RouterGroup, version string) {
+	// 设置版本号
+	SetVersion(version)
+	
 	// 创建VersionHandler实例
 	versionHandler := NewVersionHandler()
 
@@ -124,24 +128,60 @@ func (h *VersionHandler) HandleCheckUpdate(c *gin.Context) {
 		Arch:      runtime.GOARCH,
 	}
 
-	// 获取 GitHub 最新发布信息
-	latest, err := h.getLatestRelease()
+	// 获取所有发布信息
+	releases, err := h.getReleaseHistory()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   fmt.Sprintf("获取最新版本失败: %v", err),
+			"error":   fmt.Sprintf("获取版本信息失败: %v", err),
 		})
 		return
 	}
 
+	var stableRelease, betaRelease *GitHubRelease
+
+	// 分离稳定版和测试版
+	for _, release := range releases {
+		if release.Draft {
+			continue // 跳过草稿版本
+		}
+		
+		if release.Prerelease {
+			// 这是测试版
+			if betaRelease == nil {
+				betaRelease = &release
+			}
+		} else {
+			// 这是稳定版
+			if stableRelease == nil {
+				stableRelease = &release
+			}
+		}
+		
+		// 如果都找到了，可以提前结束
+		if stableRelease != nil && betaRelease != nil {
+			break
+		}
+	}
+
 	// 检查是否有更新
-	hasUpdate := h.compareVersions(Version, latest.TagName)
+	hasStableUpdate := false
+	hasBetaUpdate := false
+
+	if stableRelease != nil {
+		hasStableUpdate = h.compareVersions(Version, stableRelease.TagName)
+	}
+
+	if betaRelease != nil {
+		hasBetaUpdate = h.compareVersions(Version, betaRelease.TagName)
+	}
 
 	updateInfo := UpdateInfo{
-		Current:       current,
-		Latest:        latest,
-		HasUpdate:     hasUpdate,
-		UpdateContent: latest.Body,
+		Current:         current,
+		Stable:          stableRelease,
+		Beta:            betaRelease,
+		HasStableUpdate: hasStableUpdate,
+		HasBetaUpdate:   hasBetaUpdate,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
