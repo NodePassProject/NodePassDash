@@ -14,7 +14,7 @@ import (
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	_ "modernc.org/sqlite"
+	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -63,8 +63,8 @@ func GetDB() *gorm.DB {
 			},
 		}
 
-		// 连接数据库 - 使用纯Go SQLite驱动 (modernc.org/sqlite)
-		sqlDB, err := sql.Open("sqlite", dsn)
+		// 连接数据库 - 使用CGO SQLite驱动 (github.com/mattn/go-sqlite3)
+		sqlDB, err := sql.Open("sqlite3", dsn)
 		if err != nil {
 			log.Fatalf("打开SQLite数据库失败: %v", err)
 		}

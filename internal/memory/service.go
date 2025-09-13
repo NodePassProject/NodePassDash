@@ -203,8 +203,8 @@ func (s *Service) LoadEndpointsFromDB() error {
 				LastUpdateTime: tunnel.UpdatedAt,
 			}
 
-			if tunnel.LastEventTime != nil {
-				tunnelState.LastEventTime = *tunnel.LastEventTime
+			if tunnel.LastEventTime.Valid {
+				tunnelState.LastEventTime = tunnel.LastEventTime.Time
 			}
 
 			shared.State.Tunnels[*tunnel.InstanceID] = tunnelState

@@ -275,7 +275,7 @@ func buildTunnel(payload SSEResp) *models.Tunnel {
 	tunnel.UDPs = payload.Instance.UDPs
 	tunnel.Pool = payload.Instance.Pool
 	tunnel.Ping = payload.Instance.Ping
-	tunnel.LastEventTime = &payload.TimeStamp
+	tunnel.LastEventTime = models.NullTime{Time: payload.TimeStamp, Valid: true}
 	tunnel.EnableLogStore = true
 	tunnel.Restart = payload.Instance.Restart
 	tunnel.Name = *payload.Instance.Alias
