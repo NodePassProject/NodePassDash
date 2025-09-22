@@ -679,7 +679,7 @@ export default function SimpleCreateTunnelModal({
                               label="数据读取超时"
                               value={formData.read}
                               onValueChange={(v) => handleField("read", v)}
-                              placeholder="10min"
+                              placeholder="1h0m0s"
                             />
                             <Input
                               label="速率限制"
