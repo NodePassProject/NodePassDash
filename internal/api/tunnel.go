@@ -3172,8 +3172,8 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 			enableLogStore = *raw.EnableLogStore
 		}
 
-		_, _ = h.tunnelService.DB().Exec(`UPDATE tunnels SET name = ?, mode = ?, tunnel_address = ?, tunnel_port = ?, target_address = ?, target_port = ?, tls_mode = ?, cert_path = ?, key_path = ?, log_level = ?, command_line = ?, min = ?, max = ?, slot = ?, status = ?, updated_at = ?, read = ?, rate = ?, enable_sse_store = ?, enable_log_store = ? WHERE id = ?`,
-			raw.Name, modeVal, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine,
+		_, _ = h.tunnelService.DB().Exec(`UPDATE tunnels SET name = ?, type = ?, mode = ?, tunnel_address = ?, tunnel_port = ?, target_address = ?, target_port = ?, tls_mode = ?, cert_path = ?, key_path = ?, log_level = ?, command_line = ?, min = ?, max = ?, slot = ?, status = ?, updated_at = ?, read = ?, rate = ?, enable_sse_store = ?, enable_log_store = ? WHERE id = ?`,
+			raw.Name, raw.Type, modeVal, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine,
 			raw.Min, raw.Max, raw.Slot,
 			"running", time.Now(), readVal, rateVal, enableSSEStore, enableLogStore, tunnelID)
 	}

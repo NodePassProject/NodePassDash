@@ -200,7 +200,7 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 	updates := map[string]interface{}{
 		"name":            tunnel.Name,
 		"status":          tunnel.Status,
-		"mode":            tunnel.Type,
+		"type":            tunnel.Type,
 		"tcp_rx":          tunnel.TCPRx,
 		"tcp_tx":          tunnel.TCPTx,
 		"udp_rx":          tunnel.UDPRx,
