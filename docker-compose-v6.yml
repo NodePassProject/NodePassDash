@@ -19,7 +19,7 @@ services:
       # 挂载日志
       - ./log:/app/log:ro
       # SQLite 数据库文件
-      - ./public:/app/public
+      - ./db:/app/db
       # 日志和数据目录,如需挂载，请先赋予文件夹权限```chmod 777 logs```，否则可能会导致容器启动失败
       # - ./logs:/app/logs
       # - ./data:/app/data

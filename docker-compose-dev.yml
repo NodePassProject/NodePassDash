@@ -21,7 +21,7 @@ services:
       # 挂载日志
       - ./log:/app/log:ro
       # SQLite 数据库文件
-      - ./public:/app/public
+      - ./db:/app/db
     restart: unless-stopped
     # 健康检查
     healthcheck:

@@ -41,7 +41,7 @@ docker logs nodepassdash | grep -A 6 "系统初始化完成"
   docker exec -it nodepassdash ./nodepassdash --resetpwd
   
   # 或停止容器后手动运行
-  docker run --rm -v ./public:/app/public ghcr.io/nodepassproject/nodepassdash:latest ./nodepassdash --resetpwd
+  docker run --rm -v ./db:/app/db ghcr.io/nodepassproject/nodepassdash:latest ./nodepassdash --resetpwd
   ```
 
 ### 方式一：使用预构建镜像（推荐）
@@ -52,7 +52,7 @@ docker logs nodepassdash | grep -A 6 "系统初始化完成"
 wget https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/docker-compose.yml -O docker-compose.yml
 
 # 2. 创建必要目录
-mkdir -p logs public && chmod 777 logs public
+mkdir -p logs db && chmod 777 logs db
 
 # 3. 启动服务
 docker compose up -d
@@ -117,7 +117,7 @@ docker run -d \
   --name nodepassdash \
   -p 3000:3000 \
   -v ./logs:/app/logs \
-  -v ./public:/app/public \
+  -v ./db:/app/db \
   ghcr.io/nodepassproject/nodepassdash:latest \
   ./nodepassdash --port 3000
 
@@ -126,7 +126,7 @@ docker run -d \
   --name nodepassdash \
   -p 8080:8080 \
   -v ./logs:/app/logs \
-  -v ./public:/app/public \
+  -v ./db:/app/db \
   ghcr.io/nodepassproject/nodepassdash:latest \
   ./nodepassdash --port 8080
 ```
@@ -166,7 +166,7 @@ docker run -d \
   --name nodepassdash \
   --network host \
   -v ./logs:/app/logs \
-  -v ./public:/app/public \
+  -v ./db:/app/db \
   ghcr.io/nodepassproject/nodepassdash:latest
 ```
 方式二：指定ipv6网络
@@ -177,7 +177,7 @@ docker run -d \
   --sysctl net.ipv6.conf.all.disable_ipv6=0 \
   --sysctl net.ipv6.conf.default.disable_ipv6=0 \
   -v ./logs:/app/logs \
-  -v ./public:/app/public \
+  -v ./db:/app/db \
   ghcr.io/nodepassproject/nodepassdash:latest
 ```
 方式三：手动创建ipv6网络
@@ -189,7 +189,7 @@ docker run -d \
   --name nodepassdash \
   --network ipv6net \
   -v ./logs:/app/logs \
-  -v ./public:/app/public \
+  -v ./db:/app/db \
   ghcr.io/nodepassproject/nodepassdash:latest
 ```
 ## 🔧 服务配置
@@ -207,10 +207,10 @@ docker run -d \
 
 ### 数据持久化
 
-SQLite 数据库文件存储在 `public/sqlite.db`，通过 Docker 卷挂载实现持久化：
+SQLite 数据库文件存储在 `db/database.db`，通过 Docker 卷挂载实现持久化：
 ```yaml
 volumes:
-  - ./public:/app/public  # SQLite 数据库文件
+  - ./db:/app/db  # SQLite 数据库文件
   - ./logs:/app/logs      # 应用日志文件
 ```
 
@@ -250,10 +250,10 @@ docker-compose down
 #### 2. 数据库访问错误
 ```bash
 # 检查数据库文件权限
-ls -l public/sqlite.db
+ls -l db/database.db
 
 # 修复权限
-chmod 666 public/sqlite.db
+chmod 666 db/database.db
 ```
 
 #### 3. 应用启动失败
@@ -275,7 +275,7 @@ docker exec -it nodepassdash ./nodepassdash --resetpwd
 
 # 方法二：停止容器后重置（推荐）
 docker stop nodepassdash
-docker run --rm -v ./public:/app/public ghcr.io/nodepassproject/nodepassdash:latest ./nodepassdash --resetpwd
+docker run --rm -v ./db:/app/db ghcr.io/nodepassproject/nodepassdash:latest ./nodepassdash --resetpwd
 docker start nodepassdash
 ```
 
@@ -288,7 +288,7 @@ netstat -tulpn | grep :3000
 docker run -d \
   --name nodepassdash \
   -p 8080:8080 \
-  -v ./public:/app/public \
+  -v ./db:/app/db \
   ghcr.io/nodepassproject/nodepassdash:latest \
   ./nodepassdash --port 8080
 ```
@@ -425,14 +425,14 @@ docker-compose stop nodepassdash  # 停止服务以确保数据一致性
 tar -czf backup-$(date +%Y%m%d-%H%M%S).tar.gz public/
 
 # 仅备份 SQLite 数据库
-cp public/sqlite.db public/sqlite.db.backup-$(date +%Y%m%d-%H%M%S)
+cp db/database.db db/database.db.backup-$(date +%Y%m%d-%H%M%S)
 
 # 启动新版本
 docker-compose start nodepassdash
 
 # 恢复数据库（如果需要回滚）
 docker-compose stop nodepassdash
-cp public/sqlite.db.backup-YYYYMMDD-HHMMSS public/sqlite.db
+cp db/database.db.backup-YYYYMMDD-HHMMSS db/database.db
 docker-compose start nodepassdash
 ```
 

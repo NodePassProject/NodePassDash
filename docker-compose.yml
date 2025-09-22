@@ -20,7 +20,7 @@ services:
       # 挂载日志
       - ./log:/app/log:ro
       # SQLite 数据库文件
-      - ./public:/app/public
+      - ./db:/app/db
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]
