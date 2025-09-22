@@ -266,8 +266,8 @@ export default function CreateTunnelPage() {
         },
         body: JSON.stringify({
           name: formData.tunnelName,
-          endpointId: formData.apiEndpoint,
-          type: formData.type, // 修复：使用正确的字段名
+          endpointId: Number(formData.apiEndpoint), // 修复：转换为数字类型
+          type: formData.type,
           tunnelAddress: formData.tunnelAddress,
           tunnelPort: formData.tunnelPort,
           targetAddress: formData.targetAddress,
@@ -289,7 +289,7 @@ export default function CreateTunnelPage() {
           })(),
           slot: formData.slot ? parseInt(formData.slot) : undefined,
           // 新增字段
-          mode: formData.mode || undefined, // 修复：使用正确的字段名
+          mode: formData.mode ? Number(formData.mode) : undefined, // 修复：转换为数字类型
           read: (() => {
             if (formData.read && formData.readUnit) {
               return `${formData.read}${formData.readUnit}`;
