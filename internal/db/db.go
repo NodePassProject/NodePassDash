@@ -171,6 +171,7 @@ func QuickInitSchema(db *gorm.DB) error {
 		&models.SystemConfig{},
 		&models.UserSession{},
 		&models.Tag{},
+		&models.OAuthUser{},
 
 		// 依赖表
 		&models.Tunnel{},
@@ -197,6 +198,7 @@ func StandardMigrate(db *gorm.DB) error {
 		&models.SystemConfig{},
 		&models.UserSession{},
 		&models.Tag{},
+		&models.OAuthUser{},
 
 		// 依赖表
 		&models.Tunnel{},

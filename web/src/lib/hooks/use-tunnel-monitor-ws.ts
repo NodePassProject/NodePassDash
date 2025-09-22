@@ -239,9 +239,12 @@ export function useTunnelMonitorWS(
     }
   }, [instanceId, connect, disconnect]);
 
-  // 组件卸载时清理
+  // 组件卸载时清理 - 增强清理逻辑
   useEffect(() => {
     return () => {
+      // 清理数据状态，释放内存
+      setLatestData(null);
+      setError(null);
       disconnect();
     };
   }, [disconnect]);

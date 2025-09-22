@@ -32,6 +32,9 @@ func SetupDashboardRoutes(rg *gin.RouterGroup, dashboardService *dashboard.Servi
 	rg.GET("/dashboard/stats", dashboardHandler.HandleGetStats)
 	rg.GET("/dashboard/tunnel-stats", dashboardHandler.HandleGetTunnelStats)
 
+	// 每周流量统计
+	rg.GET("/dashboard/weekly-stats", dashboardHandler.HandleWeeklyStats)
+
 	//rg.GET("/dashboard/overall-stats", dashboardHandler.HandleGetOverallStats)
 }
 
@@ -158,11 +161,12 @@ func (h *DashboardHandler) HandleGetTunnelStats(c *gin.Context) {
 
 	// 获取隧道统计数据
 	var stats struct {
-		Total   int64 `json:"total"`
-		Running int64 `json:"running"`
-		Stopped int64 `json:"stopped"`
-		Error   int64 `json:"error"`
-		Offline int64 `json:"offline"`
+		Total          int64 `json:"total"`
+		Running        int64 `json:"running"`
+		Stopped        int64 `json:"stopped"`
+		Error          int64 `json:"error"`
+		Offline        int64 `json:"offline"`
+		TotalEndpoints int64 `json:"total_endpoints"`
 	}
 
 	// 使用原生 SQL 查询统计数据
@@ -185,8 +189,41 @@ func (h *DashboardHandler) HandleGetTunnelStats(c *gin.Context) {
 		return
 	}
 
+	// 获取主控总数
+	err = h.dashboardService.DB().Raw("SELECT COUNT(*) FROM endpoints").Scan(&stats.TotalEndpoints).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "获取主控总数失败: " + err.Error(),
+		})
+		return
+	}
+
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"data":    stats,
+	})
+}
+
+// HandleWeeklyStats GET /api/dashboard/weekly-stats
+func (h *DashboardHandler) HandleWeeklyStats(c *gin.Context) {
+	weeklyStats, err := h.dashboardService.GetWeeklyStats()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "获取每周统计数据失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 确保返回空数组而不是nil
+	if weeklyStats == nil {
+		weeklyStats = make([]dashboard.WeeklyStatsItem, 0)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    weeklyStats,
+		"count":   len(weeklyStats),
 	})
 }

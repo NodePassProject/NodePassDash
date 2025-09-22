@@ -1500,7 +1500,7 @@ export default function EndpointDetailPage() {
                          <div className="flex items-center justify-center gap-4">
                                                                                    {/* iOS 应用 */}
                             <a 
-                              href="https://testflight.apple.com/join/K4BwG3d4" 
+                              href="https://apps.apple.com/us/app/nodepass/id6747930492" 
                               target="_blank" 
                               rel="noopener noreferrer"
                               className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"

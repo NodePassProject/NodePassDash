@@ -701,7 +701,20 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         <ModalContent>
           {(onClose) => (
             <>
-              <ModalHeader>GitHub OAuth2 配置</ModalHeader>
+              <ModalHeader>
+                <div className="flex items-center justify-between w-full">
+                  <span>GitHub OAuth2 配置</span>
+                  <a
+                    href="https://github.com/settings/developers"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-default-400 hover:text-default-700 dark:hover:text-default-300"
+                    title="打开 GitHub 开发者设置"
+                  >
+                    <Icon icon="solar:external-link-bold" width={18} />
+                  </a>
+                </div>
+              </ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
                   <Input
@@ -747,7 +760,18 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         <ModalContent>
           {(onClose) => (
             <>
-              <ModalHeader>Cloudflare OAuth2 配置</ModalHeader>
+              <ModalHeader>
+              <span>Cloudflare OAuth2 配置</span>
+                  <a
+                    href="https://one.dash.cloudflare.com/"
+                    target="_blank"
+                    rel="noopener noreferrer"
+                    className="text-default-400 hover:text-default-700 dark:hover:text-default-300"
+                    title="打开 Zero Trust Dashboard"
+                  >
+                    <Icon icon="solar:external-link-bold" width={18} />
+                  </a>
+              </ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
                   <Input

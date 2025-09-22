@@ -30,21 +30,41 @@ export function useNodePassSSE(endpoint: NodePassEndpoint | null, options: NodeP
   const onDisconnected = useCallback(options.onDisconnected || (() => {}), [options.onDisconnected]);
 
   const cleanup = useCallback(() => {
-    // 清理事件监听器
+    // 强制清理所有事件监听器，防止内存泄漏
     if (eventSourceRef.current && eventListenersRef.current.size > 0) {
       eventListenersRef.current.forEach((listener, eventType) => {
-        eventSourceRef.current?.removeEventListener(eventType, listener);
+        try {
+          eventSourceRef.current?.removeEventListener(eventType, listener);
+        } catch (error) {
+          // 静默处理移除失败的情况
+          console.debug(`[NodePass SSE] 移除事件监听器失败: ${eventType}`);
+        }
       });
       eventListenersRef.current.clear();
     }
 
+    // 强制关闭EventSource连接
     if (eventSourceRef.current) {
-      eventSourceRef.current.close();
-      eventSourceRef.current = null;
+      try {
+        eventSourceRef.current.close();
+      } catch (error) {
+        // 静默处理关闭失败的情况
+        console.debug('[NodePass SSE] 关闭EventSource失败');
+      } finally {
+        eventSourceRef.current = null;
+      }
     }
+
+    // 清理AbortController
     if (abortControllerRef.current) {
-      abortControllerRef.current.abort();
-      abortControllerRef.current = null;
+      try {
+        abortControllerRef.current.abort();
+      } catch (error) {
+        // 静默处理abort失败的情况
+        console.debug('[NodePass SSE] AbortController abort失败');
+      } finally {
+        abortControllerRef.current = null;
+      }
     }
   }, []);
 
@@ -161,12 +181,16 @@ export function useNodePassSSE(endpoint: NodePassEndpoint | null, options: NodeP
         processEvent(event);
       };
 
-      // 监听常见的自定义事件类型
-      const customEventTypes = ['instance', 'tunnel', 'stats', 'log', 'update'];
+      // 监听常见的自定义事件类型，减少事件类型以降低内存使用
+      const customEventTypes = ['instance', 'tunnel', 'stats'];
       customEventTypes.forEach((evt) => {
         console.log('[NodePass SSE] 注册自定义事件监听器:', evt);
-        eventSource.addEventListener(evt, handleEvent as EventListener);
-        eventListenersRef.current.set(evt, handleEvent);
+        try {
+          eventSource.addEventListener(evt, handleEvent as EventListener);
+          eventListenersRef.current.set(evt, handleEvent);
+        } catch (error) {
+          console.warn(`[NodePass SSE] 注册事件监听器失败: ${evt}`, error);
+        }
       });
 
       // 错误事件处理

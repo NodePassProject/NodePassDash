@@ -86,3 +86,15 @@ const (
 	TimeRangeYear    TimeRange = "year"
 	TimeRangeAllTime TimeRange = "all"
 )
+
+// WeeklyStatsItem 每周流量统计条目
+type WeeklyStatsItem struct {
+	Weekday    string `json:"weekday"`    // Mon, Tue, Wed, etc.
+	WeekdayZh  string `json:"weekday_zh"` // 周一, 周二, etc.
+	Date       string `json:"date"`       // 2024-01-01
+	TCPIn      int64  `json:"tcp_in"`     // TCP 入站流量
+	TCPOut     int64  `json:"tcp_out"`    // TCP 出站流量
+	UDPIn      int64  `json:"udp_in"`     // UDP 入站流量
+	UDPOut     int64  `json:"udp_out"`    // UDP 出站流量
+	TotalBytes int64  `json:"total_bytes"` // 总流量
+}

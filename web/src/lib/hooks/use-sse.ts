@@ -66,9 +66,16 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
 
     return () => {
       isMountedRef.current = false;
+
+      // 强制清理EventSource连接
       if (eventSourceRef.current) {
-        eventSourceRef.current.close();
-        eventSourceRef.current = null;
+        try {
+          eventSourceRef.current.close();
+        } catch (error) {
+          console.debug('[前端SSE] 关闭隧道SSE失败', error);
+        } finally {
+          eventSourceRef.current = null;
+        }
       }
     };
   }, [instanceId, onMessage, onError, onConnected, options.enabled]);
@@ -268,11 +275,20 @@ export function useSSE(endpoint: string, options: SSEOptions) {
       }
     };
 
-    // 清理函数
+    // 清理函数 - 增强清理逻辑
     return () => {
       isMountedRef.current = false;
-      eventSource.close();
-      eventSourceRef.current = null;
+
+      // 强制清理EventSource连接
+      if (eventSourceRef.current) {
+        try {
+          eventSourceRef.current.close();
+        } catch (error) {
+          console.debug('[SSE] 关闭EventSource失败', error);
+        } finally {
+          eventSourceRef.current = null;
+        }
+      }
     };
   }, [endpoint, onMessage, onError, onConnected]);
 

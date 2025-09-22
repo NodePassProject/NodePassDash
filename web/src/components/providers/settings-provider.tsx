@@ -19,7 +19,7 @@ interface Settings {
 // 默认设置
 const defaultSettings: Settings = {
   theme: 'system',
-  isBeginnerMode: false,
+  isBeginnerMode: true,
   isPrivacyMode: true,
   isExperimentalMode: false,
   autoCheckUpdates: false,

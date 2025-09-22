@@ -74,41 +74,46 @@ export function QuickEntryCard() {
   ];
 
   return (
-    <Card className="h-full min-h-[120px] dark:border-default-100 border border-transparent">
-      <CardBody className="p-4 h-full flex flex-col justify-between">
+    <Card className="h-full min-h-[140px] dark:border-default-100 border border-transparent">
+      <CardBody className="p-5 h-full flex flex-col justify-between">
         {/* 标题 */}
-        <dt className="text-small text-foreground font-medium">快捷操作</dt>        
+        <span className="text-base font-semibold text-foreground">快捷操作</span>
         {/* 按钮行 */}
         <div className="flex pt-5 justify-between">
           {quickActions.map((action) => (
-            <Button
-              isIconOnly
+            <div
               key={action.id}
-              onPress={() => {
+              className="flex flex-col items-center gap-2 cursor-pointer group transition-transform hover:scale-105"
+              onClick={() => {
                 if (action.external) {
                   window.open(action.route, '_blank');
                 } else {
                   navigate(action.route);
                 }
               }}
-              title={action.label}
-              variant="solid"
-              className={`${action.color} text-white transition-colors duration-200`}
             >
-              {action.iconType === "fontawesome" ? (
-                <FontAwesomeIcon 
-                  icon={action.icon} 
-                  className="!w-5 !h-5" 
-                  style={{ width: '20px', height: '20px' }}
-                />
-              ) : (
-                <Icon 
-                  icon={action.icon} 
-                  width={20} 
-                  height={20}
-                />
-              )}
-            </Button>
+              {/* 图标按钮 */}
+              <div className={`flex items-center justify-center w-12 h-12 rounded-lg ${action.color} text-white transition-colors duration-200 group-hover:shadow-lg`}>
+                {action.iconType === "fontawesome" ? (
+                  <FontAwesomeIcon
+                    icon={action.icon}
+                    className="!w-5 !h-5"
+                    style={{ width: '20px', height: '20px' }}
+                  />
+                ) : (
+                  <Icon
+                    icon={action.icon}
+                    width={20}
+                    height={20}
+                  />
+                )}
+              </div>
+
+              {/* 文字标签 */}
+              <span className="text-xs text-center text-default-600 group-hover:text-foreground transition-colors duration-200 font-medium">
+                {action.label}
+              </span>
+            </div>
           ))}
         </div>
       </CardBody>

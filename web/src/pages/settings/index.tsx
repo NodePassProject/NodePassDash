@@ -45,10 +45,10 @@ export default function SettingsPage() {
   };
 
   return (
-    <div className="max-w-7xl mx-auto py-6 space-y-6">
+    <div className="max-w-7xl mx-auto py-4 sm:py-6 px-4 sm:px-6 space-y-4 sm:space-y-6">
       <div className="flex w-full flex-col">
-        <Tabs 
-          aria-label="设置选项" 
+        <Tabs
+          aria-label="设置选项"
           selectedKey={selected}
           onSelectionChange={setSelected as any}
           color="primary"
@@ -56,9 +56,9 @@ export default function SettingsPage() {
           radius="lg"
           classNames={{
             base: "w-full",
-            tabList: "w-full gap-6 p-2 bg-default-100 rounded-lg",
+            tabList: "w-full gap-2 sm:gap-4 md:gap-6 p-1 sm:p-2 bg-default-100 rounded-lg",
             cursor: "bg-primary text-primary-foreground shadow-small",
-            tab: "data-[selected=true]:text-primary-foreground h-10 px-8",
+            tab: "data-[selected=true]:text-primary-foreground h-10 px-2 sm:px-4 md:px-8 min-w-0",
             panel: "pt-6"
           }}
         >
@@ -76,9 +76,9 @@ export default function SettingsPage() {
           <Tab
             key="security"
             title={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 justify-center sm:justify-start">
                 <Icon icon="solar:shield-keyhole-bold" className="text-lg" />
-                <span>账户安全</span>
+                <span className="hidden sm:inline">账户安全</span>
               </div>
             }
           >
@@ -109,9 +109,9 @@ export default function SettingsPage() {
           <Tab
             key="logs"
             title={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 justify-center sm:justify-start">
                 <Icon icon="solar:database-bold" className="text-lg" />
-                <span>日志管理</span>
+                <span className="hidden sm:inline">日志管理</span>
               </div>
             }
           >
@@ -120,9 +120,9 @@ export default function SettingsPage() {
           <Tab
             key="version"
             title={
-              <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2 justify-center sm:justify-start">
                 <Icon icon="solar:refresh-circle-bold" className="text-lg" />
-                <span>版本检查</span>
+                <span className="hidden sm:inline">版本检查</span>
               </div>
             }
           >

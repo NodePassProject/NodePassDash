@@ -541,3 +541,102 @@ func (s *Service) processTrafficRecords(records []struct {
 
 	return list, nil
 }
+
+// GetWeeklyStats 获取每周流量统计数据
+func (s *Service) GetWeeklyStats() ([]WeeklyStatsItem, error) {
+	// 获取本周的开始时间（周一）
+	now := time.Now()
+	weekday := now.Weekday()
+	// 如果是周日，调整为7
+	if weekday == 0 {
+		weekday = 7
+	}
+	// 计算本周一的日期
+	startOfWeek := now.AddDate(0, 0, -int(weekday-1))
+	startOfWeek = time.Date(startOfWeek.Year(), startOfWeek.Month(), startOfWeek.Day(), 0, 0, 0, 0, startOfWeek.Location())
+
+	// 计算本周日的结束时间
+	endOfWeek := startOfWeek.AddDate(0, 0, 7)
+
+	// 查询每天的流量统计数据
+	var weeklyStats []WeeklyStatsItem
+
+	// 为每一天创建统计记录
+	for i := 0; i < 7; i++ {
+		currentDay := startOfWeek.AddDate(0, 0, i)
+
+		// 获取当天的流量数据
+		var dayStats struct {
+			TCPIn  int64 `json:"tcp_in"`
+			TCPOut int64 `json:"tcp_out"`
+			UDPIn  int64 `json:"udp_in"`
+			UDPOut int64 `json:"udp_out"`
+		}
+
+		// 从dashboard_traffic_summary表查询当天的累计流量
+		// 使用当天最后一条记录减去前一天最后一条记录
+		err := s.db.Raw(`
+			SELECT
+				COALESCE(MAX(CASE WHEN DATE(hour_time) = DATE(?) THEN tcp_rx_total END), 0) -
+				COALESCE(MAX(CASE WHEN DATE(hour_time) = DATE(?) THEN tcp_rx_total END), 0) as tcp_in,
+
+				COALESCE(MAX(CASE WHEN DATE(hour_time) = DATE(?) THEN tcp_tx_total END), 0) -
+				COALESCE(MAX(CASE WHEN DATE(hour_time) = DATE(?) THEN tcp_tx_total END), 0) as tcp_out,
+
+				COALESCE(MAX(CASE WHEN DATE(hour_time) = DATE(?) THEN udp_rx_total END), 0) -
+				COALESCE(MAX(CASE WHEN DATE(hour_time) = DATE(?) THEN udp_rx_total END), 0) as udp_in,
+
+				COALESCE(MAX(CASE WHEN DATE(hour_time) = DATE(?) THEN udp_tx_total END), 0) -
+				COALESCE(MAX(CASE WHEN DATE(hour_time) = DATE(?) THEN udp_tx_total END), 0) as udp_out
+			FROM dashboard_traffic_summary
+			WHERE hour_time >= ? AND hour_time < ?
+		`, currentDay, currentDay.AddDate(0, 0, -1),
+		   currentDay, currentDay.AddDate(0, 0, -1),
+		   currentDay, currentDay.AddDate(0, 0, -1),
+		   currentDay, currentDay.AddDate(0, 0, -1),
+		   startOfWeek, endOfWeek).Scan(&dayStats).Error
+
+		if err != nil {
+			// 如果查询失败，使用简化的查询方式
+			err = s.db.Raw(`
+				SELECT
+					COALESCE(SUM(tcp_rx_total), 0) as tcp_in,
+					COALESCE(SUM(tcp_tx_total), 0) as tcp_out,
+					COALESCE(SUM(udp_rx_total), 0) as udp_in,
+					COALESCE(SUM(udp_tx_total), 0) as udp_out
+				FROM dashboard_traffic_summary
+				WHERE DATE(hour_time) = DATE(?)
+			`, currentDay).Scan(&dayStats).Error
+
+			if err != nil {
+				// 如果仍然失败，设置为0
+				dayStats = struct {
+					TCPIn  int64 `json:"tcp_in"`
+					TCPOut int64 `json:"tcp_out"`
+					UDPIn  int64 `json:"udp_in"`
+					UDPOut int64 `json:"udp_out"`
+				}{0, 0, 0, 0}
+			}
+		}
+
+		// 获取星期几的名称
+		weekdayName := []string{"Sun", "Mon", "Tue", "Wed", "Thu", "Fri", "Sat"}[currentDay.Weekday()]
+		weekdayNameZh := []string{"周日", "周一", "周二", "周三", "周四", "周五", "周六"}[currentDay.Weekday()]
+
+		// 创建统计项
+		statsItem := WeeklyStatsItem{
+			Weekday:    weekdayName,
+			WeekdayZh:  weekdayNameZh,
+			Date:       currentDay.Format("2006-01-02"),
+			TCPIn:      dayStats.TCPIn,
+			TCPOut:     dayStats.TCPOut,
+			UDPIn:      dayStats.UDPIn,
+			UDPOut:     dayStats.UDPOut,
+			TotalBytes: dayStats.TCPIn + dayStats.TCPOut + dayStats.UDPIn + dayStats.UDPOut,
+		}
+
+		weeklyStats = append(weeklyStats, statsItem)
+	}
+
+	return weeklyStats, nil
+}
