@@ -10,6 +10,7 @@ import {
 import { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen } from "@fortawesome/free-solid-svg-icons";
+import { useTextLimit, TEXT_LIMITS } from "@/lib/utils/text-limits";
 
 interface RenameEndpointModalProps {
   isOpen: boolean;
@@ -27,6 +28,9 @@ export default function RenameEndpointModal({
   const [newName, setNewName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  // 使用公共的文本限制工具
+  const textLimit = useTextLimit(newName, TEXT_LIMITS.ENDPOINT_NAME);
+
   useEffect(() => {
     if (isOpen) {
       setNewName(currentName);
@@ -34,7 +38,7 @@ export default function RenameEndpointModal({
   }, [isOpen, currentName]);
 
   const handleSubmit = async () => {
-    if (!newName.trim() || newName === currentName) {
+    if (!newName.trim() || newName === currentName || textLimit.isOverLimit) {
       return;
     }
 
@@ -70,8 +74,7 @@ export default function RenameEndpointModal({
                 variant="bordered"
                 isRequired
                 autoFocus
-                maxLength={25}
-                endContent={<span className="text-xs text-default-500">{newName.length}/25</span>}
+                description={textLimit.description}
                 onKeyDown={(e) => {
                   if (e.key === 'Enter') {
                     handleSubmit();
@@ -93,7 +96,7 @@ export default function RenameEndpointModal({
                 color="primary" 
                 onPress={handleSubmit}
                 isLoading={isLoading}
-                isDisabled={!newName.trim() || newName === currentName}
+                isDisabled={!newName.trim() || newName === currentName || textLimit.isOverLimit}
               >
                 {isLoading ? '保存中...' : '保存'}
               </Button>

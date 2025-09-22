@@ -12,6 +12,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 import { buildApiUrl } from "@/lib/utils";
+import { useTextLimit, TEXT_LIMITS } from "@/lib/utils/text-limits";
 
 interface RenameTunnelModalProps {
   isOpen: boolean;
@@ -31,6 +32,9 @@ export default function RenameTunnelModal({
   const [newTunnelName, setNewTunnelName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
+  // 使用公共的文本限制工具
+  const textLimit = useTextLimit(newTunnelName, TEXT_LIMITS.TUNNEL_NAME);
+
   // 当模态框打开时，设置当前名称
   React.useEffect(() => {
     if (isOpen) {
@@ -39,7 +43,7 @@ export default function RenameTunnelModal({
   }, [isOpen, currentName]);
 
   const handleSubmit = async () => {
-    if (!newTunnelName.trim()) return;
+    if (!newTunnelName.trim() || textLimit.isOverLimit) return;
 
     try {
       setIsLoading(true);
@@ -101,8 +105,7 @@ export default function RenameTunnelModal({
                 onValueChange={setNewTunnelName}
                 variant="bordered"
                 isDisabled={isLoading}
-                maxLength={16}
-                description={`${newTunnelName.length}/16 个字符`}
+                description={textLimit.description}
                 onKeyDown={handleKeyDown}
                 autoFocus
               />
@@ -120,7 +123,7 @@ export default function RenameTunnelModal({
                 color="primary"
                 onPress={handleSubmit}
                 isLoading={isLoading}
-                isDisabled={!newTunnelName.trim() || newTunnelName.trim() === currentName}
+                isDisabled={!newTunnelName.trim() || newTunnelName.trim() === currentName || textLimit.isOverLimit}
               >
                 确认修改
               </Button>
