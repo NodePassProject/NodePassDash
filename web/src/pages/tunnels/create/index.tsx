@@ -830,7 +830,7 @@ export default function CreateTunnelPage() {
                     aria-label="选择时间单位"
                     selectedKeys={[formData.readUnit]}
                     onChange={(e) => setFormData(prev => ({ ...prev, readUnit: e.target.value }))}
-                    className="w-20"
+                    className="w-24"
                     size="sm"
                   >
                     <SelectItem key="s">s</SelectItem>

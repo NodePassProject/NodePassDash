@@ -132,7 +132,7 @@ func PatchInstance(endpointID int64, instanceID string, body patchBody) (Instanc
 // ControlInstance 对实例执行 start/stop/restart 操作，返回最新状态
 func ControlInstance(endpointID int64, instanceID, action string) (InstanceResult, error) {
 	body := patchBody{
-		Action: action,
+		Action: &action,
 	}
 	return PatchInstance(endpointID, instanceID, body)
 }
@@ -140,7 +140,7 @@ func ControlInstance(endpointID int64, instanceID, action string) (InstanceResul
 // PatchInstance 更新指定实例的别名 (PATCH /instances/{id})
 func RenameInstance(endpointID int64, instanceID string, name string) (InstanceResult, error) {
 	body := patchBody{
-		Alias: name,
+		Alias: &name,
 	}
 	return PatchInstance(endpointID, instanceID, body)
 }
@@ -148,15 +148,16 @@ func RenameInstance(endpointID int64, instanceID string, name string) (InstanceR
 // PatchInstance 更新指定实例的重启策略 (PATCH /instances/{id})
 func SetRestartInstance(endpointID int64, instanceID string, restart bool) (InstanceResult, error) {
 	body := patchBody{
-		Restart: restart,
+		Restart: &restart,
 	}
 	return PatchInstance(endpointID, instanceID, body)
 }
 
 // ResetInstanceTraffic 重置指定实例的流量统计 (PATCH /instances/{id})
 func ResetTraffic(endpointID int64, instanceID string) (InstanceResult, error) {
+	action := "reset"
 	body := patchBody{
-		Action: "reset",
+		Action: &action,
 	}
 	return PatchInstance(endpointID, instanceID, body)
 }
@@ -332,9 +333,9 @@ type InstanceResult struct {
 }
 
 type patchBody struct {
-	Restart bool   `json:"restart"`
-	Action  string `json:"action,omitempty"` // start|stop|restart|reset
-	Alias   string `json:"alias,omitempty"`
+	Restart *bool   `json:"restart,omitempty"`
+	Action  *string `json:"action,omitempty"` // start|stop|restart|reset
+	Alias   *string `json:"alias,omitempty"`
 }
 
 // EndpointInfoResult NodePass实例的系统信息
