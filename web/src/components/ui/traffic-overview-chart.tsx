@@ -311,7 +311,7 @@ function TrafficOverviewChartComponent({
   }
 
   return (
-    <Card as="dl" className="h-full min-h-[400px] dark:border-default-100 border border-transparent">
+    <Card as="dl" className="h-[470px] dark:border-default-100 border border-transparent">
       <section className="flex flex-col flex-nowrap h-full">
         <div className="flex flex-col justify-between gap-y-2 p-5 flex-shrink-0">
           <div className="flex flex-col gap-y-2">

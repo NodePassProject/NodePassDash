@@ -679,13 +679,13 @@ export default function DashboardPage() {
 
         {/* 主控列表 - 右侧卡片 */}
         <div className="lg:h-full">
-          <Card className="h-full min-h-[400px] dark:border-default-100 border border-transparent">
+          <Card className=" h-[469px] dark:border-default-100 border border-transparent">
             <CardHeader className="p-5 pb-0">
               <div className="flex flex-col items-start gap-1 w-full">
                 <span className="text-base font-semibold text-foreground">主控列表</span>
               </div>
             </CardHeader>
-            <CardBody className="p-5 pt-3">
+            <CardBody className="p-5 pt-3 overflow-y-auto scrollbar-hide">
               <div className="space-y-3">
                 {loading ? (
                   // 加载状态骨架屏

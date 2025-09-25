@@ -89,9 +89,15 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
       
       const data = await response.json();
       
-      if (data.success && Array.isArray(data.logs)) {
-        setLogs(data.logs);
-        onLogsChangeRef.current?.(data.logs);
+      if (data.success && data.data && Array.isArray(data.data.logs)) {
+        // 转换API返回的格式到FileLogEntry格式
+        const convertedLogs: FileLogEntry[] = data.data.logs.map((log: any) => ({
+          timestamp: log.timestamp || new Date().toISOString(),
+          content: log.message || log.content || '',
+          filePath: log.filePath || 'file'
+        }));
+        setLogs(convertedLogs);
+        onLogsChangeRef.current?.(convertedLogs);
         // 延迟滚动到底部
         setTimeout(scrollToBottom, 100);
       } else {
@@ -264,10 +270,10 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
               const lines = log.content.split('\n').filter(line => line.length > 0);
               return lines.map((line, lineIndex) => (
                 <div key={`${index}-${lineIndex}`} className="text-gray-300 leading-5">
-                  <span 
-                    className="break-all" 
-                    dangerouslySetInnerHTML={{ 
-                      __html: processAnsiColors(line) 
+                  <span
+                    className="break-all"
+                    dangerouslySetInnerHTML={{
+                      __html: line // API已经处理过ANSI颜色，直接使用
                     }}
                   />
                 </div>
