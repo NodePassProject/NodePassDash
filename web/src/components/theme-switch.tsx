@@ -1,6 +1,4 @@
-import {
-  Button
-} from "@heroui/react";
+import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { useTheme } from "next-themes";
 
@@ -8,9 +6,7 @@ export interface ThemeSwitchProps {
   className?: string;
 }
 
-export const ThemeSwitch: React.FC<ThemeSwitchProps> = ({
-  className,
-}) => {
+export const ThemeSwitch: React.FC<ThemeSwitchProps> = ({ className }) => {
   const { theme, setTheme } = useTheme();
 
   const onChange = () => {
@@ -22,11 +18,11 @@ export const ThemeSwitch: React.FC<ThemeSwitchProps> = ({
   return (
     <Button
       isIconOnly
-      variant="light"
-      size="sm"
-      onClick={onChange}
       aria-label={`切换到${isDark ? "浅色" : "深色"}主题`}
       className={`text-default-600 hover:text-primary ${className}`}
+      size="sm"
+      variant="light"
+      onClick={onChange}
     >
       {isDark ? (
         <Icon icon="solar:moon-bold" width={20} />

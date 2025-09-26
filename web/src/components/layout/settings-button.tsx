@@ -1,9 +1,10 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState } from "react";
 import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react";
-import { SettingsDrawer } from './settings-drawer';
+
+import { SettingsDrawer } from "./settings-drawer";
 
 export const SettingsButton: React.FC = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
@@ -15,19 +16,16 @@ export const SettingsButton: React.FC = () => {
     <>
       <Button
         isIconOnly
-        variant="light"
-        size="md"
-        onClick={openDrawer}
         aria-label="个性化设置"
         className="text-default-600 hover:text-primary"
+        size="md"
+        variant="light"
+        onClick={openDrawer}
       >
         <Icon icon="solar:pallete-2-bold" width={20} />
       </Button>
 
-      <SettingsDrawer 
-        isOpen={isDrawerOpen} 
-        onClose={closeDrawer} 
-      />
+      <SettingsDrawer isOpen={isDrawerOpen} onClose={closeDrawer} />
     </>
   );
 };

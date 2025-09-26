@@ -1,20 +1,16 @@
 "use client";
 
-import type { ButtonProps, CardProps } from "@heroui/react";
+import type { ButtonProps } from "@heroui/react";
 
 import React from "react";
-import { ResponsiveContainer, RadialBarChart, RadialBar, Cell, Tooltip } from "recharts";
 import {
-  Card,
-  Button,
-  Select,
-  SelectItem,
-  Dropdown,
-  DropdownItem,
-  DropdownMenu,
-  DropdownTrigger,
-  cn,
-} from "@heroui/react";
+  ResponsiveContainer,
+  RadialBarChart,
+  RadialBar,
+  Cell,
+  Tooltip,
+} from "recharts";
+import { Card } from "@heroui/react";
 import { Icon } from "@iconify/react";
 
 type ChartData = {
@@ -60,14 +56,15 @@ function DailyStatsChartComponent({
   unitTitle = "总流量",
   total = 0,
   loading = false,
-  formatBytes = (bytes: number) => `${bytes} B`
+  formatBytes = (bytes: number) => `${bytes} B`,
 }: DailyStatsChartProps) {
-
   return (
     <Card className="dark:border-default-100 min-h-[300] border border-transparent">
       <div className="flex flex-col gap-y-4 p-5 pb-0">
         <div className="flex flex-col gap-y-0">
-          <span className="text-base font-semibold text-foreground">{title}</span>
+          <span className="text-base font-semibold text-foreground">
+            {title}
+          </span>
         </div>
       </div>
 
@@ -83,7 +80,10 @@ function DailyStatsChartComponent({
         // 无数据状态
         <div className="flex h-[200px] items-center justify-center">
           <div className="text-center">
-            <Icon icon="solar:database-bold" className="text-4xl text-default-300 mb-2" />
+            <Icon
+              className="text-4xl text-default-300 mb-2"
+              icon="solar:database-bold"
+            />
             <span className="text-sm text-default-500">暂无数据</span>
           </div>
         </div>
@@ -100,7 +100,9 @@ function DailyStatsChartComponent({
                   <span className="text-small text-default-500 font-medium capitalize">
                     {category}
                   </span>
-                  <span className="text-small text-foreground font-semibold">{valueText}</span>
+                  <span className="text-small text-foreground font-semibold">
+                    {valueText}
+                  </span>
                 </div>
               );
             })}
@@ -111,71 +113,84 @@ function DailyStatsChartComponent({
               height={200}
               width="100%"
             >
-            <RadialBarChart
-              barSize={10}
-              cx="50%"
-              cy="50%"
-              data={chartData}
-              endAngle={-270}
-              innerRadius={90}
-              outerRadius={54}
-              startAngle={90}
-            >
-              <Tooltip
-                content={({ payload }) => (
-                  <div className="rounded-medium bg-background text-tiny shadow-small flex h-8 min-w-[120px] items-center gap-x-2 px-1">
-                    {payload?.map((p) => {
-                      const name = p.payload.name;
-                      const value = p.value;
-                      const index = chartData.findIndex((c) => c.name === name);
-
-                      return (
-                        <div key={`${index}-${name}`} className="flex w-full items-center gap-x-2">
-                          <div
-                            className="h-2 w-2 flex-none rounded-full"
-                            style={{
-                              backgroundColor: `hsl(var(--heroui-${color}-${colorIndexMap(index)}))`,
-                            }}
-                          />
-                          <div className="text-default-700 flex w-full items-center justify-between gap-x-2 pr-1 text-xs">
-                            <span className="text-default-500">{name}</span>
-                            <span className="text-default-700 font-mono font-medium">
-                              {formatBytes(value as number)}
-                            </span>
-                          </div>
-                        </div>
-                      );
-                    })}
-                  </div>
-                )}
-                cursor={false}
-              />
-              <RadialBar
-                animationDuration={1000}
-                animationEasing="ease"
-                background={{ fill: "hsl(var(--heroui-default-100))" }}
-                cornerRadius={12}
-                dataKey="value"
-                strokeWidth={0}
+              <RadialBarChart
+                barSize={10}
+                cx="50%"
+                cy="50%"
+                data={chartData}
+                endAngle={-270}
+                innerRadius={90}
+                outerRadius={54}
+                startAngle={90}
               >
-                {chartData.map((_, index) => (
-                  <Cell
-                    key={`cell-${index}`}
-                    fill={`hsl(var(--heroui-${color}-${colorIndexMap(index)}))`}
-                  />
-                ))}
-              </RadialBar>
-              <g>
-                <text textAnchor="middle" x="50%" y="48%">
-                  <tspan className="fill-default-500 text-[0.6rem]" dy="-0.5em" x="50%">
-                    {unitTitle}
-                  </tspan>
-                  <tspan className="fill-foreground text-tiny font-semibold" dy="1.5em" x="50%">
-                    {formatBytes(total)}
-                  </tspan>
-                </text>
-              </g>
-            </RadialBarChart>
+                <Tooltip
+                  content={({ payload }) => (
+                    <div className="rounded-medium bg-background text-tiny shadow-small flex h-8 min-w-[120px] items-center gap-x-2 px-1">
+                      {payload?.map((p) => {
+                        const name = p.payload.name;
+                        const value = p.value;
+                        const index = chartData.findIndex(
+                          (c) => c.name === name,
+                        );
+
+                        return (
+                          <div
+                            key={`${index}-${name}`}
+                            className="flex w-full items-center gap-x-2"
+                          >
+                            <div
+                              className="h-2 w-2 flex-none rounded-full"
+                              style={{
+                                backgroundColor: `hsl(var(--heroui-${color}-${colorIndexMap(index)}))`,
+                              }}
+                            />
+                            <div className="text-default-700 flex w-full items-center justify-between gap-x-2 pr-1 text-xs">
+                              <span className="text-default-500">{name}</span>
+                              <span className="text-default-700 font-mono font-medium">
+                                {formatBytes(value as number)}
+                              </span>
+                            </div>
+                          </div>
+                        );
+                      })}
+                    </div>
+                  )}
+                  cursor={false}
+                />
+                <RadialBar
+                  animationDuration={1000}
+                  animationEasing="ease"
+                  background={{ fill: "hsl(var(--heroui-default-100))" }}
+                  cornerRadius={12}
+                  dataKey="value"
+                  strokeWidth={0}
+                >
+                  {chartData.map((_, index) => (
+                    <Cell
+                      key={`cell-${index}`}
+                      fill={`hsl(var(--heroui-${color}-${colorIndexMap(index)}))`}
+                    />
+                  ))}
+                </RadialBar>
+                <g>
+                  <text textAnchor="middle" x="50%" y="48%">
+                    <tspan
+                      className="fill-default-500 text-[0.6rem]"
+                      dy="-0.5em"
+                      x="50%"
+                    >
+                      {unitTitle}
+                    </tspan>
+                    <tspan
+                      className="fill-foreground text-tiny font-semibold"
+                      dy="1.5em"
+                      x="50%"
+                    >
+                      {formatBytes(total)}
+                    </tspan>
+                  </text>
+                </g>
+              </RadialBarChart>
             </ResponsiveContainer>
           </div>
         </div>

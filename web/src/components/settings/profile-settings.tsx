@@ -1,12 +1,6 @@
 "use client";
 
-import {
-  Avatar,
-  Button,
-  Card,
-  CardBody,
-  Input
-} from "@heroui/react";
+import { Avatar, Button, Card, CardBody, Input } from "@heroui/react";
 import React from "react";
 
 export default function ProfileSettings() {
@@ -22,7 +16,7 @@ export default function ProfileSettings() {
                   className="w-32 h-32"
                   src="https://i.pravatar.cc/150?img=3"
                 />
-                <Button color="primary" variant="flat" className="w-full">
+                <Button className="w-full" color="primary" variant="flat">
                   更换头像
                 </Button>
               </div>
@@ -33,16 +27,16 @@ export default function ProfileSettings() {
                 <div className="space-y-2">
                   <label className="text-sm text-default-700">用户名</label>
                   <Input
-                    placeholder="输入用户名"
                     defaultValue="Admin"
+                    placeholder="输入用户名"
                     variant="bordered"
                   />
                 </div>
                 <div className="space-y-2">
                   <label className="text-sm text-default-700">显示名称</label>
                   <Input
-                    placeholder="输入显示名称"
                     defaultValue="系统管理员"
+                    placeholder="输入显示名称"
                     variant="bordered"
                   />
                 </div>
@@ -51,8 +45,8 @@ export default function ProfileSettings() {
               <div className="space-y-2">
                 <label className="text-sm text-default-700">职位</label>
                 <Input
-                  placeholder="输入您的职位"
                   defaultValue="系统管理员"
+                  placeholder="输入您的职位"
                   variant="bordered"
                 />
               </div>
@@ -60,27 +54,21 @@ export default function ProfileSettings() {
               <div className="space-y-2">
                 <label className="text-sm text-default-700">电子邮箱</label>
                 <Input
+                  defaultValue="admin@example.com"
                   placeholder="输入电子邮箱"
                   type="email"
-                  defaultValue="admin@example.com"
                   variant="bordered"
                 />
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm text-default-700">所在地</label>
-                <Input
-                  placeholder="输入您的所在地"
-                  variant="bordered"
-                />
+                <Input placeholder="输入您的所在地" variant="bordered" />
               </div>
 
               <div className="space-y-2">
                 <label className="text-sm text-default-700">个人简介</label>
-                <Input
-                  placeholder="简单介绍一下自己"
-                  variant="bordered"
-                />
+                <Input placeholder="简单介绍一下自己" variant="bordered" />
               </div>
             </div>
           </div>

@@ -9,7 +9,6 @@ import {
   DrawerFooter,
   Button,
   Switch,
-  Divider,
   Card,
   CardBody,
   CardHeader,
@@ -21,6 +20,7 @@ import {
   SelectItem,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
+
 import { useSettings } from "@/components/providers/settings-provider";
 
 interface SettingsDrawerProps {
@@ -46,15 +46,15 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
   } = useSettings();
 
   return (
-    <Drawer isOpen={isOpen} onClose={onClose} placement="right" size="md">
+    <Drawer isOpen={isOpen} placement="right" size="md" onClose={onClose}>
       <DrawerContent className="bg-gradient-to-b from-background to-default-50">
         <DrawerHeader className="border-b border-divider/50 bg-background/80 backdrop-blur-sm">
           <div className="flex items-center justify-between w-full">
             <div className="flex items-center gap-3">
               <div className="p-2 rounded-xl bg-primary/10">
                 <Icon
-                  icon="lucide:settings"
                   className="text-primary"
+                  icon="lucide:settings"
                   width={20}
                 />
               </div>
@@ -75,8 +75,8 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
                       <Icon
-                        icon="lucide:palette"
                         className="text-primary"
+                        icon="lucide:palette"
                         width={18}
                       />
                     </div>
@@ -98,12 +98,12 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     <Dropdown>
                       <DropdownTrigger>
                         <Button
-                          variant="flat"
-                          size="sm"
                           className="bg-default-100 hover:bg-default-200 min-w-32"
                           endContent={
                             <Icon icon="lucide:chevron-down" width={16} />
                           }
+                          size="sm"
+                          variant="flat"
                         >
                           {settings.theme === "system"
                             ? "跟随系统"
@@ -161,8 +161,8 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-success/10 group-hover:bg-success/20 transition-colors">
                       <Icon
-                        icon="lucide:graduation-cap"
                         className="text-success"
+                        icon="lucide:graduation-cap"
                         width={18}
                       />
                     </div>
@@ -187,13 +187,13 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                       </p>
                     </div>
                     <Switch
-                      isSelected={settings.isBeginnerMode}
-                      onValueChange={toggleBeginnerMode}
-                      color="success"
-                      size="lg"
                       classNames={{
                         wrapper: "group-data-[hover=true]:bg-success-100",
                       }}
+                      color="success"
+                      isSelected={settings.isBeginnerMode}
+                      size="lg"
+                      onValueChange={toggleBeginnerMode}
                     />
                   </div>
                 </CardBody>
@@ -207,8 +207,8 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-warning/10 group-hover:bg-warning/20 transition-colors">
                       <Icon
-                        icon="lucide:shield"
                         className="text-warning"
+                        icon="lucide:shield"
                         width={18}
                       />
                     </div>
@@ -233,13 +233,13 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                       </p>
                     </div>
                     <Switch
-                      isSelected={settings.isPrivacyMode}
-                      onValueChange={togglePrivacyMode}
-                      color="warning"
-                      size="lg"
                       classNames={{
                         wrapper: "group-data-[hover=true]:bg-warning-100",
                       }}
+                      color="warning"
+                      isSelected={settings.isPrivacyMode}
+                      size="lg"
+                      onValueChange={togglePrivacyMode}
                     />
                   </div>
                 </CardBody>
@@ -253,8 +253,8 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-secondary/10 group-hover:bg-secondary/20 transition-colors">
                       <Icon
-                        icon="lucide:flask-conical"
                         className="text-secondary"
+                        icon="lucide:flask-conical"
                         width={18}
                       />
                     </div>
@@ -279,13 +279,13 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                       </p>
                     </div>
                     <Switch
-                      isSelected={settings.isExperimentalMode}
-                      onValueChange={toggleExperimentalMode}
-                      color="secondary"
-                      size="lg"
                       classNames={{
                         wrapper: "group-data-[hover=true]:bg-secondary-100",
                       }}
+                      color="secondary"
+                      isSelected={settings.isExperimentalMode}
+                      size="lg"
+                      onValueChange={toggleExperimentalMode}
                     />
                   </div>
                 </CardBody>
@@ -299,8 +299,8 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                   <div className="flex items-center gap-3">
                     <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
                       <Icon
-                        icon="lucide:refresh-cw"
                         className="text-primary"
+                        icon="lucide:refresh-cw"
                         width={18}
                       />
                     </div>
@@ -326,14 +326,14 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                       </p>
                     </div>
                     <Switch
-                      isDisabled={true}
-                      isSelected={settings.autoCheckUpdates}
-                      onValueChange={toggleAutoCheckUpdates}
-                      color="primary"
-                      size="lg"
                       classNames={{
                         wrapper: "group-data-[hover=true]:bg-primary-100",
                       }}
+                      color="primary"
+                      isDisabled={true}
+                      isSelected={settings.autoCheckUpdates}
+                      size="lg"
+                      onValueChange={toggleAutoCheckUpdates}
                     />
                   </div>
 
@@ -345,17 +345,18 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                           检查频率
                         </span>
                         <Select
+                          className="w-32"
                           selectedKeys={[settings.updateCheckFrequency]}
+                          size="sm"
                           onSelectionChange={(keys) => {
                             const frequency = Array.from(keys)[0] as
                               | "daily"
                               | "weekly"
                               | "monthly"
                               | "never";
+
                             updateSettings({ updateCheckFrequency: frequency });
                           }}
-                          size="sm"
-                          className="w-32"
                         >
                           <SelectItem key="daily">每日</SelectItem>
                           <SelectItem key="weekly">每周</SelectItem>
@@ -371,13 +372,14 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                             检查时间
                           </span>
                           <Select
+                            className="w-32"
                             selectedKeys={[settings.updateCheckTime]}
+                            size="sm"
                             onSelectionChange={(keys) => {
                               const time = Array.from(keys)[0] as string;
+
                               updateSettings({ updateCheckTime: time });
                             }}
-                            size="sm"
-                            className="w-32"
                           >
                             <SelectItem key="00:00">午夜 (00:00)</SelectItem>
                             <SelectItem key="06:00">早晨 (06:00)</SelectItem>
@@ -398,10 +400,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                           更新通知
                         </span>
                         <Switch
-                          isSelected={settings.updateNotifications}
-                          onValueChange={toggleUpdateNotifications}
                           color="primary"
+                          isSelected={settings.updateNotifications}
                           size="sm"
+                          onValueChange={toggleUpdateNotifications}
                         />
                       </div>
 
@@ -410,10 +412,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                           静默下载
                         </span>
                         <Switch
-                          isSelected={settings.silentDownload}
-                          onValueChange={toggleSilentDownload}
                           color="primary"
+                          isSelected={settings.silentDownload}
                           size="sm"
+                          onValueChange={toggleSilentDownload}
                         />
                       </div>
                     </div>
@@ -427,10 +429,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
         <DrawerFooter className="border-t border-divider/50 bg-background/80 backdrop-blur-sm px-6">
           <div className="w-full space-y-3">
             <Button
-              color="primary"
-              onPress={onClose}
               className="w-full font-semibold py-6 bg-gradient-to-r from-primary to-primary-600 hover:from-primary-600 hover:to-primary-700 transition-all duration-300"
+              color="primary"
               size="lg"
+              onPress={onClose}
             >
               <Icon icon="lucide:check" width={18} />
               保存设置

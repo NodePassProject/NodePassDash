@@ -5,14 +5,14 @@ import {
   CardBody,
   Input,
   Button,
-  Avatar
+  Avatar,
 } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { 
+import {
   faUser,
   faEnvelope,
   faKey,
-  faCircleCheck
+  faCircleCheck,
 } from "@fortawesome/free-solid-svg-icons";
 
 export function ProfileSettings() {
@@ -29,22 +29,17 @@ export function ProfileSettings() {
       <CardBody className="space-y-6">
         {/* Avatar */}
         <div className="flex items-center gap-4">
-          <Avatar 
-            src="https://ui.shadcn.com/avatars/01.png" 
-            size="lg"
+          <Avatar
             className="w-20 h-20"
+            size="lg"
+            src="https://ui.shadcn.com/avatars/01.png"
           />
           <div>
             <h4 className="text-lg font-medium text-foreground">头像</h4>
             <p className="text-small text-default-500">
               上传您的头像图片，建议使用正方形图片
             </p>
-            <Button
-              color="primary"
-              variant="light"
-              size="sm"
-              className="mt-2"
-            >
+            <Button className="mt-2" color="primary" size="sm" variant="light">
               上传新头像
             </Button>
           </div>
@@ -54,14 +49,20 @@ export function ProfileSettings() {
           {/* Username */}
           <div className="space-y-2">
             <Input
+              defaultValue="admin"
+              endContent={
+                <FontAwesomeIcon
+                  className="text-success-500"
+                  icon={faCircleCheck}
+                />
+              }
               label="用户名"
               placeholder="请输入用户名"
-              defaultValue="admin"
               startContent={
-                <FontAwesomeIcon icon={faUser} className="text-default-400 pointer-events-none flex-shrink-0" />
-              }
-              endContent={
-                <FontAwesomeIcon icon={faCircleCheck} className="text-success-500" />
+                <FontAwesomeIcon
+                  className="text-default-400 pointer-events-none flex-shrink-0"
+                  icon={faUser}
+                />
               }
             />
           </div>
@@ -69,42 +70,41 @@ export function ProfileSettings() {
           {/* Email */}
           <div className="space-y-2">
             <Input
-              type="email"
+              defaultValue="admin@example.com"
               label="邮箱地址"
               placeholder="请输入邮箱地址"
-              defaultValue="admin@example.com"
               startContent={
-                <FontAwesomeIcon icon={faEnvelope} className="text-default-400 pointer-events-none flex-shrink-0" />
+                <FontAwesomeIcon
+                  className="text-default-400 pointer-events-none flex-shrink-0"
+                  icon={faEnvelope}
+                />
               }
+              type="email"
             />
           </div>
 
           {/* Password */}
           <div className="space-y-2">
             <Input
-              type="password"
               label="修改密码"
               placeholder="输入新密码"
               startContent={
-                <FontAwesomeIcon icon={faKey} className="text-default-400 pointer-events-none flex-shrink-0" />
+                <FontAwesomeIcon
+                  className="text-default-400 pointer-events-none flex-shrink-0"
+                  icon={faKey}
+                />
               }
+              type="password"
             />
           </div>
         </div>
 
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-4">
-          <Button
-            color="danger"
-            variant="light"
-          >
+          <Button color="danger" variant="light">
             重置
           </Button>
-          <Button
-            color="primary"
-          >
-            保存更改
-          </Button>
+          <Button color="primary">保存更改</Button>
         </div>
       </CardBody>
     </Card>

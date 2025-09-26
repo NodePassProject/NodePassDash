@@ -1,19 +1,24 @@
-import React, { useCallback, useEffect, useRef, useState, useMemo } from "react";
-import {
-  Button,
-  Card,
-  CardBody,
-  CardHeader,
-  Chip,
-} from "@heroui/react";
+import React, {
+  useCallback,
+  useEffect,
+  useRef,
+  useState,
+  useMemo,
+} from "react";
+import { Button, Card, CardBody, CardHeader, Chip } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { addToast } from "@heroui/toast";
+import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
+import {
+  faArrowLeft,
+  faPlug,
+  faPlugCircleXmark,
+} from "@fortawesome/free-solid-svg-icons";
+
 import { buildApiUrl } from "@/lib/utils";
 import { LogViewer, LogEntry } from "@/components/ui/log-viewer";
 import { useNodePassSSE } from "@/lib/hooks/use-nodepass-sse";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faArrowLeft, faPlug, faPlugCircleXmark } from "@fortawesome/free-solid-svg-icons";
 
 // 主控详情接口定义
 interface EndpointDetail {
@@ -44,7 +49,9 @@ export default function SSEDebugPage() {
 
   const [detailLoading, setDetailLoading] = useState(true);
   const [logs, setLogs] = useState<LogEntry[]>([]);
-  const [endpointDetail, setEndpointDetail] = useState<EndpointDetail | null>(null);
+  const [endpointDetail, setEndpointDetail] = useState<EndpointDetail | null>(
+    null,
+  );
 
   const logCounterRef = useRef(0);
   const logContainerRef = useRef<HTMLDivElement>(null);
@@ -67,19 +74,22 @@ export default function SSEDebugPage() {
 
     try {
       setDetailLoading(true);
-      const res = await fetch(buildApiUrl(`/api/endpoints/${endpointId}/detail`));
+      const res = await fetch(
+        buildApiUrl(`/api/endpoints/${endpointId}/detail`),
+      );
+
       if (!res.ok) throw new Error("获取主控详情失败");
       const data = await res.json();
-      
+
       if (data.success && data.endpoint) {
         setEndpointDetail(data.endpoint);
       }
     } catch (err) {
       console.error(err);
-      addToast({ 
-        title: "加载失败", 
-        description: err instanceof Error ? err.message : "未知错误", 
-        color: "danger" 
+      addToast({
+        title: "加载失败",
+        description: err instanceof Error ? err.message : "未知错误",
+        color: "danger",
       });
     } finally {
       setDetailLoading(false);
@@ -88,100 +98,107 @@ export default function SSEDebugPage() {
 
   // 使用useMemo稳定endpoint对象，避免频繁重新创建
   const endpoint = useMemo(() => {
-    console.log('[SSE Debug] 构建endpoint对象:', endpointDetail);
+    console.log("[SSE Debug] 构建endpoint对象:", endpointDetail);
     if (!endpointDetail) {
-      console.log('[SSE Debug] endpointDetail为空，返回null');
+      console.log("[SSE Debug] endpointDetail为空，返回null");
+
       return null;
     }
 
     const endpointObj = {
       url: endpointDetail.url,
       apiPath: endpointDetail.apiPath,
-      apiKey: endpointDetail.apiKey
+      apiKey: endpointDetail.apiKey,
     };
 
-    console.log('[SSE Debug] 构建的endpoint对象:', endpointObj);
+    console.log("[SSE Debug] 构建的endpoint对象:", endpointObj);
+
     return endpointObj;
   }, [endpointDetail?.url, endpointDetail?.apiPath, endpointDetail?.apiKey]);
 
   // NodePass SSE监听 - 手动模式
-  const { isConnected, isConnecting, error, connect, disconnect, reconnect } = useNodePassSSE(
-    endpoint,
-    {
+  const { isConnected, isConnecting, error, connect, disconnect, reconnect } =
+    useNodePassSSE(endpoint, {
       autoReconnect: false, // 禁用自动重连，手动控制
       onConnected: () => {
-        console.log('[SSE Debug] 连接成功');
+        console.log("[SSE Debug] 连接成功");
       },
       onMessage: (data) => {
-        console.log('[SSE Debug] 收到消息:', data);
-        
+        console.log("[SSE Debug] 收到消息:", data);
+
         // 处理所有类型的消息，不仅仅是log类型
-        let logMessage = '';
-        
-        if (data.type === 'log') {
+        let logMessage = "";
+
+        if (data.type === "log") {
           // 直接日志消息
           logMessage = data.message;
-        } else if (data.type === 'instance') {
+        } else if (data.type === "instance") {
           // 实例消息，格式化为可读的日志
           logMessage = `[实例] ${JSON.stringify(data, null, 2)}`;
-        } else if (data.type === 'tunnel') {
+        } else if (data.type === "tunnel") {
           // 隧道消息
           logMessage = `[隧道] ${JSON.stringify(data, null, 2)}`;
-        } else if (data.type === 'stats') {
+        } else if (data.type === "stats") {
           // 统计消息
           logMessage = `[统计] ${JSON.stringify(data, null, 2)}`;
         } else if (data.message) {
           // 其他有message字段的消息
           logMessage = data.message;
-        } else if (typeof data === 'string') {
+        } else if (typeof data === "string") {
           // 纯字符串消息
           logMessage = data;
         } else {
           // 其他类型的消息，转换为JSON字符串
           logMessage = JSON.stringify(data, null, 2);
         }
-        
+
         // 添加到日志列表
         if (logMessage) {
           const newLogEntry: LogEntry = {
             id: ++logCounterRef.current,
             message: logMessage,
-            isHtml: true
+            isHtml: true,
           };
-          
-          console.log('[SSE Debug] 添加日志条目:', newLogEntry);
-          
-          setLogs(prevLogs => {
+
+          console.log("[SSE Debug] 添加日志条目:", newLogEntry);
+
+          setLogs((prevLogs) => {
             const updatedLogs = [...prevLogs, newLogEntry];
+
             // 保持日志数量在1000条以内
             if (updatedLogs.length > 1000) {
               return updatedLogs.slice(-1000);
             }
-            console.log('[SSE Debug] 更新日志列表，新长度:', updatedLogs.length);
+            console.log(
+              "[SSE Debug] 更新日志列表，新长度:",
+              updatedLogs.length,
+            );
+
             return updatedLogs;
           });
         } else {
-          console.log('[SSE Debug] 空消息，跳过');
+          console.log("[SSE Debug] 空消息，跳过");
         }
       },
       onError: (error) => {
-        console.error('[SSE Debug] 连接错误:', error);
+        console.error("[SSE Debug] 连接错误:", error);
       },
       onDisconnected: () => {
-        console.log('[SSE Debug] 连接已断开');
-      }
-    }
-  );
+        console.log("[SSE Debug] 连接已断开");
+      },
+    });
 
   // 使用useCallback优化函数引用，添加正确的依赖项
-  const memoizedFetchEndpointDetail = useCallback(fetchEndpointDetail, [endpointId]);
+  const memoizedFetchEndpointDetail = useCallback(fetchEndpointDetail, [
+    endpointId,
+  ]);
 
   // 初始化数据加载 - 只在组件挂载时执行一次，使用ref避免重复执行
   const hasInitializedRef = useRef(false);
 
   useEffect(() => {
     if (!hasInitializedRef.current) {
-      console.log('[SSE Debug] 组件初始化，加载数据');
+      console.log("[SSE Debug] 组件初始化，加载数据");
       hasInitializedRef.current = true;
       memoizedFetchEndpointDetail();
     }
@@ -192,14 +209,21 @@ export default function SSEDebugPage() {
       {/* 顶部返回按钮和主控信息 */}
       <div className="flex flex-col md:flex-row md:items-center gap-3 md:justify-between">
         <div className="flex items-center gap-3">
-            <Button isIconOnly variant="flat" onPress={() => navigate(-1)} className="bg-default-100 hover:bg-default-200">
-              <FontAwesomeIcon icon={faArrowLeft} />
-            </Button>
+          <Button
+            isIconOnly
+            className="bg-default-100 hover:bg-default-200"
+            variant="flat"
+            onPress={() => navigate(-1)}
+          >
+            <FontAwesomeIcon icon={faArrowLeft} />
+          </Button>
           {endpointDetail ? (
             <div className="flex items-center gap-3 flex-wrap">
-              <h1 className="text-lg md:text-2xl font-bold truncate">{endpointDetail.name} - Debug</h1>
+              <h1 className="text-lg md:text-2xl font-bold truncate">
+                {endpointDetail.name} - Debug
+              </h1>
               {endpointDetail.ver && (
-                <Chip variant="flat" color="secondary">
+                <Chip color="secondary" variant="flat">
                   {endpointDetail.ver}
                 </Chip>
               )}
@@ -217,75 +241,75 @@ export default function SSEDebugPage() {
             <div className="flex items-center gap-3">
               <h3 className="text-lg font-semibold">实时SSE推送</h3>
               <div className="flex items-center gap-2">
-                <div className={`w-2 h-2 rounded-full ${
-                  isConnected ? 'bg-green-500' : 
-                  isConnecting ? 'bg-yellow-500 animate-pulse' : 
-                  'bg-red-500'
-                }`}></div>
+                <div
+                  className={`w-2 h-2 rounded-full ${
+                    isConnected
+                      ? "bg-green-500"
+                      : isConnecting
+                        ? "bg-yellow-500 animate-pulse"
+                        : "bg-red-500"
+                  }`}
+                />
                 <span className="text-sm text-default-500">
-                  {isConnected ? '已连接' : 
-                   isConnecting ? '连接中...' : 
-                   error ? '连接失败' : '未连接'}
+                  {isConnected
+                    ? "已连接"
+                    : isConnecting
+                      ? "连接中..."
+                      : error
+                        ? "连接失败"
+                        : "未连接"}
                 </span>
               </div>
             </div>
-            
+
             {/* 连接/断开按钮 - 移动端放在第一行右侧 */}
             <div className="md:hidden">
               {!isConnected && !isConnecting ? (
                 <Button
-                  size="sm"
                   color="success"
-                  variant="flat"
                   isDisabled={!endpointDetail}
+                  size="sm"
+                  startContent={<FontAwesomeIcon icon={faPlug} />}
+                  variant="flat"
                   onPress={connect}
-                  startContent={
-                    <FontAwesomeIcon icon={faPlug} />
-                  }
                 >
                   连接
                 </Button>
               ) : (
                 <Button
-                  size="sm"
                   color="danger"
+                  size="sm"
+                  startContent={<FontAwesomeIcon icon={faPlugCircleXmark} />}
                   variant="flat"
                   onPress={disconnect}
-                  startContent={
-                    <FontAwesomeIcon icon={faPlugCircleXmark} />
-                  }
                 >
                   断开
                 </Button>
               )}
             </div>
           </div>
-          
+
           <div className="flex flex-wrap items-center gap-2">
             {/* 连接/断开按钮 - 桌面端显示 */}
             <div className="hidden md:block">
               {!isConnected && !isConnecting ? (
                 <Button
-                  size="sm"
                   color="success"
-                  variant="flat"
                   isDisabled={!endpointDetail}
+                  size="sm"
+                  startContent={<FontAwesomeIcon icon={faPlug} />}
+                  variant="flat"
                   onPress={connect}
-                  startContent={
-                    <FontAwesomeIcon icon={faPlug} />
-                  }
                 >
                   连接
                 </Button>
               ) : (
                 <Button
-                  size="sm"
                   color="danger"
+                  size="sm"
+                  startContent={<FontAwesomeIcon icon={faPlugCircleXmark} />}
                   variant="flat"
                   onPress={disconnect}
-                  startContent={
-                    <FontAwesomeIcon icon={faPlugCircleXmark} />
-                  }
                 >
                   断开
                 </Button>
@@ -294,16 +318,16 @@ export default function SSEDebugPage() {
 
             {/* 清空日志按钮 */}
             <Button
-              size="sm"
               color="warning"
+              size="sm"
+              startContent={
+                <Icon className="w-4 h-4" icon="solar:trash-bin-trash-bold" />
+              }
               variant="flat"
               onPress={() => {
                 setLogs([]);
                 logCounterRef.current = 0;
               }}
-              startContent={
-                <Icon icon="solar:trash-bin-trash-bold" className="w-4 h-4" />
-              }
             >
               清空日志
             </Button>
@@ -311,14 +335,14 @@ export default function SSEDebugPage() {
             {/* 重连按钮 - 仅在连接失败时显示 */}
             {error && !isConnecting && (
               <Button
-                size="sm"
                 color="secondary"
-                variant="flat"
                 isDisabled={!endpointDetail}
-                onPress={reconnect}
+                size="sm"
                 startContent={
-                  <Icon icon="solar:refresh-bold" className="w-4 h-4" />
+                  <Icon className="w-4 h-4" icon="solar:refresh-bold" />
                 }
+                variant="flat"
+                onPress={reconnect}
               >
                 重连
               </Button>
@@ -326,29 +350,38 @@ export default function SSEDebugPage() {
 
             {/* 滚动到顶部按钮 */}
             <Button
-              size="sm"
               color="primary"
+              size="sm"
+              startContent={
+                <Icon className="w-4 h-4" icon="solar:arrow-up-bold" />
+              }
               variant="flat"
               onPress={scrollToTop}
-              startContent={<Icon icon="solar:arrow-up-bold" className="w-4 h-4" />}
             >
               顶部
             </Button>
 
             {/* 滚动到底部按钮 */}
             <Button
-              size="sm"
               color="primary"
+              size="sm"
+              startContent={
+                <Icon className="w-4 h-4" icon="solar:arrow-down-bold" />
+              }
               variant="flat"
               onPress={scrollToBottom}
-              startContent={<Icon icon="solar:arrow-down-bold" className="w-4 h-4" />}
             >
               底部
             </Button>
           </div>
         </CardHeader>
         <CardBody>
-          <LogViewer logs={logs} loading={false} heightClass="h-[550px] md:h-[500px]" containerRef={logContainerRef} />
+          <LogViewer
+            containerRef={logContainerRef}
+            heightClass="h-[550px] md:h-[500px]"
+            loading={false}
+            logs={logs}
+          />
         </CardBody>
       </Card>
     </div>

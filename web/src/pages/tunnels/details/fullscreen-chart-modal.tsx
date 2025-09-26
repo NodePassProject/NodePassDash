@@ -1,4 +1,3 @@
-
 import React from "react";
 import {
   Modal,
@@ -10,7 +9,8 @@ import {
   Tab,
 } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faXmark, faRefresh } from "@fortawesome/free-solid-svg-icons";
+import { faRefresh } from "@fortawesome/free-solid-svg-icons";
+
 import { TrafficUsageChart } from "@/components/ui/traffic-usage-chart";
 import { SpeedChart } from "@/components/ui/speed-chart";
 import { PoolChart } from "@/components/ui/pool-chart";
@@ -76,17 +76,26 @@ const timeRanges = [
 // 根据时间范围过滤数据
 const filterDataByTimeRange = (data: any[], timeRange: string) => {
   if (data.length === 0) return data;
-  
+
   const now = new Date();
-  const hoursAgo = timeRange === "1h" ? 1 : timeRange === "6h" ? 6 : timeRange === "12h" ? 12 : 24;
+  const hoursAgo =
+    timeRange === "1h"
+      ? 1
+      : timeRange === "6h"
+        ? 6
+        : timeRange === "12h"
+          ? 12
+          : 24;
   const cutoffTime = new Date(now.getTime() - hoursAgo * 60 * 60 * 1000);
-  
+
   return data.filter((item) => {
     try {
       const itemTime = new Date(item.timeStamp);
+
       return !isNaN(itemTime.getTime()) && itemTime >= cutoffTime;
     } catch (error) {
       console.error(`时间解析错误: ${item.timeStamp}`, error);
+
       return false;
     }
   });
@@ -155,58 +164,56 @@ export const FullscreenChartModal: React.FC<FullscreenChartModalProps> = ({
   };
 
   return (
-    <Modal 
-      isOpen={isOpen} 
-      onOpenChange={onOpenChange}
-      size="5xl"
-      scrollBehavior="inside"
+    <Modal
       classNames={{
         base: "mx-4",
         body: "p-0",
       }}
+      isOpen={isOpen}
+      scrollBehavior="inside"
+      size="5xl"
+      onOpenChange={onOpenChange}
     >
       <ModalContent className="max-h-[90vh]">
         {(onClose) => (
           <>
             <ModalHeader className="flex items-center justify-between border-b pb-4">
               <h3 className="text-xl font-bold">{title}</h3>
-              
+
               <div className="flex items-center gap-3">
                 {/* 刷新按钮 */}
                 <Button
+                  isIconOnly
+                  className="h-8 w-8 min-w-0"
+                  isLoading={loading}
                   size="sm"
                   variant="flat"
-                  isIconOnly
                   onPress={onRefresh}
-                  isLoading={loading}
-                  className="h-8 w-8 min-w-0"
                 >
-                  <FontAwesomeIcon icon={faRefresh} className="text-sm" />
+                  <FontAwesomeIcon className="text-sm" icon={faRefresh} />
                 </Button>
-                
+
                 {/* 时间范围选择 */}
-                <Tabs 
-                  selectedKey={timeRange}
-                  onSelectionChange={(key) => setTimeRange(key as string)}
-                  size="sm"
-                  variant="light"
+                <Tabs
                   classNames={{
                     tabList: "gap-1",
                     tab: "text-sm px-3 py-2 min-w-0 h-8",
-                    tabContent: "text-sm"
+                    tabContent: "text-sm",
                   }}
+                  selectedKey={timeRange}
+                  size="sm"
+                  variant="light"
+                  onSelectionChange={(key) => setTimeRange(key as string)}
                 >
-                  {timeRanges.map(range => (
+                  {timeRanges.map((range) => (
                     <Tab key={range.key} title={range.title} />
                   ))}
                 </Tabs>
               </div>
             </ModalHeader>
-            
+
             <ModalBody className="p-6">
-              <div className="h-[400px] w-full">
-                {renderChart()}
-              </div>
+              <div className="h-[400px] w-full">{renderChart()}</div>
             </ModalBody>
           </>
         )}

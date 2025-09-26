@@ -1,7 +1,15 @@
-"use client"
+"use client";
 
-import React from 'react';
-import { Area, AreaChart, CartesianGrid, XAxis, YAxis, Tooltip, Legend } from "recharts";
+import React from "react";
+import {
+  Area,
+  AreaChart,
+  CartesianGrid,
+  XAxis,
+  YAxis,
+  Tooltip,
+} from "recharts";
+
 import { type ChartConfig, ChartContainer } from "./chart";
 import { ConnectionsTooltip } from "./shared-chart-tooltip";
 
@@ -30,10 +38,11 @@ const formatAxisTime = (timestamp: string): string => {
   const diff = now.getTime() - date.getTime();
   const hours = Math.floor(diff / (1000 * 60 * 60));
   const minutes = Math.floor((diff % (1000 * 60 * 60)) / (1000 * 60));
-  
+
   // 对于横坐标，使用相对时间但适当简化
   if (hours > 24) {
     const days = Math.floor(hours / 24);
+
     return `${days}d`;
   }
   if (hours > 0) {
@@ -42,10 +51,11 @@ const formatAxisTime = (timestamp: string): string => {
   if (minutes > 5) {
     return `${minutes}m`;
   }
+
   // 5分钟内显示实际时间
-  return date.toLocaleTimeString('zh-CN', {
-    hour: '2-digit',
-    minute: '2-digit',
+  return date.toLocaleTimeString("zh-CN", {
+    hour: "2-digit",
+    minute: "2-digit",
   });
 };
 
@@ -54,28 +64,35 @@ const formatTooltipTime = (timestamp: string): string => {
   const date = new Date(timestamp);
   const now = new Date();
   const diffHours = (now.getTime() - date.getTime()) / (1000 * 60 * 60);
-  
+
   if (diffHours < 24) {
     // 24小时内只显示时分
-    return date.toLocaleTimeString('zh-CN', {
-      hour: '2-digit',
-      minute: '2-digit',
+    return date.toLocaleTimeString("zh-CN", {
+      hour: "2-digit",
+      minute: "2-digit",
     });
   } else {
     // 超过24小时显示月日时分
-    return date.toLocaleString('zh-CN', {
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-    }).replace(/\//g, '-');
+    return date
+      .toLocaleString("zh-CN", {
+        month: "2-digit",
+        day: "2-digit",
+        hour: "2-digit",
+        minute: "2-digit",
+      })
+      .replace(/\//g, "-");
   }
 };
 
-
 // 加载状态组件
-const LoadingState: React.FC<{ height: number; className?: string }> = ({ height, className }) => (
-  <div className={`flex items-center justify-center ${className}`} style={height ? { height } : {}}>
+const LoadingState: React.FC<{ height: number; className?: string }> = ({
+  height,
+  className,
+}) => (
+  <div
+    className={`flex items-center justify-center ${className}`}
+    style={height ? { height } : {}}
+  >
     <div className="space-y-1 text-center">
       <div className="flex justify-center">
         <div className="relative w-4 h-4">
@@ -88,12 +105,15 @@ const LoadingState: React.FC<{ height: number; className?: string }> = ({ height
 );
 
 // 错误状态组件
-const ErrorState: React.FC<{ error: string; height: number; className?: string }> = ({ 
-  error, 
-  height, 
-  className
-}) => (
-  <div className={`flex items-center justify-center ${className}`} style={height ? { height } : {}}>
+const ErrorState: React.FC<{
+  error: string;
+  height: number;
+  className?: string;
+}> = ({ error, height, className }) => (
+  <div
+    className={`flex items-center justify-center ${className}`}
+    style={height ? { height } : {}}
+  >
     <div className="text-center">
       <p className="text-danger text-xs">加载失败</p>
       <p className="text-default-400 text-xs mt-0.5">{error}</p>
@@ -102,8 +122,14 @@ const ErrorState: React.FC<{ error: string; height: number; className?: string }
 );
 
 // 空状态组件
-const EmptyState: React.FC<{ height: number; className?: string }> = ({ height, className }) => (
-  <div className={`flex items-center justify-center ${className}`} style={height ? { height } : {}}>
+const EmptyState: React.FC<{ height: number; className?: string }> = ({
+  height,
+  className,
+}) => (
+  <div
+    className={`flex items-center justify-center ${className}`}
+    style={height ? { height } : {}}
+  >
     <div className="text-center">
       <p className="text-default-400 text-xs">暂无数据</p>
     </div>
@@ -113,13 +139,14 @@ const EmptyState: React.FC<{ height: number; className?: string }> = ({ height, 
 // 时间过滤函数 - 过滤出1小时内的数据
 const filterDataTo1Hour = (data: ConnectionDataPoint[]) => {
   if (data.length === 0) return data;
-  
+
   const now = new Date();
   const oneHourAgo = new Date(now.getTime() - 60 * 60 * 1000);
-  
+
   return data.filter((item) => {
     try {
       const itemTime = new Date(item.timeStamp);
+
       return !isNaN(itemTime.getTime()) && itemTime >= oneHourAgo;
     } catch (error) {
       return false;
@@ -132,10 +159,9 @@ export const ConnectionsChart: React.FC<ConnectionsChartProps> = ({
   height = 140,
   loading = false,
   error,
-  className = '',
+  className = "",
   showFullData = false,
 }) => {
-
   const chartConfig = {
     pool: {
       label: "池连接数",
@@ -146,24 +172,24 @@ export const ConnectionsChart: React.FC<ConnectionsChartProps> = ({
       color: "hsl(24 70% 50%)",
     },
     udps: {
-      label: "UDP连接数", 
+      label: "UDP连接数",
       color: "hsl(173 58% 39%)",
     },
   } satisfies ChartConfig;
 
   // 处理加载状态
   if (loading && data.length === 0) {
-    return <LoadingState height={height} className={className} />;
+    return <LoadingState className={className} height={height} />;
   }
 
   // 处理错误状态
   if (error) {
-    return <ErrorState error={error} height={height} className={className} />;
+    return <ErrorState className={className} error={error} height={height} />;
   }
 
   // 处理空数据状态
   if (data.length === 0) {
-    return <EmptyState height={height} className={className} />;
+    return <EmptyState className={className} height={height} />;
   }
 
   // 计算最大连接数用于Y轴范围
@@ -171,9 +197,10 @@ export const ConnectionsChart: React.FC<ConnectionsChartProps> = ({
     if (item.pool !== undefined && item.pool !== null) acc.push(item.pool);
     if (item.tcps !== undefined && item.tcps !== null) acc.push(item.tcps);
     if (item.udps !== undefined && item.udps !== null) acc.push(item.udps);
+
     return acc;
   }, []);
-  
+
   const maxConnections = allValues.length > 0 ? Math.max(...allValues) : 0;
   // 确保Y轴最大值至少不为0，避免domain异常
   const yAxisMax = maxConnections > 0 ? Math.ceil(maxConnections * 1.1) : 10; // 10个连接作为默认值
@@ -182,7 +209,11 @@ export const ConnectionsChart: React.FC<ConnectionsChartProps> = ({
   const filteredData = showFullData ? data : filterDataTo1Hour(data);
 
   return (
-    <ChartContainer config={chartConfig} className={`aspect-auto w-full ${className}`} style={{ height }}>
+    <ChartContainer
+      className={`aspect-auto w-full ${className}`}
+      config={chartConfig}
+      style={{ height }}
+    >
       <AreaChart
         accessibilityLayer
         data={filteredData}
@@ -193,67 +224,68 @@ export const ConnectionsChart: React.FC<ConnectionsChartProps> = ({
           bottom: 12,
         }}
       >
-        <CartesianGrid vertical={false} strokeDasharray="3" />
+        <CartesianGrid strokeDasharray="3" vertical={false} />
         <XAxis
-          dataKey="timeStamp"
-          tickLine={false}
           axisLine={false}
-          tickMargin={8}
-          minTickGap={200}
+          dataKey="timeStamp"
           interval="preserveStartEnd"
+          minTickGap={200}
           tickFormatter={formatAxisTime}
+          tickLine={false}
+          tickMargin={8}
         />
         <YAxis
-          tickLine={false}
-          axisLine={false}
-          mirror={true}
-          tickMargin={-15}
-          domain={[0, yAxisMax]}
-          type="number"
           allowDecimals={false}
+          axisLine={false}
+          domain={[0, yAxisMax]}
           minTickGap={20}
+          mirror={true}
           tickCount={5}
           tickFormatter={(value) => {
-            if (value === 0) return '0';
+            if (value === 0) return "0";
+
             return `${Math.round(value)}`;
           }}
+          tickLine={false}
+          tickMargin={-15}
+          type="number"
         />
         <Tooltip content={<ConnectionsTooltip />} />
-        
+
         {/* Pool连接数 */}
         <Area
-          isAnimationActive={false}
           dataKey="pool"
-          type="monotone"
           fill={chartConfig.pool.color}
           fillOpacity={0.2}
+          isAnimationActive={false}
+          name={chartConfig.pool.label}
           stroke={chartConfig.pool.color}
           strokeWidth={2}
-          name={chartConfig.pool.label}
+          type="monotone"
         />
-        
+
         {/* TCP连接数 */}
         <Area
-          isAnimationActive={false}
           dataKey="tcps"
-          type="monotone"
           fill={chartConfig.tcps.color}
           fillOpacity={0.2}
+          isAnimationActive={false}
+          name={chartConfig.tcps.label}
           stroke={chartConfig.tcps.color}
           strokeWidth={2}
-          name={chartConfig.tcps.label}
+          type="monotone"
         />
-        
+
         {/* UDP连接数 */}
         <Area
-          isAnimationActive={false}
           dataKey="udps"
-          type="monotone"
           fill={chartConfig.udps.color}
           fillOpacity={0.2}
+          isAnimationActive={false}
+          name={chartConfig.udps.label}
           stroke={chartConfig.udps.color}
           strokeWidth={2}
-          name={chartConfig.udps.label}
+          type="monotone"
         />
       </AreaChart>
     </ChartContainer>

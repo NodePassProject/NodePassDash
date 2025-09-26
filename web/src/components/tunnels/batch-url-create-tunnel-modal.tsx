@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   ModalContent,
@@ -15,7 +15,8 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faHammer, faPlus, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
-import { buildApiUrl } from '@/lib/utils';
+
+import { buildApiUrl } from "@/lib/utils";
 
 interface Endpoint {
   id: string;
@@ -38,39 +39,42 @@ interface BatchUrlCreateTunnelModalProps {
 /**
  * 批量URL创建实例模态框（与主控管理页面相同的简单表单）
  */
-export default function BatchUrlCreateTunnelModal({ 
-  isOpen, 
-  onOpenChange, 
-  onSaved 
+export default function BatchUrlCreateTunnelModal({
+  isOpen,
+  onOpenChange,
+  onSaved,
 }: BatchUrlCreateTunnelModalProps) {
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
-  
+
   // 隧道规则列表
   const [tunnelRules, setTunnelRules] = useState<TunnelRule[]>([]);
 
   // 当打开时加载端点
   useEffect(() => {
     if (!isOpen) return;
-    
+
     const fetchEndpoints = async () => {
       try {
         setLoading(true);
-        const response = await fetch(buildApiUrl("/api/endpoints/simple?excludeFailed=true"));
+        const response = await fetch(
+          buildApiUrl("/api/endpoints/simple?excludeFailed=true"),
+        );
         const data = await response.json();
+
         setEndpoints(data);
       } catch (err) {
-        addToast({ 
-          title: "获取主控失败", 
-          description: "无法获取主控列表", 
-          color: "danger" 
+        addToast({
+          title: "获取主控失败",
+          description: "无法获取主控列表",
+          color: "danger",
         });
       } finally {
         setLoading(false);
       }
     };
-    
+
     fetchEndpoints();
     resetForm();
   }, [isOpen]);
@@ -84,23 +88,30 @@ export default function BatchUrlCreateTunnelModal({
   const addNewRule = () => {
     const newRule: TunnelRule = {
       id: `rule-${Date.now()}`,
-      endpointId: endpoints.length > 0 ? endpoints[0].id : '',
-      name: '',
-      url: ''
+      endpointId: endpoints.length > 0 ? endpoints[0].id : "",
+      name: "",
+      url: "",
     };
-    setTunnelRules(prev => [...prev, newRule]);
+
+    setTunnelRules((prev) => [...prev, newRule]);
   };
 
   // 删除规则
   const removeRule = (ruleId: string) => {
-    setTunnelRules(prev => prev.filter(rule => rule.id !== ruleId));
+    setTunnelRules((prev) => prev.filter((rule) => rule.id !== ruleId));
   };
 
   // 更新规则
-  const updateRule = (ruleId: string, field: keyof TunnelRule, value: string) => {
-    setTunnelRules(prev => prev.map(rule => 
-      rule.id === ruleId ? { ...rule, [field]: value } : rule
-    ));
+  const updateRule = (
+    ruleId: string,
+    field: keyof TunnelRule,
+    value: string,
+  ) => {
+    setTunnelRules((prev) =>
+      prev.map((rule) =>
+        rule.id === ruleId ? { ...rule, [field]: value } : rule,
+      ),
+    );
   };
 
   // 提交表单
@@ -109,61 +120,67 @@ export default function BatchUrlCreateTunnelModal({
       addToast({
         title: "创建失败",
         description: "请添加至少一条隧道",
-        color: "warning"
+        color: "warning",
       });
+
       return;
     }
 
     // 验证所有规则的完整性
     for (let i = 0; i < tunnelRules.length; i++) {
       const rule = tunnelRules[i];
+
       if (!rule.endpointId) {
         addToast({
           title: "创建失败",
           description: `第 ${i + 1} 条规则请选择主控服务器`,
-          color: "warning"
+          color: "warning",
         });
+
         return;
       }
       if (!rule.name.trim()) {
         addToast({
-          title: "创建失败", 
+          title: "创建失败",
           description: `第 ${i + 1} 条规则请输入实例名称`,
-          color: "warning"
+          color: "warning",
         });
+
         return;
       }
       if (!rule.url.trim()) {
         addToast({
           title: "创建失败",
           description: `第 ${i + 1} 条规则请输入实例URL`,
-          color: "warning"
+          color: "warning",
         });
+
         return;
       }
     }
 
     try {
       setSubmitting(true);
-      
+
       // 调用新的批量创建接口
       const response = await fetch(buildApiUrl(`/api/tunnels/quick-batch`), {
-        method: 'POST',
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
-          rules: tunnelRules.map(rule => ({
+          rules: tunnelRules.map((rule) => ({
             endpointId: Number(rule.endpointId),
             name: rule.name.trim(),
-            url: rule.url.trim()
-          }))
+            url: rule.url.trim(),
+          })),
         }),
       });
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.message || '创建实例失败');
+
+        throw new Error(errorData.message || "创建实例失败");
       }
 
       const result = await response.json();
@@ -177,12 +194,11 @@ export default function BatchUrlCreateTunnelModal({
       // 重置表单并关闭弹窗
       resetForm();
       onOpenChange(false);
-      
+
       // 调用回调函数刷新列表
       if (onSaved) onSaved();
-
     } catch (error) {
-      console.error('创建实例失败:', error);
+      console.error("创建实例失败:", error);
       addToast({
         title: "创建失败",
         description: error instanceof Error ? error.message : "未知错误",
@@ -194,28 +210,28 @@ export default function BatchUrlCreateTunnelModal({
   };
 
   return (
-    <Modal 
+    <Modal
       isOpen={isOpen} 
-      onOpenChange={onOpenChange} 
       placement="center" 
+      scrollBehavior="inside" 
       size="5xl"
-      scrollBehavior="inside"
+      onOpenChange={onOpenChange}
     >
       <ModalContent>
         {(onClose) => (
           <>
             <ModalHeader className="flex items-center justify-start gap-2">
               <div className="flex items-center gap-2">
-                <FontAwesomeIcon icon={faHammer} className="text-warning" />
+                <FontAwesomeIcon className="text-warning" icon={faHammer} />
                 批量URL创建实例
               </div>
               <Button
-                size="sm"
                 color="primary"
-                variant="flat"
-                startContent={<FontAwesomeIcon icon={faPlus} className="text-xs" />}
-                onClick={addNewRule}
                 isDisabled={loading}
+                size="sm"
+                startContent={<FontAwesomeIcon icon={faPlus} className="text-xs" />}
+                variant="flat"
+                onClick={addNewRule}
               >
                 添加
               </Button>
@@ -223,7 +239,7 @@ export default function BatchUrlCreateTunnelModal({
             <ModalBody>
               {loading ? (
                 <div className="flex justify-center items-center py-6">
-                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
+                  <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary" />
                 </div>
               ) : (
                 <div className="space-y-4">
@@ -231,21 +247,23 @@ export default function BatchUrlCreateTunnelModal({
                   <div className="space-y-3">
                     {tunnelRules.length === 0 ? (
                       <div className="text-center py-8 border-2 border-dashed border-default-200 rounded-lg">
-                        <p className="text-default-500 text-sm">暂无隧道规则，点击右上角"添加规则"开始配置</p>
+                        <p className="text-default-500 text-sm">
+                          暂无隧道规则，点击右上角"添加规则"开始配置
+                        </p>
                       </div>
-                                          ) : (
-                        <div className="max-h-96 overflow-y-auto border border-default-200 rounded-lg">
-                        <Listbox 
+                    ) : (
+                      <div className="max-h-96 overflow-y-auto border border-default-200 rounded-lg">
+                        <Listbox
                           aria-label="隧道规则列表"
-                          variant="flat"
-                          selectionMode="none"
                           className="p-0"
+                          selectionMode="none"
+                          variant="flat"
                         >
                           {tunnelRules.map((rule, index) => (
                             <ListboxItem
                               key={rule.id}
-                              textValue={`规则 ${index + 1}`}
                               className="py-2"
+                              textValue={`规则 ${index + 1}`}
                             >
                               <div className="flex items-center gap-3">
                                 <span className="text-sm font-medium text-default-600 min-w-fit">
@@ -255,15 +273,15 @@ export default function BatchUrlCreateTunnelModal({
                                   {/* 主控选择 */}
                                   <div className="col-span-2">
                                     <Select
+                                      isRequired
                                       placeholder="选择主控"
                                       selectedKeys={rule.endpointId ? [rule.endpointId] : []}
+                                      size="sm"
+                                      variant="bordered"
                                       onSelectionChange={(keys) => {
                                         const selected = Array.from(keys)[0] as string;
                                         updateRule(rule.id, 'endpointId', selected);
                                       }}
-                                      size="sm"
-                                      variant="bordered"
-                                      isRequired
                                     >
                                       {endpoints.map((endpoint) => (
                                         <SelectItem key={endpoint.id}>
@@ -272,38 +290,41 @@ export default function BatchUrlCreateTunnelModal({
                                       ))}
                                     </Select>
                                   </div>
-                                  
+
                                   {/* 隧道名称 */}
                                   <div className="col-span-2">
                                     <Input
                                       placeholder="隧道名称"
-                                      value={rule.name}
-                                      onValueChange={(value) => updateRule(rule.id, 'name', value)}
                                       size="sm"
+                                      value={rule.name}
                                       variant="bordered"
+                                      onValueChange={(value) => updateRule(rule.id, 'name', value)}
                                     />
                                   </div>
-                                  
+
                                   {/* 隧道URL */}
                                   <div className="col-span-4">
                                     <Input
-                                      placeholder="<core>://<tunnel_addr>/<target_addr>"
-                                      value={rule.url}
-                                      onValueChange={(value) => updateRule(rule.id, 'url', value)}
-                                      size="sm"
-                                      variant="bordered"
                                       className="font-mono"
+                                      placeholder="<core>://<tunnel_addr>/<target_addr>"
+                                      size="sm"
+                                      value={rule.url}
+                                      variant="bordered"
+                                      onValueChange={(value) => updateRule(rule.id, 'url', value)}
                                     />
                                   </div>
                                 </div>
                                 <Button
                                   isIconOnly
-                                  size="sm"
                                   color="danger"
+                                  size="sm"
                                   variant="light"
                                   onClick={() => removeRule(rule.id)}
                                 >
-                                  <FontAwesomeIcon icon={faTrash} className="text-xs" />
+                                  <FontAwesomeIcon
+                                    icon={faTrash}
+                                    className="text-xs"
+                                  />
                                 </Button>
                               </div>
                             </ListboxItem>
@@ -316,28 +337,25 @@ export default function BatchUrlCreateTunnelModal({
               )}
             </ModalBody>
             <ModalFooter>
-              <Button 
+              <Button
                 color="default" 
-                variant="light" 
+                isDisabled={submitting} 
+                variant="light"
                 onPress={() => {
                   resetForm();
                   onClose();
                 }}
-                isDisabled={submitting}
               >
                 取消
               </Button>
-              <Button 
-                color="primary" 
-                onPress={handleSubmit}
-                isLoading={submitting}
+              <Button
+                color="primary"
                 isDisabled={loading || tunnelRules.length === 0}
+                isLoading={submitting}
                 startContent={!submitting ? <FontAwesomeIcon icon={faHammer} /> : null}
+                onPress={handleSubmit}
               >
-                {submitting 
-                  ? '创建中...' 
-                  : `批量创建 (${tunnelRules.length})`
-                }
+                {submitting ? "创建中..." : `批量创建 (${tunnelRules.length})`}
               </Button>
             </ModalFooter>
           </>

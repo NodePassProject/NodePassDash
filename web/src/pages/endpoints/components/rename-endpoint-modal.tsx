@@ -10,6 +10,7 @@ import {
 import { useState, useEffect } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen } from "@fortawesome/free-solid-svg-icons";
+
 import { useTextLimit, TEXT_LIMITS } from "@/lib/utils/text-limits";
 
 interface RenameEndpointModalProps {
@@ -23,7 +24,7 @@ export default function RenameEndpointModal({
   isOpen,
   onOpenChange,
   currentName,
-  onRename
+  onRename,
 }: RenameEndpointModalProps) {
   const [newName, setNewName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
@@ -54,51 +55,55 @@ export default function RenameEndpointModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center">
+    <Modal isOpen={isOpen} placement="center" onOpenChange={onOpenChange}>
       <ModalContent>
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <FontAwesomeIcon icon={faPen} className="text-primary" />
+                <FontAwesomeIcon className="text-primary" icon={faPen} />
                 <span>重命名主控</span>
               </div>
             </ModalHeader>
-            
+
             <ModalBody>
               <Input
+                autoFocus
+                isRequired
+                description={textLimit.description}
                 label="主控名称"
                 placeholder="请输入新的主控名称"
                 value={newName}
-                onValueChange={setNewName}
                 variant="bordered"
-                isRequired
-                autoFocus
-                description={textLimit.description}
                 onKeyDown={(e) => {
-                  if (e.key === 'Enter') {
+                  if (e.key === "Enter") {
                     handleSubmit();
                   }
                 }}
+                onValueChange={setNewName}
               />
             </ModalBody>
-            
+
             <ModalFooter>
-              <Button 
-                color="default" 
-                variant="light" 
-                onPress={onClose}
+              <Button
+                color="default"
                 isDisabled={isLoading}
+                variant="light"
+                onPress={onClose}
               >
                 取消
               </Button>
-              <Button 
-                color="primary" 
-                onPress={handleSubmit}
+              <Button
+                color="primary"
+                isDisabled={
+                  !newName.trim() ||
+                  newName === currentName ||
+                  textLimit.isOverLimit
+                }
                 isLoading={isLoading}
-                isDisabled={!newName.trim() || newName === currentName || textLimit.isOverLimit}
+                onPress={handleSubmit}
               >
-                {isLoading ? '保存中...' : '保存'}
+                {isLoading ? "保存中..." : "保存"}
               </Button>
             </ModalFooter>
           </>

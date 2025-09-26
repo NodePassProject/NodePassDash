@@ -1,4 +1,4 @@
-import React from 'react';
+import React from "react";
 import {
   Modal,
   ModalContent,
@@ -6,8 +6,8 @@ import {
   ModalBody,
   ModalFooter,
   Button,
-} from '@heroui/react';
-import { Icon } from '@iconify/react';
+} from "@heroui/react";
+import { Icon } from "@iconify/react";
 
 interface ConfirmationModalProps {
   isOpen: boolean;
@@ -17,7 +17,7 @@ interface ConfirmationModalProps {
   message: string;
   confirmText?: string;
   cancelText?: string;
-  confirmColor?: 'primary' | 'danger' | 'warning' | 'success';
+  confirmColor?: "primary" | "danger" | "warning" | "success";
   isLoading?: boolean;
   icon?: string;
   iconColor?: string;
@@ -34,16 +34,14 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   confirmColor = "danger",
   isLoading = false,
   icon = "solar:danger-triangle-bold",
-  iconColor = "text-warning"
+  iconColor = "text-warning",
 }) => {
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <ModalContent>
         <ModalHeader className="flex flex-col gap-1">
           <div className="flex items-center gap-2">
-            {icon && (
-              <Icon icon={icon} className={`w-6 h-6 ${iconColor}`} />
-            )}
+            {icon && <Icon className={`w-6 h-6 ${iconColor}`} icon={icon} />}
             {title}
           </div>
         </ModalHeader>
@@ -51,17 +49,13 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
           <p className="text-sm text-default-600">{message}</p>
         </ModalBody>
         <ModalFooter>
-          <Button 
-            variant="light" 
-            onPress={onClose}
-            disabled={isLoading}
-          >
+          <Button disabled={isLoading} variant="light" onPress={onClose}>
             {cancelText}
           </Button>
-          <Button 
-            color={confirmColor} 
-            onPress={onConfirm}
+          <Button
+            color={confirmColor}
             isLoading={isLoading}
+            onPress={onConfirm}
           >
             {confirmText}
           </Button>

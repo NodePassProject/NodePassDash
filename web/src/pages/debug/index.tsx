@@ -23,10 +23,11 @@ import {
   faRefresh,
   faEthernet,
   faPingPongPaddleBall,
-  faCode
+  faCode,
 } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate } from "react-router-dom";
 import { addToast } from "@heroui/toast";
+
 import { buildApiUrl } from "@/lib/utils";
 
 // 系统环境信息类型
@@ -77,57 +78,71 @@ interface PingTestResult {
 
 export default function DebugPage() {
   const navigate = useNavigate();
-  
+
   // 系统信息状态
   const [systemInfo, setSystemInfo] = useState<SystemInfo | null>(null);
   const [systemLoading, setSystemLoading] = useState(true);
-  
+
   // SSE测试状态
   const [sseTesting, setSseTesting] = useState(false);
   const [sseResult, setSseResult] = useState<SSETestResult | null>(null);
-  const [sseNodepassUrl, setSseNodepassUrl] = useState('');
-  const [sseApiKey, setSseApiKey] = useState('');
-  
+  const [sseNodepassUrl, setSseNodepassUrl] = useState("");
+  const [sseApiKey, setSseApiKey] = useState("");
+
   // Telnet测试状态
-  const [telnetHost, setTelnetHost] = useState('');
-  const [telnetPort, setTelnetPort] = useState('');
+  const [telnetHost, setTelnetHost] = useState("");
+  const [telnetPort, setTelnetPort] = useState("");
   const [telnetTesting, setTelnetTesting] = useState(false);
-  const [telnetResult, setTelnetResult] = useState<TelnetTestResult | null>(null);
-  
+  const [telnetResult, setTelnetResult] = useState<TelnetTestResult | null>(
+    null,
+  );
+
   // Ping测试状态
-  const [pingHost, setPingHost] = useState('');
-  const [pingCount, setPingCount] = useState('4');
+  const [pingHost, setPingHost] = useState("");
+  const [pingCount, setPingCount] = useState("4");
   const [pingTesting, setPingTesting] = useState(false);
   const [pingResult, setPingResult] = useState<PingTestResult | null>(null);
-  
+
   // 模态框控制
-  const { isOpen: isSSEModalOpen, onOpen: onSSEModalOpen, onOpenChange: onSSEModalChange } = useDisclosure();
-  const { isOpen: isTelnetModalOpen, onOpen: onTelnetModalOpen, onOpenChange: onTelnetModalChange } = useDisclosure();
-  const { isOpen: isPingModalOpen, onOpen: onPingModalOpen, onOpenChange: onPingModalChange } = useDisclosure();
+  const {
+    isOpen: isSSEModalOpen,
+    onOpen: onSSEModalOpen,
+    onOpenChange: onSSEModalChange,
+  } = useDisclosure();
+  const {
+    isOpen: isTelnetModalOpen,
+    onOpen: onTelnetModalOpen,
+    onOpenChange: onTelnetModalChange,
+  } = useDisclosure();
+  const {
+    isOpen: isPingModalOpen,
+    onOpen: onPingModalOpen,
+    onOpenChange: onPingModalChange,
+  } = useDisclosure();
 
   // 获取系统环境信息
   const fetchSystemInfo = useCallback(async () => {
     try {
       setSystemLoading(true);
-      const response = await fetch(buildApiUrl('/api/debug/system-info'));
-      
+      const response = await fetch(buildApiUrl("/api/debug/system-info"));
+
       if (!response.ok) {
-        throw new Error('获取系统信息失败');
+        throw new Error("获取系统信息失败");
       }
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         setSystemInfo(data.data);
       } else {
-        throw new Error(data.error || '获取系统信息失败');
+        throw new Error(data.error || "获取系统信息失败");
       }
     } catch (error) {
-      console.error('获取系统信息失败:', error);
+      console.error("获取系统信息失败:", error);
       addToast({
-        title: '系统信息获取失败',
-        description: error instanceof Error ? error.message : '未知错误',
-        color: 'danger'
+        title: "系统信息获取失败",
+        description: error instanceof Error ? error.message : "未知错误",
+        color: "danger",
       });
     } finally {
       setSystemLoading(false);
@@ -137,39 +152,39 @@ export default function DebugPage() {
   // 执行SSE测试
   const runSSETest = useCallback(async () => {
     if (sseTesting || !sseNodepassUrl || !sseApiKey) return;
-    
+
     setSseTesting(true);
     setSseResult(null);
-    
+
     try {
-      const response = await fetch(buildApiUrl('/api/debug/sse-test'), {
-        method: 'POST',
+      const response = await fetch(buildApiUrl("/api/debug/sse-test"), {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           url: sseNodepassUrl,
           apiKey: sseApiKey,
         }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         setSseResult(data.data);
       } else {
         addToast({
-          title: 'SSE测试失败',
-          description: data.error || '未知错误',
-          color: 'danger'
+          title: "SSE测试失败",
+          description: data.error || "未知错误",
+          color: "danger",
         });
       }
     } catch (error) {
-      console.error('SSE测试失败:', error);
+      console.error("SSE测试失败:", error);
       addToast({
-        title: 'SSE测试失败',
-        description: error instanceof Error ? error.message : '网络错误',
-        color: 'danger'
+        title: "SSE测试失败",
+        description: error instanceof Error ? error.message : "网络错误",
+        color: "danger",
       });
     } finally {
       setSseTesting(false);
@@ -179,39 +194,39 @@ export default function DebugPage() {
   // 执行Telnet测试
   const runTelnetTest = useCallback(async () => {
     if (telnetTesting || !telnetHost || !telnetPort) return;
-    
+
     setTelnetTesting(true);
     setTelnetResult(null);
-    
+
     try {
-      const response = await fetch(buildApiUrl('/api/debug/telnet-test'), {
-        method: 'POST',
+      const response = await fetch(buildApiUrl("/api/debug/telnet-test"), {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           host: telnetHost,
           port: parseInt(telnetPort, 10),
         }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         setTelnetResult(data.data);
       } else {
         addToast({
-          title: 'Telnet测试失败',
-          description: data.error || '未知错误',
-          color: 'danger'
+          title: "Telnet测试失败",
+          description: data.error || "未知错误",
+          color: "danger",
         });
       }
     } catch (error) {
-      console.error('Telnet测试失败:', error);
+      console.error("Telnet测试失败:", error);
       addToast({
-        title: 'Telnet测试失败',
-        description: error instanceof Error ? error.message : '网络错误',
-        color: 'danger'
+        title: "Telnet测试失败",
+        description: error instanceof Error ? error.message : "网络错误",
+        color: "danger",
       });
     } finally {
       setTelnetTesting(false);
@@ -221,39 +236,39 @@ export default function DebugPage() {
   // 执行Ping测试
   const runPingTest = useCallback(async () => {
     if (pingTesting || !pingHost) return;
-    
+
     setPingTesting(true);
     setPingResult(null);
-    
+
     try {
-      const response = await fetch(buildApiUrl('/api/debug/ping-test'), {
-        method: 'POST',
+      const response = await fetch(buildApiUrl("/api/debug/ping-test"), {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify({
           host: pingHost,
           count: parseInt(pingCount, 10) || 4,
         }),
       });
-      
+
       const data = await response.json();
-      
+
       if (data.success) {
         setPingResult(data.data);
       } else {
         addToast({
-          title: 'Ping测试失败',
-          description: data.error || '未知错误',
-          color: 'danger'
+          title: "Ping测试失败",
+          description: data.error || "未知错误",
+          color: "danger",
         });
       }
     } catch (error) {
-      console.error('Ping测试失败:', error);
+      console.error("Ping测试失败:", error);
       addToast({
-        title: 'Ping测试失败',
-        description: error instanceof Error ? error.message : '网络错误',
-        color: 'danger'
+        title: "Ping测试失败",
+        description: error instanceof Error ? error.message : "网络错误",
+        color: "danger",
       });
     } finally {
       setPingTesting(false);
@@ -269,11 +284,11 @@ export default function DebugPage() {
     <div className="space-y-6 p-4 md:p-6">
       {/* 顶部返回按钮和标题 */}
       <div className="flex items-center gap-3">
-        <Button 
-          isIconOnly 
-          variant="flat" 
-          onClick={() => navigate(-1)}
+        <Button
+          isIconOnly
           className="bg-default-100 hover:bg-default-200"
+          variant="flat"
+          onClick={() => navigate(-1)}
         >
           <FontAwesomeIcon icon={faArrowLeft} />
         </Button>
@@ -287,15 +302,15 @@ export default function DebugPage() {
       <Card>
         <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <FontAwesomeIcon icon={faServer} className="text-primary" />
+            <FontAwesomeIcon className="text-primary" icon={faServer} />
             <h3 className="text-lg font-semibold">系统环境信息</h3>
           </div>
           <Button
+            isIconOnly
+            isLoading={systemLoading}
             size="sm"
             variant="flat"
-            isIconOnly
             onPress={fetchSystemInfo}
-            isLoading={systemLoading}
           >
             <FontAwesomeIcon icon={faRefresh} />
           </Button>
@@ -310,56 +325,67 @@ export default function DebugPage() {
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-default-600">操作系统</span>
-                  <Chip variant="flat" color="default" size="sm">
+                  <Chip color="default" size="sm" variant="flat">
                     {systemInfo.platform} ({systemInfo.architecture})
                   </Chip>
                 </div>
-                
+
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-default-600">安装方式</span>
-                  <Chip 
-                    variant="flat" 
-                    color={systemInfo.installType === 'docker' ? 'primary' : 'secondary'} 
+                  <Chip
+                    color={
+                      systemInfo.installType === "docker"
+                        ? "primary"
+                        : "secondary"
+                    }
                     size="sm"
+                    variant="flat"
                   >
-                    {systemInfo.installType === 'docker' ? 'Docker 容器' : 
-                     systemInfo.installType === 'binary' ? '二进制文件' : '未知'}
+                    {systemInfo.installType === "docker"
+                      ? "Docker 容器"
+                      : systemInfo.installType === "binary"
+                        ? "二进制文件"
+                        : "未知"}
                   </Chip>
                 </div>
-                
+
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-default-600">IPv6 支持</span>
-                  <Chip 
-                    variant="flat" 
-                    color={systemInfo.ipv6Supported ? 'success' : 'danger'} 
+                  <Chip
+                    color={systemInfo.ipv6Supported ? "success" : "danger"}
                     size="sm"
+                    variant="flat"
                   >
-                    {systemInfo.ipv6Supported ? '支持' : '不支持'}
+                    {systemInfo.ipv6Supported ? "支持" : "不支持"}
                   </Chip>
                 </div>
               </div>
-              
+
               <div className="space-y-3">
                 <div className="flex justify-between items-center">
                   <span className="text-sm text-default-600">Go 版本</span>
-                  <Chip variant="flat" color="primary" size="sm">
+                  <Chip color="primary" size="sm" variant="flat">
                     {systemInfo.goVersion}
                   </Chip>
                 </div>
-                
+
                 {systemInfo.nodeVersion && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-default-600">Node.js 版本</span>
-                    <Chip variant="flat" color="success" size="sm">
+                    <span className="text-sm text-default-600">
+                      Node.js 版本
+                    </span>
+                    <Chip color="success" size="sm" variant="flat">
                       {systemInfo.nodeVersion}
                     </Chip>
                   </div>
                 )}
-                
+
                 {systemInfo.dockerVersion && (
                   <div className="flex justify-between items-center">
-                    <span className="text-sm text-default-600">Docker 版本</span>
-                    <Chip variant="flat" color="secondary" size="sm">
+                    <span className="text-sm text-default-600">
+                      Docker 版本
+                    </span>
+                    <Chip color="secondary" size="sm" variant="flat">
                       {systemInfo.dockerVersion}
                     </Chip>
                   </div>
@@ -378,15 +404,15 @@ export default function DebugPage() {
       <Card>
         <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <FontAwesomeIcon icon={faNetworkWired} className="text-primary" />
+            <FontAwesomeIcon className="text-primary" icon={faNetworkWired} />
             <h3 className="text-lg font-semibold">SSE连接测试</h3>
           </div>
           <Button
-            size="sm"
             color="primary"
+            size="sm"
+            startContent={<FontAwesomeIcon icon={faPlay} />}
             variant="flat"
             onPress={onSSEModalOpen}
-            startContent={<FontAwesomeIcon icon={faPlay} />}
           >
             开始测试
           </Button>
@@ -396,7 +422,7 @@ export default function DebugPage() {
             <p className="text-sm text-default-600">
               测试NodePass服务器SSE端点连通性和认证
             </p>
-            
+
             {sseTesting && (
               <div className="flex items-center justify-center py-8">
                 <div className="flex items-center gap-3">
@@ -405,28 +431,28 @@ export default function DebugPage() {
                 </div>
               </div>
             )}
-            
+
             {!sseTesting && sseResult && (
-              <div className={`p-3 rounded-lg border ${sseResult.connected ? 'bg-success-50 border-success-200' : 'bg-danger-50 border-danger-200'}`}>
+              <div
+                className={`p-3 rounded-lg border ${sseResult.connected ? "bg-success-50 border-success-200" : "bg-danger-50 border-danger-200"}`}
+              >
                 <div className="flex items-center justify-between mb-2">
-                  <span className="font-medium">
-                    {sseResult.url}/sse
-                  </span>
+                  <span className="font-medium">{sseResult.url}/sse</span>
                   <Chip
+                    color={sseResult.connected ? "success" : "danger"}
                     size="sm"
                     variant="flat"
-                    color={sseResult.connected ? "success" : "danger"}
                   >
                     {sseResult.connected ? "连接成功" : "连接失败"}
                   </Chip>
                 </div>
-                <p className="text-sm text-default-700">
-                  {sseResult.message}
-                </p>
+                <p className="text-sm text-default-700">{sseResult.message}</p>
                 {sseResult.connected && (
                   <div className="text-xs text-default-500 mt-1 flex items-center gap-4">
                     <span>响应时间: {sseResult.responseTime}ms</span>
-                    {sseResult.statusCode && <span>状态码: {sseResult.statusCode}</span>}
+                    {sseResult.statusCode && (
+                      <span>状态码: {sseResult.statusCode}</span>
+                    )}
                   </div>
                 )}
                 {sseResult.error && (
@@ -446,16 +472,16 @@ export default function DebugPage() {
         <Card>
           <CardHeader className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <FontAwesomeIcon icon={faEthernet} className="text-primary" />
+              <FontAwesomeIcon className="text-primary" icon={faEthernet} />
               <h3 className="text-lg font-semibold">Telnet测试</h3>
             </div>
             <Button
-              size="sm"
               color="primary"
+              isDisabled={telnetTesting}
+              size="sm"
+              startContent={<FontAwesomeIcon icon={faPlay} />}
               variant="flat"
               onPress={onTelnetModalOpen}
-              isDisabled={telnetTesting}
-              startContent={<FontAwesomeIcon icon={faPlay} />}
             >
               开始测试
             </Button>
@@ -465,26 +491,30 @@ export default function DebugPage() {
               <p className="text-sm text-default-600">
                 测试TCP端口连通性，检查目标主机端口是否开放
               </p>
-              
+
               {telnetTesting && (
                 <div className="flex items-center justify-center py-8">
                   <div className="flex items-center gap-3">
                     <Spinner size="md" />
-                    <span className="text-default-500">正在测试端口连通性...</span>
+                    <span className="text-default-500">
+                      正在测试端口连通性...
+                    </span>
                   </div>
                 </div>
               )}
-              
+
               {!telnetTesting && telnetResult && (
-                <div className={`p-3 rounded-lg border ${telnetResult.connected ? 'bg-success-50 border-success-200' : 'bg-danger-50 border-danger-200'}`}>
+                <div
+                  className={`p-3 rounded-lg border ${telnetResult.connected ? "bg-success-50 border-success-200" : "bg-danger-50 border-danger-200"}`}
+                >
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium">
                       {telnetResult.host}:{telnetResult.port}
                     </span>
                     <Chip
+                      color={telnetResult.connected ? "success" : "danger"}
                       size="sm"
                       variant="flat"
-                      color={telnetResult.connected ? "success" : "danger"}
                     >
                       {telnetResult.connected ? "连接成功" : "连接失败"}
                     </Chip>
@@ -507,16 +537,19 @@ export default function DebugPage() {
         <Card>
           <CardHeader className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <FontAwesomeIcon icon={faPingPongPaddleBall} className="text-primary" />
+              <FontAwesomeIcon
+                className="text-primary"
+                icon={faPingPongPaddleBall}
+              />
               <h3 className="text-lg font-semibold">Ping测试</h3>
             </div>
             <Button
-              size="sm"
               color="primary"
+              isDisabled={pingTesting}
+              size="sm"
+              startContent={<FontAwesomeIcon icon={faPlay} />}
               variant="flat"
               onPress={onPingModalOpen}
-              isDisabled={pingTesting}
-              startContent={<FontAwesomeIcon icon={faPlay} />}
             >
               开始测试
             </Button>
@@ -526,29 +559,39 @@ export default function DebugPage() {
               <p className="text-sm text-default-600">
                 测试网络连通性和延迟，检查目标主机是否可达
               </p>
-              
+
               {pingTesting && (
                 <div className="flex items-center justify-center py-8">
                   <div className="flex items-center gap-3">
                     <Spinner size="md" />
-                    <span className="text-default-500">正在测试网络连通性...</span>
+                    <span className="text-default-500">
+                      正在测试网络连通性...
+                    </span>
                   </div>
                 </div>
               )}
-              
+
               {!pingTesting && pingResult && (
-                <div className={`p-3 rounded-lg border ${pingResult.success && pingResult.packetLoss < 100 ? 'bg-success-50 border-success-200' : 'bg-danger-50 border-danger-200'}`}>
+                <div
+                  className={`p-3 rounded-lg border ${pingResult.success && pingResult.packetLoss < 100 ? "bg-success-50 border-success-200" : "bg-danger-50 border-danger-200"}`}
+                >
                   <div className="flex items-center justify-between mb-2">
                     <span className="font-medium">{pingResult.host}</span>
                     <Chip
+                      color={
+                        pingResult.success && pingResult.packetLoss < 100
+                          ? "success"
+                          : "danger"
+                      }
                       size="sm"
                       variant="flat"
-                      color={pingResult.success && pingResult.packetLoss < 100 ? "success" : "danger"}
                     >
-                      {pingResult.success ? `${pingResult.packetLoss}% 丢包` : "测试失败"}
+                      {pingResult.success
+                        ? `${pingResult.packetLoss}% 丢包`
+                        : "测试失败"}
                     </Chip>
                   </div>
-                  
+
                   {pingResult.success && (
                     <div className="grid grid-cols-2 gap-2 text-xs">
                       <div>
@@ -567,13 +610,15 @@ export default function DebugPage() {
                           </div>
                           <div>
                             <span className="text-default-500">最大: </span>
-                            <span>{pingResult.maxTime?.toFixed(1) || '-'}ms</span>
+                            <span>
+                              {pingResult.maxTime?.toFixed(1) || "-"}ms
+                            </span>
                           </div>
                         </>
                       )}
                     </div>
                   )}
-                  
+
                   {pingResult.error && (
                     <p className="text-sm text-danger-700 mt-2">
                       {pingResult.error}
@@ -587,51 +632,73 @@ export default function DebugPage() {
       </div>
 
       {/* SSE测试模态框 */}
-      <Modal isOpen={isSSEModalOpen} onOpenChange={onSSEModalChange} placement="center">
+      <Modal
+        isOpen={isSSEModalOpen}
+        placement="center"
+        onOpenChange={onSSEModalChange}
+      >
         <ModalContent>
           {(onClose) => (
             <>
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <FontAwesomeIcon icon={faNetworkWired} className="text-primary" />
+                  <FontAwesomeIcon
+                    className="text-primary"
+                    icon={faNetworkWired}
+                  />
                   NodePass SSE连接测试
                 </div>
               </ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
                   <Input
+                    isDisabled={sseTesting}
                     label="NodePass URL"
                     placeholder="https://your-nodepass.com"
+                    startContent={
+                      <FontAwesomeIcon
+                        className="text-default-400"
+                        icon={faServer}
+                      />
+                    }
                     value={sseNodepassUrl}
-                    onValueChange={setSseNodepassUrl}
                     variant="bordered"
-                    startContent={<FontAwesomeIcon icon={faServer} className="text-default-400" />}
-                    isDisabled={sseTesting}
+                    onValueChange={setSseNodepassUrl}
                   />
                   <Input
+                    isDisabled={sseTesting}
                     label="API Key"
                     placeholder="请输入API密钥"
+                    startContent={
+                      <FontAwesomeIcon
+                        className="text-default-400"
+                        icon={faCode}
+                      />
+                    }
                     type="password"
                     value={sseApiKey}
-                    onValueChange={setSseApiKey}
                     variant="bordered"
-                    startContent={<FontAwesomeIcon icon={faCode} className="text-default-400" />}
-                    isDisabled={sseTesting}
+                    onValueChange={setSseApiKey}
                   />
                 </div>
               </ModalBody>
               <ModalFooter>
-                <Button color="danger" variant="light" onPress={onClose} isDisabled={sseTesting}>
+                <Button
+                  color="danger"
+                  isDisabled={sseTesting}
+                  variant="light"
+                  onPress={onClose}
+                >
                   取消
                 </Button>
-                <Button 
-                  color="primary" 
+                <Button
+                  color="primary"
+                  isDisabled={!sseNodepassUrl || !sseApiKey}
+                  isLoading={sseTesting}
                   onPress={() => {
                     runSSETest();
                     onClose();
                   }}
-                  isLoading={sseTesting}
-                  isDisabled={!sseNodepassUrl || !sseApiKey}
                 >
                   开始测试
                 </Button>
@@ -642,49 +709,58 @@ export default function DebugPage() {
       </Modal>
 
       {/* Telnet测试模态框 */}
-      <Modal isOpen={isTelnetModalOpen} onOpenChange={onTelnetModalChange} placement="center">
+      <Modal
+        isOpen={isTelnetModalOpen}
+        placement="center"
+        onOpenChange={onTelnetModalChange}
+      >
         <ModalContent>
           {(onClose) => (
             <>
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <FontAwesomeIcon icon={faEthernet} className="text-primary" />
+                  <FontAwesomeIcon className="text-primary" icon={faEthernet} />
                   Telnet连通性测试
                 </div>
               </ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
                   <Input
+                    isDisabled={telnetTesting}
                     label="目标主机"
                     placeholder="例如: google.com 或 192.168.1.1"
                     value={telnetHost}
-                    onValueChange={setTelnetHost}
                     variant="bordered"
-                    isDisabled={telnetTesting}
+                    onValueChange={setTelnetHost}
                   />
                   <Input
+                    isDisabled={telnetTesting}
                     label="端口号"
                     placeholder="例如: 80, 443, 22"
-                    value={telnetPort}
-                    onValueChange={setTelnetPort}
-                    variant="bordered"
                     type="number"
-                    isDisabled={telnetTesting}
+                    value={telnetPort}
+                    variant="bordered"
+                    onValueChange={setTelnetPort}
                   />
                 </div>
               </ModalBody>
               <ModalFooter>
-                <Button color="danger" variant="light" onPress={onClose} isDisabled={telnetTesting}>
+                <Button
+                  color="danger"
+                  isDisabled={telnetTesting}
+                  variant="light"
+                  onPress={onClose}
+                >
                   取消
                 </Button>
-                <Button 
-                  color="primary" 
+                <Button
+                  color="primary"
+                  isDisabled={!telnetHost || !telnetPort}
+                  isLoading={telnetTesting}
                   onPress={() => {
                     runTelnetTest();
                     onClose();
                   }}
-                  isLoading={telnetTesting}
-                  isDisabled={!telnetHost || !telnetPort}
                 >
                   开始测试
                 </Button>
@@ -695,49 +771,61 @@ export default function DebugPage() {
       </Modal>
 
       {/* Ping测试模态框 */}
-      <Modal isOpen={isPingModalOpen} onOpenChange={onPingModalChange} placement="center">
+      <Modal
+        isOpen={isPingModalOpen}
+        placement="center"
+        onOpenChange={onPingModalChange}
+      >
         <ModalContent>
           {(onClose) => (
             <>
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
-                  <FontAwesomeIcon icon={faPingPongPaddleBall} className="text-primary" />
+                  <FontAwesomeIcon
+                    className="text-primary"
+                    icon={faPingPongPaddleBall}
+                  />
                   Ping网络测试
                 </div>
               </ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
                   <Input
+                    isDisabled={pingTesting}
                     label="目标主机"
                     placeholder="例如: google.com 或 8.8.8.8"
                     value={pingHost}
-                    onValueChange={setPingHost}
                     variant="bordered"
-                    isDisabled={pingTesting}
+                    onValueChange={setPingHost}
                   />
                   <Input
+                    isDisabled={pingTesting}
                     label="测试次数"
                     placeholder="默认 4 次，最多 10 次"
-                    value={pingCount}
-                    onValueChange={setPingCount}
-                    variant="bordered"
                     type="number"
-                    isDisabled={pingTesting}
+                    value={pingCount}
+                    variant="bordered"
+                    onValueChange={setPingCount}
                   />
                 </div>
               </ModalBody>
               <ModalFooter>
-                <Button color="danger" variant="light" onPress={onClose} isDisabled={pingTesting}>
+                <Button
+                  color="danger"
+                  isDisabled={pingTesting}
+                  variant="light"
+                  onPress={onClose}
+                >
                   取消
                 </Button>
-                <Button 
-                  color="primary" 
+                <Button
+                  color="primary"
+                  isDisabled={!pingHost}
+                  isLoading={pingTesting}
                   onPress={() => {
                     runPingTest();
                     onClose();
                   }}
-                  isLoading={pingTesting}
-                  isDisabled={!pingHost}
                 >
                   开始测试
                 </Button>

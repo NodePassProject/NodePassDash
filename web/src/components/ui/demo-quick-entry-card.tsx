@@ -1,17 +1,16 @@
-import { Button, Card, CardBody, useDisclosure } from "@heroui/react";
+import { Card, CardBody, useDisclosure } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faServer,
-  faPlus,
   faLayerGroup,
-  faBug
+  faBug,
 } from "@fortawesome/free-solid-svg-icons";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
-import { useState } from "react";
+import { addToast } from "@heroui/toast";
+
 import AddEndpointModal from "@/components/endpoints/add-endpoint-modal";
 import SimpleCreateTunnelModal from "@/components/tunnels/simple-create-tunnel-modal";
-import { addToast } from "@heroui/toast";
 import { buildApiUrl } from "@/lib/utils";
 
 /**
@@ -25,13 +24,13 @@ export function DemoQuickEntryCard() {
   const {
     isOpen: isAddEndpointOpen,
     onOpen: onAddEndpointOpen,
-    onOpenChange: onAddEndpointOpenChange
+    onOpenChange: onAddEndpointOpenChange,
   } = useDisclosure();
 
   const {
     isOpen: isCreateTunnelOpen,
     onOpen: onCreateTunnelOpen,
-    onOpenChange: onCreateTunnelOpenChange
+    onOpenChange: onCreateTunnelOpenChange,
   } = useDisclosure();
 
   const quickActions = [
@@ -42,7 +41,7 @@ export function DemoQuickEntryCard() {
       action: "modal",
       color: "bg-blue-500 hover:bg-blue-600",
       iconType: "fontawesome",
-      external: false
+      external: false,
     },
     {
       id: "create-tunnel",
@@ -51,7 +50,7 @@ export function DemoQuickEntryCard() {
       action: "modal",
       color: "bg-green-500 hover:bg-green-600",
       iconType: "iconify",
-      external: false
+      external: false,
     },
     {
       id: "template-create",
@@ -61,7 +60,7 @@ export function DemoQuickEntryCard() {
       route: "/templates",
       color: "bg-purple-500 hover:bg-purple-600",
       iconType: "fontawesome",
-      external: false
+      external: false,
     },
     {
       id: "debug-tools",
@@ -71,7 +70,7 @@ export function DemoQuickEntryCard() {
       route: "/debug",
       color: "bg-teal-500 hover:bg-teal-600",
       iconType: "fontawesome",
-      external: false
+      external: false,
     },
     {
       id: "docs",
@@ -81,7 +80,7 @@ export function DemoQuickEntryCard() {
       route: "/docs",
       color: "bg-indigo-500 hover:bg-indigo-600",
       iconType: "iconify",
-      external: false
+      external: false,
     },
     {
       id: "settings",
@@ -91,17 +90,17 @@ export function DemoQuickEntryCard() {
       route: "/settings",
       color: "bg-gray-500 hover:bg-gray-600",
       iconType: "iconify",
-      external: false
-    }
+      external: false,
+    },
   ];
 
   // 处理添加主控
   const handleAddEndpoint = async (data: any) => {
     try {
-      const response = await fetch(buildApiUrl('/api/endpoints'), {
-        method: 'POST',
+      const response = await fetch(buildApiUrl("/api/endpoints"), {
+        method: "POST",
         headers: {
-          'Content-Type': 'application/json',
+          "Content-Type": "application/json",
         },
         body: JSON.stringify(data),
       });
@@ -109,7 +108,7 @@ export function DemoQuickEntryCard() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || '添加主控失败');
+        throw new Error(result.error || "添加主控失败");
       }
 
       addToast({
@@ -117,11 +116,11 @@ export function DemoQuickEntryCard() {
         description: "主控已成功添加",
         color: "success",
       });
-
     } catch (error) {
       addToast({
         title: "添加失败",
-        description: error instanceof Error ? error.message : "添加主控时发生错误",
+        description:
+          error instanceof Error ? error.message : "添加主控时发生错误",
         color: "danger",
       });
       throw error; // 重新抛出错误，让模态框处理
@@ -143,7 +142,7 @@ export function DemoQuickEntryCard() {
       }
     } else if (action.action === "navigate") {
       if (action.external && action.route) {
-        window.open(action.route, '_blank');
+        window.open(action.route, "_blank");
       } else if (action.route) {
         navigate(action.route);
       }
@@ -154,7 +153,9 @@ export function DemoQuickEntryCard() {
     <Card className="h-full   dark:border-default-100 border border-transparent">
       <CardBody className="p-5 h-full flex flex-col">
         {/* 标题 */}
-        <span className="text-base font-semibold text-foreground mb-4">快捷操作</span>
+        <span className="text-base font-semibold text-foreground mb-4">
+          快捷操作
+        </span>
 
         {/* 按钮网格 - 2列3行 */}
         <div className="grid grid-cols-2 gap-3 flex-1">
@@ -165,19 +166,17 @@ export function DemoQuickEntryCard() {
               onClick={() => handleActionClick(action)}
             >
               {/* 图标 */}
-              <div className={`flex items-center justify-center w-10 h-10 rounded-lg ${action.color} text-white transition-colors duration-200 group-hover:shadow-lg flex-shrink-0`}>
+              <div
+                className={`flex items-center justify-center w-10 h-10 rounded-lg ${action.color} text-white transition-colors duration-200 group-hover:shadow-lg flex-shrink-0`}
+              >
                 {action.iconType === "fontawesome" ? (
                   <FontAwesomeIcon
-                    icon={action.icon}
                     className="!w-4 !h-4"
-                    style={{ width: '16px', height: '16px' }}
+                    icon={action.icon}
+                    style={{ width: "16px", height: "16px" }}
                   />
                 ) : (
-                  <Icon
-                    icon={action.icon}
-                    width={16}
-                    height={16}
-                  />
+                  <Icon height={16} icon={action.icon} width={16} />
                 )}
               </div>
 
@@ -193,16 +192,16 @@ export function DemoQuickEntryCard() {
       {/* 添加主控模态框 */}
       <AddEndpointModal
         isOpen={isAddEndpointOpen}
-        onOpenChange={onAddEndpointOpenChange}
         onAdd={handleAddEndpoint}
+        onOpenChange={onAddEndpointOpenChange}
       />
 
       {/* 创建实例模态框 */}
       <SimpleCreateTunnelModal
         isOpen={isCreateTunnelOpen}
+        mode="create"
         onOpenChange={onCreateTunnelOpenChange}
         onSaved={handleTunnelCreated}
-        mode="create"
       />
     </Card>
   );

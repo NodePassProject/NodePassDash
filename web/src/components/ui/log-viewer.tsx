@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
+
 import { processAnsiColors } from "@/lib/utils/ansi";
 
 export interface LogEntry {
@@ -49,21 +50,19 @@ export const LogViewer: React.FC<LogViewerProps> = ({
         <div className="text-gray-400 animate-pulse">暂无日志</div>
       ) : (
         <div className="space-y-1">
-          {logs
-            .slice()
-            .map((log) => (
-              <div key={log.id} className="text-gray-300 leading-5">
-                {log.isHtml !== false ? (
-                  <span
-                    dangerouslySetInnerHTML={{
-                      __html: processAnsiColors(log.message),
-                    }}
-                  />
-                ) : (
-                  <span className="break-all">{log.message}</span>
-                )}
-              </div>
-            ))}
+          {logs.slice().map((log) => (
+            <div key={log.id} className="text-gray-300 leading-5">
+              {log.isHtml !== false ? (
+                <span
+                  dangerouslySetInnerHTML={{
+                    __html: processAnsiColors(log.message),
+                  }}
+                />
+              ) : (
+                <span className="break-all">{log.message}</span>
+              )}
+            </div>
+          ))}
         </div>
       )}
     </div>

@@ -24,7 +24,7 @@ export default function EditApiKeyModal({
   onOpenChange,
   currentApiKey,
   endpointName,
-  onSave
+  onSave,
 }: EditApiKeyModalProps) {
   const [newApiKey, setNewApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
@@ -54,27 +54,32 @@ export default function EditApiKeyModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center">
+    <Modal isOpen={isOpen} placement="center" onOpenChange={onOpenChange}>
       <ModalContent>
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <FontAwesomeIcon icon={faKey} className="text-warning" />
+                <FontAwesomeIcon className="text-warning" icon={faKey} />
                 <span>修改 API 密钥</span>
               </div>
               <p className="text-small text-default-500">
                 主控：{endpointName}
               </p>
             </ModalHeader>
-            
+
             <ModalBody>
               <div className="space-y-4">
                 <div className="p-4 bg-warning-50 border border-warning-200 rounded-lg">
                   <div className="flex items-start gap-3">
-                    <FontAwesomeIcon icon={faKey} className="text-warning text-lg mt-0.5" />
+                    <FontAwesomeIcon
+                      className="text-warning text-lg mt-0.5"
+                      icon={faKey}
+                    />
                     <div>
-                      <h4 className="font-semibold text-warning-800 mb-1">⚠️ 重要提醒</h4>
+                      <h4 className="font-semibold text-warning-800 mb-1">
+                        ⚠️ 重要提醒
+                      </h4>
                       <p className="text-sm text-warning-700">
                         修改API密钥后，当前连接将断开，需要使用新密钥重新连接主控。
                       </p>
@@ -83,51 +88,51 @@ export default function EditApiKeyModal({
                 </div>
 
                 <Input
-                  label="新 API 密钥"
-                  placeholder="请输入新的API密钥"
-                  value={newApiKey}
-                  onValueChange={setNewApiKey}
-                  variant="bordered"
-                  isRequired
                   autoFocus
-                  type={showApiKey ? "text" : "password"}
+                  isRequired
                   endContent={
                     <button
                       className="focus:outline-none"
                       type="button"
                       onClick={() => setShowApiKey(!showApiKey)}
                     >
-                      <FontAwesomeIcon 
-                        icon={showApiKey ? faEyeSlash : faEye}
+                      <FontAwesomeIcon
                         className="text-default-400"
+                        icon={showApiKey ? faEyeSlash : faEye}
                       />
                     </button>
                   }
+                  label="新 API 密钥"
+                  placeholder="请输入新的API密钥"
+                  type={showApiKey ? "text" : "password"}
+                  value={newApiKey}
+                  variant="bordered"
                   onKeyDown={(e) => {
-                    if (e.key === 'Enter') {
+                    if (e.key === "Enter") {
                       handleSubmit();
                     }
                   }}
+                  onValueChange={setNewApiKey}
                 />
               </div>
             </ModalBody>
-            
+
             <ModalFooter>
-              <Button 
-                color="default" 
-                variant="light" 
-                onPress={onClose}
+              <Button
+                color="default"
                 isDisabled={isLoading}
+                variant="light"
+                onPress={onClose}
               >
                 取消
               </Button>
-              <Button 
-                color="warning" 
-                onPress={handleSubmit}
-                isLoading={isLoading}
+              <Button
+                color="warning"
                 isDisabled={!newApiKey.trim() || newApiKey === currentApiKey}
+                isLoading={isLoading}
+                onPress={handleSubmit}
               >
-                {isLoading ? '保存中...' : '确认修改'}
+                {isLoading ? "保存中..." : "确认修改"}
               </Button>
             </ModalFooter>
           </>

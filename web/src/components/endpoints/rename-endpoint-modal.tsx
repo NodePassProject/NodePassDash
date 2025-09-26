@@ -41,11 +41,11 @@ export default function RenameEndpointModal({
   };
 
   return (
-    <Modal 
-      isOpen={isOpen} 
-      onOpenChange={onOpenChange}
-      placement="center"
+    <Modal
       backdrop="blur"
+      isOpen={isOpen}
+      placement="center"
+      onOpenChange={onOpenChange}
     >
       <ModalContent>
         {(onClose) => (
@@ -55,12 +55,12 @@ export default function RenameEndpointModal({
             </ModalHeader>
             <ModalBody>
               <Input
+                isRequired
                 label="主控名称"
                 placeholder="请输入新的主控名称"
                 value={newName}
-                onValueChange={setNewName}
                 variant="bordered"
-                isRequired
+                onValueChange={setNewName}
               />
             </ModalBody>
             <ModalFooter>
@@ -69,9 +69,9 @@ export default function RenameEndpointModal({
               </Button>
               <Button
                 color="primary"
-                onPress={handleSubmit}
-                startContent={<FontAwesomeIcon icon={faSave} />}
                 isDisabled={!newName.trim() || newName === currentName}
+                startContent={<FontAwesomeIcon icon={faSave} />}
+                onPress={handleSubmit}
               >
                 保存修改
               </Button>
@@ -81,4 +81,4 @@ export default function RenameEndpointModal({
       </ModalContent>
     </Modal>
   );
-} 
+}

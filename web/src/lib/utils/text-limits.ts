@@ -41,19 +41,19 @@ export const TEXT_LIMITS = {
   /** 隧道名称限制：12个中文字符或24个英文字符 */
   TUNNEL_NAME: {
     maxDisplayWidth: 24,
-    unit: '字符宽度'
+    unit: "字符宽度",
   } as TextLimitConfig,
 
   /** 端点名称限制：稍小一些，适合列表显示 */
   ENDPOINT_NAME: {
     maxDisplayWidth: 20,
-    unit: '字符宽度'
+    unit: "字符宽度",
   } as TextLimitConfig,
 
   /** 短名称限制：适合标签等场景 */
   SHORT_NAME: {
     maxDisplayWidth: 16,
-    unit: '字符宽度'
+    unit: "字符宽度",
   } as TextLimitConfig,
 } as const;
 
@@ -66,7 +66,7 @@ export const TEXT_LIMITS = {
 export function useTextLimit(text: string, config: TextLimitConfig) {
   const currentWidth = getDisplayWidth(text);
   const isValid = currentWidth <= config.maxDisplayWidth;
-  const description = `${currentWidth}/${config.maxDisplayWidth} ${config.unit || '字符宽度'}`;
+  const description = `${currentWidth}/${config.maxDisplayWidth} ${config.unit || "字符宽度"}`;
 
   return {
     currentWidth,
@@ -83,7 +83,10 @@ export function useTextLimit(text: string, config: TextLimitConfig) {
  * @param maxDisplayWidth 最大显示宽度
  * @returns 是否超出限制
  */
-export function isTextOverLimit(text: string, maxDisplayWidth: number): boolean {
+export function isTextOverLimit(
+  text: string,
+  maxDisplayWidth: number,
+): boolean {
   return getDisplayWidth(text) > maxDisplayWidth;
 }
 
@@ -94,7 +97,11 @@ export function isTextOverLimit(text: string, maxDisplayWidth: number): boolean 
  * @param suffix 截断后的后缀，默认为 '...'
  * @returns 截断后的文本
  */
-export function truncateText(text: string, maxDisplayWidth: number, suffix = '...'): string {
+export function truncateText(
+  text: string,
+  maxDisplayWidth: number,
+  suffix = "...",
+): string {
   if (getDisplayWidth(text) <= maxDisplayWidth) {
     return text;
   }
@@ -102,11 +109,12 @@ export function truncateText(text: string, maxDisplayWidth: number, suffix = '..
   const suffixWidth = getDisplayWidth(suffix);
   const targetWidth = maxDisplayWidth - suffixWidth;
 
-  let result = '';
+  let result = "";
   let currentWidth = 0;
 
   for (const char of Array.from(text)) {
     const charWidth = /[\u4e00-\u9fff]/.test(char) ? 2 : 1;
+
     if (currentWidth + charWidth > targetWidth) {
       break;
     }

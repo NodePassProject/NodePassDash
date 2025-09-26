@@ -19,9 +19,13 @@ export default function MiniCircularProgress({
 }: MiniCircularProgressProps) {
   const radius = (size - 2) / 2; // 减去stroke宽度
   const circumference = 2 * Math.PI * radius;
-  const currentPercent = Math.min(Math.max(((value - min) / (max - min)) * 100, 0), 100);
+  const currentPercent = Math.min(
+    Math.max(((value - min) / (max - min)) * 100, 0),
+    100,
+  );
   const strokeDasharray = circumference;
-  const strokeDashoffset = circumference - (currentPercent / 100) * circumference;
+  const strokeDashoffset =
+    circumference - (currentPercent / 100) * circumference;
 
   return (
     <div
@@ -29,33 +33,33 @@ export default function MiniCircularProgress({
       style={{ width: size, height: size }}
     >
       <svg
-        width={size}
+        className="transform -rotate-90"
         height={size}
         viewBox={`0 0 ${size} ${size}`}
-        className="transform -rotate-90"
+        width={size}
       >
         {/* 背景圆环 */}
         <circle
+          className="text-default-200 opacity-30"
           cx={size / 2}
           cy={size / 2}
+          fill="none"
           r={radius}
           stroke="currentColor"
           strokeWidth="1.5"
-          fill="none"
-          className="text-default-200 opacity-30"
         />
         {/* 进度圆环 */}
         <circle
+          className="transition-all duration-500 ease-out"
           cx={size / 2}
           cy={size / 2}
+          fill="none"
           r={radius}
           stroke={color}
-          strokeWidth="1.5"
-          fill="none"
-          strokeLinecap="round"
           strokeDasharray={strokeDasharray}
           strokeDashoffset={strokeDashoffset}
-          className="transition-all duration-500 ease-out"
+          strokeLinecap="round"
+          strokeWidth="1.5"
         />
       </svg>
     </div>

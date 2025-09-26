@@ -1,13 +1,17 @@
 "use client";
 
-import type { ButtonProps, CardProps, RadioProps } from "@heroui/react";
+import type { ButtonProps } from "@heroui/react";
 
 import React from "react";
-import { BarChart, Bar, XAxis, YAxis, Tooltip, ResponsiveContainer } from "recharts";
 import {
-  Card,
-} from "@heroui/react";
-import { Icon } from "@iconify/react";
+  BarChart,
+  Bar,
+  XAxis,
+  YAxis,
+  Tooltip,
+  ResponsiveContainer,
+} from "recharts";
+import { Card } from "@heroui/react";
 
 type ChartData = {
   weekday: string;
@@ -91,6 +95,7 @@ const formatWeekday = (weekday: string) => {
     Sat: "Sat",
     Sun: "Sun",
   };
+
   return dayMap[weekday] || weekday;
 };
 
@@ -100,14 +105,15 @@ function WeeklyStatsChartComponent({
   color = "primary",
   chartData = [],
   loading = false,
-  formatBytes = (bytes: number) => `${bytes} B`
+  formatBytes = (bytes: number) => `${bytes} B`,
 }: WeeklyStatsChartProps) {
-
   return (
     <Card className="h-full dark:border-default-100 border border-transparent">
       <div className="flex flex-col gap-y-4 p-5 pb-0">
         <div className="flex flex-col gap-y-0">
-          <span className="text-base font-semibold text-foreground">{title}</span>
+          <span className="text-base font-semibold text-foreground">
+            {title}
+          </span>
         </div>
 
         {!loading && (
@@ -155,27 +161,33 @@ function WeeklyStatsChartComponent({
               dataKey="weekday"
               strokeOpacity={0.25}
               style={{ fontSize: "var(--heroui-font-size-tiny)" }}
-              tickLine={false}
               tickFormatter={formatWeekday}
+              tickLine={false}
             />
             <YAxis
               axisLine={false}
               style={{ fontSize: "var(--heroui-font-size-tiny)" }}
-              tickLine={false}
               tickFormatter={(value) => formatBytes(value)}
+              tickLine={false}
             />
             <Tooltip
               content={({ label, payload }) => (
                 <div className="rounded-medium bg-background text-tiny shadow-small flex h-auto min-w-[120px] items-center gap-x-2 p-2">
                   <div className="flex w-full flex-col gap-y-1">
-                    <span className="text-foreground font-medium">{formatWeekday(label)}</span>
+                    <span className="text-foreground font-medium">
+                      {formatWeekday(label)}
+                    </span>
                     {payload?.map((p, index) => {
                       const name = p.name;
                       const value = p.value;
-                      const category = categories.find((c) => c === name) ?? name;
+                      const category =
+                        categories.find((c) => c === name) ?? name;
 
                       return (
-                        <div key={`${index}-${name}`} className="flex w-full items-center gap-x-2">
+                        <div
+                          key={`${index}-${name}`}
+                          className="flex w-full items-center gap-x-2"
+                        >
                           <div
                             className="h-2 w-2 flex-none rounded-full"
                             style={{
@@ -217,4 +229,3 @@ function WeeklyStatsChartComponent({
 
 // 使用React.memo优化渲染性能
 export const WeeklyStatsChart = React.memo(WeeklyStatsChartComponent);
-

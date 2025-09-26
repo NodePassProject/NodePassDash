@@ -1,8 +1,6 @@
 "use client";
 
-import {
-  Button
-} from "@heroui/react";
+import { Button } from "@heroui/react";
 import { Icon } from "@iconify/react";
 
 /**
@@ -35,15 +33,15 @@ export const NavbarSocial = () => {
       {socialLinks.map((link) => (
         <Button
           key={link.key}
-          as="a"
-          href={link.href}
-          target={link.target}
-          rel="noopener noreferrer"
           isIconOnly
-          variant="light"
-          size="md"
           aria-label={link.label}
+          as="a"
           className="text-default-600 hover:border-primary hover:text-primary"
+          href={link.href}
+          rel="noopener noreferrer"
+          size="md"
+          target={link.target}
+          variant="light"
         >
           <Icon icon={link.icon} width={23} />
         </Button>

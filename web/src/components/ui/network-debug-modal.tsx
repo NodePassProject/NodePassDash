@@ -9,12 +9,7 @@ import {
   ModalFooter,
   Button,
   Input,
-  Card,
-  CardBody,
   Divider,
-  Badge,
-  Chip,
-  Progress,
   Spinner,
 } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -22,14 +17,10 @@ import {
   faPlay,
   faStop,
   faNetworkWired,
-  faClock,
-  faSignal,
-  faExclamationTriangle,
-  faCheckCircle,
-  faTimesCircle,
 } from "@fortawesome/free-solid-svg-icons";
-import { buildApiUrl } from "@/lib/utils";
 import { addToast } from "@heroui/toast";
+
+import { buildApiUrl } from "@/lib/utils";
 
 interface NetworkDebugModalProps {
   isOpen: boolean;
@@ -60,13 +51,16 @@ function LatencyChart({ results }: { results: TestResult[] }) {
 
   useEffect(() => {
     const canvas = canvasRef.current;
+
     if (!canvas) return;
 
     const ctx = canvas.getContext("2d");
+
     if (!ctx) return;
 
     // 设置canvas尺寸
     const rect = canvas.getBoundingClientRect();
+
     canvas.width = rect.width * window.devicePixelRatio;
     canvas.height = rect.height * window.devicePixelRatio;
     ctx.scale(window.devicePixelRatio, window.devicePixelRatio);
@@ -82,7 +76,10 @@ function LatencyChart({ results }: { results: TestResult[] }) {
     ctx.clearRect(0, 0, width, height);
 
     // 获取成功的测试结果
-    const successResults = results.filter((r) => r.success && r.latency && r.latency > 0);
+    const successResults = results.filter(
+      (r) => r.success && r.latency && r.latency > 0,
+    );
+
     if (successResults.length < 2) return;
 
     // 计算数据范围
@@ -98,6 +95,7 @@ function LatencyChart({ results }: { results: TestResult[] }) {
     // 水平网格线
     for (let i = 0; i <= 4; i++) {
       const y = paddingTop + ((height - paddingTop - paddingBottom) * i) / 4;
+
       ctx.beginPath();
       ctx.moveTo(paddingLeft, y);
       ctx.lineTo(width - paddingRight, y);
@@ -107,6 +105,7 @@ function LatencyChart({ results }: { results: TestResult[] }) {
     // 垂直网格线
     for (let i = 0; i <= 5; i++) {
       const x = paddingLeft + ((width - paddingLeft - paddingRight) * i) / 5;
+
       ctx.beginPath();
       ctx.moveTo(x, paddingTop);
       ctx.lineTo(x, height - paddingBottom);
@@ -172,10 +171,12 @@ function LatencyChart({ results }: { results: TestResult[] }) {
 
     // 绘制失败点
     const failedResults = results.filter((r) => !r.success);
+
     if (failedResults.length > 0) {
       ctx.fillStyle = "#f31260";
       failedResults.forEach((result) => {
         const resultIndex = results.indexOf(result);
+
         if (resultIndex >= 0 && results.length > 1) {
           const x =
             paddingLeft +
@@ -215,6 +216,7 @@ function LatencyChart({ results }: { results: TestResult[] }) {
 
       // 根据值的大小决定显示格式
       let displayValue;
+
       if (range < 10) {
         displayValue = value.toFixed(1);
       } else {
@@ -361,11 +363,12 @@ export default function NetworkDebugModal({
           body: JSON.stringify({
             target: targetAddress,
           }),
-        }
+        },
       );
 
       if (response.ok) {
         const data = await response.json();
+
         // 接口现在直接返回结果对象，不再包装在 result 字段中
         if (data.timestamp !== undefined) {
           return {
@@ -402,7 +405,7 @@ export default function NetworkDebugModal({
     if (isRunning) return;
 
     console.log(
-      `开始测试：目标=${targetAddress}, 次数=${testCount}, 间隔=${interval}ms`
+      `开始测试：目标=${targetAddress}, 次数=${testCount}, 间隔=${interval}ms`,
     );
 
     setIsTestStarted(true);
@@ -436,6 +439,7 @@ export default function NetworkDebugModal({
           description: `网络测试已完成，共执行 ${testCount} 次测试`,
           color: "success",
         });
+
         return;
       }
 
@@ -451,7 +455,9 @@ export default function NetworkDebugModal({
 
         setResults((prev) => {
           const newResults = [...prev, result];
+
           setStats(calculateStats(newResults));
+
           return newResults;
         });
 
@@ -558,16 +564,16 @@ export default function NetworkDebugModal({
 
   return (
     <Modal
-      isOpen={isOpen}
-      onOpenChange={handleModalClose}
-      size="4xl"
-      scrollBehavior="inside"
-      hideCloseButton={false}
       classNames={{
         base: "max-h-[90vh]",
         body: "py-6",
         footer: "border-t border-divider",
       }}
+      hideCloseButton={false}
+      isOpen={isOpen}
+      scrollBehavior="inside"
+      size="4xl"
+      onOpenChange={handleModalClose}
     >
       <ModalContent>
         {(onClose) => (
@@ -575,8 +581,8 @@ export default function NetworkDebugModal({
             <ModalHeader className="flex flex-col gap-1 pb-0">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon
-                  icon={faNetworkWired}
                   className="text-primary"
+                  icon={faNetworkWired}
                 />
                 <span>网络调试</span>
               </div>
@@ -592,17 +598,17 @@ export default function NetworkDebugModal({
                   <div className="space-y-4">
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Input
+                        isRequired
                         label="目标地址"
                         placeholder="IP:端口 或 域名:端口"
                         value={targetAddress}
                         onValueChange={setTargetAddress}
-                        isRequired
                       />
                       <Input
                         label="测试次数"
-                        type="number"
-                        min={1}
                         max={100}
+                        min={1}
+                        type="number"
                         value={testCount.toString()}
                         onValueChange={(value) =>
                           setTestCount(parseInt(value) || 1)
@@ -610,9 +616,9 @@ export default function NetworkDebugModal({
                       />
                       <Input
                         label="间隔时间(ms)"
-                        type="number"
-                        min={100}
                         max={10000}
+                        min={100}
+                        type="number"
                         value={interval.toString()}
                         onValueChange={(value) =>
                           setInterval(parseInt(value) || 1000)
@@ -624,7 +630,7 @@ export default function NetworkDebugModal({
               ) : isInitialLoading ? (
                 // 第一次测试加载中
                 <div className="flex flex-col items-center justify-center py-12 space-y-4">
-                  <Spinner size="lg" color="primary" />
+                  <Spinner color="primary" size="lg" />
                   <div className="text-center">
                     <p className="text-lg font-medium">测试中...</p>
                     <p className="text-sm text-default-500">
@@ -663,9 +669,7 @@ export default function NetworkDebugModal({
                           <div className="text-2xl font-bold text-warning">
                             {stats.packetLoss}%
                           </div>
-                          <div className="text-sm text-default-500">
-                            丢包率
-                          </div>
+                          <div className="text-sm text-default-500">丢包率</div>
                         </div>
                         <div className="text-center">
                           <div className="text-2xl font-bold text-primary">
@@ -716,27 +720,27 @@ export default function NetworkDebugModal({
                   {!isTestStarted ? (
                     <Button
                       color="primary"
-                      variant="solid"
-                      startContent={<FontAwesomeIcon icon={faPlay} />}
-                      onPress={startTest}
                       isDisabled={!targetAddress.trim()}
+                      startContent={<FontAwesomeIcon icon={faPlay} />}
+                      variant="solid"
+                      onPress={startTest}
                     >
                       开始测试
                     </Button>
                   ) : (
                     <>
                       <Button
+                        isDisabled={isRunning}
                         variant="flat"
                         onPress={resetTest}
-                        isDisabled={isRunning}
                       >
                         重新测试
                       </Button>
                       {isRunning && (
                         <Button
                           color="danger"
-                          variant="flat"
                           startContent={<FontAwesomeIcon icon={faStop} />}
+                          variant="flat"
                           onPress={stopTest}
                         >
                           停止测试

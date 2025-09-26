@@ -7,10 +7,9 @@ import {
   Input,
   Select,
   SelectItem,
-  Switch
+  Switch,
 } from "@heroui/react";
 import React, { forwardRef, useImperativeHandle } from "react";
-
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
@@ -92,18 +91,20 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
                 <label className="text-sm text-default-700">系统名称</label>
                 <Input
                   {...register("systemName")}
+                  errorMessage={errors.systemName?.message}
+                  isInvalid={!!errors.systemName}
                   placeholder="输入系统名称"
                   variant="bordered"
-                  isInvalid={!!errors.systemName}
-                  errorMessage={errors.systemName?.message}
                 />
               </div>
               <div className="space-y-2">
                 <label className="text-sm text-default-700">系统语言</label>
                 <Select
                   selectedKeys={[watch("language")]}
-                  onChange={(e) => setValue("language", e.target.value as "zh" | "en")}
                   variant="bordered"
+                  onChange={(e) =>
+                    setValue("language", e.target.value as "zh" | "en")
+                  }
                 >
                   <SelectItem key="zh">简体中文</SelectItem>
                   <SelectItem key="en">English</SelectItem>
@@ -121,29 +122,33 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">最大连接数</p>
-                  <p className="text-sm text-default-500">单个隧道允许的最大并发连接数</p>
+                  <p className="text-sm text-default-500">
+                    单个隧道允许的最大并发连接数
+                  </p>
                 </div>
                 <Input
                   {...register("maxConnections", { valueAsNumber: true })}
-                  type="number"
                   className="w-32"
-                  variant="bordered"
-                  isInvalid={!!errors.maxConnections}
                   errorMessage={errors.maxConnections?.message}
+                  isInvalid={!!errors.maxConnections}
+                  type="number"
+                  variant="bordered"
                 />
               </div>
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">连接超时时间</p>
-                  <p className="text-sm text-default-500">空闲连接的超时时间（秒）</p>
+                  <p className="text-sm text-default-500">
+                    空闲连接的超时时间（秒）
+                  </p>
                 </div>
                 <Input
                   {...register("connectionTimeout", { valueAsNumber: true })}
-                  type="number"
                   className="w-32"
-                  variant="bordered"
-                  isInvalid={!!errors.connectionTimeout}
                   errorMessage={errors.connectionTimeout?.message}
+                  isInvalid={!!errors.connectionTimeout}
+                  type="number"
+                  variant="bordered"
                 />
               </div>
             </div>
@@ -158,13 +163,25 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">日志级别</p>
-                  <p className="text-sm text-default-500">设置系统日志记录的详细程度</p>
+                  <p className="text-sm text-default-500">
+                    设置系统日志记录的详细程度
+                  </p>
                 </div>
                 <Select
-                  selectedKeys={[watch("logLevel")]}
-                  onChange={(e) => setValue("logLevel", e.target.value as "debug" | "info" | "warn" | "error" | "event")}
-                  variant="bordered"
                   className="w-32"
+                  selectedKeys={[watch("logLevel")]}
+                  variant="bordered"
+                  onChange={(e) =>
+                    setValue(
+                      "logLevel",
+                      e.target.value as
+                        | "debug"
+                        | "info"
+                        | "warn"
+                        | "error"
+                        | "event",
+                    )
+                  }
                 >
                   <SelectItem key="debug">Debug</SelectItem>
                   <SelectItem key="info">Info</SelectItem>
@@ -180,11 +197,11 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
                 </div>
                 <Input
                   {...register("logRetentionDays", { valueAsNumber: true })}
-                  type="number"
                   className="w-32"
-                  variant="bordered"
-                  isInvalid={!!errors.logRetentionDays}
                   errorMessage={errors.logRetentionDays?.message}
+                  isInvalid={!!errors.logRetentionDays}
+                  type="number"
+                  variant="bordered"
                 />
               </div>
             </div>
@@ -199,7 +216,9 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
               <div className="flex items-center justify-between">
                 <div>
                   <p className="font-medium">自动备份</p>
-                  <p className="text-sm text-default-500">定期备份系统配置和数据</p>
+                  <p className="text-sm text-default-500">
+                    定期备份系统配置和数据
+                  </p>
                 </div>
                 <Switch
                   isSelected={autoBackup}
@@ -211,13 +230,20 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">备份周期</p>
-                      <p className="text-sm text-default-500">自动备份的时间间隔</p>
+                      <p className="text-sm text-default-500">
+                        自动备份的时间间隔
+                      </p>
                     </div>
                     <Select
-                      selectedKeys={[watch("backupInterval")]}
-                      onChange={(e) => setValue("backupInterval", e.target.value as "daily" | "weekly" | "monthly")}
-                      variant="bordered"
                       className="w-32"
+                      selectedKeys={[watch("backupInterval")]}
+                      variant="bordered"
+                      onChange={(e) =>
+                        setValue(
+                          "backupInterval",
+                          e.target.value as "daily" | "weekly" | "monthly",
+                        )
+                      }
                     >
                       <SelectItem key="daily">每天</SelectItem>
                       <SelectItem key="weekly">每周</SelectItem>
@@ -227,15 +253,17 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
                   <div className="flex items-center justify-between">
                     <div>
                       <p className="font-medium">保留备份数</p>
-                      <p className="text-sm text-default-500">最多保留的备份文件数量</p>
+                      <p className="text-sm text-default-500">
+                        最多保留的备份文件数量
+                      </p>
                     </div>
                     <Input
                       {...register("backupRetention", { valueAsNumber: true })}
-                      type="number"
                       className="w-32"
-                      variant="bordered"
-                      isInvalid={!!errors.backupRetention}
                       errorMessage={errors.backupRetention?.message}
+                      isInvalid={!!errors.backupRetention}
+                      type="number"
+                      variant="bordered"
                     />
                   </div>
                 </>

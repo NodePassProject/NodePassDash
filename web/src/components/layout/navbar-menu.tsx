@@ -1,6 +1,7 @@
 import { NavbarItem, Link } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { useLocation } from "react-router-dom";
+
 import { cn } from "@/lib/utils";
 
 /**
@@ -14,7 +15,7 @@ const navigationItems = [
   },
   {
     href: "/tunnels",
-    label: "实例管理", 
+    label: "实例管理",
     icon: "solar:transmission-bold",
   },
   {
@@ -38,15 +39,19 @@ export const NavbarMenu = () => {
    *  3. 根目录 "/" 也匹配 "/dashboard"
    */
   const isActive = (href: string) => {
-    const normalized = pathname.replace(/\/+$/, '');
-    
+    const normalized = pathname.replace(/\/+$/, "");
+
     // dashboard特殊处理：根路径也视为dashboard激活
-    if (href === '/dashboard') {
-      return normalized === '/' || normalized === '/dashboard' || normalized.startsWith('/dashboard/');
+    if (href === "/dashboard") {
+      return (
+        normalized === "/" ||
+        normalized === "/dashboard" ||
+        normalized.startsWith("/dashboard/")
+      );
     }
-    
+
     // 其他路径的正常匹配
-    return normalized === href || normalized.startsWith(href + '/');
+    return normalized === href || normalized.startsWith(href + "/");
   };
 
   return (
@@ -56,9 +61,9 @@ export const NavbarMenu = () => {
           <Link
             className={cn(
               "flex items-center gap-1 px-3 py-2 rounded-lg transition-all duration-200",
-              isActive(item.href) 
-                ? "text-primary font-semibold bg-primary-100 dark:bg-primary-900/30" 
-                : "text-default-600"
+              isActive(item.href)
+                ? "text-primary font-semibold bg-primary-100 dark:bg-primary-900/30"
+                : "text-default-600",
             )}
             href={item.href}
           >

@@ -1,10 +1,9 @@
-import { Button, Card, CardBody } from "@heroui/react";
+import { Card, CardBody } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { 
+import {
   faServer,
-  faPlus,
   faLayerGroup,
-  faBug
+  faBug,
 } from "@fortawesome/free-solid-svg-icons";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
@@ -24,7 +23,7 @@ export function QuickEntryCard() {
       route: "/endpoints",
       color: "bg-blue-500 hover:bg-blue-600",
       iconType: "fontawesome",
-      external: false
+      external: false,
     },
     {
       id: "create-tunnel",
@@ -33,7 +32,7 @@ export function QuickEntryCard() {
       route: "/tunnels/create",
       color: "bg-green-500 hover:bg-green-600",
       iconType: "iconify",
-      external: false
+      external: false,
     },
     {
       id: "template-create",
@@ -42,7 +41,7 @@ export function QuickEntryCard() {
       route: "/templates",
       color: "bg-purple-500 hover:bg-purple-600",
       iconType: "fontawesome",
-      external: false
+      external: false,
     },
     {
       id: "settings",
@@ -51,7 +50,7 @@ export function QuickEntryCard() {
       route: "/settings",
       color: "bg-gray-500 hover:bg-gray-600",
       iconType: "iconify",
-      external: false
+      external: false,
     },
     {
       id: "docs",
@@ -60,7 +59,7 @@ export function QuickEntryCard() {
       route: "/docs",
       color: "bg-indigo-500 hover:bg-indigo-600",
       iconType: "iconify",
-      external: false
+      external: false,
     },
     {
       id: "debug-tools",
@@ -69,15 +68,17 @@ export function QuickEntryCard() {
       route: "/debug",
       color: "bg-teal-500 hover:bg-teal-600",
       iconType: "fontawesome",
-      external: false
-    }
+      external: false,
+    },
   ];
 
   return (
     <Card className="h-full min-h-[140px] dark:border-default-100 border border-transparent">
       <CardBody className="p-5 h-full flex flex-col justify-between">
         {/* 标题 */}
-        <span className="text-base font-semibold text-foreground">快捷操作</span>
+        <span className="text-base font-semibold text-foreground">
+          快捷操作
+        </span>
         {/* 按钮行 */}
         <div className="flex pt-5 justify-between">
           {quickActions.map((action) => (
@@ -86,26 +87,24 @@ export function QuickEntryCard() {
               className="flex flex-col items-center gap-2 cursor-pointer group transition-transform hover:scale-105"
               onClick={() => {
                 if (action.external) {
-                  window.open(action.route, '_blank');
+                  window.open(action.route, "_blank");
                 } else {
                   navigate(action.route);
                 }
               }}
             >
               {/* 图标按钮 */}
-              <div className={`flex items-center justify-center w-12 h-12 rounded-lg ${action.color} text-white transition-colors duration-200 group-hover:shadow-lg`}>
+              <div
+                className={`flex items-center justify-center w-12 h-12 rounded-lg ${action.color} text-white transition-colors duration-200 group-hover:shadow-lg`}
+              >
                 {action.iconType === "fontawesome" ? (
                   <FontAwesomeIcon
-                    icon={action.icon}
                     className="!w-5 !h-5"
-                    style={{ width: '20px', height: '20px' }}
+                    icon={action.icon}
+                    style={{ width: "20px", height: "20px" }}
                   />
                 ) : (
-                  <Icon
-                    icon={action.icon}
-                    width={20}
-                    height={20}
-                  />
+                  <Icon height={20} icon={action.icon} width={20} />
                 )}
               </div>
 

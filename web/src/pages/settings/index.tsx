@@ -1,17 +1,9 @@
-import {
-  Button,
-  Tab,
-  Tabs
-} from "@heroui/react";
+import { Tab, Tabs } from "@heroui/react";
 import React from "react";
-
 import { Icon } from "@iconify/react";
 import { addToast } from "@heroui/toast";
 
-import SystemSettings from "@/components/settings/system-settings";
 import SecuritySettings from "@/components/settings/security-settings";
-import ProfileSettings from "@/components/settings/profile-settings";
-import NotificationSettings from "@/components/settings/notification-settings";
 import VersionSettings from "@/components/settings/version-settings";
 import LogCleanupSettings from "@/components/settings/log-cleanup-settings";
 
@@ -49,18 +41,19 @@ export default function SettingsPage() {
       <div className="flex w-full flex-col">
         <Tabs
           aria-label="设置选项"
-          selectedKey={selected}
-          onSelectionChange={setSelected as any}
-          color="primary"
-          variant="solid"
-          radius="lg"
           classNames={{
             base: "w-full",
-            tabList: "w-full gap-2 sm:gap-4 md:gap-6 p-1 sm:p-2 bg-default-100 rounded-lg",
+            tabList:
+              "w-full gap-2 sm:gap-4 md:gap-6 p-1 sm:p-2 bg-default-100 rounded-lg",
             cursor: "bg-primary text-primary-foreground shadow-small",
             tab: "data-[selected=true]:text-primary-foreground h-10 px-2 sm:px-4 md:px-8 min-w-0",
-            panel: "pt-6"
+            panel: "pt-6",
           }}
+          color="primary"
+          radius="lg"
+          selectedKey={selected}
+          variant="solid"
+          onSelectionChange={setSelected as any}
         >
           {/* <Tab
             key="system"
@@ -77,7 +70,7 @@ export default function SettingsPage() {
             key="security"
             title={
               <div className="flex items-center gap-2 justify-center sm:justify-start">
-                <Icon icon="solar:shield-keyhole-bold" className="text-lg" />
+                <Icon className="text-lg" icon="solar:shield-keyhole-bold" />
                 <span className="hidden sm:inline">账户安全</span>
               </div>
             }
@@ -110,7 +103,7 @@ export default function SettingsPage() {
             key="logs"
             title={
               <div className="flex items-center gap-2 justify-center sm:justify-start">
-                <Icon icon="solar:database-bold" className="text-lg" />
+                <Icon className="text-lg" icon="solar:database-bold" />
                 <span className="hidden sm:inline">日志管理</span>
               </div>
             }
@@ -121,7 +114,7 @@ export default function SettingsPage() {
             key="version"
             title={
               <div className="flex items-center gap-2 justify-center sm:justify-start">
-                <Icon icon="solar:refresh-circle-bold" className="text-lg" />
+                <Icon className="text-lg" icon="solar:refresh-circle-bold" />
                 <span className="hidden sm:inline">版本检查</span>
               </div>
             }
@@ -148,4 +141,4 @@ export default function SettingsPage() {
       </div> */}
     </div>
   );
-} 
+}

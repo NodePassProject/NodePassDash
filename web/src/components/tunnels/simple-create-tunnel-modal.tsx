@@ -22,8 +22,9 @@ import {
   faChevronUp,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
-import { buildApiUrl } from "@/lib/utils";
 import { motion, AnimatePresence } from "framer-motion";
+
+import { buildApiUrl } from "@/lib/utils";
 
 interface EndpointSimple {
   id: string;
@@ -68,6 +69,7 @@ const isVersionSupportsPassword = (version: string): boolean => {
   if (!version || version.trim() === "") {
     return false; // 版本为空表示不支持
   }
+
   return compareVersions(version, "1.4.0") >= 0;
 };
 
@@ -121,17 +123,20 @@ export default function SimpleCreateTunnelModal({
       try {
         setLoading(true);
         const res = await fetch(
-          buildApiUrl("/api/endpoints/simple?excludeFailed=true")
+          buildApiUrl("/api/endpoints/simple?excludeFailed=true"),
         );
         const data = await res.json();
+
         setEndpoints(data);
         if (data.length) {
           let defaultEp = String(data[0].id);
+
           if (editData && editData.endpointId) {
             const epFound = data.find(
               (e: EndpointSimple) =>
-                String(e.id) === String(editData.endpointId)
+                String(e.id) === String(editData.endpointId),
             );
+
             if (epFound) defaultEp = String(epFound.id);
           }
           setFormData((prev) => ({ ...prev, apiEndpoint: defaultEp }));
@@ -146,6 +151,7 @@ export default function SimpleCreateTunnelModal({
         setLoading(false);
       }
     };
+
     fetchEndpoints();
 
     // 填充编辑数据
@@ -168,7 +174,12 @@ export default function SimpleCreateTunnelModal({
         keyPath: editData.keyPath || "",
         apiEndpoint: String(editData.endpointId || prev.apiEndpoint),
         // 新增字段
-        mode: editData.mode != null ? editData.mode : (editData.type === "server" ? 0 : 1),
+        mode:
+          editData.mode != null
+            ? editData.mode
+            : editData.type === "server"
+              ? 0
+              : 1,
         read: editData.read || "",
         rate: editData.rate || "",
       }));
@@ -204,6 +215,7 @@ export default function SimpleCreateTunnelModal({
         description: "主控/名称/端口不能为空",
         color: "warning",
       });
+
       return;
     }
 
@@ -214,17 +226,20 @@ export default function SimpleCreateTunnelModal({
         description: "客户端模式必须为模式1或模式2",
         color: "warning",
       });
+
       return;
     }
 
     const tp = parseInt(tunnelPort);
     const tp2 = parseInt(targetPort);
+
     if (tp < 0 || tp > 65535 || tp2 < 0 || tp2 > 65535) {
       addToast({
         title: "端口不合法",
         description: "端口需 0-65535",
         color: "warning",
       });
+
       return;
     }
 
@@ -239,6 +254,7 @@ export default function SimpleCreateTunnelModal({
         description: "TLS 模式2 需填写证书与密钥路径",
         color: "warning",
       });
+
       return;
     }
 
@@ -282,9 +298,10 @@ export default function SimpleCreateTunnelModal({
         }),
       });
       const data = await res.json();
+
       if (!res.ok || !data.success)
         throw new Error(
-          data.error || (modalMode === "edit" ? "更新失败" : "创建失败")
+          data.error || (modalMode === "edit" ? "更新失败" : "创建失败"),
         );
       addToast({
         title: modalMode === "edit" ? "更新成功" : "创建成功",
@@ -312,6 +329,7 @@ export default function SimpleCreateTunnelModal({
     } else if (field === "type") {
       // 切换类型时自动设置默认模式
       const defaultMode = value === "server" ? 0 : 1;
+
       setFormData((prev) => ({ ...prev, [field]: value, mode: defaultMode }));
     } else if (field === "mode") {
       // mode字段需要转换为数字类型
@@ -325,13 +343,13 @@ export default function SimpleCreateTunnelModal({
   const renderPasswordInput = () => {
     // 尝试不同的匹配方式
     const selectedEndpoint1 = endpoints.find(
-      (ep) => ep.id === formData.apiEndpoint
+      (ep) => ep.id === formData.apiEndpoint,
     );
     const selectedEndpoint2 = endpoints.find(
-      (ep) => String(ep.id) === String(formData.apiEndpoint)
+      (ep) => String(ep.id) === String(formData.apiEndpoint),
     );
     const selectedEndpoint3 = endpoints.find(
-      (ep) => Number(ep.id) === Number(formData.apiEndpoint)
+      (ep) => Number(ep.id) === Number(formData.apiEndpoint),
     );
 
     // 使用最安全的匹配方式
@@ -346,11 +364,6 @@ export default function SimpleCreateTunnelModal({
 
     return (
       <Input
-        label="隧道密码"
-        type={isPasswordVisible ? "text" : "password"}
-        placeholder="设置隧道连接密码进行认证"
-        value={formData.password}
-        onValueChange={(v) => handleField("password", v)}
         endContent={
           <button
             className="focus:outline-none"
@@ -358,11 +371,16 @@ export default function SimpleCreateTunnelModal({
             onClick={() => setIsPasswordVisible(!isPasswordVisible)}
           >
             <FontAwesomeIcon
-              icon={isPasswordVisible ? faEyeSlash : faEye}
               className="text-sm text-default-400 pointer-events-none"
+              icon={isPasswordVisible ? faEyeSlash : faEye}
             />
           </button>
         }
+        label="隧道密码"
+        placeholder="设置隧道连接密码进行认证"
+        type={isPasswordVisible ? "text" : "password"}
+        value={formData.password}
+        onValueChange={(v) => handleField("password", v)}
       />
     );
   };
@@ -370,15 +388,15 @@ export default function SimpleCreateTunnelModal({
   return (
     <Modal
       isOpen={isOpen}
-      onOpenChange={onOpenChange}
       placement="center"
       size="lg"
+      onOpenChange={onOpenChange}
     >
       <ModalContent>
         {(onClose) => (
           <>
             <ModalHeader className="flex items-center gap-2">
-              <FontAwesomeIcon icon={faBolt} className="text-warning" />
+              <FontAwesomeIcon className="text-warning" icon={faBolt} />
               {modalMode === "edit" ? "编辑实例" : "创建实例"}
             </ModalHeader>
             <ModalBody className="space-y-1">
@@ -391,15 +409,15 @@ export default function SimpleCreateTunnelModal({
                   {/* 主控 & 实例模式 */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <Select
+                      isDisabled={modalMode === "edit"}
                       label="选择主控"
                       selectedKeys={[formData.apiEndpoint]}
                       onSelectionChange={(keys) =>
                         handleField(
                           "apiEndpoint",
-                          Array.from(keys)[0] as string
+                          Array.from(keys)[0] as string,
                         )
                       }
-                      isDisabled={modalMode === "edit"}
                     >
                       {endpoints.map((ep) => (
                         <SelectItem key={ep.id}>{ep.name}</SelectItem>
@@ -460,15 +478,15 @@ export default function SimpleCreateTunnelModal({
                   <div className="grid grid-cols-2 gap-2">
                     <Input
                       label="隧道地址"
-                      value={formData.tunnelAddress}
                       placeholder="0.0.0.0/[2001:db8::1]"
+                      value={formData.tunnelAddress}
                       onValueChange={(v) => handleField("tunnelAddress", v)}
                     />
                     <Input
                       label="隧道端口"
+                      placeholder="10101"
                       type="number"
                       value={formData.tunnelPort}
-                      placeholder="10101"
                       onValueChange={(v) => handleField("tunnelPort", v)}
                     />
                   </div>
@@ -477,15 +495,15 @@ export default function SimpleCreateTunnelModal({
                   <div className="grid grid-cols-2 gap-2">
                     <Input
                       label="目标地址"
-                      value={formData.targetAddress}
                       placeholder="0.0.0.0/[2001:db8::1]"
+                      value={formData.targetAddress}
                       onValueChange={(v) => handleField("targetAddress", v)}
                     />
                     <Input
                       label="目标端口"
+                      placeholder="8080"
                       type="number"
                       value={formData.targetPort}
-                      placeholder="8080"
                       onValueChange={(v) => handleField("targetPort", v)}
                     />
                   </div>
@@ -501,9 +519,10 @@ export default function SimpleCreateTunnelModal({
                       }
                       onSelectionChange={(keys) => {
                         const selectedKey = Array.from(keys)[0] as string;
+
                         handleField(
                           "logLevel",
-                          selectedKey === "inherit" ? "" : selectedKey
+                          selectedKey === "inherit" ? "" : selectedKey,
                         );
                       }}
                     >
@@ -511,21 +530,22 @@ export default function SimpleCreateTunnelModal({
                         {(() => {
                           // 使用相同的匹配逻辑
                           const selectedEndpoint1 = endpoints.find(
-                            (ep) => ep.id === formData.apiEndpoint
+                            (ep) => ep.id === formData.apiEndpoint,
                           );
                           const selectedEndpoint2 = endpoints.find(
                             (ep) =>
-                              String(ep.id) === String(formData.apiEndpoint)
+                              String(ep.id) === String(formData.apiEndpoint),
                           );
                           const selectedEndpoint3 = endpoints.find(
                             (ep) =>
-                              Number(ep.id) === Number(formData.apiEndpoint)
+                              Number(ep.id) === Number(formData.apiEndpoint),
                           );
                           const selectedEndpoint =
                             selectedEndpoint2 ||
                             selectedEndpoint1 ||
                             selectedEndpoint3;
                           const masterLog = selectedEndpoint?.log;
+
                           return masterLog
                             ? `继承 (${masterLog.toUpperCase()})`
                             : "继承主控";
@@ -547,9 +567,10 @@ export default function SimpleCreateTunnelModal({
                         }
                         onSelectionChange={(keys) => {
                           const selectedKey = Array.from(keys)[0] as string;
+
                           handleField(
                             "tlsMode",
-                            selectedKey === "inherit" ? "" : selectedKey
+                            selectedKey === "inherit" ? "" : selectedKey,
                           );
                         }}
                       >
@@ -557,15 +578,15 @@ export default function SimpleCreateTunnelModal({
                           {(() => {
                             // 使用相同的匹配逻辑
                             const selectedEndpoint1 = endpoints.find(
-                              (ep) => ep.id === formData.apiEndpoint
+                              (ep) => ep.id === formData.apiEndpoint,
                             );
                             const selectedEndpoint2 = endpoints.find(
                               (ep) =>
-                                String(ep.id) === String(formData.apiEndpoint)
+                                String(ep.id) === String(formData.apiEndpoint),
                             );
                             const selectedEndpoint3 = endpoints.find(
                               (ep) =>
-                                Number(ep.id) === Number(formData.apiEndpoint)
+                                Number(ep.id) === Number(formData.apiEndpoint),
                             );
                             const selectedEndpoint =
                               selectedEndpoint2 ||
@@ -619,18 +640,18 @@ export default function SimpleCreateTunnelModal({
                     <Divider />
                     <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 bg-background dark:bg-[#18181B] px-4">
                       <button
+                        className="flex items-center gap-2 text-sm text-default-600 hover:text-default-800 transition-colors"
                         type="button"
                         onClick={() =>
                           setIsOptionalExpanded(!isOptionalExpanded)
                         }
-                        className="flex items-center gap-2 text-sm text-default-600 hover:text-default-800 transition-colors"
                       >
                         可选配置
                         <FontAwesomeIcon
+                          className="text-xs"
                           icon={
                             isOptionalExpanded ? faChevronDown : faChevronUp
                           }
-                          className="text-xs"
                         />
                       </button>
                     </div>
@@ -640,36 +661,37 @@ export default function SimpleCreateTunnelModal({
                   <AnimatePresence>
                     {isOptionalExpanded && (
                       <motion.div
-                        initial={{ height: 0, opacity: 0 }}
                         animate={{ height: "auto", opacity: 1 }}
+                        className="overflow-hidden"
                         exit={{ height: 0, opacity: 0 }}
+                        initial={{ height: 0, opacity: 0 }}
                         transition={{
                           duration: 0.3,
                           ease: "easeInOut",
                           height: { duration: 0.3, ease: "easeInOut" },
                         }}
-                        className="overflow-hidden"
                       >
                         <div className="space-y-4">
-                          {(formData.type === "client"&&formData.mode === 2) && (
-                            <div className={`grid grid-cols-2 gap-2`} >
-                              {renderPasswordInput()}
-                              <Input
-                                label="连接池最小容量"
-                                value={formData.min}
-                                onValueChange={(v) => handleField("min", v)}
-                                placeholder="64(默认值)"
-                              />
-                            </div>
-                          )}
-                          {(formData.type === "server") && (
-                            <div className={`grid grid-cols-2 gap-2`} >
+                          {formData.type === "client" &&
+                            formData.mode === 2 && (
+                              <div className={`grid grid-cols-2 gap-2`}>
+                                {renderPasswordInput()}
+                                <Input
+                                  label="连接池最小容量"
+                                  placeholder="64(默认值)"
+                                  value={formData.min}
+                                  onValueChange={(v) => handleField("min", v)}
+                                />
+                              </div>
+                            )}
+                          {formData.type === "server" && (
+                            <div className={`grid grid-cols-2 gap-2`}>
                               {renderPasswordInput()}
                               <Input
                                 label="连接池最大容量"
+                                placeholder="1024(默认值)"
                                 value={formData.max}
                                 onValueChange={(v) => handleField("max", v)}
-                                placeholder="1024(默认值)"
                               />
                             </div>
                           )}
@@ -677,15 +699,11 @@ export default function SimpleCreateTunnelModal({
                           <div className="grid grid-cols-3 gap-2">
                             <Input
                               label="数据读取超时"
+                              placeholder="1h0m0s"
                               value={formData.read}
                               onValueChange={(v) => handleField("read", v)}
-                              placeholder="1h0m0s"
                             />
                             <Input
-                              label="速率限制"
-                              value={formData.rate}
-                              onValueChange={(v) => handleField("rate", v)}
-                              placeholder="100"
                               endContent={
                                 <div className="pointer-events-none flex items-center">
                                   <span className="text-default-400 text-small">
@@ -693,12 +711,16 @@ export default function SimpleCreateTunnelModal({
                                   </span>
                                 </div>
                               }
+                              label="速率限制"
+                              placeholder="100"
+                              value={formData.rate}
+                              onValueChange={(v) => handleField("rate", v)}
                             />
                             <Input
                               label="最大连接数限制"
+                              placeholder="100"
                               value={formData.slot}
                               onValueChange={(v) => handleField("slot", v)}
-                              placeholder="100"
                             />
                           </div>
                         </div>
@@ -715,8 +737,8 @@ export default function SimpleCreateTunnelModal({
                   <Checkbox
                     id="reset-traffic"
                     isSelected={resetChecked}
-                    onValueChange={setResetChecked}
                     size="sm"
+                    onValueChange={setResetChecked}
                   >
                     保存后重置流量统计
                   </Checkbox>

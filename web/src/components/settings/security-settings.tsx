@@ -23,11 +23,11 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faExternalLink } from "@fortawesome/free-solid-svg-icons";
 import { Icon } from "@iconify/react";
 import { addToast } from "@heroui/toast";
-import { buildApiUrl } from "@/lib/utils";
-
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+
+import { buildApiUrl } from "@/lib/utils";
 // import GitHubOAuthModal from "./github-oauth-modal";
 // import CloudflareOAuthModal from "./cloudflare-oauth-modal";
 // import OAuth2ProviderSelectModal from "./oauth2-provider-select-modal";
@@ -147,9 +147,11 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         // 1) 获取当前绑定的 provider
         const res = await fetch(buildApiUrl("/api/oauth2/config"));
         const data = await res.json();
+
         if (!data.success) return;
 
         const curProvider = data.provider as "github" | "cloudflare" | "";
+
         if (!curProvider) return; // 未绑定
 
         const cfgData = data; // 同一次响应里含配置
@@ -182,6 +184,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         description: "请填写所有密码字段",
         color: "danger",
       });
+
       return;
     }
 
@@ -191,6 +194,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         description: "新密码和确认密码不一致",
         color: "danger",
       });
+
       return;
     }
 
@@ -200,6 +204,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         description: "新密码长度至少为6位",
         color: "danger",
       });
+
       return;
     }
 
@@ -267,6 +272,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         description: "请填写新用户名",
         color: "danger",
       });
+
       return;
     }
 
@@ -405,6 +411,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
       const res = await fetch(buildApiUrl("/api/oauth2/config"), {
         method: "DELETE",
       });
+
       if (!res.ok) throw new Error("解绑失败");
       addToast({
         title: "解绑成功",
@@ -462,10 +469,10 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   <p className="text-sm text-default-500">更改您的登录用户名</p>
                 </div>
                 <Button
-                  size="sm"
                   color="primary"
-                  onPress={onUsernameOpen}
+                  size="sm"
                   startContent={<Icon icon="solar:user-bold" width={18} />}
+                  onPress={onUsernameOpen}
                 >
                   修改用户名
                 </Button>
@@ -479,10 +486,10 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   </p>
                 </div>
                 <Button
-                  size="sm"
                   color="primary"
-                  onPress={onPasswordOpen}
+                  size="sm"
                   startContent={<Icon icon="solar:key-bold" width={18} />}
+                  onPress={onPasswordOpen}
                 >
                   修改密码
                 </Button>
@@ -494,14 +501,14 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
       {/* 修改密码模态框 */}
       <Modal
-        isOpen={isPasswordOpen}
-        onOpenChange={onPasswordOpenChange}
-        placement="center"
         backdrop="blur"
         classNames={{
           backdrop:
             "bg-gradient-to-t from-zinc-900 to-zinc-900/10 backdrop-opacity-20",
         }}
+        isOpen={isPasswordOpen}
+        placement="center"
+        onOpenChange={onPasswordOpenChange}
       >
         <ModalContent>
           {(onClose) => (
@@ -509,8 +516,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <Icon
-                    icon="solar:key-bold"
                     className="text-primary"
+                    icon="solar:key-bold"
                     width={24}
                   />
                   修改密码
@@ -521,45 +528,45 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   <Input
                     label="当前密码"
                     placeholder="请输入当前密码"
+                    startContent={
+                      <Icon icon="solar:lock-password-bold" width={18} />
+                    }
                     type="password"
-                    variant="bordered"
                     value={passwordForm.currentPassword}
+                    variant="bordered"
                     onChange={(e) =>
                       handlePasswordFormChange(
                         "currentPassword",
-                        e.target.value
+                        e.target.value,
                       )
-                    }
-                    startContent={
-                      <Icon icon="solar:lock-password-bold" width={18} />
                     }
                   />
 
                   <Input
                     label="新密码"
                     placeholder="请输入新密码"
+                    startContent={<Icon icon="solar:key-bold" width={18} />}
                     type="password"
-                    variant="bordered"
                     value={passwordForm.newPassword}
+                    variant="bordered"
                     onChange={(e) =>
                       handlePasswordFormChange("newPassword", e.target.value)
                     }
-                    startContent={<Icon icon="solar:key-bold" width={18} />}
                   />
 
                   <Input
                     label="确认新密码"
                     placeholder="请再次输入新密码"
+                    startContent={<Icon icon="solar:key-bold" width={18} />}
                     type="password"
-                    variant="bordered"
                     value={passwordForm.confirmPassword}
+                    variant="bordered"
                     onChange={(e) =>
                       handlePasswordFormChange(
                         "confirmPassword",
-                        e.target.value
+                        e.target.value,
                       )
                     }
-                    startContent={<Icon icon="solar:key-bold" width={18} />}
                   />
 
                   <div className="text-small text-default-500">
@@ -571,21 +578,21 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
               <ModalFooter>
                 <Button
                   color="danger"
+                  isDisabled={isSubmitting}
                   variant="light"
                   onPress={onClose}
-                  isDisabled={isSubmitting}
                 >
                   取消
                 </Button>
                 <Button
                   color="primary"
-                  onPress={handlePasswordChange}
                   isLoading={isSubmitting}
                   startContent={
                     !isSubmitting ? (
                       <Icon icon="solar:check-circle-bold" width={18} />
                     ) : null
                   }
+                  onPress={handlePasswordChange}
                 >
                   {isSubmitting ? "修改中..." : "确认修改"}
                 </Button>
@@ -597,14 +604,14 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
       {/* 修改用户名模态框 */}
       <Modal
-        isOpen={isUsernameOpen}
-        onOpenChange={onUsernameOpenChange}
-        placement="center"
         backdrop="blur"
         classNames={{
           backdrop:
             "bg-gradient-to-t from-zinc-900 to-zinc-900/10 backdrop-opacity-20",
         }}
+        isOpen={isUsernameOpen}
+        placement="center"
+        onOpenChange={onUsernameOpenChange}
       >
         <ModalContent>
           {(onClose) => (
@@ -612,8 +619,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <Icon
-                    icon="solar:user-bold"
                     className="text-primary"
+                    icon="solar:user-bold"
                     width={24}
                   />
                   修改用户名
@@ -623,30 +630,30 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                 <Input
                   label="新用户名"
                   placeholder="请输入新用户名"
-                  variant="bordered"
-                  value={newUsername}
-                  onChange={(e) => setNewUsername(e.target.value)}
                   startContent={<Icon icon="solar:user-bold" width={18} />}
+                  value={newUsername}
+                  variant="bordered"
+                  onChange={(e) => setNewUsername(e.target.value)}
                 />
               </ModalBody>
               <ModalFooter>
                 <Button
                   color="danger"
+                  isDisabled={isSubmitting}
                   variant="light"
                   onPress={onClose}
-                  isDisabled={isSubmitting}
                 >
                   取消
                 </Button>
                 <Button
                   color="primary"
-                  onPress={handleUsernameChange}
                   isLoading={isSubmitting}
                   startContent={
                     !isSubmitting ? (
                       <Icon icon="solar:check-circle-bold" width={18} />
                     ) : null
                   }
+                  onPress={handleUsernameChange}
                 >
                   {isSubmitting ? "修改中..." : "确认修改"}
                 </Button>
@@ -676,10 +683,10 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   <>
                     {" "}
                     <Icon
+                      className="dark:text-white"
+                      height={24}
                       icon="simple-icons:github"
                       width={24}
-                      height={24}
-                      className="dark:text-white"
                     />{" "}
                     <span className="font-medium">GitHub</span>{" "}
                   </>
@@ -688,9 +695,9 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   <>
                     {" "}
                     <Icon
+                      height={24}
                       icon="simple-icons:cloudflare"
                       width={24}
-                      height={24}
                     />{" "}
                     <span className="font-medium">Cloudflare</span>{" "}
                   </>
@@ -703,26 +710,26 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                 <Button
                   color="primary"
                   size="sm"
+                  startContent={<Icon icon="solar:settings-bold" width={18} />}
                   onPress={() => {
                     // 打开对应配置模态框
                     if (isGitHubConfigured) onGitHubOpen();
                     else if (isCloudflareConfigured) onCloudflareOpen();
                   }}
-                  startContent={<Icon icon="solar:settings-bold" width={18} />}
                 >
                   配置
                 </Button>
                 <Button
                   color="danger"
-                  size="sm"
-                  onPress={() =>
-                    handleUnbindProvider(
-                      isGitHubConfigured ? "github" : "cloudflare"
-                    )
-                  }
                   isLoading={isSubmitting}
+                  size="sm"
                   startContent={
                     <Icon icon="solar:lock-keyhole-unlocked-bold" width={18} />
+                  }
+                  onPress={() =>
+                    handleUnbindProvider(
+                      isGitHubConfigured ? "github" : "cloudflare",
+                    )
                   }
                 >
                   解绑
@@ -734,11 +741,11 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
             <div className="flex items-center justify-between">
               <p className="text-default-500">尚未绑定任何 OAuth2 登录方式</p>
               <Button
-                size="sm"
-                color="primary"
                 className="text-white"
-                onPress={onSelectOpen}
+                color="primary"
+                size="sm"
                 startContent={<Icon icon="solar:add-circle-bold" width={18} />}
+                onPress={onSelectOpen}
               >
                 绑定 OAuth2 认证
               </Button>
@@ -749,10 +756,10 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
       {/* 基本 Provider 选择模态框 - 简化版本，不依赖外部组件 */}
       <Modal
-        isOpen={isSelectOpen}
-        onOpenChange={onSelectOpenChange}
-        placement="center"
         backdrop="blur"
+        isOpen={isSelectOpen}
+        placement="center"
+        onOpenChange={onSelectOpenChange}
       >
         <ModalContent>
           {(onClose) => (
@@ -762,10 +769,10 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                 <div className="space-y-3">
                   <Button
                     fullWidth
-                    variant="bordered"
                     startContent={
                       <Icon icon="simple-icons:github" width={20} />
                     }
+                    variant="bordered"
                     onPress={() => {
                       setSelectedProvider("github");
                       onGitHubOpen();
@@ -776,10 +783,10 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   </Button>
                   <Button
                     fullWidth
-                    variant="bordered"
                     startContent={
                       <Icon icon="simple-icons:cloudflare" width={20} />
                     }
+                    variant="bordered"
                     onPress={() => {
                       setSelectedProvider("cloudflare");
                       onCloudflareOpen();
@@ -802,11 +809,11 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
       {/* GitHub OAuth2 配置模态框 - 简化版 */}
       <Modal
-        isOpen={isGitHubOpen}
-        onOpenChange={onGitHubOpenChange}
-        placement="center"
         backdrop="blur"
+        isOpen={isGitHubOpen}
+        placement="center"
         size="2xl"
+        onOpenChange={onGitHubOpenChange}
       >
         <ModalContent>
           {(onClose) => (
@@ -815,10 +822,13 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                 <div className="flex items-center  w-full">
                   <span>GitHub OAuth2 配置</span>
                   <FontAwesomeIcon
-                    icon={faExternalLink}
                     className="text-[12px] text-default-400 hover:text-default-500 cursor-pointer ml-2 inline align-baseline"
+                    icon={faExternalLink}
                     onClick={(e) => {
-                      window.open("https://github.com/settings/developers", "_blank")
+                      window.open(
+                        "https://github.com/settings/developers",
+                        "_blank",
+                      );
                     }}
                   />
                 </div>
@@ -838,8 +848,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   />
                   <Input
                     label="Client Secret"
-                    type="password"
                     placeholder="GitHub OAuth App Client Secret"
+                    type="password"
                     value={gitHubConfig.clientSecret}
                     onChange={(e) =>
                       setGitHubConfig((prev) => ({
@@ -856,8 +866,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                 </Button>
                 <Button
                   color="primary"
-                  onPress={handleSaveGitHubConfig}
                   isLoading={isSubmitting}
+                  onPress={handleSaveGitHubConfig}
                 >
                   保存配置
                 </Button>
@@ -869,11 +879,11 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
       {/* Cloudflare OAuth2 配置模态框 - 简化版 */}
       <Modal
-        isOpen={isCloudflareOpen}
-        onOpenChange={onCloudflareOpenChange}
-        placement="center"
         backdrop="blur"
+        isOpen={isCloudflareOpen}
+        placement="center"
         size="2xl"
+        onOpenChange={onCloudflareOpenChange}
       >
         <ModalContent>
           {(onClose) => (
@@ -881,12 +891,12 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
               <ModalHeader className="flex items-center  w-full">
                 <span>Cloudflare OAuth2 配置</span>
                 <FontAwesomeIcon
-                    icon={faExternalLink}
-                    className="text-[12px] text-default-400 hover:text-default-500 cursor-pointer ml-2 inline align-baseline"
-                    onClick={(e) => {
-                      window.open("https://one.dash.cloudflare.com/", "_blank")
-                    }}
-                  />
+                  className="text-[12px] text-default-400 hover:text-default-500 cursor-pointer ml-2 inline align-baseline"
+                  icon={faExternalLink}
+                  onClick={(e) => {
+                    window.open("https://one.dash.cloudflare.com/", "_blank");
+                  }}
+                />
               </ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
@@ -903,8 +913,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   />
                   <Input
                     label="Client Secret"
-                    type="password"
                     placeholder="Cloudflare OAuth App Client Secret"
+                    type="password"
                     value={cloudflareConfig.clientSecret}
                     onChange={(e) =>
                       setCloudflareConfig((prev) => ({
@@ -954,8 +964,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                 </Button>
                 <Button
                   color="primary"
-                  onPress={handleSaveCloudflareConfig}
                   isLoading={isSubmitting}
+                  onPress={handleSaveCloudflareConfig}
                 >
                   保存配置
                 </Button>

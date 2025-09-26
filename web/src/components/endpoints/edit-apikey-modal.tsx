@@ -34,7 +34,7 @@ export default function EditApiKeyModal({
 
   const handleSubmit = async () => {
     if (!newApiKey.trim()) return;
-    
+
     setIsLoading(true);
     try {
       await onSave(newApiKey.trim());
@@ -57,19 +57,19 @@ export default function EditApiKeyModal({
   const toggleVisibility = () => setIsVisible(!isVisible);
 
   return (
-    <Modal 
-      isOpen={isOpen} 
-      onOpenChange={handleOpenChange}
-      placement="center"
-      isDismissable={!isLoading}
+    <Modal
       hideCloseButton={isLoading}
+      isDismissable={!isLoading}
+      isOpen={isOpen}
+      placement="center"
+      onOpenChange={handleOpenChange}
     >
       <ModalContent>
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <FontAwesomeIcon icon={faKey} className="text-warning" />
+                <FontAwesomeIcon className="text-warning" icon={faKey} />
                 修改 API 密钥
               </div>
               <p className="text-small text-default-500 font-normal">
@@ -83,12 +83,12 @@ export default function EditApiKeyModal({
                     当前 API Key
                   </label>
                   <Input
-                    value={currentApiKey}
                     isReadOnly
-                    variant="bordered"
+                    className="font-mono"
                     size="sm"
                     type="password"
-                    className="font-mono"
+                    value={currentApiKey}
+                    variant="bordered"
                   />
                 </div>
                 <div>
@@ -96,12 +96,6 @@ export default function EditApiKeyModal({
                     新 API Key <span className="text-danger">*</span>
                   </label>
                   <Input
-                    placeholder="请输入新的 API Key"
-                    value={newApiKey}
-                    onValueChange={setNewApiKey}
-                    variant="bordered"
-                    size="sm"
-                    type={isVisible ? "text" : "password"}
                     className="font-mono"
                     endContent={
                       <button
@@ -110,11 +104,17 @@ export default function EditApiKeyModal({
                         onClick={toggleVisibility}
                       >
                         <FontAwesomeIcon
-                          icon={isVisible ? faEyeSlash : faEye}
                           className="text-default-400 pointer-events-none text-sm"
+                          icon={isVisible ? faEyeSlash : faEye}
                         />
                       </button>
                     }
+                    placeholder="请输入新的 API Key"
+                    size="sm"
+                    type={isVisible ? "text" : "password"}
+                    value={newApiKey}
+                    variant="bordered"
+                    onValueChange={setNewApiKey}
                   />
                 </div>
                 <div className="p-3 bg-warning-50 rounded-lg">
@@ -125,20 +125,22 @@ export default function EditApiKeyModal({
               </div>
             </ModalBody>
             <ModalFooter>
-              <Button 
-                color="default" 
-                variant="light" 
-                onPress={onClose}
+              <Button
+                color="default"
                 isDisabled={isLoading}
+                variant="light"
+                onPress={onClose}
               >
                 取消
               </Button>
               <Button
                 color="warning"
-                onPress={handleSubmit}
                 isDisabled={!newApiKey.trim()}
                 isLoading={isLoading}
-                startContent={!isLoading ? <FontAwesomeIcon icon={faKey} /> : null}
+                startContent={
+                  !isLoading ? <FontAwesomeIcon icon={faKey} /> : null
+                }
+                onPress={handleSubmit}
               >
                 {isLoading ? "保存中..." : "保存"}
               </Button>
@@ -148,4 +150,4 @@ export default function EditApiKeyModal({
       </ModalContent>
     </Modal>
   );
-} 
+}

@@ -11,6 +11,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
+
 import { buildApiUrl } from "@/lib/utils";
 import { useTextLimit, TEXT_LIMITS } from "@/lib/utils/text-limits";
 
@@ -87,43 +88,47 @@ export default function RenameTunnelModal({
   };
 
   return (
-    <Modal isOpen={isOpen} onOpenChange={onOpenChange} placement="center">
+    <Modal isOpen={isOpen} placement="center" onOpenChange={onOpenChange}>
       <ModalContent>
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
-                <FontAwesomeIcon icon={faPen} className="text-primary" />
+                <FontAwesomeIcon className="text-primary" icon={faPen} />
                 修改实例名称
               </div>
             </ModalHeader>
             <ModalBody>
               <Input
+                autoFocus
+                description={textLimit.description}
+                isDisabled={isLoading}
                 label="实例名称"
                 placeholder="请输入新的实例名称"
                 value={newTunnelName}
-                onValueChange={setNewTunnelName}
                 variant="bordered"
-                isDisabled={isLoading}
-                description={textLimit.description}
                 onKeyDown={handleKeyDown}
-                autoFocus
+                onValueChange={setNewTunnelName}
               />
             </ModalBody>
             <ModalFooter>
               <Button
                 color="default"
+                isDisabled={isLoading}
                 variant="light"
                 onPress={onClose}
-                isDisabled={isLoading}
               >
                 取消
               </Button>
               <Button
                 color="primary"
-                onPress={handleSubmit}
+                isDisabled={
+                  !newTunnelName.trim() ||
+                  newTunnelName.trim() === currentName ||
+                  textLimit.isOverLimit
+                }
                 isLoading={isLoading}
-                isDisabled={!newTunnelName.trim() || newTunnelName.trim() === currentName || textLimit.isOverLimit}
+                onPress={handleSubmit}
               >
                 确认修改
               </Button>

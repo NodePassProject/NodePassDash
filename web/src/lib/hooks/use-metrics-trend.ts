@@ -1,7 +1,8 @@
 "use client";
 
-import { useState, useEffect, useRef, useCallback } from 'react';
-import { buildApiUrl } from '@/lib/utils';
+import { useState, useEffect, useRef, useCallback } from "react";
+
+import { buildApiUrl } from "@/lib/utils";
 
 // 趋势数据类型定义
 export interface TrendData {
@@ -39,13 +40,13 @@ export interface UseMetricsTrendReturn {
   error: string | null;
   lastUpdate: Date | null;
   isAutoRefreshEnabled: boolean;
-  
+
   // 控制方法
   refresh: () => Promise<void>;
   startAutoRefresh: () => void;
   stopAutoRefresh: () => void;
   toggleAutoRefresh: () => void;
-  
+
   // 统计信息
   getDataPointsCount: () => number;
   getLatestDataTime: () => Date | null;
@@ -54,14 +55,14 @@ export interface UseMetricsTrendReturn {
 
 /**
  * 使用统一的趋势数据 Hook
- * 
+ *
  * 特性：
  * - 每15秒自动轮询（可配置）
  * - 支持手动刷新
  * - 自动内存管理，防止内存泄漏
  * - 错误处理和重试机制
  * - 时间戳对齐的数据
- * 
+ *
  * @example
  * ```tsx
  * const { data, loading, error, refresh, toggleAutoRefresh } = useMetricsTrend({
@@ -77,110 +78,118 @@ export function useMetricsTrend({
   autoRefresh = true,
   refreshInterval = 15000,
   onError,
-  onSuccess
+  onSuccess,
 }: UseMetricsTrendOptions): UseMetricsTrendReturn {
-  
   // 状态管理
   const [data, setData] = useState<MetricsTrendResponse | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [lastUpdate, setLastUpdate] = useState<Date | null>(null);
   const [isAutoRefreshEnabled, setIsAutoRefreshEnabled] = useState(autoRefresh);
-  
+
   // 使用 ref 管理定时器和挂载状态
   const intervalRef = useRef<NodeJS.Timeout | null>(null);
   const mountedRef = useRef(true);
   const abortControllerRef = useRef<AbortController | null>(null);
 
   // 获取趋势数据的核心方法
-  const fetchTrendData = useCallback(async (showLoading = true) => {
-    try {
-      // 验证 tunnelId 是否有效
-      if (!tunnelId || tunnelId.trim() === '') {
-        setLoading(false);
-        setError('隧道ID无效');
-        return;
-      }
-      
-      // 取消之前的请求
-      if (abortControllerRef.current) {
-        abortControllerRef.current.abort();
-      }
-      
-      // 创建新的中止控制器
-      abortControllerRef.current = new AbortController();
-      
-      if (showLoading) setLoading(true);
-      setError(null);
+  const fetchTrendData = useCallback(
+    async (showLoading = true) => {
+      try {
+        // 验证 tunnelId 是否有效
+        if (!tunnelId || tunnelId.trim() === "") {
+          setLoading(false);
+          setError("隧道ID无效");
 
-      const response = await fetch(
-        buildApiUrl(`/api/tunnels/${tunnelId}/metrics-trend`),
-        {
-          signal: abortControllerRef.current.signal,
-          headers: {
-            'Cache-Control': 'no-cache',
-            'Pragma': 'no-cache'
+          return;
+        }
+
+        // 取消之前的请求
+        if (abortControllerRef.current) {
+          abortControllerRef.current.abort();
+        }
+
+        // 创建新的中止控制器
+        abortControllerRef.current = new AbortController();
+
+        if (showLoading) setLoading(true);
+        setError(null);
+
+        const response = await fetch(
+          buildApiUrl(`/api/tunnels/${tunnelId}/metrics-trend`),
+          {
+            signal: abortControllerRef.current.signal,
+            headers: {
+              "Cache-Control": "no-cache",
+              Pragma: "no-cache",
+            },
+          },
+        );
+
+        if (!response.ok) {
+          const errorData = await response.json().catch(() => ({}));
+
+          throw new Error(
+            errorData.error ||
+              `HTTP ${response.status}: ${response.statusText}`,
+          );
+        }
+
+        const result: MetricsTrendResponse = await response.json();
+
+        if (!result.success) {
+          throw new Error((result.data as any) || "获取趋势数据失败");
+        }
+
+        // 只在组件仍然挂载时更新状态
+        if (mountedRef.current) {
+          setData(result);
+          setLastUpdate(new Date());
+
+          // 调用成功回调
+          if (onSuccess) {
+            onSuccess(result);
           }
         }
-      );
+      } catch (err) {
+        // 忽略取消的请求
+        if (err instanceof Error && err.name === "AbortError") {
+          return;
+        }
 
-      if (!response.ok) {
-        const errorData = await response.json().catch(() => ({}));
-        throw new Error(errorData.error || `HTTP ${response.status}: ${response.statusText}`);
-      }
+        console.error("获取趋势数据失败:", err);
 
-      const result: MetricsTrendResponse = await response.json();
-      
-      if (!result.success) {
-        throw new Error(result.data as any || '获取趋势数据失败');
-      }
+        if (mountedRef.current) {
+          const errorMessage = err instanceof Error ? err.message : "未知错误";
 
-      // 只在组件仍然挂载时更新状态
-      if (mountedRef.current) {
-        setData(result);
-        setLastUpdate(new Date());
-        
-        // 调用成功回调
-        if (onSuccess) {
-          onSuccess(result);
+          setError(errorMessage);
+
+          // 调用错误回调
+          if (onError) {
+            onError(err instanceof Error ? err : new Error(errorMessage));
+          }
+        }
+      } finally {
+        if (mountedRef.current && showLoading) {
+          setLoading(false);
         }
       }
-    } catch (err) {
-      // 忽略取消的请求
-      if (err instanceof Error && err.name === 'AbortError') {
-        return;
-      }
-      
-      console.error('获取趋势数据失败:', err);
-      
-      if (mountedRef.current) {
-        const errorMessage = err instanceof Error ? err.message : '未知错误';
-        setError(errorMessage);
-        
-        // 调用错误回调
-        if (onError) {
-          onError(err instanceof Error ? err : new Error(errorMessage));
-        }
-      }
-    } finally {
-      if (mountedRef.current && showLoading) {
-        setLoading(false);
-      }
-    }
-  }, [tunnelId, onSuccess, onError]);
+    },
+    [tunnelId, onSuccess, onError],
+  );
 
   // 启动定时器
   const startAutoRefresh = useCallback(() => {
     if (intervalRef.current) {
       clearInterval(intervalRef.current);
     }
-    
+
     intervalRef.current = setInterval(() => {
       if (mountedRef.current) {
         fetchTrendData(false); // 轮询时不显示加载状态
       }
     }, refreshInterval);
-    
+
     setIsAutoRefreshEnabled(true);
   }, [refreshInterval, fetchTrendData]);
 
@@ -210,13 +219,16 @@ export function useMetricsTrend({
   // 获取数据点数量
   const getDataPointsCount = useCallback(() => {
     if (!data?.data) return 0;
+
     return data.data.traffic.created_at.length;
   }, [data]);
 
   // 获取最新数据时间
   const getLatestDataTime = useCallback((): Date | null => {
     if (!data?.data || !data.data.traffic.created_at.length) return null;
-    const latest = data.data.traffic.created_at[data.data.traffic.created_at.length - 1];
+    const latest =
+      data.data.traffic.created_at[data.data.traffic.created_at.length - 1];
+
     return new Date(latest);
   }, [data]);
 
@@ -232,13 +244,13 @@ export function useMetricsTrend({
     // 清理函数
     return () => {
       mountedRef.current = false;
-      
+
       // 清理定时器
       if (intervalRef.current) {
         clearInterval(intervalRef.current);
         intervalRef.current = null;
       }
-      
+
       // 取消进行中的请求
       if (abortControllerRef.current) {
         abortControllerRef.current.abort();
@@ -249,7 +261,7 @@ export function useMetricsTrend({
   // 监听 tunnelId 变化，重新加载数据
   useEffect(() => {
     // 只有当 tunnelId 有效时才进行初始加载
-    if (tunnelId && tunnelId.trim() !== '') {
+    if (tunnelId && tunnelId.trim() !== "") {
       // 初始加载
       fetchTrendData(true);
     } else {
@@ -262,12 +274,12 @@ export function useMetricsTrend({
 
   // 监听自动刷新设置变化
   useEffect(() => {
-    if (autoRefresh && tunnelId && tunnelId.trim() !== '') {
+    if (autoRefresh && tunnelId && tunnelId.trim() !== "") {
       startAutoRefresh();
     } else {
       stopAutoRefresh();
     }
-    
+
     return () => {
       stopAutoRefresh();
     };
@@ -279,7 +291,12 @@ export function useMetricsTrend({
       stopAutoRefresh();
       startAutoRefresh();
     }
-  }, [refreshInterval, isAutoRefreshEnabled, stopAutoRefresh, startAutoRefresh]); // 当刷新间隔变化时重启定时器
+  }, [
+    refreshInterval,
+    isAutoRefreshEnabled,
+    stopAutoRefresh,
+    startAutoRefresh,
+  ]); // 当刷新间隔变化时重启定时器
 
   return {
     data,
@@ -287,17 +304,17 @@ export function useMetricsTrend({
     error,
     lastUpdate,
     isAutoRefreshEnabled,
-    
+
     // 控制方法
     refresh,
     startAutoRefresh,
     stopAutoRefresh,
     toggleAutoRefresh,
-    
+
     // 统计信息
     getDataPointsCount,
     getLatestDataTime,
-    getRefreshInterval
+    getRefreshInterval,
   };
 }
 
@@ -307,13 +324,13 @@ export const formatMetricsData = {
    * 格式化时间戳为本地时间字符串
    */
   formatTimestamp: (timestamp: number): string => {
-    return new Date(timestamp).toLocaleString('zh-CN', {
-      year: 'numeric',
-      month: '2-digit',
-      day: '2-digit',
-      hour: '2-digit',
-      minute: '2-digit',
-      second: '2-digit'
+    return new Date(timestamp).toLocaleString("zh-CN", {
+      year: "numeric",
+      month: "2-digit",
+      day: "2-digit",
+      hour: "2-digit",
+      minute: "2-digit",
+      second: "2-digit",
     });
   },
 
@@ -328,11 +345,12 @@ export const formatMetricsData = {
    * 格式化流量值（字节）
    */
   formatTraffic: (bytes: number): string => {
-    if (bytes === 0) return '0 B/min';
+    if (bytes === 0) return "0 B/min";
     const k = 1024;
-    const sizes = ['B/min', 'KB/min', 'MB/min', 'GB/min'];
+    const sizes = ["B/min", "KB/min", "MB/min", "GB/min"];
     const i = Math.floor(Math.log(bytes) / Math.log(k));
-    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + ' ' + sizes[i];
+
+    return parseFloat((bytes / Math.pow(k, i)).toFixed(1)) + " " + sizes[i];
   },
 
   /**
@@ -345,7 +363,9 @@ export const formatMetricsData = {
   /**
    * 获取数据的统计摘要
    */
-  getDataSummary: (data: number[]): {
+  getDataSummary: (
+    data: number[],
+  ): {
     min: number;
     max: number;
     avg: number;
@@ -354,11 +374,11 @@ export const formatMetricsData = {
     if (data.length === 0) {
       return { min: 0, max: 0, avg: 0, count: 0 };
     }
-    
+
     const min = Math.min(...data);
     const max = Math.max(...data);
     const avg = data.reduce((sum, val) => sum + val, 0) / data.length;
-    
+
     return { min, max, avg, count: data.length };
-  }
+  },
 };

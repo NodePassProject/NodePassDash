@@ -5,6 +5,7 @@ import { ToastProvider } from "@heroui/toast";
 import { useHref, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { ThemeProvider } from "next-themes";
+
 import { AuthProvider } from "./components/auth/auth-provider";
 import { RouteGuard } from "./components/auth/route-guard";
 import { SettingsProvider } from "./components/providers/settings-provider";
@@ -21,7 +22,7 @@ export function Providers({ children }: { children: React.ReactNode }) {
   // 全局 fetch 补丁：默认添加 credentials:'include'，确保跨端口请求携带 Cookie
   // 使用单例模式避免重复补丁导致的内存泄漏
   useEffect(() => {
-    if (typeof window === 'undefined') return;
+    if (typeof window === "undefined") return;
 
     // 检查是否已经应用了补丁，避免重复设置
     if ((window as any)._fetchPatched) {
@@ -29,11 +30,16 @@ export function Providers({ children }: { children: React.ReactNode }) {
     }
 
     const originalFetch = window.fetch;
-    window.fetch = (input: RequestInfo | URL, init?: RequestInit): Promise<Response> => {
+
+    window.fetch = (
+      input: RequestInfo | URL,
+      init?: RequestInit,
+    ): Promise<Response> => {
       const newInit: RequestInit = {
-        credentials: 'include',
+        credentials: "include",
         ...init,
       };
+
       return originalFetch(input, newInit);
     };
 
@@ -53,21 +59,19 @@ export function Providers({ children }: { children: React.ReactNode }) {
 
   return (
     <HeroUIProvider navigate={navigate} useHref={useHref}>
-      <ToastProvider 
+      <ToastProvider
+        maxVisibleToasts={1}
         placement="top-center"
         toastOffset={80}
-        maxVisibleToasts={1}
       />
       <ThemeProvider
         attribute="class"
         defaultTheme="system"
-        themes={['light', 'dark', 'system']}
+        themes={["light", "dark", "system"]}
       >
         <SettingsProvider>
           <AuthProvider>
-            <RouteGuard>
-              {children}
-            </RouteGuard>
+            <RouteGuard>{children}</RouteGuard>
           </AuthProvider>
         </SettingsProvider>
       </ThemeProvider>

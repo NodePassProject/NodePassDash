@@ -11,21 +11,23 @@ import {
   SelectItem,
   Card,
   CardBody,
-  Divider,
 } from "@heroui/react";
 import { useEffect, useState } from "react";
 import { Icon } from "@iconify/react";
 import { addToast } from "@heroui/toast";
-import { buildApiUrl } from "@/lib/utils";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
-  faExchangeAlt,faArrowRight,
+  faExchangeAlt,
+  faArrowRight,
   faShield,
 } from "@fortawesome/free-solid-svg-icons";
+
+import { buildApiUrl } from "@/lib/utils";
 // 从 URL 中提取主机地址的辅助函数
 const extractHostFromUrl = (url: string): string => {
   try {
     const urlObj = new URL(url);
+
     return urlObj.hostname;
   } catch {
     return url; // 如果解析失败，返回原始字符串
@@ -65,7 +67,10 @@ interface TemplateCreateRequest {
   };
 }
 
-export type ScenarioType = "single-forward" | "tunnel-forward" | "nat-penetration";
+export type ScenarioType =
+  | "single-forward"
+  | "tunnel-forward"
+  | "nat-penetration";
 
 interface ScenarioCreateModalProps {
   isOpen: boolean;
@@ -144,13 +149,15 @@ export default function ScenarioCreateModal({
       try {
         setLoading(true);
         const res = await fetch(
-          buildApiUrl("/api/endpoints/simple?excludeFailed=true")
+          buildApiUrl("/api/endpoints/simple?excludeFailed=true"),
         );
         const data = await res.json();
+
         setEndpoints(data);
         if (data.length) {
           // 为单端转发和双端转发场景设置默认主控，NAT穿透不设置默认值
           const defaultEndpoint = String(data[0].id);
+
           setFormData((prev) => ({
             ...prev,
             // publicServerEndpoint: "", // NAT穿透公网服务器不设默认值
@@ -170,14 +177,17 @@ export default function ScenarioCreateModal({
         setLoading(false);
       }
     };
+
     fetchEndpoints();
   }, [isOpen]);
 
   const handleField = (field: string, value: string) => {
-    console.log('handleField called:', field, value);
+    console.log("handleField called:", field, value);
     setFormData((prev) => {
       const newData = { ...prev, [field]: value };
-      console.log('Updated formData:', newData);
+
+      console.log("Updated formData:", newData);
+
       return newData;
     });
   };
@@ -191,10 +201,15 @@ export default function ScenarioCreateModal({
     switch (selectedScenario) {
       case "single-forward":
         // 单端转发场景
-        if (!formData.relayServerEndpoint || !formData.relayListenPort || !formData.targetServerAddress || !formData.targetServicePort) {
+        if (
+          !formData.relayServerEndpoint ||
+          !formData.relayListenPort ||
+          !formData.targetServerAddress ||
+          !formData.targetServicePort
+        ) {
           return null;
         }
-        
+
         return {
           log: "debug",
           listen_host: "",
@@ -204,14 +219,19 @@ export default function ScenarioCreateModal({
             target_host: formData.targetServerAddress,
             target_port: parseInt(formData.targetServicePort),
             master_id: getEndpointIdByName(formData.relayServerEndpoint),
-            type: "client"
-          }
+            type: "client",
+          },
         };
 
       case "tunnel-forward":
         // 双端转发场景
-        if (!formData.relayServerEndpoint2 || !formData.relayListenPort2 || !formData.relayTunnelPort2 ||
-            !formData.targetServerEndpoint2 || !formData.targetServicePort2) {
+        if (
+          !formData.relayServerEndpoint2 ||
+          !formData.relayListenPort2 ||
+          !formData.relayTunnelPort2 ||
+          !formData.targetServerEndpoint2 ||
+          !formData.targetServicePort2
+        ) {
           return null;
         }
 
@@ -224,14 +244,14 @@ export default function ScenarioCreateModal({
             target_host: "",
             target_port: parseInt(formData.relayListenPort2),
             master_id: getEndpointIdByName(formData.targetServerEndpoint2),
-            type: "client"
+            type: "client",
           },
           outbounds: {
             target_host: "",
             target_port: parseInt(formData.targetServicePort2),
             master_id: getEndpointIdByName(formData.relayServerEndpoint2),
-            type: "server"
-          }
+            type: "server",
+          },
         };
 
         if (formData.doubleTlsType === "2") {
@@ -243,8 +263,13 @@ export default function ScenarioCreateModal({
 
       case "nat-penetration":
         // NAT穿透场景
-        if (!formData.publicServerEndpoint || !formData.publicListenPort || !formData.publicTunnelPort ||
-            !formData.localServerEndpoint || !formData.localServicePort) {
+        if (
+          !formData.publicServerEndpoint ||
+          !formData.publicListenPort ||
+          !formData.publicTunnelPort ||
+          !formData.localServerEndpoint ||
+          !formData.localServicePort
+        ) {
           return null;
         }
 
@@ -257,14 +282,14 @@ export default function ScenarioCreateModal({
             target_host: "",
             target_port: parseInt(formData.publicListenPort),
             master_id: getEndpointIdByName(formData.publicServerEndpoint),
-            type: "server"
+            type: "server",
           },
           outbounds: {
             target_host: "127.0.0.1",
             target_port: parseInt(formData.localServicePort),
             master_id: getEndpointIdByName(formData.localServerEndpoint),
-            type: "client"
-          }
+            type: "client",
+          },
         };
 
         if (formData.natTlsType === "2") {
@@ -286,26 +311,31 @@ export default function ScenarioCreateModal({
         description: "请重新打开模态窗",
         color: "warning",
       });
+
       return;
     }
 
     const { tunnelName } = formData;
+
     if (!tunnelName.trim()) {
       addToast({
         title: "请填写实例名称",
         description: "实例名称不能为空",
         color: "warning",
       });
+
       return;
     }
 
     const requestData = buildTemplateRequest();
+
     if (!requestData) {
       addToast({
         title: "表单验证失败",
         description: "请填写所有必填字段",
         color: "warning",
       });
+
       return;
     }
 
@@ -319,6 +349,7 @@ export default function ScenarioCreateModal({
       });
 
       const data = await res.json();
+
       if (!res.ok || !data.success) {
         throw new Error(data.error || "创建失败");
       }
@@ -346,68 +377,82 @@ export default function ScenarioCreateModal({
   const renderNATForm = () => (
     <div className="space-y-4">
       <Input
+        isRequired
         placeholder="实例名称"
         value={formData.tunnelName}
         onValueChange={(v) => handleField("tunnelName", v)}
-        isRequired
       />
 
       {/* 公网服务器 */}
       <div className="space-y-3">
-        <h4 className="text-sm font-medium text-default-700">公网服务器（拥有公网IP）</h4>
+        <h4 className="text-sm font-medium text-default-700">
+          公网服务器（拥有公网IP）
+        </h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Select
+            isRequired
             label="服务器"
             placeholder="选择公网服务器"
-            selectedKeys={formData.publicServerEndpoint ? [formData.publicServerEndpoint] : []}
-            onSelectionChange={(keys) => handleField("publicServerEndpoint", Array.from(keys)[0] as string)}
-            isRequired
+            selectedKeys={
+              formData.publicServerEndpoint
+                ? [formData.publicServerEndpoint]
+                : []
+            }
+            onSelectionChange={(keys) =>
+              handleField("publicServerEndpoint", Array.from(keys)[0] as string)
+            }
           >
             {endpoints.map((ep) => (
               <SelectItem key={ep.id}>{ep.name}</SelectItem>
             ))}
           </Select>
           <Input
+            isRequired
             label="监听端口"
-            type="number"
             placeholder="10022"
+            type="number"
             value={formData.publicListenPort}
             onValueChange={(v) => handleField("publicListenPort", v)}
-            isRequired
           />
           <Input
+            isRequired
             label="隧道端口"
-            type="number"
             placeholder="10101"
+            type="number"
             value={formData.publicTunnelPort}
             onValueChange={(v) => handleField("publicTunnelPort", v)}
-            isRequired
           />
         </div>
       </div>
 
       {/* 本地服务器 */}
       <div className="space-y-3">
-        <h4 className="text-sm font-medium text-default-700">本地服务器（受到NAT限制）</h4>
+        <h4 className="text-sm font-medium text-default-700">
+          本地服务器（受到NAT限制）
+        </h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Select
+            isRequired
             label="服务器"
             placeholder="选择本地服务器"
-            selectedKeys={formData.localServerEndpoint ? [formData.localServerEndpoint] : []}
-            onSelectionChange={(keys) => handleField("localServerEndpoint", Array.from(keys)[0] as string)}
-            isRequired
+            selectedKeys={
+              formData.localServerEndpoint ? [formData.localServerEndpoint] : []
+            }
+            onSelectionChange={(keys) =>
+              handleField("localServerEndpoint", Array.from(keys)[0] as string)
+            }
           >
             {endpoints.map((ep) => (
               <SelectItem key={ep.id}>{ep.name}</SelectItem>
             ))}
           </Select>
           <Input
+            isRequired
             label="服务端口"
-            type="number"
             placeholder="22"
+            type="number"
             value={formData.localServicePort}
             onValueChange={(v) => handleField("localServicePort", v)}
-            isRequired
           />
         </div>
       </div>
@@ -417,7 +462,9 @@ export default function ScenarioCreateModal({
         <Select
           label="TLS模式"
           selectedKeys={[formData.natTlsType]}
-          onSelectionChange={(keys) => handleField("natTlsType", Array.from(keys)[0] as string)}
+          onSelectionChange={(keys) =>
+            handleField("natTlsType", Array.from(keys)[0] as string)
+          }
         >
           <SelectItem key="0">不加密</SelectItem>
           <SelectItem key="1">自签名证书</SelectItem>
@@ -428,15 +475,15 @@ export default function ScenarioCreateModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Input
               label="Cert路径"
+              placeholder="/path/to/cert.pem"
               value={formData.natCertPath}
               onValueChange={(v) => handleField("natCertPath", v)}
-              placeholder="/path/to/cert.pem"
             />
             <Input
               label="Key路径"
+              placeholder="/path/to/key.pem"
               value={formData.natKeyPath}
               onValueChange={(v) => handleField("natKeyPath", v)}
-              placeholder="/path/to/key.pem"
             />
           </div>
         )}
@@ -448,10 +495,10 @@ export default function ScenarioCreateModal({
   const renderSingleForwardForm = () => (
     <div className="space-y-4">
       <Input
+        isRequired
         placeholder="实例名称"
         value={formData.tunnelName}
         onValueChange={(v) => handleField("tunnelName", v)}
-        isRequired
       />
 
       {/* 中转服务器 */}
@@ -459,23 +506,27 @@ export default function ScenarioCreateModal({
         <h4 className="text-sm font-medium text-default-700">中转服务器</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Select
+            isRequired
             label="服务器"
             placeholder="选择中转服务器"
-            selectedKeys={formData.relayServerEndpoint ? [formData.relayServerEndpoint] : []}
-            onSelectionChange={(keys) => handleField("relayServerEndpoint", Array.from(keys)[0] as string)}
-            isRequired
+            selectedKeys={
+              formData.relayServerEndpoint ? [formData.relayServerEndpoint] : []
+            }
+            onSelectionChange={(keys) =>
+              handleField("relayServerEndpoint", Array.from(keys)[0] as string)
+            }
           >
             {endpoints.map((ep) => (
               <SelectItem key={ep.id}>{ep.name}</SelectItem>
             ))}
           </Select>
           <Input
+            isRequired
             label="监听端口"
-            type="number"
             placeholder="1080"
+            type="number"
             value={formData.relayListenPort}
             onValueChange={(v) => handleField("relayListenPort", v)}
-            isRequired
           />
         </div>
       </div>
@@ -485,20 +536,20 @@ export default function ScenarioCreateModal({
         <h4 className="text-sm font-medium text-default-700">目标服务器</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Input
+            isRequired
+            description="目标服务器的IP地址"
             label="目标地址"
             placeholder="192.168.1.100"
             value={formData.targetServerAddress}
             onValueChange={(v) => handleField("targetServerAddress", v)}
-            description="目标服务器的IP地址"
-            isRequired
           />
           <Input
+            isRequired
             label="目标端口"
-            type="number"
             placeholder="3306"
+            type="number"
             value={formData.targetServicePort}
             onValueChange={(v) => handleField("targetServicePort", v)}
-            isRequired
           />
         </div>
       </div>
@@ -509,11 +560,11 @@ export default function ScenarioCreateModal({
   const renderTunnelForwardForm = () => (
     <div className="space-y-4">
       <Input
+        isRequired
         label="实例名称"
         placeholder="tunnel-forward-tunnel"
         value={formData.tunnelName}
         onValueChange={(v) => handleField("tunnelName", v)}
-        isRequired
       />
 
       {/* 中转服务器 */}
@@ -521,30 +572,32 @@ export default function ScenarioCreateModal({
         <h4 className="text-sm font-medium text-default-700">中转服务器</h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Select
+            isRequired
             label="服务器"
             selectedKeys={[formData.relayServerEndpoint2]}
-            onSelectionChange={(keys) => handleField("relayServerEndpoint2", Array.from(keys)[0] as string)}
-            isRequired
+            onSelectionChange={(keys) =>
+              handleField("relayServerEndpoint2", Array.from(keys)[0] as string)
+            }
           >
             {endpoints.map((ep) => (
               <SelectItem key={ep.id}>{ep.name}</SelectItem>
             ))}
           </Select>
           <Input
+            isRequired
             label="监听端口"
-            type="number"
             placeholder="10022"
+            type="number"
             value={formData.relayListenPort2}
             onValueChange={(v) => handleField("relayListenPort2", v)}
-            isRequired
           />
           <Input
+            isRequired
             label="隧道端口"
-            type="number"
             placeholder="10101"
+            type="number"
             value={formData.relayTunnelPort2}
             onValueChange={(v) => handleField("relayTunnelPort2", v)}
-            isRequired
           />
         </div>
       </div>
@@ -554,22 +607,27 @@ export default function ScenarioCreateModal({
         <h4 className="text-sm font-medium text-default-700">目标服务器</h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Select
+            isRequired
             label="服务器"
             selectedKeys={[formData.targetServerEndpoint2]}
-            onSelectionChange={(keys) => handleField("targetServerEndpoint2", Array.from(keys)[0] as string)}
-            isRequired
+            onSelectionChange={(keys) =>
+              handleField(
+                "targetServerEndpoint2",
+                Array.from(keys)[0] as string,
+              )
+            }
           >
             {endpoints.map((ep) => (
               <SelectItem key={ep.id}>{ep.name}</SelectItem>
             ))}
           </Select>
           <Input
+            isRequired
             label="服务端口"
-            type="number"
             placeholder="1080"
+            type="number"
             value={formData.targetServicePort2}
             onValueChange={(v) => handleField("targetServicePort2", v)}
-            isRequired
           />
         </div>
       </div>
@@ -579,7 +637,9 @@ export default function ScenarioCreateModal({
         <Select
           label="TLS Type"
           selectedKeys={[formData.doubleTlsType]}
-          onSelectionChange={(keys) => handleField("doubleTlsType", Array.from(keys)[0] as string)}
+          onSelectionChange={(keys) =>
+            handleField("doubleTlsType", Array.from(keys)[0] as string)
+          }
         >
           <SelectItem key="0">不加密</SelectItem>
           <SelectItem key="1">自签名证书</SelectItem>
@@ -590,15 +650,15 @@ export default function ScenarioCreateModal({
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Input
               label="CertKey"
+              placeholder="/path/to/cert.pem"
               value={formData.doubleCertPath}
               onValueChange={(v) => handleField("doubleCertPath", v)}
-              placeholder="/path/to/cert.pem"
             />
             <Input
               label="PathKey"
+              placeholder="/path/to/key.pem"
               value={formData.doubleKeyPath}
               onValueChange={(v) => handleField("doubleKeyPath", v)}
-              placeholder="/path/to/key.pem"
             />
           </div>
         )}
@@ -609,45 +669,68 @@ export default function ScenarioCreateModal({
   // 单端转发架构图预览
   const renderSingleForwardPreview = () => {
     // 获取选中的主控信息用于显示IP
-    const relayEndpoint = endpoints.find(ep => String(ep.id) === String(formData.relayServerEndpoint));
+    const relayEndpoint = endpoints.find(
+      (ep) => String(ep.id) === String(formData.relayServerEndpoint),
+    );
 
     return (
       <div className="space-y-4">
         {/* 标题和实例名称 - 字体大小互换 */}
         <div className="text-left">
           <div className="text-xs text-default-500">单端转发</div>
-          <div className="text-sm font-medium text-default-700">{formData.tunnelName || "未命名"}</div>
+          <div className="text-sm font-medium text-default-700">
+            {formData.tunnelName || "未命名"}
+          </div>
         </div>
 
         <div className="flex items-center justify-between h-24 px-4">
           {/* 客户端/本地 */}
           <div className="flex flex-col items-center">
-            <Icon icon="solar:monitor-smartphone-bold-duotone" className="text-4xl text-default-600" />
+            <Icon
+              className="text-4xl text-default-600"
+              icon="solar:monitor-smartphone-bold-duotone"
+            />
           </div>
 
           {/* 箭头 */}
-          <Icon icon="tabler:arrow-big-right-filled" className="text-2xl text-default-400" />
+          <Icon
+            className="text-2xl text-default-400"
+            icon="tabler:arrow-big-right-filled"
+          />
 
           {/* 中转服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1">
-              {relayEndpoint ? (relayEndpoint.url ? extractHostFromUrl(relayEndpoint.url) : relayEndpoint.name) : "选择"}
+              {relayEndpoint
+                ? relayEndpoint.url
+                  ? extractHostFromUrl(relayEndpoint.url)
+                  : relayEndpoint.name
+                : "选择"}
             </span>
-            <Icon icon="ph:airplane-taxiing-fill" className="text-3xl text-primary" />
+            <Icon
+              className="text-3xl text-primary"
+              icon="ph:airplane-taxiing-fill"
+            />
             <span className="text-xs text-default-600 font-medium mt-1">
               {formData.relayListenPort || "1080"}
             </span>
           </div>
 
           {/* 箭头 */}
-          <Icon icon="tabler:arrow-big-right-filled" className="text-2xl text-default-400" />
+          <Icon
+            className="text-2xl text-default-400"
+            icon="tabler:arrow-big-right-filled"
+          />
 
           {/* 目标服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1">
               {formData.targetServerAddress || "地址"}
             </span>
-            <Icon icon="ph:airplane-landing-fill" className="text-3xl text-success" />
+            <Icon
+              className="text-3xl text-success"
+              icon="ph:airplane-landing-fill"
+            />
             <span className="text-xs text-default-600 font-medium mt-1">
               {formData.targetServicePort || "1080"}
             </span>
@@ -657,18 +740,26 @@ export default function ScenarioCreateModal({
     );
   };
 
-  // NAT穿透架构图预览  
+  // NAT穿透架构图预览
   const renderNATPreview = () => {
-    const publicEndpoint = endpoints.find(ep => String(ep.id) === String(formData.publicServerEndpoint));
-    const localEndpoint = endpoints.find(ep => String(ep.id) === String(formData.localServerEndpoint));
+    const publicEndpoint = endpoints.find(
+      (ep) => String(ep.id) === String(formData.publicServerEndpoint),
+    );
+    const localEndpoint = endpoints.find(
+      (ep) => String(ep.id) === String(formData.localServerEndpoint),
+    );
 
     // Debug info
-    console.log('NAT Preview Debug:', {
+    console.log("NAT Preview Debug:", {
       publicServerEndpoint: formData.publicServerEndpoint,
       localServerEndpoint: formData.localServerEndpoint,
       publicEndpoint,
       localEndpoint,
-      endpoints: endpoints.map(ep => ({ id: ep.id, name: ep.name, url: ep.url }))
+      endpoints: endpoints.map((ep) => ({
+        id: ep.id,
+        name: ep.name,
+        url: ep.url,
+      })),
     });
 
     return (
@@ -676,38 +767,60 @@ export default function ScenarioCreateModal({
         {/* 标题和实例名称 - 字体大小互换 */}
         <div className="text-left">
           <div className="text-xs text-default-500">NAT穿透</div>
-          <div className="text-sm font-medium text-default-700">{formData.tunnelName || "未命名"}</div>
+          <div className="text-sm font-medium text-default-700">
+            {formData.tunnelName || "未命名"}
+          </div>
         </div>
 
         <div className="flex items-center justify-between h-24 px-4">
           {/* 本地客户端 */}
           <div className="flex flex-col items-center">
-            <Icon icon="solar:monitor-smartphone-bold-duotone" className="text-4xl text-default-600" />
+            <Icon
+              className="text-4xl text-default-600"
+              icon="solar:monitor-smartphone-bold-duotone"
+            />
           </div>
 
           {/* 箭头 */}
-          <Icon icon="tabler:arrow-big-right-filled" className="text-2xl text-default-400" />
+          <Icon
+            className="text-2xl text-default-400"
+            icon="tabler:arrow-big-right-filled"
+          />
 
           {/* 公网服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1">
-              {publicEndpoint ? (publicEndpoint.url ? extractHostFromUrl(publicEndpoint.url) : publicEndpoint.name) : "选择"}
+              {publicEndpoint
+                ? publicEndpoint.url
+                  ? extractHostFromUrl(publicEndpoint.url)
+                  : publicEndpoint.name
+                : "选择"}
             </span>
-            <Icon icon="solar:cloud-bold" className="text-4xl text-primary" />
+            <Icon className="text-4xl text-primary" icon="solar:cloud-bold" />
             <span className="text-xs text-default-600 font-medium mt-1">
               {formData.publicListenPort || "10022"}
             </span>
           </div>
 
           {/* 箭头 */}
-          <Icon icon="tabler:arrow-big-right-filled" className="text-2xl text-default-400" />
+          <Icon
+            className="text-2xl text-default-400"
+            icon="tabler:arrow-big-right-filled"
+          />
 
           {/* 本地服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1">
-              {localEndpoint ? (localEndpoint.url ? extractHostFromUrl(localEndpoint.url) : localEndpoint.name) : "选择"}
+              {localEndpoint
+                ? localEndpoint.url
+                  ? extractHostFromUrl(localEndpoint.url)
+                  : localEndpoint.name
+                : "选择"}
             </span>
-            <Icon icon="fluent:home-16-filled" className="text-4xl text-success" />
+            <Icon
+              className="text-4xl text-success"
+              icon="fluent:home-16-filled"
+            />
             <span className="text-xs text-default-600 font-medium mt-1">
               {formData.localServicePort || "22"}
             </span>
@@ -719,46 +832,75 @@ export default function ScenarioCreateModal({
 
   // 双端转发架构图预览
   const renderTunnelForwardPreview = () => {
-    const relayEndpoint = endpoints.find(ep => String(ep.id) === String(formData.relayServerEndpoint2));
-    const targetEndpoint = endpoints.find(ep => String(ep.id) === String(formData.targetServerEndpoint2));
+    const relayEndpoint = endpoints.find(
+      (ep) => String(ep.id) === String(formData.relayServerEndpoint2),
+    );
+    const targetEndpoint = endpoints.find(
+      (ep) => String(ep.id) === String(formData.targetServerEndpoint2),
+    );
 
     return (
       <div className="space-y-4">
         {/* 标题和实例名称 - 字体大小互换 */}
         <div className="text-left">
           <div className="text-xs text-default-500">双端转发</div>
-          <div className="text-sm font-medium text-default-700">{formData.tunnelName || "未命名"}</div>
+          <div className="text-sm font-medium text-default-700">
+            {formData.tunnelName || "未命名"}
+          </div>
         </div>
 
         <div className="flex items-center justify-between h-24 px-4">
           {/* 客户端 */}
           <div className="flex flex-col items-center">
-            <Icon icon="solar:monitor-smartphone-bold-duotone" className="text-4xl text-default-600" />
+            <Icon
+              className="text-4xl text-default-600"
+              icon="solar:monitor-smartphone-bold-duotone"
+            />
           </div>
 
           {/* 箭头 */}
-          <Icon icon="tabler:arrow-big-right-filled" className="text-2xl text-default-400" />
+          <Icon
+            className="text-2xl text-default-400"
+            icon="tabler:arrow-big-right-filled"
+          />
 
           {/* 中转服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1">
-              {relayEndpoint ? (relayEndpoint.url ? extractHostFromUrl(relayEndpoint.url) : relayEndpoint.name) : "选择中转服务器"}
+              {relayEndpoint
+                ? relayEndpoint.url
+                  ? extractHostFromUrl(relayEndpoint.url)
+                  : relayEndpoint.name
+                : "选择中转服务器"}
             </span>
-            <Icon icon="ph:airplane-taxiing-fill" className="text-3xl text-primary" />
+            <Icon
+              className="text-3xl text-primary"
+              icon="ph:airplane-taxiing-fill"
+            />
             <span className="text-xs text-default-600 font-medium mt-1">
               {formData.relayListenPort2 || "10022"}
             </span>
           </div>
 
           {/* 箭头 */}
-          <Icon icon="tabler:arrow-big-right-filled" className="text-2xl text-default-400" />
+          <Icon
+            className="text-2xl text-default-400"
+            icon="tabler:arrow-big-right-filled"
+          />
 
           {/* 目标服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1">
-              {targetEndpoint ? (targetEndpoint.url ? extractHostFromUrl(targetEndpoint.url) : targetEndpoint.name) : "选择目标服务器"}
+              {targetEndpoint
+                ? targetEndpoint.url
+                  ? extractHostFromUrl(targetEndpoint.url)
+                  : targetEndpoint.name
+                : "选择目标服务器"}
             </span>
-            <Icon icon="ph:airplane-landing-fill" className="text-3xl text-success" />
+            <Icon
+              className="text-3xl text-success"
+              icon="ph:airplane-landing-fill"
+            />
             <span className="text-xs text-default-600 font-medium mt-1">
               {formData.targetServicePort2 || "1080"}
             </span>
@@ -774,9 +916,11 @@ export default function ScenarioCreateModal({
       <h4 className="text-sm font-medium text-default-700">预览</h4>
       <Card>
         <CardBody className="p-4 bg-default-50">
-          {selectedScenario === "single-forward" && renderSingleForwardPreview()}
+          {selectedScenario === "single-forward" &&
+            renderSingleForwardPreview()}
           {selectedScenario === "nat-penetration" && renderNATPreview()}
-          {selectedScenario === "tunnel-forward" && renderTunnelForwardPreview()}
+          {selectedScenario === "tunnel-forward" &&
+            renderTunnelForwardPreview()}
         </CardBody>
       </Card>
     </div>
@@ -799,10 +943,10 @@ export default function ScenarioCreateModal({
   return (
     <Modal
       isOpen={isOpen}
-      onOpenChange={onOpenChange}
       placement="center"
-      size="lg"
       scrollBehavior="inside"
+      size="lg"
+      onOpenChange={onOpenChange}
     >
       <ModalContent>
         {(onClose) => (
@@ -810,7 +954,10 @@ export default function ScenarioCreateModal({
             <ModalHeader className="flex items-center gap-2">
               {selectedScenario && (
                 <>
-                <FontAwesomeIcon icon={scenarioConfigs[selectedScenario].icon} fixedWidth />
+                  <FontAwesomeIcon
+                    fixedWidth
+                    icon={scenarioConfigs[selectedScenario].icon}
+                  />
                   {/* <Icon icon={scenarioConfigs[selectedScenario].icon} className="text-primary" /> */}
                   {scenarioConfigs[selectedScenario].title}
                 </>
@@ -831,11 +978,14 @@ export default function ScenarioCreateModal({
               </Button>
               <Button
                 color="primary"
+                isDisabled={!selectedScenario}
                 isLoading={submitting}
                 onPress={handleSubmit}
-                isDisabled={!selectedScenario}
               >
-                创建{selectedScenario ? scenarioConfigs[selectedScenario].title : ""}
+                创建
+                {selectedScenario
+                  ? scenarioConfigs[selectedScenario].title
+                  : ""}
               </Button>
             </ModalFooter>
           </>

@@ -1,4 +1,4 @@
-import { getVersion } from '@/lib/version';
+import { getVersion } from "@/lib/version";
 
 /**
  * 页脚组件
@@ -8,16 +8,16 @@ export const Footer = () => {
   return (
     <footer className="w-full flex items-center justify-center py-3">
       <div className="text-default-600 text-sm">
-        NodePassDash © 2025 | v{getVersion()} | 由{' '}
-        <a 
-          href="https://github.com/yosebyte/nodepass" 
-          target="_blank" 
-          rel="noopener noreferrer"
+        NodePassDash © 2025 | v{getVersion()} | 由{" "}
+        <a
           className="text-blue-500 hover:text-blue-600 transition-colors"
+          href="https://github.com/yosebyte/nodepass"
+          rel="noopener noreferrer"
+          target="_blank"
         >
           NodePass
-        </a>
-        {' '}驱动
+        </a>{" "}
+        驱动
       </div>
     </footer>
   );

@@ -1,4 +1,5 @@
 import { Route, Routes } from "react-router-dom";
+
 import DefaultLayout from "./layouts/default";
 
 // 页面组件
@@ -17,27 +18,32 @@ import DebugPage from "./pages/debug";
 import EndpointDetailsPage from "./pages/endpoints/details";
 import EndpointSSEDebugPage from "./pages/endpoints/sse-debug";
 import ExamplesPage from "./pages/examples";
+import IconComparisonPage from "./pages/icon-comparison";
 
 function App() {
   return (
     <DefaultLayout>
       <Routes>
-        <Route path="/login" element={<LoginPage />} />
-        <Route path="/oauth-error" element={<OAuthErrorPage />} />
-        <Route path="/setup-guide" element={<SetupGuidePage />} />
-        <Route path="/dashboard" element={<DashboardPage />} />
-        <Route path="/tunnels" element={<TunnelsPage />} />
-        <Route path="/tunnels/create" element={<TunnelCreatePage />} />
-        <Route path="/tunnels/details" element={<TunnelDetailsPage />} />
-        <Route path="/templates" element={<TemplatesPage />} />
-        <Route path="/endpoints" element={<EndpointsPage />} />
-        <Route path="/endpoints/details" element={<EndpointDetailsPage />} />
-        <Route path="/endpoints/sse-debug" element={<EndpointSSEDebugPage />} />
-        <Route path="/settings" element={<SettingsPage />} />
-        <Route path="/settings/version-history" element={<VersionHistoryPage />} />
-        <Route path="/docs" element={<ExamplesPage />} />
-        <Route path="/debug" element={<DebugPage />} />
-        <Route path="/" element={<DashboardPage />} />
+        <Route element={<LoginPage />} path="/login" />
+        <Route element={<OAuthErrorPage />} path="/oauth-error" />
+        <Route element={<SetupGuidePage />} path="/setup-guide" />
+        <Route element={<DashboardPage />} path="/dashboard" />
+        <Route element={<TunnelsPage />} path="/tunnels" />
+        <Route element={<TunnelCreatePage />} path="/tunnels/create" />
+        <Route element={<TunnelDetailsPage />} path="/tunnels/details" />
+        <Route element={<TemplatesPage />} path="/templates" />
+        <Route element={<EndpointsPage />} path="/endpoints" />
+        <Route element={<EndpointDetailsPage />} path="/endpoints/details" />
+        <Route element={<EndpointSSEDebugPage />} path="/endpoints/sse-debug" />
+        <Route element={<SettingsPage />} path="/settings" />
+        <Route
+          element={<VersionHistoryPage />}
+          path="/settings/version-history"
+        />
+        <Route element={<ExamplesPage />} path="/docs" />
+        <Route element={<DebugPage />} path="/debug" />
+        <Route element={<IconComparisonPage />} path="/icon-comparison" />
+        <Route element={<DashboardPage />} path="/" />
       </Routes>
     </DefaultLayout>
   );

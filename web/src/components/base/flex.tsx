@@ -10,43 +10,46 @@ interface FlexProps extends React.HTMLAttributes<HTMLDivElement> {
 }
 
 export const Flex = React.forwardRef<HTMLDivElement, FlexProps>(
-  ({ 
-    children, 
-    className, 
-    justify = "start", 
-    align = "center", 
-    direction = "row", 
-    wrap = "nowrap",
-    ...props 
-  }, ref) => {
+  (
+    {
+      children,
+      className,
+      justify = "start",
+      align = "center",
+      direction = "row",
+      wrap = "nowrap",
+      ...props
+    },
+    ref,
+  ) => {
     const justifyClasses = {
       start: "justify-start",
-      center: "justify-center", 
+      center: "justify-center",
       end: "justify-end",
       between: "justify-between",
       around: "justify-around",
-      evenly: "justify-evenly"
+      evenly: "justify-evenly",
     };
 
     const alignClasses = {
       start: "items-start",
       center: "items-center",
-      end: "items-end", 
+      end: "items-end",
       stretch: "items-stretch",
-      baseline: "items-baseline"
+      baseline: "items-baseline",
     };
 
     const directionClasses = {
       row: "flex-row",
       col: "flex-col",
       "row-reverse": "flex-row-reverse",
-      "col-reverse": "flex-col-reverse"
+      "col-reverse": "flex-col-reverse",
     };
 
     const wrapClasses = {
       wrap: "flex-wrap",
       nowrap: "flex-nowrap",
-      "wrap-reverse": "flex-wrap-reverse"
+      "wrap-reverse": "flex-wrap-reverse",
     };
 
     return (
@@ -58,14 +61,14 @@ export const Flex = React.forwardRef<HTMLDivElement, FlexProps>(
           alignClasses[align],
           directionClasses[direction],
           wrapClasses[wrap],
-          className
+          className,
         )}
         {...props}
       >
         {children}
       </div>
     );
-  }
+  },
 );
 
 Flex.displayName = "Flex";
