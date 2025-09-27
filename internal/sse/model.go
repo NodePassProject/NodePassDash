@@ -2,7 +2,9 @@ package sse
 
 import (
 	"context"
+	"errors"
 	"fmt"
+	"io"
 	"net/http"
 	"sync"
 	"time"
@@ -135,8 +137,10 @@ type Event struct {
 
 // Client SSE 客户端
 type Client struct {
-	ID     string
-	Writer http.ResponseWriter
+	ID           string
+	Writer       http.ResponseWriter
+	disconnected bool
+	mu           sync.RWMutex
 }
 
 // Close 关闭客户端连接
@@ -147,6 +151,11 @@ func (c *Client) Close() {
 
 // Send 发送数据给客户端
 func (c *Client) Send(data []byte) error {
+	// 检查客户端是否已断开
+	if c.IsDisconnected() {
+		return errors.New("客户端已断开连接")
+	}
+
 	// 使用标准SSE格式发送数据
 	// 格式: "data: {json数据}\n\n"
 	sseData := fmt.Sprintf("data: %s\n\n", string(data))
@@ -154,6 +163,11 @@ func (c *Client) Send(data []byte) error {
 	// 直接写入HTTP响应流
 	_, err := c.Writer.Write([]byte(sseData))
 	if err != nil {
+		// 检查是否是连接断开相关的错误
+		if isConnectionError(err) {
+			c.SetDisconnected(true)
+			return fmt.Errorf("客户端连接已断开: %v", err)
+		}
 		return fmt.Errorf("写入SSE数据失败: %v", err)
 	}
 
@@ -167,6 +181,50 @@ func (c *Client) Send(data []byte) error {
 
 // SetDisconnected 设置客户端断开状态
 func (c *Client) SetDisconnected(disconnected bool) {
-	// 这里可以实现断开状态的设置逻辑
-	// 目前是一个空实现
+	c.mu.Lock()
+	defer c.mu.Unlock()
+	c.disconnected = disconnected
+}
+
+// IsDisconnected 检查客户端是否已断开
+func (c *Client) IsDisconnected() bool {
+	c.mu.RLock()
+	defer c.mu.RUnlock()
+	return c.disconnected
+}
+
+// isConnectionError 检查错误是否为连接断开相关错误
+func isConnectionError(err error) bool {
+	// 检查常见的连接断开错误
+	if errors.Is(err, io.ErrShortWrite) {
+		return true
+	}
+
+	// 检查错误信息中是否包含连接断开的关键字
+	errorStr := err.Error()
+	connectionErrors := []string{
+		"broken pipe",
+		"connection reset",
+		"use of closed network connection",
+		"short write",
+		"connection aborted",
+	}
+
+	for _, errPattern := range connectionErrors {
+		if contains(errorStr, errPattern) {
+			return true
+		}
+	}
+
+	return false
+}
+
+// contains 检查字符串是否包含子字符串（简单实现）
+func contains(s, substr string) bool {
+	for i := 0; i <= len(s)-len(substr); i++ {
+		if s[i:i+len(substr)] == substr {
+			return true
+		}
+	}
+	return false
 }
