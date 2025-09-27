@@ -1075,6 +1075,16 @@ func buildTunnelFromInstance(endpointID int64, inst nodepass.InstanceResult) *mo
 	tunnel.Restart = inst.Restart
 	tunnel.Name = *inst.Alias
 	tunnel.Status = models.TunnelStatus(inst.Status)
+	tunnel.ProxyProtocol = inst.ProxyProtocol
+
+	// 序列化实例标签为JSON格式
+	if len(inst.Tags) > 0 {
+		tagsJSON, err := json.Marshal(inst.Tags)
+		if err == nil {
+			tagsStr := string(tagsJSON)
+			tunnel.InstanceTags = &tagsStr
+		}
+	}
 
 	if tunnel.Mode == nil {
 		tunnel.Mode = (*models.TunnelMode)(inst.Mode)
@@ -1158,7 +1168,7 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 					if err = tx.Where("tunnel_id = ?", tunnel.ID).Delete(&models.TunnelOperationLog{}).Error; err != nil {
 						log.Warnf("[API] 删除隧道 %d 操作日志失败: %v", tunnel.ID, err)
 					}
-					
+
 					if err = tx.Delete(&models.Tunnel{}, tunnel.ID).Error; err != nil {
 						return fmt.Errorf("删除隧道失败: %v", err)
 					}

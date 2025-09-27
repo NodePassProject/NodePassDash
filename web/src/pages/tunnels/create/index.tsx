@@ -153,6 +153,7 @@ export default function CreateTunnelPage() {
     read: "", // 数据读取超时
     readUnit: "s", // 数据读取超时单位
     rate: "", // 速率限制
+    proxyProtocol: "inherit", // Proxy Protocol 支持
   });
 
   const [endpoints, setEndpoints] = useState<ApiEndpoint[]>([]);
@@ -341,6 +342,7 @@ export default function CreateTunnelPage() {
             return undefined;
           })(),
           rate: formData.rate ? parseInt(formData.rate) : undefined,
+          proxy_protocol: formData.proxyProtocol !== "inherit" ? formData.proxyProtocol === "true" : undefined,
         }),
       });
 
@@ -949,8 +951,8 @@ export default function CreateTunnelPage() {
         <CardBody className="p-6 space-y-6">
           {/* 连接池配置 */}
           {formData.type === "server" ? (
-            // 服务端模式：四个input框并排
-            <div className="grid grid-cols-4 gap-4">
+            // 服务端模式：五个input框并排
+            <div className="grid grid-cols-5 gap-4">
               <Input
                 label="连接池最大容量(可选)"
                 placeholder="1024(默认值)"
@@ -997,11 +999,22 @@ export default function CreateTunnelPage() {
                 value={formData.rate}
                 onChange={(e) => handleInputChange("rate", e.target.value)}
               />
+              <Select
+                label="Proxy Protocol"
+                selectedKeys={[formData.proxyProtocol]}
+                onSelectionChange={(keys) =>
+                  handleInputChange("proxyProtocol", Array.from(keys)[0] as string)
+                }
+              >
+                <SelectItem key="inherit">继承默认设置</SelectItem>
+                <SelectItem key="true">开启</SelectItem>
+                <SelectItem key="false">关闭</SelectItem>
+              </Select>
             </div>
           ) : // 客户端模式
           formData.mode === "1" ? (
-            // 模式1：四个input框并排（最小容量、最大连接数、数据读取超时、速率限制）
-            <div className="grid grid-cols-4 gap-4">
+            // 模式1：五个input框并排（最小容量、最大连接数、数据读取超时、速率限制、Proxy Protocol）
+            <div className="grid grid-cols-5 gap-4">
               <Input
                 label="连接池最小容量(可选)"
                 placeholder="64(默认值)"
@@ -1048,10 +1061,21 @@ export default function CreateTunnelPage() {
                 value={formData.rate}
                 onChange={(e) => handleInputChange("rate", e.target.value)}
               />
+              <Select
+                label="Proxy Protocol"
+                selectedKeys={[formData.proxyProtocol]}
+                onSelectionChange={(keys) =>
+                  handleInputChange("proxyProtocol", Array.from(keys)[0] as string)
+                }
+              >
+                <SelectItem key="inherit">继承默认设置</SelectItem>
+                <SelectItem key="true">开启</SelectItem>
+                <SelectItem key="false">关闭</SelectItem>
+              </Select>
             </div>
           ) : (
-            // 模式2：三个input框并排
-            <div className="grid grid-cols-3 gap-4">
+            // 模式2：四个input框并排
+            <div className="grid grid-cols-4 gap-4">
               <Input
                 label="最大连接数限制(可选)"
                 placeholder="100"
@@ -1092,6 +1116,17 @@ export default function CreateTunnelPage() {
                 value={formData.rate}
                 onChange={(e) => handleInputChange("rate", e.target.value)}
               />
+              <Select
+                label="Proxy Protocol"
+                selectedKeys={[formData.proxyProtocol]}
+                onSelectionChange={(keys) =>
+                  handleInputChange("proxyProtocol", Array.from(keys)[0] as string)
+                }
+              >
+                <SelectItem key="inherit">继承默认设置</SelectItem>
+                <SelectItem key="true">开启</SelectItem>
+                <SelectItem key="false">关闭</SelectItem>
+              </Select>
             </div>
           )}
         </CardBody>

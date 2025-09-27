@@ -114,6 +114,7 @@ export default function SimpleCreateTunnelModal({
     mode: 0, // 服务端/客户端模式：服务端默认0，客户端默认1
     read: "", // 数据读取超时
     rate: "", // 速率限制
+    proxyProtocol: "", // Proxy Protocol 支持：开启/关闭
   });
 
   // 当打开时加载端点，并在 edit 时填充表单
@@ -182,6 +183,9 @@ export default function SimpleCreateTunnelModal({
               : 1,
         read: editData.read || "",
         rate: editData.rate || "",
+        proxyProtocol: editData.proxy_protocol != null
+          ? (editData.proxy_protocol ? "true" : "false")
+          : "",
       }));
     }
   }, [isOpen]);
@@ -206,6 +210,7 @@ export default function SimpleCreateTunnelModal({
       mode,
       read,
       rate,
+      proxyProtocol,
     } = formData;
 
     // 基本校验
@@ -294,6 +299,7 @@ export default function SimpleCreateTunnelModal({
           mode: mode != null ? Number(mode) : undefined,
           read: read || undefined,
           rate: rate !== "" ? parseInt(rate) : undefined,
+          proxy_protocol: proxyProtocol !== "" ? proxyProtocol === "true" : undefined,
           resetTraffic: modalMode === "edit" ? resetChecked : undefined,
         }),
       });
@@ -722,6 +728,26 @@ export default function SimpleCreateTunnelModal({
                               value={formData.slot}
                               onValueChange={(v) => handleField("slot", v)}
                             />
+                          </div>
+                          {/* Proxy Protocol 支持 */}
+                          <div className="grid grid-cols-1 gap-2">
+                            <Select
+                              label="Proxy Protocol"
+                              selectedKeys={
+                                formData.proxyProtocol ? [formData.proxyProtocol] : ["inherit"]
+                              }
+                              onSelectionChange={(keys) => {
+                                const selectedKey = Array.from(keys)[0] as string;
+                                handleField(
+                                  "proxyProtocol",
+                                  selectedKey === "inherit" ? "" : selectedKey,
+                                );
+                              }}
+                            >
+                              <SelectItem key="inherit">继承默认设置</SelectItem>
+                              <SelectItem key="true">开启</SelectItem>
+                              <SelectItem key="false">关闭</SelectItem>
+                            </Select>
                           </div>
                         </div>
                       </motion.div>

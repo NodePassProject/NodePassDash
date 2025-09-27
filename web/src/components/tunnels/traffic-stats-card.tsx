@@ -73,19 +73,19 @@ export const TrafficStatsCard = ({
         <CardBody>
           {/* 主要内容区域 */}
           <div className="flex flex-row items-center justify-between ">
-            <div className="flex rounded-lg overflow-hidden mt-2 w-full">
+            <div className="flex rounded-lg overflow-hidden  w-full">
               {/* TCP 流量部分 */}
               <div
-                className="p-4 flex-1 flex flex-col items-center relative bg-blue-50 dark:bg-blue-950/30"
+                className="p-3 flex-1 flex flex-col items-center relative bg-blue-50 dark:bg-blue-950/30"
                 style={{
-                  flex: `${tcpPercentage}`,
                   minWidth: "100px",
                 }}
               >
-                <div className="text-sm md:text-lg font-bold mb-1 text-blue-700 dark:text-blue-300">
-                  ↓{tcpRxValue}
-                  {tcpRxUnit} | ↑{tcpTxValue}
-                  {tcpTxUnit}
+                <div className="text-sm md:text-base  font-bold mb-1 text-blue-700 dark:text-blue-300">
+                  <span className="text-xs">↑</span>{tcpTxValue}
+                  <span className="font-mono text-xs pr-1">{tcpTxUnit}</span> 
+                  <span className="text-xs">↓</span>{tcpRxValue}
+                  <span className="font-mono text-xs">{tcpRxUnit}</span>
                 </div>
                 <div className="text-xs font-medium opacity-90 text-blue-600 dark:text-blue-400">
                   TCP流量
@@ -94,16 +94,16 @@ export const TrafficStatsCard = ({
 
               {/* UDP 流量部分 */}
               <div
-                className="p-4 flex-1 flex flex-col items-center bg-green-50 dark:bg-green-950/30 "
+                className="p-3 flex-1 flex flex-col items-center bg-green-50 dark:bg-green-950/30 "
                 style={{
-                  flex: `${udpPercentage}`,
                   minWidth: "100px",
                 }}
               >
-                <div className="text-sm md:text-lg font-bold mb-1 text-green-700 dark:text-green-300">
-                  ↓{udpRxValue}
-                  {udpRxUnit} | ↑{udpTxValue}
-                  {udpTxUnit}
+                <div className="text-sm md:text-base  font-bold mb-1 text-green-700 dark:text-green-300">
+                  <span className="text-xs">↑</span>{udpTxValue}
+                  <span className="font-mono text-xs pr-1">{udpTxUnit}</span>
+                  <span className="text-xs">↓</span>{udpRxValue}
+                  <span className="font-mono text-xs">{udpRxUnit}</span>
                 </div>
                 <div className="text-xs font-medium opacity-90 text-green-600 dark:text-green-400">
                   UDP流量

@@ -75,16 +75,15 @@ export const NetworkQualityCard = ({
         <CardBody>
           {/* 主要内容区域 */}
           <div className="flex flex-row items-center justify-between ">
-            <div className="flex rounded-lg overflow-hidden  mt-2 w-full">
+            <div className="flex rounded-lg overflow-hidden w-full">
               {/* 延迟质量部分 */}
               <div
-                className="p-4 flex-1 flex flex-col items-center relative bg-pink-50 dark:bg-pink-950/30"
+                className="p-3 flex-1 flex flex-col items-center relative bg-pink-50 dark:bg-pink-950/30"
                 style={{
-                  flex: `${latencyPercentage}`,
                   minWidth: "100px",
                 }}
               >
-                <div className="text-sm md:text-lg font-bold mb-1 text-pink-700 dark:text-pink-300">
+                <div className="text-sm md:text-base font-bold mb-1 text-pink-700 dark:text-pink-300">
                   {ping > 0 ? `${ping}ms` : "—"}
                 </div>
                 <div className="text-xs font-medium opacity-90 text-pink-600 dark:text-pink-400">
@@ -94,13 +93,12 @@ export const NetworkQualityCard = ({
 
               {/* 池连接质量部分 */}
               <div
-                className="p-4 flex-1 flex flex-col items-center bg-cyan-50 dark:bg-cyan-950/30"
+                className="p-3 flex-1 flex flex-col items-center bg-cyan-50 dark:bg-cyan-950/30"
                 style={{
-                  flex: `${poolPercentage}`,
                   minWidth: "100px",
                 }}
               >
-                <div className="text-sm md:text-lg font-bold mb-1 text-cyan-700 dark:text-cyan-300">
+                <div className="text-sm md:text-base  font-bold mb-1 text-cyan-700 dark:text-cyan-300">
                   {pool}
                 </div>
                 <div className="text-xs font-medium opacity-90 text-cyan-600 dark:text-cyan-400">

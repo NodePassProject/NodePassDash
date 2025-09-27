@@ -75,6 +75,7 @@ func SetupTunnelRoutes(rg *gin.RouterGroup, tunnelService *tunnel.Service, sseMa
 	rg.GET("/tunnels/:id/ping-trend", tunnelHandler.HandleGetTunnelPingTrend)
 	rg.GET("/tunnels/:id/pool-trend", tunnelHandler.HandleGetTunnelPoolTrend)
 	rg.GET("/tunnels/:id/export-logs", tunnelHandler.HandleExportTunnelLogs)
+	rg.PUT("/tunnels/:id/instance-tags", tunnelHandler.HandleUpdateInstanceTags)
 
 	// 新的统一 metrics 趋势接口 - 基于 ServiceHistory 表，使用 instanceId
 	rg.GET("/tunnels/:id/metrics-trend", tunnelMetricsHandler.HandleGetTunnelMetricsTrend)
@@ -182,6 +183,8 @@ func (h *TunnelHandler) HandleCreateTunnel(c *gin.Context) {
 		Mode           *int            `json:"mode,omitempty"`             // 新增：运行模式 (0, 1, 2)
 		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
 		Rate           *int            `json:"rate,omitempty"`             // 新增：带宽速率限制
+		ProxyProtocol  *bool           `json:"proxy_protocol,omitempty"`   // 新增：Proxy Protocol 支持
+		Tags           []string        `json:"tags,omitempty"`             // 新增：实例标签 (仅用于前端显示，不影响URL生成)
 		EnableSSEStore *bool           `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
 		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
 	}
@@ -193,7 +196,6 @@ func (h *TunnelHandler) HandleCreateTunnel(c *gin.Context) {
 		})
 		return
 	}
-
 
 	// 端口解析函数
 	parseIntField := func(j json.RawMessage) (int, error) {
@@ -255,12 +257,14 @@ func (h *TunnelHandler) HandleCreateTunnel(c *gin.Context) {
 		Password:       raw.Password,
 		Min:            raw.Min,
 		Max:            raw.Max,
-		Slot:           raw.Slot,       // 新增：最大连接数限制
-		Mode:           modePtr,        // 新增：运行模式
-		Read:           raw.Read,       // 新增：数据读取超时时间
-		Rate:           raw.Rate,       // 新增：带宽速率限制
-		EnableSSEStore: enableSSEStore, // 新增：是否启用SSE存储
-		EnableLogStore: enableLogStore, // 新增：是否启用日志存储
+		Slot:           raw.Slot,          // 新增：最大连接数限制
+		Mode:           modePtr,           // 新增：运行模式
+		Read:           raw.Read,          // 新增：数据读取超时时间
+		Rate:           raw.Rate,          // 新增：带宽速率限制
+		ProxyProtocol:  raw.ProxyProtocol, // 新增：Proxy Protocol 支持
+		Tags:           raw.Tags,          // 新增：实例标签
+		EnableSSEStore: enableSSEStore,    // 新增：是否启用SSE存储
+		EnableLogStore: enableLogStore,    // 新增：是否启用日志存储
 	}
 
 	log.Infof("[Master-%v] 创建隧道请求: %v", req.EndpointID, req.Name)
@@ -1336,7 +1340,7 @@ func (h *TunnelHandler) HandleTunnelFileLogs(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
 		return
 	}
-	
+
 	// Debug: 添加调试日志
 	log.Infof("[DEBUG] 文件日志查询 - instanceID: %s, endpointID: %d, date: %s", idStr, endpointID, dateStr)
 
@@ -2955,27 +2959,29 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 
 	// 解析请求体（与创建接口保持一致）
 	var raw struct {
-		Name           string          `json:"name"`
-		EndpointID     int64           `json:"endpointId"`
-		Type           string          `json:"type"`
-		TunnelAddress  string          `json:"tunnelAddress"`
-		TunnelPort     string          `json:"tunnelPort"`
-		TargetAddress  string          `json:"targetAddress"`
-		TargetPort     string          `json:"targetPort"`
-		TLSMode        string          `json:"tlsMode"`
-		CertPath       string          `json:"certPath"`
-		KeyPath        string          `json:"keyPath"`
-		LogLevel       string          `json:"logLevel"`
-		Password       string          `json:"password"`
-		Min            *int            `json:"min,omitempty"`
-		Max            *int            `json:"max,omitempty"`
-		Slot           *int            `json:"slot,omitempty"`             // 新增：最大连接数限制
-		Mode           *int            `json:"mode,omitempty"`             // 新增：运行模式
-		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
-		Rate           *int            `json:"rate,omitempty"`             // 新增：带宽速率限制
-		EnableSSEStore *bool           `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
-		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
-		ResetTraffic   bool            `json:"resetTraffic"`               // 新增：是否重置流量统计
+		Name           string   `json:"name"`
+		EndpointID     int64    `json:"endpointId"`
+		Type           string   `json:"type"`
+		TunnelAddress  string   `json:"tunnelAddress"`
+		TunnelPort     string   `json:"tunnelPort"`
+		TargetAddress  string   `json:"targetAddress"`
+		TargetPort     string   `json:"targetPort"`
+		TLSMode        string   `json:"tlsMode"`
+		CertPath       string   `json:"certPath"`
+		KeyPath        string   `json:"keyPath"`
+		LogLevel       string   `json:"logLevel"`
+		Password       string   `json:"password"`
+		Min            *int     `json:"min,omitempty"`
+		Max            *int     `json:"max,omitempty"`
+		Slot           *int     `json:"slot,omitempty"`             // 新增：最大连接数限制
+		Mode           *int     `json:"mode,omitempty"`             // 新增：运行模式
+		Read           *string  `json:"read,omitempty"`             // 新增：数据读取超时时间
+		Rate           *int     `json:"rate,omitempty"`             // 新增：带宽速率限制
+		ProxyProtocol  *bool    `json:"proxy_protocol,omitempty"`   // 新增：Proxy Protocol 支持
+		Tags           []string `json:"tags,omitempty"`             // 新增：实例标签 (仅用于前端显示，不影响URL生成)
+		EnableSSEStore *bool    `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
+		EnableLogStore *bool    `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
+		ResetTraffic   bool     `json:"resetTraffic"`               // 新增：是否重置流量统计
 	}
 	if err := c.ShouldBindJSON(&raw); err != nil {
 		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "无效的请求数据"})
@@ -3037,6 +3043,13 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 	}
 	if raw.Rate != nil {
 		queryParams = append(queryParams, fmt.Sprintf("rate=%d", *raw.Rate))
+	}
+	if raw.ProxyProtocol != nil {
+		if *raw.ProxyProtocol {
+			queryParams = append(queryParams, "proxy=1")
+		} else {
+			queryParams = append(queryParams, "proxy=0")
+		}
 	}
 	if len(queryParams) > 0 {
 		commandLine += "?" + strings.Join(queryParams, "&")
@@ -3517,4 +3530,96 @@ func (h *TunnelHandler) HandleTunnelTCPing(c *gin.Context) {
 		"result":  result,
 	}
 	c.JSON(http.StatusOK, response)
+}
+
+// HandleUpdateInstanceTags 更新隧道实例标签 (PUT /api/tunnels/{id}/instance-tags)
+func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
+	// 获取隧道ID
+	idStr := c.Param("id")
+	tunnelID, err := strconv.ParseInt(idStr, 10, 64)
+	if err != nil {
+		log.Errorf("[API]无效的隧道ID: %s", idStr)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的隧道ID",
+		})
+		return
+	}
+
+	// 解析请求体
+	var req struct {
+		Tags []nodepass.InstanceTag `json:"tags"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		log.Errorf("[API]解析实例标签请求失败: %v", err)
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效的请求格式",
+		})
+		return
+	}
+
+	// 验证标签格式
+	for _, tag := range req.Tags {
+		if strings.TrimSpace(tag.Key) == "" || strings.TrimSpace(tag.Value) == "" {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "标签键和值不能为空",
+			})
+			return
+		}
+	}
+
+	// 检查重复的键
+	keyMap := make(map[string]bool)
+	for _, tag := range req.Tags {
+		if keyMap[tag.Key] {
+			c.JSON(http.StatusBadRequest, gin.H{
+				"success": false,
+				"message": "标签键不能重复",
+			})
+			return
+		}
+		keyMap[tag.Key] = true
+	}
+
+	// 获取隧道信息以确定端点ID和实例ID
+	tunnel, err := h.tunnelService.GetTunnelByID(tunnelID)
+	if err != nil {
+		log.Errorf("[API]获取隧道信息失败: tunnelID=%d, err=%v", tunnelID, err)
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "隧道不存在",
+		})
+		return
+	}
+
+	if tunnel.InstanceID == nil || *tunnel.InstanceID == "" {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "隧道实例ID为空",
+		})
+		return
+	}
+
+	// 调用NodePass API更新实例标签
+	result, err := nodepass.UpdateInstanceTags(tunnel.EndpointID, *tunnel.InstanceID, req.Tags)
+	if err != nil {
+		log.Errorf("[API]更新实例标签失败: tunnelID=%d, instanceID=%s, err=%v", tunnelID, *tunnel.InstanceID, err)
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "更新实例标签失败",
+			"error":   err.Error(),
+		})
+		return
+	}
+
+	log.Infof("[API]实例标签更新成功: tunnelID=%d, instanceID=%s, tagsCount=%d", tunnelID, *tunnel.InstanceID, len(req.Tags))
+
+	// 返回成功响应
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "实例标签更新成功",
+		"data":    result,
+	})
 }

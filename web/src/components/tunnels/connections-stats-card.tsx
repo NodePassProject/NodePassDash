@@ -57,16 +57,15 @@ export const ConnectionsStatsCard = ({
         <CardBody>
           {/* 主要内容区域 */}
           <div className="flex flex-row items-center justify-between">
-            <div className="flex rounded-lg overflow-hidden  mt-2 w-full">
+            <div className="flex rounded-lg overflow-hidden  w-full">
               {/* TCP连接部分 */}
               <div
-                className="p-4 flex-1 flex flex-col items-center relative bg-purple-50 dark:bg-purple-950/30 "
+                className="p-3 flex-1 flex flex-col items-center relative bg-purple-50 dark:bg-purple-950/30 "
                 style={{
-                  flex: `${tcpPercentage}`,
                   minWidth: "100px",
                 }}
               >
-                <div className="text-sm md:text-lg font-bold mb-1 text-purple-700 dark:text-purple-300">
+                <div className="text-sm md:text-base  font-bold mb-1 text-purple-700 dark:text-purple-300">
                   {tcpConnections}
                 </div>
                 <div className="text-xs font-medium opacity-90  text-purple-600 dark:text-purple-400">
@@ -76,13 +75,12 @@ export const ConnectionsStatsCard = ({
 
               {/* UDP连接部分 */}
               <div
-                className="p-4 flex-1 flex flex-col items-center bg-orange-50 dark:bg-orange-950/30"
+                className="p-3 flex-1 flex flex-col items-center bg-orange-50 dark:bg-orange-950/30"
                 style={{
-                  flex: `${udpPercentage}`,
                   minWidth: "100px",
                 }}
               >
-                <div className="text-sm md:text-lg font-bold mb-1 text-orange-700 dark:text-orange-300">
+                <div className="text-sm md:text-base  font-bold mb-1 text-orange-700 dark:text-orange-300">
                   {udpConnections}
                 </div>
                 <div className="text-xs font-medium opacity-90  text-orange-600 dark:text-orange-400">

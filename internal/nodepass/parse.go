@@ -28,6 +28,7 @@ type TunnelConfig struct {
 	Read          string
 	Rate          string
 	Slot          string
+	Proxy         string // proxy protocol 支持 (0|1)
 }
 
 // ParseTunnelURL 解析隧道实例 URL 并返回 Tunnel 模型
@@ -190,6 +191,16 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 				if slotVal, err := strconv.ParseInt(val, 10, 64); err == nil {
 					tunnel.Slot = &slotVal
 				}
+			case "proxy":
+				// proxy_protocol 参数解析 (proxy=0|1)
+				switch val {
+				case "0":
+					proxyProtocol := false
+					tunnel.ProxyProtocol = &proxyProtocol
+				case "1":
+					proxyProtocol := true
+					tunnel.ProxyProtocol = &proxyProtocol
+				}
 			}
 		}
 	}
@@ -248,6 +259,12 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 	if tunnel.Slot != nil {
 		updates["slot"] = tunnel.Slot
 	}
+	if tunnel.ProxyProtocol != nil {
+		updates["proxy_protocol"] = tunnel.ProxyProtocol
+	}
+	if tunnel.InstanceTags != nil {
+		updates["instance_tags"] = tunnel.InstanceTags
+	}
 	return updates
 }
 
@@ -301,6 +318,7 @@ func ParseTunnelConfig(rawURL string) *TunnelConfig {
 	cfg.Read = query.Get("read")
 	cfg.Rate = query.Get("rate")
 	cfg.Slot = query.Get("slot")
+	cfg.Proxy = query.Get("proxy")
 
 	return cfg
 }
@@ -384,6 +402,10 @@ func (c *TunnelConfig) BuildTunnelURL() string {
 
 	if c.Slot != "" {
 		queryParams = append(queryParams, fmt.Sprintf("slot=%s", c.Slot))
+	}
+
+	if c.Proxy != "" {
+		queryParams = append(queryParams, fmt.Sprintf("proxy=%s", c.Proxy))
 	}
 
 	// 添加查询参数

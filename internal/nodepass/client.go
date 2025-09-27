@@ -162,6 +162,14 @@ func ResetTraffic(endpointID int64, instanceID string) (InstanceResult, error) {
 	return PatchInstance(endpointID, instanceID, body)
 }
 
+// UpdateInstanceTags 更新指定实例的标签 (PATCH /instances/{id})
+func UpdateInstanceTags(endpointID int64, instanceID string, tags []InstanceTag) (InstanceResult, error) {
+	body := patchBody{
+		Tags: tags,
+	}
+	return PatchInstance(endpointID, instanceID, body)
+}
+
 // GetInfo 获取NodePass实例的系统信息
 func GetInfo(endpointID int64) (*EndpointInfoResult, error) {
 	var resp EndpointInfoResult
@@ -313,29 +321,38 @@ func TestConnection(endpointID int64) error {
 	return err
 }
 
+// InstanceTag represents a key-value pair for tagging instances
+type InstanceTag struct {
+	Key   string `json:"key"`
+	Value string `json:"value"`
+}
+
 //go:generate stringer -type=Instance
 type InstanceResult struct {
-	ID      string  `json:"id"`
-	Type    string  `json:"type"`   // client|server
-	Status  string  `json:"status"` // running|stopped|error
-	URL     string  `json:"url"`
-	TCPRx   int64   `json:"tcprx"`
-	TCPTx   int64   `json:"tcptx"`
-	UDPRx   int64   `json:"udprx"`
-	UDPTx   int64   `json:"udptx"`
-	Pool    *int64  `json:"pool,omitempty"`
-	Ping    *int64  `json:"ping,omitempty"`
-	Alias   *string `json:"alias,omitempty"`
-	Restart *bool   `json:"restart,omitempty"`
-	TCPs    *int64  `json:"tcps,omitempty"`
-	UDPs    *int64  `json:"udps,omitempty"`
-	Mode    *int    `json:"mode,omitempty"`
+	ID            string        `json:"id"`
+	Type          string        `json:"type"`   // client|server
+	Status        string        `json:"status"` // running|stopped|error
+	URL           string        `json:"url"`
+	TCPRx         int64         `json:"tcprx"`
+	TCPTx         int64         `json:"tcptx"`
+	UDPRx         int64         `json:"udprx"`
+	UDPTx         int64         `json:"udptx"`
+	Pool          *int64        `json:"pool,omitempty"`
+	Ping          *int64        `json:"ping,omitempty"`
+	Alias         *string       `json:"alias,omitempty"`
+	Restart       *bool         `json:"restart,omitempty"`
+	TCPs          *int64        `json:"tcps,omitempty"`
+	UDPs          *int64        `json:"udps,omitempty"`
+	Mode          *int          `json:"mode,omitempty"`
+	ProxyProtocol *bool         `json:"proxy_protocol,omitempty"`
+	Tags          []InstanceTag `json:"tags,omitempty"`
 }
 
 type patchBody struct {
-	Restart *bool   `json:"restart,omitempty"`
-	Action  *string `json:"action,omitempty"` // start|stop|restart|reset
-	Alias   *string `json:"alias,omitempty"`
+	Restart *bool         `json:"restart,omitempty"`
+	Action  *string       `json:"action,omitempty"` // start|stop|restart|reset
+	Alias   *string       `json:"alias,omitempty"`
+	Tags    []InstanceTag `json:"tags,omitempty"` // 实例标签
 }
 
 // EndpointInfoResult NodePass实例的系统信息

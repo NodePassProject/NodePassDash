@@ -58,6 +58,7 @@ import { Snippet } from "@/components/ui/snippet";
 // 引入 SimpleCreateTunnelModal 组件
 import SimpleCreateTunnelModal from "@/components/tunnels/simple-create-tunnel-modal";
 import RenameTunnelModal from "@/components/tunnels/rename-tunnel-modal";
+import InstanceTagModal from "@/components/tunnels/instance-tag-modal";
 
 
 import { TrafficStatsCard } from "@/components/tunnels/traffic-stats-card";
@@ -125,6 +126,7 @@ interface TunnelInfo {
   tunnelAddress: string;
   targetAddress: string;
   commandLine: string;
+  instanceTags?: Array<{key: string; value: string}>;
 }
 
 interface PageParams {
@@ -352,6 +354,8 @@ export default function TunnelDetailPage() {
 
   // 重命名模态控制
   const [isRenameModalOpen, setIsRenameModalOpen] = React.useState(false);
+  // 实例标签模态控制
+  const [isInstanceTagModalOpen, setIsInstanceTagModalOpen] = React.useState(false);
 
   // 是否移入回收站
   const [moveToRecycle, setMoveToRecycle] = React.useState(false);
@@ -1028,6 +1032,18 @@ export default function TunnelDetailPage() {
 
   const handleDeleteClick = () => {
     onOpen();
+  };
+
+  // 处理实例标签模态框
+  const handleInstanceTagClick = () => {
+    setIsInstanceTagModalOpen(true);
+  };
+
+  const handleInstanceTagSaved = () => {
+    // 刷新隧道信息以获取最新的标签数据
+    if (tunnelInfo) {
+      fetchTunnelInfo();
+    }
   };
 
   // 处理重启开关状态变更
@@ -1978,12 +1994,15 @@ export default function TunnelDetailPage() {
                 <CellValue
                   icon={<Icon icon="lucide:shuffle" className="text-default-600" width={18} height={18} />}
                   label="Proxy Protocol"
-                  value={"关闭"}
+                  value={"实现中"}
                 />
                 <CellValue
                   icon={<Icon icon="lucide:tag" className="text-default-600" width={18} height={18} />}
                   label="标签"
-                  value={"暂未设置"}
+                  value={tunnelInfo?.instanceTags && tunnelInfo.instanceTags.length > 0
+                    ? `${tunnelInfo.instanceTags.length} 个标签`
+                    : "无标签"}
+                  onPress={handleInstanceTagClick}
                 />
               </div>
               {/* 分隔线和命令行信息 */}
@@ -2048,6 +2067,7 @@ export default function TunnelDetailPage() {
                 color="default"
                 size="md"
                 variant="flat"
+                onClick={handleInstanceTagClick}
               >
                 <FontAwesomeIcon className="w-5 h-5" icon={faTag} />
                 <span className="text-xs">实例标签</span>
@@ -2733,6 +2753,14 @@ export default function TunnelDetailPage() {
         tunnelId={tunnelInfo?.id || 0}
         onOpenChange={setIsRenameModalOpen}
         onRenamed={handleRenameSuccess}
+      />
+      {/* 实例标签模态框 */}
+      <InstanceTagModal
+        isOpen={isInstanceTagModalOpen}
+        onOpenChange={setIsInstanceTagModalOpen}
+        tunnelId={tunnelInfo?.id?.toString() || ""}
+        currentTags={tunnelInfo?.instanceTags || []}
+        onSaved={handleInstanceTagSaved}
       />
 
       {/* 全屏图表模态 */}
