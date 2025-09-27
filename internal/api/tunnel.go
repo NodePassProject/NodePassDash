@@ -183,7 +183,7 @@ func (h *TunnelHandler) HandleCreateTunnel(c *gin.Context) {
 		Mode           *int            `json:"mode,omitempty"`             // 新增：运行模式 (0, 1, 2)
 		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
 		Rate           *int            `json:"rate,omitempty"`             // 新增：带宽速率限制
-		ProxyProtocol  *bool           `json:"proxy_protocol,omitempty"`   // 新增：Proxy Protocol 支持
+		ProxyProtocol  *bool           `json:"proxyProtocol,omitempty"`    // 新增：Proxy Protocol 支持
 		Tags           []string        `json:"tags,omitempty"`             // 新增：实例标签 (仅用于前端显示，不影响URL生成)
 		EnableSSEStore *bool           `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
 		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
@@ -989,13 +989,15 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		Read            sql.NullString
 		Rate            sql.NullInt64
 		Slot            sql.NullInt64
+		ProxyProtocol   sql.NullBool
+		InstanceTags    sql.NullString
 	}
 
 	query := `SELECT t.id, t.instance_id, t.name, t.type, t.status, t.endpoint_id,
 		   e.name, e.tls, e.log, e.ver, t.tunnel_port, t.target_port, t.tls_mode, t.log_level,
 		   t.tunnel_address, t.target_address, t.command_line, t.password, t.cert_path, t.key_path,
 		   t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.pool, t.ping, t.tcps, t.udps,
-		   t.min, t.max, ifnull(t.restart, 0), t.mode, t.read, t.rate, t.slot
+		   t.min, t.max, ifnull(t.restart, 0), t.mode, t.read, t.rate, t.slot, t.proxy_protocol, t.instance_tags
 		   FROM tunnels t
 		   LEFT JOIN endpoints e ON t.endpoint_id = e.id
 		   WHERE t.id = ?`
@@ -1035,6 +1037,8 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		&tunnelRecord.Read,
 		&tunnelRecord.Rate,
 		&tunnelRecord.Slot,
+		&tunnelRecord.ProxyProtocol,
+		&tunnelRecord.InstanceTags,
 	); err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "隧道不存在"})
@@ -1162,6 +1166,12 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 					}
 					return nil
 				}(),
+				"proxyProtocol": func() interface{} {
+					if tunnelRecord.ProxyProtocol.Valid {
+						return tunnelRecord.ProxyProtocol.Bool
+					}
+					return nil
+				}(),
 			},
 			"traffic": map[string]interface{}{
 				"tcpRx": tunnelRecord.TCPRx,
@@ -1196,6 +1206,12 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			"tunnelAddress": tunnelRecord.TunnelAddress,
 			"targetAddress": tunnelRecord.TargetAddress,
 			"commandLine":   tunnelRecord.CommandLine,
+			"tags": func() interface{} {
+				if tunnelRecord.InstanceTags.Valid && tunnelRecord.InstanceTags.String != "" {
+					return tunnelRecord.InstanceTags.String
+				}
+				return nil
+			}(),
 		},
 	}
 
@@ -2977,7 +2993,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 		Mode           *int     `json:"mode,omitempty"`             // 新增：运行模式
 		Read           *string  `json:"read,omitempty"`             // 新增：数据读取超时时间
 		Rate           *int     `json:"rate,omitempty"`             // 新增：带宽速率限制
-		ProxyProtocol  *bool    `json:"proxy_protocol,omitempty"`   // 新增：Proxy Protocol 支持
+		ProxyProtocol  *bool    `json:"proxyProtocol,omitempty"`    // 新增：Proxy Protocol 支持
 		Tags           []string `json:"tags,omitempty"`             // 新增：实例标签 (仅用于前端显示，不影响URL生成)
 		EnableSSEStore *bool    `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
 		EnableLogStore *bool    `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
@@ -3115,6 +3131,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 				KeyPath:        raw.KeyPath,
 				LogLevel:       tunnel.LogLevel(raw.LogLevel),
 				Password:       raw.Password,
+				ProxyProtocol:  raw.ProxyProtocol,
 				Min:            raw.Min,
 				Max:            raw.Max,
 				Slot:           raw.Slot,       // 新增：最大连接数限制
@@ -3185,10 +3202,15 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 			enableLogStore = *raw.EnableLogStore
 		}
 
-		_, _ = h.tunnelService.DB().Exec(`UPDATE tunnels SET name = ?, type = ?, mode = ?, tunnel_address = ?, tunnel_port = ?, target_address = ?, target_port = ?, tls_mode = ?, cert_path = ?, key_path = ?, log_level = ?, command_line = ?, min = ?, max = ?, slot = ?, status = ?, updated_at = ?, read = ?, rate = ?, enable_sse_store = ?, enable_log_store = ? WHERE id = ?`,
+		proxyProtocol := false
+		if raw.ProxyProtocol != nil {
+			proxyProtocol = *raw.ProxyProtocol
+		}
+
+		_, _ = h.tunnelService.DB().Exec(`UPDATE tunnels SET name = ?, type = ?, mode = ?, tunnel_address = ?, tunnel_port = ?, target_address = ?, target_port = ?, tls_mode = ?, cert_path = ?, key_path = ?, log_level = ?, command_line = ?, min = ?, max = ?, slot = ?, status = ?, updated_at = ?, read = ?, rate = ?, enable_sse_store = ?, enable_log_store = ?,proxy_protocol =? WHERE id = ?`,
 			raw.Name, raw.Type, modeVal, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine,
 			raw.Min, raw.Max, raw.Slot,
-			"running", time.Now(), readVal, rateVal, enableSSEStore, enableLogStore, tunnelID)
+			"running", time.Now(), readVal, rateVal, enableSSEStore, enableLogStore, proxyProtocol)
 	}
 
 	// 如果需要重置流量统计

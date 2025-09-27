@@ -1,13 +1,12 @@
 package nodepass
 
 import (
+	"NodePassDash/internal/models"
 	"fmt"
 	"net/url"
 	"strconv"
 	"strings"
 	"time"
-
-	"NodePassDash/internal/models"
 )
 
 // TunnelConfig 表示解析后的隧道配置信息
@@ -231,6 +230,7 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 		"restart":         tunnel.Restart,  // 添加restart字段更新
 		"last_event_time": tunnel.LastEventTime,
 		"updated_at":      time.Now(),
+		"proxy_protocol":  tunnel.ProxyProtocol,
 	}
 
 	if tunnel.CertPath != nil {

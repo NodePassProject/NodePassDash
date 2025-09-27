@@ -183,8 +183,8 @@ export default function SimpleCreateTunnelModal({
               : 1,
         read: editData.read || "",
         rate: editData.rate || "",
-        proxyProtocol: editData.proxy_protocol != null
-          ? (editData.proxy_protocol ? "true" : "false")
+        proxyProtocol: editData.proxyProtocol != null
+          ? (editData.proxyProtocol ? "true" : "false")
           : "",
       }));
     }
@@ -291,7 +291,7 @@ export default function SimpleCreateTunnelModal({
           min: type === "client" && min !== "" ? parseInt(min) : undefined,
           max:
             (type === "client" && max !== "") ||
-            (type === "server" && max !== "")
+              (type === "server" && max !== "")
               ? parseInt(max)
               : undefined,
           slot: slot !== "" ? parseInt(slot) : undefined,
@@ -299,7 +299,7 @@ export default function SimpleCreateTunnelModal({
           mode: mode != null ? Number(mode) : undefined,
           read: read || undefined,
           rate: rate !== "" ? parseInt(rate) : undefined,
-          proxy_protocol: proxyProtocol !== "" ? proxyProtocol === "true" : undefined,
+          proxyProtocol: proxyProtocol !== "" ? proxyProtocol === "true" : undefined,
           resetTraffic: modalMode === "edit" ? resetChecked : undefined,
         }),
       });
@@ -383,11 +383,30 @@ export default function SimpleCreateTunnelModal({
           </button>
         }
         label="隧道密码"
-        placeholder="设置隧道连接密码进行认证"
+        placeholder="连接密码认证"
         type={isPasswordVisible ? "text" : "password"}
         value={formData.password}
         onValueChange={(v) => handleField("password", v)}
       />
+    );
+  };
+
+  // 渲染 Proxy Protocol 选择器
+  const renderProxyProtocolSelect = () => {
+    return (
+      <Select
+        label="Proxy Protocol"
+        selectedKeys={
+          formData.proxyProtocol ? [formData.proxyProtocol] : ["false"]
+        }
+        onSelectionChange={(keys) => {
+          const selectedKey = Array.from(keys)[0] as string;
+          handleField("proxyProtocol", selectedKey);
+        }}
+      >
+        <SelectItem key="true">开启</SelectItem>
+        <SelectItem key="false">关闭</SelectItem>
+      </Select>
     );
   };
 
@@ -435,7 +454,7 @@ export default function SimpleCreateTunnelModal({
                       onSelectionChange={(keys) =>
                         handleField("type", Array.from(keys)[0] as string)
                       }
-                      // isDisabled={modalMode==='edit'}
+                    // isDisabled={modalMode==='edit'}
                     >
                       <SelectItem key="server">服务端</SelectItem>
                       <SelectItem key="client">客户端</SelectItem>
@@ -678,20 +697,24 @@ export default function SimpleCreateTunnelModal({
                         }}
                       >
                         <div className="space-y-4">
-                          {formData.type === "client" &&
-                            formData.mode === 2 && (
-                              <div className={`grid grid-cols-2 gap-2`}>
-                                {renderPasswordInput()}
-                                <Input
-                                  label="连接池最小容量"
-                                  placeholder="64(默认值)"
-                                  value={formData.min}
-                                  onValueChange={(v) => handleField("min", v)}
-                                />
+                          
+                              <div className={`grid grid-cols-${formData.type === "client" && formData.mode === 2 ? 3: 1} gap-2`}>
+                                {formData.type === "client" && formData.mode === 2 && (
+                                  <>
+                                    {renderPasswordInput()}
+                                    <Input
+                                      label="连接池最小容量"
+                                      placeholder="64(默认值)"
+                                      value={formData.min}
+                                      onValueChange={(v) => handleField("min", v)}
+                                    />
+                                  </>
+                                 )}
+                                {renderProxyProtocolSelect()}
                               </div>
-                            )}
+                           
                           {formData.type === "server" && (
-                            <div className={`grid grid-cols-2 gap-2`}>
+                            <div className={`grid grid-cols-3 gap-2`}>
                               {renderPasswordInput()}
                               <Input
                                 label="连接池最大容量"
@@ -699,6 +722,7 @@ export default function SimpleCreateTunnelModal({
                                 value={formData.max}
                                 onValueChange={(v) => handleField("max", v)}
                               />
+                              {renderProxyProtocolSelect()}
                             </div>
                           )}
                           {/* 数据读取超时、速率限制和最大连接数限制 */}
@@ -729,26 +753,7 @@ export default function SimpleCreateTunnelModal({
                               onValueChange={(v) => handleField("slot", v)}
                             />
                           </div>
-                          {/* Proxy Protocol 支持 */}
-                          <div className="grid grid-cols-1 gap-2">
-                            <Select
-                              label="Proxy Protocol"
-                              selectedKeys={
-                                formData.proxyProtocol ? [formData.proxyProtocol] : ["inherit"]
-                              }
-                              onSelectionChange={(keys) => {
-                                const selectedKey = Array.from(keys)[0] as string;
-                                handleField(
-                                  "proxyProtocol",
-                                  selectedKey === "inherit" ? "" : selectedKey,
-                                );
-                              }}
-                            >
-                              <SelectItem key="inherit">继承默认设置</SelectItem>
-                              <SelectItem key="true">开启</SelectItem>
-                              <SelectItem key="false">关闭</SelectItem>
-                            </Select>
-                          </div>
+
                         </div>
                       </motion.div>
                     )}

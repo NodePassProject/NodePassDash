@@ -280,7 +280,7 @@ func buildTunnel(payload SSEResp) *models.Tunnel {
 	tunnel.Restart = payload.Instance.Restart
 	tunnel.Name = *payload.Instance.Alias
 	tunnel.Status = models.TunnelStatus(payload.Instance.Status)
-	tunnel.ProxyProtocol = payload.Instance.ProxyProtocol
+	//tunnel.ProxyProtocol = payload.Instance.ProxyProtocol
 
 	// 序列化实例标签为JSON格式
 	if len(payload.Instance.Tags) > 0 {

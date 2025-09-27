@@ -344,7 +344,7 @@ type InstanceResult struct {
 	TCPs          *int64        `json:"tcps,omitempty"`
 	UDPs          *int64        `json:"udps,omitempty"`
 	Mode          *int          `json:"mode,omitempty"`
-	ProxyProtocol *bool         `json:"proxy_protocol,omitempty"`
+	ProxyProtocol *bool         `json:"proxyProtocol,omitempty"`
 	Tags          []InstanceTag `json:"tags,omitempty"`
 }
 

@@ -110,6 +110,7 @@ interface TunnelInfo {
     mode?: number | null; // 隧道模式 (0, 1, 2)
     read?: string; // 读取配置
     rate?: string; // 速率限制配置
+    proxyProtocol?: boolean | null; // Proxy Protocol 支持
   };
   traffic: {
     tcpRx: number;
@@ -1994,7 +1995,11 @@ export default function TunnelDetailPage() {
                 <CellValue
                   icon={<Icon icon="lucide:shuffle" className="text-default-600" width={18} height={18} />}
                   label="Proxy Protocol"
-                  value={"实现中"}
+                  value={
+                    tunnelInfo.config.proxyProtocol === true
+                      ? "开启"
+                      : "关闭"
+                  }
                 />
                 <CellValue
                   icon={<Icon icon="lucide:tag" className="text-default-600" width={18} height={18} />}
@@ -2735,6 +2740,7 @@ export default function TunnelDetailPage() {
             read: tunnelInfo.config.read,
             rate: tunnelInfo.config.rate,
             mode: tunnelInfo.config.mode,
+            proxyProtocol: tunnelInfo.config.proxyProtocol,
           }}
           isOpen={editModalOpen}
           mode="edit"

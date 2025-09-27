@@ -81,7 +81,7 @@ type Tunnel struct {
 	Slot *int64 `json:"slot,omitempty" gorm:"column:slot"`
 
 	// Proxy Protocol 支持
-	ProxyProtocol *bool `json:"proxy_protocol,omitempty" gorm:"column:proxy_protocol"`
+	ProxyProtocol *bool `json:"proxyProtocol,omitempty" gorm:"column:proxy_protocol"`
 
 	// 实例标签 (JSON格式存储)
 	InstanceTags *string `json:"instance_tags,omitempty" gorm:"type:text;column:instance_tags"`

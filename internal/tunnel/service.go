@@ -1036,6 +1036,9 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 	if req.Slot != nil {
 		queryParams = append(queryParams, fmt.Sprintf("slot=%d", *req.Slot))
 	}
+	if req.ProxyProtocol != nil {
+		queryParams = append(queryParams, fmt.Sprintf("proxy=%d", *req.Slot))
+	}
 
 	if len(queryParams) > 0 {
 		commandLine += "?" + strings.Join(queryParams, "&")
@@ -1082,7 +1085,7 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 			"name":       req.Name,
 			"updated_at": now,
 		}
-		
+
 		// 添加可选配置字段
 		if req.Min != nil {
 			updateFields["min"] = int64(*req.Min)
@@ -1102,7 +1105,10 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		if req.Read != nil {
 			updateFields["read"] = *req.Read
 		}
-		
+		if req.ProxyProtocol != nil {
+			updateFields["proxy_protocol"] = *req.ProxyProtocol
+		}
+
 		err = s.db.Model(&models.Tunnel{}).Where("id = ?", tunnelID).Updates(updateFields).Error
 		if err != nil {
 			log.Warnf("[API] 更新隧道名称失败: %v", err)
@@ -1160,6 +1166,9 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		}
 		if req.Password != "" {
 			tunnel.Password = &req.Password
+		}
+		if req.ProxyProtocol != nil {
+			tunnel.ProxyProtocol = req.ProxyProtocol
 		}
 		if req.Min != nil {
 			minVal := int64(*req.Min)
