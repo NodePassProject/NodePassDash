@@ -884,31 +884,27 @@ export default function TunnelsPage() {
   const TrafficInfo = ({ traffic }: { traffic?: Tunnel["traffic"] }) => {
     if (!traffic) {
       return (
-        <div className="text-xs text-default-400">
-          <div>TCP: - / -</div>
-          <div>UDP: - / -</div>
+        <div className="text-xs text-default-400 text-left">
+          <div>↑ -</div>
+          <div>↓ -</div>
         </div>
       );
     }
 
+    // 合并 TCP 和 UDP 流量
+    const totalRx = traffic.tcpRx + traffic.udpRx;
+    const totalTx = traffic.tcpTx + traffic.udpTx;
+
     return (
-      <div className="text-xs">
+      <div className="text-xs text-left">
         <div className="text-default-600">
-          <span className="text-success-600">
-            ↓{formatTraffic(traffic.tcpRx)}
-          </span>
-          {" / "}
           <span className="text-warning-600">
-            ↑{formatTraffic(traffic.tcpTx)}
+            ↑ {formatTraffic(totalTx)}
           </span>
         </div>
-        <div className="text-default-500">
-          <span className="text-success-500">
-            ↓{formatTraffic(traffic.udpRx)}
-          </span>
-          {" / "}
-          <span className="text-warning-500">
-            ↑{formatTraffic(traffic.udpTx)}
+        <div className="text-default-600">
+          <span className="text-success-600">
+            ↓ {formatTraffic(totalRx)}
           </span>
         </div>
       </div>
@@ -1106,7 +1102,6 @@ export default function TunnelsPage() {
         sortable: false,
       },
       { key: "status", label: "状态", sortable: false },
-      { key: "tag", label: "标签", sortable: false },
       {
         key: "traffic",
         label: (
@@ -1115,8 +1110,8 @@ export default function TunnelsPage() {
             <Tooltip
               content={
                 <div className="text-xs">
-                  <div>第一行：TCP 下载↓ / 上传↑</div>
-                  <div>第二行：UDP 下载↓ / 上传↑</div>
+                  <div>第一行：↑ 总上传流量 (TCP+UDP)</div>
+                  <div>第二行：↓ 总下载流量 (TCP+UDP)</div>
                 </div>
               }
               size="sm"
@@ -1462,7 +1457,7 @@ export default function TunnelsPage() {
                       key="tag"
                       startContent={<FontAwesomeIcon fixedWidth icon={faTag} />}
                     >
-                      标签管理
+                      分组管理
                     </DropdownItem>
                   </DropdownMenu>
                 </Dropdown>
@@ -1487,14 +1482,14 @@ export default function TunnelsPage() {
               )}
             </div>
             <div className="flex items-center gap-2">
-              {/* 标签管理按钮 */}
+              {/* 分组管理按钮 */}
               <Button
                 color="warning"
                 startContent={<FontAwesomeIcon icon={faTag} />}
                 variant="flat"
                 onPress={handleTagManagement}
               >
-                标签管理
+                分组管理
               </Button>
               {settings.isBeginnerMode && (
                 <Dropdown placement="bottom-end">
@@ -1977,7 +1972,7 @@ export default function TunnelsPage() {
                       column.key === "actions"
                         ? "w-[140px]"
                         : column.key === "traffic"
-                          ? "w-[160px]"
+                          ? "w-[100px]"
                           : column.key === "type"
                             ? "w-[80px]"
                             : column.key === "endpoint"
@@ -2058,9 +2053,6 @@ export default function TunnelsPage() {
                           <Skeleton className="w-16 h-6 rounded-lg" />
                         </TableCell>
                         <TableCell>
-                          <Skeleton className="w-16 h-6 rounded-lg" />
-                        </TableCell>
-                        <TableCell>
                           <Skeleton className="w-24 h-5 rounded-lg" />
                         </TableCell>
                         <TableCell>
@@ -2091,7 +2083,7 @@ export default function TunnelsPage() {
                         </TableCell>
 
                         {/* 名称列 */}
-                        <TableCell>
+                        <TableCell className="min-w-[120px] max-h-[2.5em] ">
                           <Tooltip
                             content={
                               <div className="text-xs">
@@ -2104,7 +2096,7 @@ export default function TunnelsPage() {
                             size="sm"
                           >
                             <div
-                              className="text-sm font-semibold max-w-[120px] leading-tight cursor-help overflow-hidden max-h-[2.5em] text-ellipsis "
+                              className="text-sm font-semibold leading-tight cursor-help overflow-hidden text-ellipsis "
                               style={{ wordBreak: "break-all" }}
                             >
                               {tunnel.name}
@@ -2123,7 +2115,7 @@ export default function TunnelsPage() {
                         </TableCell>
 
                         {/* 主控列 */}
-                        <TableCell>
+                        <TableCell className="min-w-[120px]">
                           <Tooltip
                             content={
                               <div className="text-xs">
@@ -2141,7 +2133,7 @@ export default function TunnelsPage() {
                             size="sm"
                           >
                             <Chip
-                              className="cursor-help hover:opacity-80 h-auto max-w-[128px]"
+                              className="cursor-help hover:opacity-80 h-auto"
                               color="default"
                               size="sm"
                               variant="bordered"
@@ -2170,7 +2162,7 @@ export default function TunnelsPage() {
                         </TableCell>
 
                         {/* 状态列 */}
-                        <TableCell>
+                        <TableCell className="min-w-[50px]">
                           <Chip
                             color={tunnel.status.type}
                             size="sm"
@@ -2180,35 +2172,8 @@ export default function TunnelsPage() {
                           </Chip>
                         </TableCell>
 
-                        {/* 标签列 */}
-                        <TableCell>
-                          <div className="flex items-center gap-2">
-                            {tunnel.tag && tunnel.tag.id ? (
-                              <Tooltip content="点击更改标签" size="sm">
-                                <Chip
-                                  className="cursor-pointer hover:opacity-80"
-                                  color="primary"
-                                  size="sm"
-                                  variant="flat"
-                                  onClick={() => handleTagClick(tunnel)}
-                                >
-                                  {tunnel.tag.name}
-                                </Chip>
-                              </Tooltip>
-                            ) : (
-                              <Tooltip content="设置标签" size="sm">
-                                <FontAwesomeIcon
-                                  className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer"
-                                  icon={faTag}
-                                  onClick={() => handleTagClick(tunnel)}
-                                />
-                              </Tooltip>
-                            )}
-                          </div>
-                        </TableCell>
-
                         {/* 流量列 */}
-                        <TableCell className="text-sm text-default-600 font-mono min-w-[150px]">
+                        <TableCell className="text-sm text-default-600 font-mono min-w-[100px]">
                           <TrafficInfo traffic={tunnel.traffic} />
                         </TableCell>
 

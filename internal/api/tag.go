@@ -30,6 +30,7 @@ func SetupTagRoutes(rg *gin.RouterGroup, tagService *tag.Service) {
 	rg.DELETE("/tags/:id", tagHandler.DeleteTag)
 	rg.GET("/tunnels/:id/tag", tagHandler.GetTunnelTag)
 	rg.POST("/tunnels/:id/tag", tagHandler.AssignTagToTunnel)
+	rg.PUT("/tags/:id/tunnels", tagHandler.BatchAssignTunnelsToTag)
 }
 
 // GetTags 获取所有标签
@@ -185,5 +186,47 @@ func (h *TagHandler) GetTunnelTag(c *gin.Context) {
 		Tag:     tagObj,
 	}
 
+	c.JSON(http.StatusOK, response)
+}
+
+// BatchAssignTunnelsToTag 批量分配隧道到标签 (PUT /api/tags/{id}/tunnels)
+func (h *TagHandler) BatchAssignTunnelsToTag(c *gin.Context) {
+	// 获取标签ID
+	tagID, err := strconv.ParseInt(c.Param("id"), 10, 64)
+	if err != nil {
+		response := tag.TagResponse{
+			Success: false,
+			Error:   "无效的标签ID",
+		}
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
+	// 解析请求体
+	var req tag.BatchAssignTunnelsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		response := tag.TagResponse{
+			Success: false,
+			Error:   "无效的请求数据",
+		}
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
+	// 调用服务方法
+	err = h.tagService.BatchAssignTunnelsToTag(tagID, &req)
+	if err != nil {
+		response := tag.TagResponse{
+			Success: false,
+			Error:   err.Error(),
+		}
+		c.JSON(http.StatusBadRequest, response)
+		return
+	}
+
+	response := tag.TagResponse{
+		Success: true,
+		Message: "批量分配隧道到标签成功",
+	}
 	c.JSON(http.StatusOK, response)
 }

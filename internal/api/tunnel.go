@@ -3583,10 +3583,10 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 		keyMap[tag.Key] = true
 	}
 
-	// 获取隧道信息以确定端点ID和实例ID
-	tunnel, err := h.tunnelService.GetTunnelByID(tunnelID)
+	// 获取隧道的实例ID和端点ID
+	instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
 	if err != nil {
-		log.Errorf("[API]获取隧道信息失败: tunnelID=%d, err=%v", tunnelID, err)
+		log.Errorf("[API]获取隧道实例ID失败: tunnelID=%d, err=%v", tunnelID, err)
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
 			"message": "隧道不存在",
@@ -3594,7 +3594,7 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 		return
 	}
 
-	if tunnel.InstanceID == nil || *tunnel.InstanceID == "" {
+	if instanceID == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
 			"message": "隧道实例ID为空",
@@ -3602,10 +3602,20 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 		return
 	}
 
-	// 调用NodePass API更新实例标签
-	result, err := nodepass.UpdateInstanceTags(tunnel.EndpointID, *tunnel.InstanceID, req.Tags)
+	endpointID, err := h.tunnelService.GetEndpointIDByTunnelID(tunnelID)
 	if err != nil {
-		log.Errorf("[API]更新实例标签失败: tunnelID=%d, instanceID=%s, err=%v", tunnelID, *tunnel.InstanceID, err)
+		log.Errorf("[API]获取隧道端点ID失败: tunnelID=%d, err=%v", tunnelID, err)
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "隧道端点不存在",
+		})
+		return
+	}
+
+	// 调用NodePass API更新实例标签
+	result, err := nodepass.UpdateInstanceTags(endpointID, instanceID, req.Tags)
+	if err != nil {
+		log.Errorf("[API]更新实例标签失败: tunnelID=%d, instanceID=%s, err=%v", tunnelID, instanceID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"message": "更新实例标签失败",
@@ -3614,7 +3624,7 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 		return
 	}
 
-	log.Infof("[API]实例标签更新成功: tunnelID=%d, instanceID=%s, tagsCount=%d", tunnelID, *tunnel.InstanceID, len(req.Tags))
+	log.Infof("[API]实例标签更新成功: tunnelID=%d, instanceID=%s, tagsCount=%d", tunnelID, instanceID, len(req.Tags))
 
 	// 返回成功响应
 	c.JSON(http.StatusOK, gin.H{

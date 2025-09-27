@@ -22,10 +22,12 @@ import {
   faTrash,
   faPen,
   faTag,
+  faLink,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 
 import { buildApiUrl } from "@/lib/utils";
+import TagInstancesModal from "./tag-instances-modal";
 
 // 标签类型
 interface Tag {
@@ -33,6 +35,7 @@ interface Tag {
   name: string;
   created_at: string;
   updated_at: string;
+  tunnelIds?: number[]; // 绑定的隧道ID列表
 }
 
 interface TagManagementModalProps {
@@ -57,6 +60,10 @@ export default function TagManagementModal({
   // 新增状态
   const [newTagName, setNewTagName] = useState("");
   const [showAddForm, setShowAddForm] = useState(false);
+
+  // 设置实例状态
+  const [instanceModalOpen, setInstanceModalOpen] = useState(false);
+  const [selectedTagForInstances, setSelectedTagForInstances] = useState<Tag | null>(null);
 
   // 获取标签列表
   const fetchTags = async () => {
@@ -85,7 +92,7 @@ export default function TagManagementModal({
     if (!newTagName.trim()) {
       addToast({
         title: "错误",
-        description: "请输入标签名称",
+        description: "请输入分组名称",
         color: "danger",
       });
 
@@ -110,7 +117,7 @@ export default function TagManagementModal({
 
       addToast({
         title: "成功",
-        description: "标签创建成功",
+        description: "分组创建成功",
         color: "success",
       });
 
@@ -141,7 +148,7 @@ export default function TagManagementModal({
     if (!editingTag || !editName.trim()) {
       addToast({
         title: "错误",
-        description: "请输入标签名称",
+        description: "请输入分组名称",
         color: "danger",
       });
 
@@ -166,7 +173,7 @@ export default function TagManagementModal({
 
       addToast({
         title: "成功",
-        description: "标签更新成功",
+        description: "分组更新成功",
         color: "success",
       });
 
@@ -194,7 +201,7 @@ export default function TagManagementModal({
 
   // 删除标签
   const handleDelete = async (tag: Tag) => {
-    if (!confirm(`确定要删除标签 "${tag.name}" 吗？`)) {
+    if (!confirm(`确定要删除分组 "${tag.name}" 吗？`)) {
       return;
     }
 
@@ -212,7 +219,7 @@ export default function TagManagementModal({
 
       addToast({
         title: "成功",
-        description: "标签删除成功",
+        description: "分组删除成功",
         color: "success",
       });
 
@@ -228,6 +235,12 @@ export default function TagManagementModal({
     } finally {
       setSaving(false);
     }
+  };
+
+  // 打开设置实例模态框
+  const handleSetInstances = (tag: Tag) => {
+    setSelectedTagForInstances(tag);
+    setInstanceModalOpen(true);
   };
 
   // 模态框关闭时重置状态
@@ -260,7 +273,7 @@ export default function TagManagementModal({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-primary" icon={faTag} />
-                标签管理
+                分组管理
               </div>
               <Button
                 color="primary"
@@ -280,8 +293,8 @@ export default function TagManagementModal({
                 <div className="flex items-center gap-4 mb-4">
                   <Input
                     className="flex-1"
-                    label="标签名称"
-                    placeholder="请输入标签名称"
+                    label="分组名称"
+                    placeholder="请输入分组名称"
                     value={newTagName}
                     onValueChange={setNewTagName}
                   />
@@ -309,15 +322,15 @@ export default function TagManagementModal({
               </div>
             )}
 
-            {/* 标签列表 */}
+            {/* 分组列表 */}
             {loading ? (
               <div className="flex justify-center items-center py-8">
                 <Spinner size="lg" />
               </div>
             ) : (
-              <Table aria-label="标签列表" shadow="none">
+              <Table aria-label="分组列表" shadow="none">
                 <TableHeader>
-                  <TableColumn>标签名称</TableColumn>
+                  <TableColumn>分组名称</TableColumn>
                   <TableColumn>操作</TableColumn>
                 </TableHeader>
                 <TableBody>
@@ -359,7 +372,21 @@ export default function TagManagementModal({
                           </div>
                         ) : (
                           <div className="flex gap-2">
-                            <Tooltip content="编辑标签" size="sm">
+                            <Tooltip content="绑定实例" size="sm">
+                              <Button
+                                isIconOnly
+                                color="secondary"
+                                size="sm"
+                                variant="light"
+                                onClick={() => handleSetInstances(tag)}
+                              >
+                                <FontAwesomeIcon
+                                  className="text-xs"
+                                  icon={faLink}
+                                />
+                              </Button>
+                            </Tooltip>
+                            <Tooltip content="编辑分组" size="sm">
                               <Button
                                 isIconOnly
                                 color="primary"
@@ -373,7 +400,7 @@ export default function TagManagementModal({
                                 />
                               </Button>
                             </Tooltip>
-                            <Tooltip content="删除标签" size="sm">
+                            <Tooltip content="删除分组" size="sm">
                               <Button
                                 isIconOnly
                                 color="danger"
@@ -407,10 +434,10 @@ export default function TagManagementModal({
                   </div>
                   <div className="space-y-2">
                     <p className="text-default-500 text-sm font-medium">
-                      暂无标签
+                      暂无分组
                     </p>
                     <p className="text-default-400 text-xs">
-                      点击上方按钮创建第一个标签
+                      点击上方按钮创建第一个分组
                     </p>
                   </div>
                 </div>
@@ -424,6 +451,17 @@ export default function TagManagementModal({
           </DrawerFooter>
         </>
       </DrawerContent>
+
+      {/* 设置实例模态框 */}
+      <TagInstancesModal
+        isOpen={instanceModalOpen}
+        tag={selectedTagForInstances}
+        onOpenChange={setInstanceModalOpen}
+        onSaved={() => {
+          fetchTags();
+          onSaved();
+        }}
+      />
     </Drawer>
   );
 }

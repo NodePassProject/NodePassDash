@@ -10,6 +10,7 @@ type Tag struct {
 	Name      string    `json:"name"`
 	CreatedAt time.Time `json:"createdAt"`
 	UpdatedAt time.Time `json:"updatedAt"`
+	TunnelIDs []int64   `json:"tunnelIds,omitempty"` // 绑定的隧道ID列表
 }
 
 // TunnelTag 隧道标签关联模型
@@ -35,6 +36,11 @@ type UpdateTagRequest struct {
 type AssignTagRequest struct {
 	TunnelId int64 `json:"tunnelId" validate:"required"` // 隧道数据库主键ID
 	TagID    int64 `json:"tagId,omitempty"`              // 如果为空，则清除标签
+}
+
+// BatchAssignTunnelsRequest 批量分配隧道到标签请求
+type BatchAssignTunnelsRequest struct {
+	TunnelIDs []int64 `json:"tunnel_ids" validate:"required"` // 隧道ID列表
 }
 
 // TagResponse API 响应

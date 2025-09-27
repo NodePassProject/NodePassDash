@@ -63,11 +63,19 @@ func (s *Service) GetTags() ([]*Tag, error) {
 
 	var tags []*Tag
 	for _, modelTag := range modelTags {
+		// 获取该标签绑定的隧道ID列表
+		tunnelIDs, err := s.GetTunnelsByTag(modelTag.ID)
+		if err != nil {
+			// 如果获取失败，设置为空数组而不是返回错误
+			tunnelIDs = []int64{}
+		}
+
 		tags = append(tags, &Tag{
 			ID:        modelTag.ID,
 			Name:      modelTag.Name,
 			CreatedAt: modelTag.CreatedAt,
 			UpdatedAt: modelTag.UpdatedAt,
+			TunnelIDs: tunnelIDs,
 		})
 	}
 
@@ -267,4 +275,50 @@ func (s *Service) GetTagStats() (map[int64]int, error) {
 	}
 
 	return stats, nil
+}
+
+// BatchAssignTunnelsToTag 批量分配隧道到标签
+func (s *Service) BatchAssignTunnelsToTag(tagID int64, req *BatchAssignTunnelsRequest) error {
+	if tagID <= 0 {
+		return errors.New("标签ID无效")
+	}
+
+	// 验证标签是否存在
+	_, err := s.GetTagByID(tagID)
+	if err != nil {
+		return err
+	}
+
+	return s.db.Transaction(func(tx *gorm.DB) error {
+		// 先删除该标签下所有现有的隧道关联
+		if err := tx.Where("tag_id = ?", tagID).Delete(&models.TunnelTag{}).Error; err != nil {
+			return err
+		}
+
+		// 如果TunnelIDs为空，表示清除所有关联，只删除不插入
+		if len(req.TunnelIDs) == 0 {
+			return nil
+		}
+
+		// 批量插入新的关联
+		var tunnelTags []models.TunnelTag
+		for _, tunnelID := range req.TunnelIDs {
+			if tunnelID > 0 { // 确保隧道ID有效
+				tunnelTags = append(tunnelTags, models.TunnelTag{
+					TunnelID:  tunnelID,
+					TagID:     tagID,
+					CreatedAt: time.Now(),
+				})
+			}
+		}
+
+		if len(tunnelTags) > 0 {
+			// 使用批量插入
+			if err := tx.Create(&tunnelTags).Error; err != nil {
+				return err
+			}
+		}
+
+		return nil
+	})
 }
