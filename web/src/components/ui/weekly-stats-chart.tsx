@@ -166,8 +166,9 @@ function WeeklyStatsChartComponent({
             />
             <YAxis
               axisLine={false}
+              domain={[0, 'dataMax']}
               style={{ fontSize: "var(--heroui-font-size-tiny)" }}
-              tickFormatter={(value) => formatBytes(value)}
+              tickFormatter={(value) => formatBytes(Math.max(0, value))}
               tickLine={false}
             />
             <Tooltip
@@ -179,7 +180,7 @@ function WeeklyStatsChartComponent({
                     </span>
                     {payload?.map((p, index) => {
                       const name = p.name;
-                      const value = p.value;
+                      const value = Math.max(0, Number(p.value) || 0);
                       const category =
                         categories.find((c) => c === name) ?? name;
 
@@ -197,7 +198,7 @@ function WeeklyStatsChartComponent({
                           <div className="text-default-700 flex w-full items-center justify-between gap-x-2 pr-1 text-xs">
                             <span className="text-default-500">{category}</span>
                             <span className="text-default-700 font-mono font-medium">
-                              {formatBytes(value as number)}
+                              {formatBytes(value)}
                             </span>
                           </div>
                         </div>

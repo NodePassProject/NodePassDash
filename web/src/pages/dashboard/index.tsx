@@ -443,10 +443,10 @@ export default function DashboardPage() {
         // 转换后端数据格式为图表组件需要的格式
         let chartData = result.data.map((item: any) => ({
           weekday: item.weekday,
-          "TCP In": item.tcp_in,
-          "TCP Out": item.tcp_out,
-          "UDP In": item.udp_in,
-          "UDP Out": item.udp_out,
+          "TCP In": Math.max(0, Number(item.tcp_in) || 0),
+          "TCP Out": Math.max(0, Number(item.tcp_out) || 0),
+          "UDP In": Math.max(0, Number(item.udp_in) || 0),
+          "UDP Out": Math.max(0, Number(item.udp_out) || 0),
         }));
 
         // 如果后端没有返回数据或数据不足7天，生成默认的7天0值数据
