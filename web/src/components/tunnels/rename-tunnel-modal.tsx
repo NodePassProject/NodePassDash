@@ -18,7 +18,7 @@ import { useTextLimit, TEXT_LIMITS } from "@/lib/utils/text-limits";
 interface RenameTunnelModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
-  tunnelId: number;
+  tunnelId: string;
   currentName: string;
   onRenamed?: (newName: string) => void;
 }

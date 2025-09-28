@@ -10,7 +10,7 @@ type TunnelStatus = models.TunnelStatus
 type TunnelType = models.TunnelType
 type TLSMode = models.TLSMode
 type LogLevel = models.LogLevel
-type Tag = models.Tag
+type Group = models.Group
 type TunnelMode = models.TunnelMode
 
 // 状态常量 - 保持向后兼容
@@ -53,7 +53,7 @@ type TunnelQueryParams struct {
 	EndpointID      string `json:"endpoint_id"`       // 主控筛选
 	EndpointGroupID string `json:"endpoint_group_id"` // 主控组筛选
 	PortFilter      string `json:"port_filter"`       // 端口筛选
-	TagID           string `json:"tag_id"`            // 标签筛选
+	GroupID         string `json:"group_id"`          // 分组筛选
 	Page            int    `json:"page"`              // 页码
 	PageSize        int    `json:"page_size"`         // 每页大小
 	SortBy          string `json:"sort_by"`           // 排序字段
@@ -96,7 +96,7 @@ type TunnelWithStats struct {
 		Type string `json:"type"`
 		Text string `json:"text"`
 	} `json:"status"`
-	Tag *Tag `json:"tag,omitempty"` // 标签信息
+	Group *Group `json:"group,omitempty"` // 分组信息
 }
 
 // CreateTunnelRequest 创建隧道请求

@@ -129,9 +129,9 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 			t.Traffic.Ping = &pingVal
 		}
 
-		// 处理标签信息
+		// 处理分组信息
 		if tagIDNS.Valid && tagNameNS.Valid {
-			t.Tag = &Tag{
+			t.Group = &Group{
 				ID:   tagIDNS.Int64,
 				Name: tagNameNS.String,
 			}
@@ -2323,13 +2323,13 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 		args = append(args, "%"+params.PortFilter+"%")
 	}
 
-	// 标签筛选（需要特殊处理，因为不在主表中）
-	if params.TagID != "" && params.TagID != "all" {
-		if params.TagID == "untagged" {
-			whereConditions = append(whereConditions, "t.id NOT IN (SELECT DISTINCT tunnel_id FROM tunnel_tags)")
+	// 分组筛选（需要特殊处理，因为不在主表中）
+	if params.GroupID != "" && params.GroupID != "all" {
+		if params.GroupID == "ungrouped" {
+			whereConditions = append(whereConditions, "t.id NOT IN (SELECT DISTINCT tunnel_id FROM tunnel_groups)")
 		} else {
-			whereConditions = append(whereConditions, "t.id IN (SELECT tunnel_id FROM tunnel_tags WHERE tag_id = ?)")
-			args = append(args, params.TagID)
+			whereConditions = append(whereConditions, "t.id IN (SELECT tunnel_id FROM tunnel_groups WHERE group_id = ?)")
+			args = append(args, params.GroupID)
 		}
 	}
 
@@ -2459,12 +2459,12 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 			return nil, fmt.Errorf("获取主控信息失败: %v", err)
 		}
 
-		// 批量获取标签信息（如果需要）
-		var tagMap map[int64][]models.Tag
-		if params.TagID != "" && params.TagID != "all" {
-			tagMap, err = s.getTagsByTunnelIDs(tunnelIDs)
+		// 批量获取分组信息（如果需要）
+		var groupMap map[int64][]models.Group
+		if params.GroupID != "" && params.GroupID != "all" {
+			groupMap, err = s.getGroupsByTunnelIDs(tunnelIDs)
 			if err != nil {
-				return nil, fmt.Errorf("获取标签信息失败: %v", err)
+				return nil, fmt.Errorf("获取分组信息失败: %v", err)
 			}
 		}
 
@@ -2479,10 +2479,10 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 				}
 			}
 
-			// 填充标签信息
-			if tagMap != nil {
-				if tags, exists := tagMap[tunnels[i].ID]; exists && len(tags) > 0 {
-					tunnels[i].Tag = &tags[0] // 取第一个标签
+			// 填充分组信息
+			if groupMap != nil {
+				if groups, exists := groupMap[tunnels[i].ID]; exists && len(groups) > 0 {
+					tunnels[i].Group = &groups[0] // 取第一个分组
 				}
 			}
 		}
@@ -2568,10 +2568,10 @@ func (s *Service) getEndpointsByIDs(endpointIDs []int64) (map[int64]struct {
 	return result, nil
 }
 
-// getTagsByTunnelIDs 批量获取标签信息
-func (s *Service) getTagsByTunnelIDs(tunnelIDs []int64) (map[int64][]models.Tag, error) {
+// getGroupsByTunnelIDs 批量获取分组信息
+func (s *Service) getGroupsByTunnelIDs(tunnelIDs []int64) (map[int64][]models.Group, error) {
 	if len(tunnelIDs) == 0 {
-		return make(map[int64][]models.Tag), nil
+		return make(map[int64][]models.Group), nil
 	}
 
 	sqlDB, err := s.db.DB()
@@ -2602,15 +2602,15 @@ func (s *Service) getTagsByTunnelIDs(tunnelIDs []int64) (map[int64][]models.Tag,
 	}
 	defer rows.Close()
 
-	result := make(map[int64][]models.Tag)
+	result := make(map[int64][]models.Group)
 	for rows.Next() {
 		var tunnelID int64
-		var tag models.Tag
-		err := rows.Scan(&tunnelID, &tag.ID, &tag.Name)
+		var group models.Group
+		err := rows.Scan(&tunnelID, &group.ID, &group.Name)
 		if err != nil {
 			return nil, err
 		}
-		result[tunnelID] = append(result[tunnelID], tag)
+		result[tunnelID] = append(result[tunnelID], group)
 	}
 
 	return result, nil

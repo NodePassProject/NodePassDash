@@ -99,7 +99,7 @@ func (h *TunnelHandler) HandleGetTunnels(c *gin.Context) {
 	endpointFilter := query.Get("endpoint_id")
 	endpointGroupFilter := query.Get("endpoint_group_id")
 	portFilter := query.Get("port_filter")
-	tagFilter := query.Get("tag_id")
+	groupFilter := query.Get("group_id")
 
 	// 分页参数
 	page := 1
@@ -128,7 +128,7 @@ func (h *TunnelHandler) HandleGetTunnels(c *gin.Context) {
 		EndpointID:      endpointFilter,
 		EndpointGroupID: endpointGroupFilter,
 		PortFilter:      portFilter,
-		TagID:           tagFilter,
+		GroupID:         groupFilter,
 		Page:            page,
 		PageSize:        pageSize,
 		SortBy:          sortBy,
@@ -1208,9 +1208,13 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			"commandLine":   tunnelRecord.CommandLine,
 			"tags": func() interface{} {
 				if tunnelRecord.InstanceTags.Valid && tunnelRecord.InstanceTags.String != "" {
-					return tunnelRecord.InstanceTags.String
+					var tags []nodepass.InstanceTag
+					if err := json.Unmarshal([]byte(tunnelRecord.InstanceTags.String), &tags); err == nil {
+						return tags
+					}
+					return []nodepass.InstanceTag{}
 				}
-				return nil
+				return []nodepass.InstanceTag{}
 			}(),
 		},
 	}
@@ -3583,10 +3587,10 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 
 	// 验证标签格式
 	for _, tag := range req.Tags {
-		if strings.TrimSpace(tag.Key) == "" || strings.TrimSpace(tag.Value) == "" {
+		if strings.TrimSpace(tag.Key) == "" {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
-				"message": "标签键和值不能为空",
+				"message": "标签键不能为空",
 			})
 			return
 		}

@@ -82,9 +82,11 @@ export const TrafficStatsCard = ({
                 }}
               >
                 <div className="text-sm md:text-base  font-bold mb-1 text-blue-700 dark:text-blue-300">
-                  <span className="font-mono text-xs">↑</span>{tcpTxValue}
+                  <span className="font-mono text-xs">↑</span>
+                  {tcpTxValue}
                   <span className="font-mono text-xs pr-1">{tcpTxUnit}</span>
-                  <span className="font-mono text-xs">↓</span>{tcpRxValue}
+                  <span className="font-mono text-xs">↓</span>
+                  {tcpRxValue}
                   <span className="font-mono text-xs">{tcpRxUnit}</span>
                 </div>
                 <div className="text-xs font-medium opacity-90 text-blue-600 dark:text-blue-400">
@@ -100,9 +102,11 @@ export const TrafficStatsCard = ({
                 }}
               >
                 <div className="text-sm md:text-base  font-bold mb-1 text-green-700 dark:text-green-300">
-                  <span className="font-mono text-xs">↑</span>{udpTxValue}
+                  <span className="font-mono text-xs">↑</span>
+                  {udpTxValue}
                   <span className="font-mono text-xs pr-1">{udpTxUnit}</span>
-                  <span className="font-mono text-xs">↓</span>{udpRxValue}
+                  <span className="font-mono text-xs">↓</span>
+                  {udpRxValue}
                   <span className="font-mono text-xs">{udpRxUnit}</span>
                 </div>
                 <div className="text-xs font-medium opacity-90 text-green-600 dark:text-green-400">

@@ -342,7 +342,10 @@ export default function CreateTunnelPage() {
             return undefined;
           })(),
           rate: formData.rate ? parseInt(formData.rate) : undefined,
-          proxy_protocol: formData.proxyProtocol !== "inherit" ? formData.proxyProtocol === "true" : undefined,
+          proxy_protocol:
+            formData.proxyProtocol !== "inherit"
+              ? formData.proxyProtocol === "true"
+              : undefined,
         }),
       });
 
@@ -1003,7 +1006,10 @@ export default function CreateTunnelPage() {
                 label="Proxy Protocol"
                 selectedKeys={[formData.proxyProtocol]}
                 onSelectionChange={(keys) =>
-                  handleInputChange("proxyProtocol", Array.from(keys)[0] as string)
+                  handleInputChange(
+                    "proxyProtocol",
+                    Array.from(keys)[0] as string,
+                  )
                 }
               >
                 <SelectItem key="inherit">继承默认设置</SelectItem>
@@ -1065,7 +1071,10 @@ export default function CreateTunnelPage() {
                 label="Proxy Protocol"
                 selectedKeys={[formData.proxyProtocol]}
                 onSelectionChange={(keys) =>
-                  handleInputChange("proxyProtocol", Array.from(keys)[0] as string)
+                  handleInputChange(
+                    "proxyProtocol",
+                    Array.from(keys)[0] as string,
+                  )
                 }
               >
                 <SelectItem key="inherit">继承默认设置</SelectItem>
@@ -1120,7 +1129,10 @@ export default function CreateTunnelPage() {
                 label="Proxy Protocol"
                 selectedKeys={[formData.proxyProtocol]}
                 onSelectionChange={(keys) =>
-                  handleInputChange("proxyProtocol", Array.from(keys)[0] as string)
+                  handleInputChange(
+                    "proxyProtocol",
+                    Array.from(keys)[0] as string,
+                  )
                 }
               >
                 <SelectItem key="inherit">继承默认设置</SelectItem>

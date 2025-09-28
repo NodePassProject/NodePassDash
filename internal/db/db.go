@@ -11,10 +11,10 @@ import (
 	"sync"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -170,7 +170,7 @@ func QuickInitSchema(db *gorm.DB) error {
 		&models.Endpoint{},
 		&models.SystemConfig{},
 		&models.UserSession{},
-		&models.Tag{},
+		&models.Group{},
 		&models.OAuthUser{},
 
 		// 依赖表
@@ -178,7 +178,7 @@ func QuickInitSchema(db *gorm.DB) error {
 		&models.TunnelRecycle{},
 		&models.TunnelOperationLog{},
 		&models.EndpointSSE{},
-		&models.TunnelTag{},
+		&models.TunnelGroup{},
 
 		// 流量统计表
 		&models.TrafficHourlySummary{},
@@ -197,7 +197,7 @@ func StandardMigrate(db *gorm.DB) error {
 		&models.Endpoint{},
 		&models.SystemConfig{},
 		&models.UserSession{},
-		&models.Tag{},
+		&models.Group{},
 		&models.OAuthUser{},
 
 		// 依赖表
@@ -205,7 +205,7 @@ func StandardMigrate(db *gorm.DB) error {
 		&models.TunnelRecycle{},
 		&models.TunnelOperationLog{},
 		&models.EndpointSSE{},
-		&models.TunnelTag{},
+		&models.TunnelGroup{},
 
 		// 流量统计表
 		&models.TrafficHourlySummary{},

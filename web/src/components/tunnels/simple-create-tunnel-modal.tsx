@@ -183,9 +183,12 @@ export default function SimpleCreateTunnelModal({
               : 1,
         read: editData.read || "",
         rate: editData.rate || "",
-        proxyProtocol: editData.proxyProtocol != null
-          ? (editData.proxyProtocol ? "true" : "false")
-          : "",
+        proxyProtocol:
+          editData.proxyProtocol != null
+            ? editData.proxyProtocol
+              ? "true"
+              : "false"
+            : "",
       }));
     }
   }, [isOpen]);
@@ -291,7 +294,7 @@ export default function SimpleCreateTunnelModal({
           min: type === "client" && min !== "" ? parseInt(min) : undefined,
           max:
             (type === "client" && max !== "") ||
-              (type === "server" && max !== "")
+            (type === "server" && max !== "")
               ? parseInt(max)
               : undefined,
           slot: slot !== "" ? parseInt(slot) : undefined,
@@ -299,7 +302,8 @@ export default function SimpleCreateTunnelModal({
           mode: mode != null ? Number(mode) : undefined,
           read: read || undefined,
           rate: rate !== "" ? parseInt(rate) : undefined,
-          proxyProtocol: proxyProtocol !== "" ? proxyProtocol === "true" : undefined,
+          proxyProtocol:
+            proxyProtocol !== "" ? proxyProtocol === "true" : undefined,
           resetTraffic: modalMode === "edit" ? resetChecked : undefined,
         }),
       });
@@ -401,6 +405,7 @@ export default function SimpleCreateTunnelModal({
         }
         onSelectionChange={(keys) => {
           const selectedKey = Array.from(keys)[0] as string;
+
           handleField("proxyProtocol", selectedKey);
         }}
       >
@@ -454,7 +459,7 @@ export default function SimpleCreateTunnelModal({
                       onSelectionChange={(keys) =>
                         handleField("type", Array.from(keys)[0] as string)
                       }
-                    // isDisabled={modalMode==='edit'}
+                      // isDisabled={modalMode==='edit'}
                     >
                       <SelectItem key="server">服务端</SelectItem>
                       <SelectItem key="client">客户端</SelectItem>
@@ -697,22 +702,24 @@ export default function SimpleCreateTunnelModal({
                         }}
                       >
                         <div className="space-y-4">
-                          
-                              <div className={`grid grid-cols-${formData.type === "client" && formData.mode === 2 ? 3: 1} gap-2`}>
-                                {formData.type === "client" && formData.mode === 2 && (
-                                  <>
-                                    {renderPasswordInput()}
-                                    <Input
-                                      label="连接池最小容量"
-                                      placeholder="64(默认值)"
-                                      value={formData.min}
-                                      onValueChange={(v) => handleField("min", v)}
-                                    />
-                                  </>
-                                 )}
-                                {renderProxyProtocolSelect()}
-                              </div>
-                           
+                          <div
+                            className={`grid grid-cols-${formData.type === "client" && formData.mode === 2 ? 3 : 1} gap-2`}
+                          >
+                            {formData.type === "client" &&
+                              formData.mode === 2 && (
+                                <>
+                                  {renderPasswordInput()}
+                                  <Input
+                                    label="连接池最小容量"
+                                    placeholder="64(默认值)"
+                                    value={formData.min}
+                                    onValueChange={(v) => handleField("min", v)}
+                                  />
+                                </>
+                              )}
+                            {renderProxyProtocolSelect()}
+                          </div>
+
                           {formData.type === "server" && (
                             <div className={`grid grid-cols-3 gap-2`}>
                               {renderPasswordInput()}
@@ -753,7 +760,6 @@ export default function SimpleCreateTunnelModal({
                               onValueChange={(v) => handleField("slot", v)}
                             />
                           </div>
-
                         </div>
                       </motion.div>
                     )}

@@ -66,8 +66,8 @@ import ManualCopyModal from "@/components/ui/manual-copy-modal";
 import SimpleCreateTunnelModal from "@/components/tunnels/simple-create-tunnel-modal";
 import BatchCreateModal from "@/components/tunnels/batch-create-modal";
 import BatchUrlCreateTunnelModal from "@/components/tunnels/batch-url-create-tunnel-modal";
-import TagManagementModal from "@/components/tunnels/tag-management-modal";
-import SimpleTagModal from "@/components/tunnels/simple-tag-modal";
+import GroupManagementModal from "@/components/tunnels/group-management-modal";
+import SimpleGroupModal from "@/components/tunnels/simple-group-modal";
 import ScenarioCreateModal, {
   ScenarioType,
 } from "@/components/tunnels/scenario-create-modal";
@@ -75,8 +75,8 @@ import RenameTunnelModal from "@/components/tunnels/rename-tunnel-modal";
 import { useSettings } from "@/components/providers/settings-provider";
 import { useIsMobile } from "@/lib/hooks/use-media-query";
 
-// 定义标签类型
-interface Tag {
+// 定义分组类型
+interface Group {
   id: number;
   name: string;
 }
@@ -113,8 +113,8 @@ interface Tunnel {
     udpRx: number;
     udpTx: number;
   };
-  // 标签信息
-  tag?: Tag;
+  // 分组信息
+  group?: Group;
 }
 
 interface Endpoint {
@@ -129,9 +129,9 @@ export default function TunnelsPage() {
   const [filterValue, setFilterValue] = useState(""); // 实际用于API调用的搜索值
   const [statusFilter, setStatusFilter] = useState("all");
   const [endpointFilter, setEndpointFilter] = useState("all");
-  const [tagFilter, setTagFilter] = useState("all");
-  const [tags, setTags] = useState<Tag[]>([]);
-  const [tagsLoading, setTagsLoading] = useState(false);
+  const [groupFilter, setGroupFilter] = useState("all");
+  const [groups, setGroups] = useState<Group[]>([]);
+  const [groupsLoading, setGroupsLoading] = useState(false);
   const [rowsPerPage, setRowsPerPage] = useState(() => {
     // 从 localStorage 读取保存的每页显示数量，默认为 10
     if (typeof window !== "undefined") {
@@ -229,8 +229,8 @@ export default function TunnelsPage() {
       if (endpointFilter && endpointFilter !== "all") {
         params.append("endpoint_id", endpointFilter);
       }
-      if (tagFilter && tagFilter !== "all") {
-        params.append("tag_id", tagFilter);
+      if (groupFilter && groupFilter !== "all") {
+        params.append("group_id", groupFilter);
       }
 
       // 分页参数
@@ -281,7 +281,7 @@ export default function TunnelsPage() {
     filterValue,
     statusFilter,
     endpointFilter,
-    tagFilter,
+    groupFilter,
     page,
     rowsPerPage,
     sortDescriptor,
@@ -307,25 +307,25 @@ export default function TunnelsPage() {
     }
   }, []);
 
-  // 获取标签列表
-  const fetchTags = useCallback(async () => {
+  // 获取分组列表
+  const fetchGroups = useCallback(async () => {
     try {
-      setTagsLoading(true);
-      const response = await fetch(buildApiUrl("/api/tags"));
+      setGroupsLoading(true);
+      const response = await fetch(buildApiUrl("/api/groups"));
 
-      if (!response.ok) throw new Error("获取标签列表失败");
+      if (!response.ok) throw new Error("获取分组列表失败");
       const data = await response.json();
 
-      setTags(data.tags || []);
+      setGroups(data.groups || []);
     } catch (error) {
-      console.error("获取标签列表失败:", error);
+      console.error("获取分组列表失败:", error);
       addToast({
         title: "错误",
-        description: "获取标签列表失败",
+        description: "获取分组列表失败",
         color: "danger",
       });
     } finally {
-      setTagsLoading(false);
+      setGroupsLoading(false);
     }
   }, []);
 
@@ -824,14 +824,14 @@ export default function TunnelsPage() {
   const [manualCopyText, setManualCopyText] = useState<string>("");
   const [isManualCopyOpen, setIsManualCopyOpen] = useState(false);
 
-  // 标签管理模态框状态
-  const [tagManagementModalOpen, setTagManagementModalOpen] = useState(false);
+  // 分组管理模态框状态
+  const [groupManagementModalOpen, setGroupManagementModalOpen] =
+    useState(false);
 
-  // 简化标签设置模态框状态
-  const [simpleTagModalOpen, setSimpleTagModalOpen] = useState(false);
-  const [currentTunnelForTag, setCurrentTunnelForTag] = useState<Tunnel | null>(
-    null,
-  );
+  // 简化分组设置模态框状态
+  const [simpleGroupModalOpen, setSimpleGroupModalOpen] = useState(false);
+  const [currentTunnelForGroup, setCurrentTunnelForGroup] =
+    useState<Tunnel | null>(null);
 
   // 场景创建模态框状态
   const [scenarioModalOpen, setScenarioModalOpen] = useState(false);
@@ -898,14 +898,10 @@ export default function TunnelsPage() {
     return (
       <div className="text-xs text-left">
         <div className="text-default-600">
-          <span className="text-warning-600">
-            ↑ {formatTraffic(totalTx)}
-          </span>
+          <span className="text-warning-600">↑ {formatTraffic(totalTx)}</span>
         </div>
         <div className="text-default-600">
-          <span className="text-success-600">
-            ↓ {formatTraffic(totalRx)}
-          </span>
+          <span className="text-success-600">↓ {formatTraffic(totalRx)}</span>
         </div>
       </div>
     );
@@ -967,15 +963,15 @@ export default function TunnelsPage() {
             >
               {tunnel.status.text}
             </Chip>
-            {tunnel.tag && (
+            {tunnel.group && (
               <Chip
                 className="text-xs cursor-pointer"
                 color="primary"
                 size="sm"
                 variant="flat"
-                onClick={() => handleTagClick(tunnel)}
+                onClick={() => handleGroupClick(tunnel)}
               >
-                {tunnel.tag.name}
+                {tunnel.group.name}
               </Chip>
             )}
           </div>
@@ -1040,11 +1036,11 @@ export default function TunnelsPage() {
                   重命名
                 </DropdownItem>
                 <DropdownItem
-                  key="tag"
+                  key="group"
                   startContent={<FontAwesomeIcon icon={faTag} />}
-                  onClick={() => handleTagClick(tunnel)}
+                  onClick={() => handleGroupClick(tunnel)}
                 >
-                  设置标签
+                  设置分组
                 </DropdownItem>
                 <DropdownItem
                   key="delete"
@@ -1066,7 +1062,7 @@ export default function TunnelsPage() {
   // 初始加载 - 只在组件挂载时执行一次
   React.useEffect(() => {
     fetchEndpoints();
-    fetchTags();
+    fetchGroups();
   }, []); // 空依赖数组，只在组件挂载时执行一次
 
   // 搜索防抖处理
@@ -1131,7 +1127,7 @@ export default function TunnelsPage() {
   );
 
   // 更新实例状态的函数
-  const handleStatusChange = (tunnelId: number, isRunning: boolean) => {
+  const handleStatusChange = (tunnelId: string, isRunning: boolean) => {
     setTunnels((prev) =>
       prev.map((tunnel) =>
         tunnel.id === tunnelId
@@ -1231,21 +1227,21 @@ export default function TunnelsPage() {
     }
   };
 
-  // 处理标签管理
-  const handleTagManagement = () => {
-    setTagManagementModalOpen(true);
+  // 处理分组管理
+  const handleGroupManagement = () => {
+    setGroupManagementModalOpen(true);
   };
 
-  // 处理简化标签设置
-  const handleTagClick = (tunnel: Tunnel) => {
-    setCurrentTunnelForTag(tunnel);
-    setSimpleTagModalOpen(true);
+  // 处理简化分组设置
+  const handleGroupClick = (tunnel: Tunnel) => {
+    setCurrentTunnelForGroup(tunnel);
+    setSimpleGroupModalOpen(true);
   };
 
-  const handleTagSaved = useCallback(() => {
+  const handleGroupSaved = useCallback(() => {
     fetchTunnels();
-    fetchTags();
-  }, [fetchTunnels, fetchTags]);
+    fetchGroups();
+  }, [fetchTunnels, fetchGroups]);
 
   // 由于筛选和排序已移到后端，这里直接返回隧道列表 - 使用useMemo缓存
   const filteredItems = useMemo(() => {
@@ -1281,8 +1277,8 @@ export default function TunnelsPage() {
     setPage(1);
   }, []);
 
-  const onTagFilterChange = React.useCallback((tagId: string) => {
-    setTagFilter(tagId);
+  const onGroupFilterChange = React.useCallback((groupId: string) => {
+    setGroupFilter(groupId);
     setPage(1);
   }, []);
 
@@ -1309,9 +1305,9 @@ export default function TunnelsPage() {
     }
   };
 
-  // 标签筛选器组件
-  const renderTagFilter = () => {
-    if (tags.length === 0) {
+  // 分组筛选器组件
+  const renderGroupFilter = () => {
+    if (groups.length === 0) {
       return null;
     }
 
@@ -1319,19 +1315,19 @@ export default function TunnelsPage() {
       <div className="flex flex-wrap gap-2">
         <Chip
           className="cursor-pointer rounded-md"
-          color={tagFilter === "all" ? "primary" : "default"}
-          onClick={() => onTagFilterChange("all")}
+          color={groupFilter === "all" ? "primary" : "default"}
+          onClick={() => onGroupFilterChange("all")}
         >
           所有
         </Chip>
-        {tags.map((tag) => (
+        {groups.map((group) => (
           <Chip
-            key={tag.id}
+            key={group.id}
             className="cursor-pointer rounded-md"
-            color={tagFilter === String(tag.id) ? "primary" : "default"}
-            onClick={() => onTagFilterChange(String(tag.id))}
+            color={groupFilter === String(group.id) ? "primary" : "default"}
+            onClick={() => onGroupFilterChange(String(group.id))}
           >
-            {tag.name}
+            {group.name}
           </Chip>
         ))}
       </div>
@@ -1423,8 +1419,8 @@ export default function TunnelsPage() {
                         case "template":
                           navigate("/templates/");
                           break;
-                        case "tag":
-                          handleTagManagement();
+                        case "group":
+                          handleGroupManagement();
                           break;
                       }
                     }}
@@ -1454,7 +1450,7 @@ export default function TunnelsPage() {
                       场景创建
                     </DropdownItem> */}
                     <DropdownItem
-                      key="tag"
+                      key="group"
                       startContent={<FontAwesomeIcon fixedWidth icon={faTag} />}
                     >
                       分组管理
@@ -1487,7 +1483,7 @@ export default function TunnelsPage() {
                 color="warning"
                 startContent={<FontAwesomeIcon icon={faTag} />}
                 variant="flat"
-                onPress={handleTagManagement}
+                onPress={handleGroupManagement}
               >
                 分组管理
               </Button>
@@ -1959,7 +1955,7 @@ export default function TunnelsPage() {
               selectedKeys={selectedKeys}
               selectionMode="multiple"
               sortDescriptor={sortDescriptor}
-              topContent={renderTagFilter()}
+              topContent={renderGroupFilter()}
               onSelectionChange={setSelectedKeys}
               onSortChange={handleSortChange}
             >
@@ -2470,20 +2466,20 @@ export default function TunnelsPage() {
         onOpenChange={(open) => setIsManualCopyOpen(open)}
       />
 
-      {/* 标签管理模态框 */}
-      <TagManagementModal
-        isOpen={tagManagementModalOpen}
-        onOpenChange={setTagManagementModalOpen}
-        onSaved={handleTagSaved}
+      {/* 分组管理模态框 */}
+      <GroupManagementModal
+        isOpen={groupManagementModalOpen}
+        onOpenChange={setGroupManagementModalOpen}
+        onSaved={handleGroupSaved}
       />
 
-      {/* 简化标签设置模态框 */}
-      <SimpleTagModal
-        currentTag={currentTunnelForTag?.tag}
-        isOpen={simpleTagModalOpen}
-        tunnelId={currentTunnelForTag?.id?.toString() || ""}
-        onOpenChange={setSimpleTagModalOpen}
-        onSaved={handleTagSaved}
+      {/* 简化分组设置模态框 */}
+      <SimpleGroupModal
+        currentGroup={currentTunnelForGroup?.group}
+        isOpen={simpleGroupModalOpen}
+        tunnelId={currentTunnelForGroup?.id?.toString() || ""}
+        onOpenChange={setSimpleGroupModalOpen}
+        onSaved={handleGroupSaved}
       />
 
       {/* Quick Edit Modal */}

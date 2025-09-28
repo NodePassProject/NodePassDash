@@ -91,9 +91,9 @@ type Tunnel struct {
 	LastEventTime NullTime  `json:"lastEventTime,omitempty" gorm:"column:last_event_time;type:datetime"`
 
 	// 关联
-	Endpoint   Endpoint    `json:"endpoint,omitempty" gorm:"foreignKey:EndpointID"`
-	TunnelTags []TunnelTag `json:"tunnelTags,omitempty" gorm:"foreignKey:TunnelID"`
-	Tags       []Tag       `json:"tags,omitempty" gorm:"many2many:tunnel_tags;"`
+	Endpoint     Endpoint      `json:"endpoint,omitempty" gorm:"foreignKey:EndpointID"`
+	TunnelGroups []TunnelGroup `json:"tunnelGroups,omitempty" gorm:"foreignKey:TunnelID"`
+	Groups       []Group       `json:"groups,omitempty" gorm:"many2many:tunnel_groups;"`
 }
 
 // TableName 设置表名
@@ -223,37 +223,37 @@ func (UserSession) TableName() string {
 	return "user_sessions"
 }
 
-// Tag 标签表 - GORM模型
-type Tag struct {
+// Group 分组表 - GORM模型
+type Group struct {
 	ID        int64     `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
 	Name      string    `json:"name" gorm:"type:text;uniqueIndex;not null;column:name"`
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime;index;column:created_at"`
 	UpdatedAt time.Time `json:"updated_at" gorm:"autoUpdateTime;column:updated_at"`
 
 	// 关联
-	Tunnels []Tunnel `json:"tunnels,omitempty" gorm:"many2many:tunnel_tags;"`
+	Tunnels []Tunnel `json:"tunnels,omitempty" gorm:"many2many:tunnel_groups;"`
 }
 
 // TableName 设置表名
-func (Tag) TableName() string {
-	return "tags"
+func (Group) TableName() string {
+	return "groups"
 }
 
-// TunnelTag 隧道标签关联表 - GORM模型
-type TunnelTag struct {
+// TunnelGroup 隧道分组关联表 - GORM模型
+type TunnelGroup struct {
 	ID        int64     `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
 	TunnelID  int64     `json:"tunnel_id" gorm:"not null;index;column:tunnel_id"`
-	TagID     int64     `json:"tag_id" gorm:"not null;index;column:tag_id"`
+	GroupID   int64     `json:"group_id" gorm:"not null;index;column:group_id"`
 	CreatedAt time.Time `json:"created_at" gorm:"autoCreateTime;column:created_at"`
 
 	// 关联
 	Tunnel Tunnel `json:"tunnel,omitempty" gorm:"foreignKey:TunnelID"`
-	Tag    Tag    `json:"tag,omitempty" gorm:"foreignKey:TagID"`
+	Group  Group  `json:"group,omitempty" gorm:"foreignKey:GroupID"`
 }
 
 // TableName 设置表名
-func (TunnelTag) TableName() string {
-	return "tunnel_tags"
+func (TunnelGroup) TableName() string {
+	return "tunnel_groups"
 }
 
 // OAuthUser OAuth用户表 - GORM模型

@@ -166,7 +166,7 @@ function WeeklyStatsChartComponent({
             />
             <YAxis
               axisLine={false}
-              domain={[0, 'dataMax']}
+              domain={[0, "dataMax"]}
               style={{ fontSize: "var(--heroui-font-size-tiny)" }}
               tickFormatter={(value) => formatBytes(Math.max(0, value))}
               tickLine={false}

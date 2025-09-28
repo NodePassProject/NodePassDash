@@ -14,10 +14,10 @@ import {
   useDisclosure,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
-
 import { useState, useRef } from "react";
 import { addToast } from "@heroui/toast";
 import { useNavigate } from "react-router-dom";
+
 import { useAuth } from "@/components/auth/auth-provider";
 import { buildApiUrl } from "@/lib/utils";
 
@@ -216,6 +216,7 @@ export const NavbarUser = () => {
   const handleExportData = async () => {
     try {
       const response = await fetch(buildApiUrl("/api/data/export"));
+
       if (!response.ok) {
         throw new Error("导出失败");
       }
@@ -223,6 +224,7 @@ export const NavbarUser = () => {
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
+
       a.href = url;
       a.download = `nodepassdash-${new Date().toISOString().split("T")[0]}.json`;
       document.body.appendChild(a);
@@ -342,18 +344,18 @@ export const NavbarUser = () => {
           className="w-[240px]"
           variant="flat"
           onAction={(key) => {
-            if (key === 'logout') {
+            if (key === "logout") {
               handleLogout();
-            } else if (key === 'change-password') {
+            } else if (key === "change-password") {
               onPasswordOpen();
-            } else if (key === 'change-username') {
+            } else if (key === "change-username") {
               onUsernameOpen();
-            } else if (key === 'export-data') {
+            } else if (key === "export-data") {
               handleExportData();
-            } else if (key === 'import-data') {
+            } else if (key === "import-data") {
               onImportOpen();
-            } else if (key === 'system-settings') {
-              navigate('/settings');
+            } else if (key === "system-settings") {
+              navigate("/settings");
             }
           }}
         >
@@ -392,7 +394,9 @@ export const NavbarUser = () => {
           <DropdownItem
             key="import-data"
             isDisabled={isSubmitting}
-            startContent={<Icon icon="solar:download-square-linear" width={18} />}
+            startContent={
+              <Icon icon="solar:download-square-linear" width={18} />
+            }
           >
             导入数据
           </DropdownItem>
@@ -418,9 +422,10 @@ export const NavbarUser = () => {
 
       {/* 修改密码模态框 */}
       <Modal
-        backdrop="blur" 
+        backdrop="blur"
         classNames={{
-          backdrop: "bg-gradient-to-t from-zinc-900 to-zinc-900/10 backdrop-opacity-20"
+          backdrop:
+            "bg-gradient-to-t from-zinc-900 to-zinc-900/10 backdrop-opacity-20",
         }}
         isOpen={isPasswordOpen}
         placement="center"
@@ -432,8 +437,8 @@ export const NavbarUser = () => {
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <Icon
-                    icon="solar:key-bold"
                     className="text-primary"
+                    icon="solar:key-bold"
                     width={24}
                   />
                   修改密码
@@ -444,11 +449,15 @@ export const NavbarUser = () => {
                   <Input
                     label="当前密码"
                     placeholder="请输入当前密码"
-                    startContent={<Icon icon="solar:lock-password-linear" width={18} />}
+                    startContent={
+                      <Icon icon="solar:lock-password-linear" width={18} />
+                    }
                     type="password"
                     value={passwordForm.currentPassword}
                     variant="bordered"
-                    onChange={(e) => handleFormChange('currentPassword', e.target.value)}
+                    onChange={(e) =>
+                      handleFormChange("currentPassword", e.target.value)
+                    }
                   />
 
                   <Input
@@ -458,7 +467,9 @@ export const NavbarUser = () => {
                     type="password"
                     value={passwordForm.newPassword}
                     variant="bordered"
-                    onChange={(e) => handleFormChange('newPassword', e.target.value)}
+                    onChange={(e) =>
+                      handleFormChange("newPassword", e.target.value)
+                    }
                   />
 
                   <Input
@@ -468,7 +479,9 @@ export const NavbarUser = () => {
                     type="password"
                     value={passwordForm.confirmPassword}
                     variant="bordered"
-                    onChange={(e) => handleFormChange('confirmPassword', e.target.value)}
+                    onChange={(e) =>
+                      handleFormChange("confirmPassword", e.target.value)
+                    }
                   />
 
                   <div className="text-small text-default-500">
@@ -479,17 +492,21 @@ export const NavbarUser = () => {
               </ModalBody>
               <ModalFooter>
                 <Button
-                  color="danger" 
-                  isDisabled={isSubmitting} 
+                  color="danger"
+                  isDisabled={isSubmitting}
                   variant="light"
                   onPress={onClose}
                 >
                   取消
                 </Button>
                 <Button
-                  color="primary" 
+                  color="primary"
                   isLoading={isSubmitting}
-                  startContent={!isSubmitting ? <Icon icon="solar:check-circle-linear" width={18} /> : null}
+                  startContent={
+                    !isSubmitting ? (
+                      <Icon icon="solar:check-circle-linear" width={18} />
+                    ) : null
+                  }
                   onPress={handlePasswordChange}
                 >
                   {isSubmitting ? "修改中..." : "确认修改"}
@@ -502,9 +519,10 @@ export const NavbarUser = () => {
 
       {/* 修改用户名模态框 */}
       <Modal
-        backdrop="blur" 
+        backdrop="blur"
         classNames={{
-          backdrop: "bg-gradient-to-t from-zinc-900 to-zinc-900/10 backdrop-opacity-20"
+          backdrop:
+            "bg-gradient-to-t from-zinc-900 to-zinc-900/10 backdrop-opacity-20",
         }}
         isOpen={isUsernameOpen}
         placement="center"
@@ -516,8 +534,8 @@ export const NavbarUser = () => {
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <Icon
-                    icon="solar:user-id-bold"
                     className="text-primary"
+                    icon="solar:user-id-bold"
                     width={24}
                   />
                   修改用户名
@@ -542,17 +560,21 @@ export const NavbarUser = () => {
               </ModalBody>
               <ModalFooter>
                 <Button
-                  color="danger" 
-                  isDisabled={isSubmitting} 
+                  color="danger"
+                  isDisabled={isSubmitting}
                   variant="light"
                   onPress={onClose}
                 >
                   取消
                 </Button>
                 <Button
-                  color="primary" 
+                  color="primary"
                   isLoading={isSubmitting}
-                  startContent={!isSubmitting ? <Icon icon="solar:check-circle-linear" width={18} /> : null}
+                  startContent={
+                    !isSubmitting ? (
+                      <Icon icon="solar:check-circle-linear" width={18} />
+                    ) : null
+                  }
                   onPress={handleUsernameChange}
                 >
                   {isSubmitting ? "修改中..." : "确认修改"}
@@ -565,9 +587,10 @@ export const NavbarUser = () => {
 
       {/* 导入数据模态框 */}
       <Modal
-        backdrop="blur" 
+        backdrop="blur"
         classNames={{
-          backdrop: "bg-gradient-to-t from-zinc-900 to-zinc-900/10 backdrop-opacity-20"
+          backdrop:
+            "bg-gradient-to-t from-zinc-900 to-zinc-900/10 backdrop-opacity-20",
         }}
         isOpen={isImportOpen}
         placement="center"
@@ -579,8 +602,8 @@ export const NavbarUser = () => {
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <Icon
-                    icon="solar:import-bold"
                     className="text-primary"
+                    icon="solar:import-bold"
                     width={24}
                   />
                   导入数据
@@ -592,7 +615,12 @@ export const NavbarUser = () => {
                     <Button
                       color="primary"
                       isDisabled={isSubmitting}
-                      startContent={<Icon icon="solar:folder-with-files-linear" width={18} />}
+                      startContent={
+                        <Icon
+                          icon="solar:folder-with-files-linear"
+                          width={18}
+                        />
+                      }
                       variant="light"
                       onPress={() => fileInputRef.current?.click()}
                     >
@@ -619,17 +647,21 @@ export const NavbarUser = () => {
               </ModalBody>
               <ModalFooter>
                 <Button
-                  color="danger" 
-                  isDisabled={isSubmitting} 
+                  color="danger"
+                  isDisabled={isSubmitting}
                   variant="light"
                   onPress={onClose}
                 >
                   取消
                 </Button>
                 <Button
-                  color="primary" 
+                  color="primary"
                   isLoading={isSubmitting}
-                  startContent={!isSubmitting ? <Icon icon="solar:check-circle-linear" width={18} /> : null}
+                  startContent={
+                    !isSubmitting ? (
+                      <Icon icon="solar:check-circle-linear" width={18} />
+                    ) : null
+                  }
                   onPress={handleImportData}
                 >
                   {isSubmitting ? "导入中..." : "开始导入"}

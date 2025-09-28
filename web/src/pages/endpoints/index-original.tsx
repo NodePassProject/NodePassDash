@@ -4,9 +4,7 @@ import {
   CardBody,
   CardFooter,
   Chip,
-  Divider,
   Input,
-  Link,
   Modal,
   ModalBody,
   ModalContent,
@@ -32,7 +30,6 @@ import {
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
-
 import { addToast } from "@heroui/toast";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -42,7 +39,6 @@ import {
   faEye,
   faEdit,
   faTrash,
-  faEyeSlash,
   faLink,
   faTimesCircle,
   faRotateRight,
@@ -51,14 +47,10 @@ import {
   faPlug,
   faPlugCircleXmark,
   faPen,
-  faWifi,
-  faSpinner,
   faCopy,
   faEllipsisVertical,
   faGrip,
   faTable,
-  faFileLines,
-  faLayerGroup,
   faSync,
   faKey,
 } from "@fortawesome/free-solid-svg-icons";
@@ -161,6 +153,7 @@ export default function EndpointsPage() {
   const [viewMode, setViewMode] = useState<"card" | "table">(() => {
     if (typeof window !== "undefined") {
       const saved = localStorage.getItem("endpointsViewMode");
+
       if (saved === "card" || saved === "table") {
         return saved;
       }
@@ -208,6 +201,7 @@ export default function EndpointsPage() {
     try {
       setLoading(true);
       const response = await fetch(buildApiUrl("/api/endpoints"));
+
       if (!response.ok) throw new Error("获取主控列表失败");
       const data = await response.json();
 
@@ -438,6 +432,7 @@ export default function EndpointsPage() {
   const handleExportData = async () => {
     try {
       const response = await fetch("/api/endpoints/data/export");
+
       if (!response.ok) {
         throw new Error("导出失败");
       }
@@ -445,6 +440,7 @@ export default function EndpointsPage() {
       const blob = await response.blob();
       const url = window.URL.createObjectURL(blob);
       const a = document.createElement("a");
+
       a.href = url;
       a.download = `nodepassdash-${new Date().toISOString().split("T")[0]}.json`;
       document.body.appendChild(a);
@@ -586,11 +582,11 @@ export default function EndpointsPage() {
                 API Key
               </label>
               <Input
-                value={endpoint.apiKey}
                 isReadOnly
-                variant="bordered"
                 size="sm"
                 type={settings.isPrivacyMode ? "password" : "text"}
+                value={endpoint.apiKey}
+                variant="bordered"
               />
             </div>
 
@@ -600,19 +596,27 @@ export default function EndpointsPage() {
                 <span className="text-small text-default-500">连接状态:</span>
                 <Chip
                   color={
-                    realTimeData.status === 'ONLINE' ? 'success' : 
-                    realTimeData.status === 'FAIL' ? 'danger' : 
-                    realTimeData.status === 'DISCONNECT' ? 'default' : 'warning'
+                    realTimeData.status === "ONLINE"
+                      ? "success"
+                      : realTimeData.status === "FAIL"
+                        ? "danger"
+                        : realTimeData.status === "DISCONNECT"
+                          ? "default"
+                          : "warning"
                   }
                   size="sm"
                   startContent={
-                    <FontAwesomeIcon 
-                      icon={
-                        realTimeData.status === 'ONLINE' ? faLink : 
-                        realTimeData.status === 'FAIL' ? faPlugCircleXmark : 
-                        realTimeData.status === 'DISCONNECT' ? faPlugCircleXmark : faTimesCircle
-                      } 
+                    <FontAwesomeIcon
                       className="text-xs"
+                      icon={
+                        realTimeData.status === "ONLINE"
+                          ? faLink
+                          : realTimeData.status === "FAIL"
+                            ? faPlugCircleXmark
+                            : realTimeData.status === "DISCONNECT"
+                              ? faPlugCircleXmark
+                              : faTimesCircle
+                      }
                     />
                   }
                   variant="flat"
@@ -654,22 +658,22 @@ export default function EndpointsPage() {
             <div className="flex gap-2 mt-4">
               <Button
                 size="sm"
-                variant="bordered"
                 startContent={<FontAwesomeIcon icon={faEdit} />}
+                variant="bordered"
               >
                 编辑
               </Button>
               <Button
                 size="sm"
-                variant="bordered"
                 startContent={<FontAwesomeIcon icon={faEye} />}
+                variant="bordered"
               >
                 查看实例
               </Button>
               {realTimeData.canRetry && (
                 <Button
-                  color="primary" 
-                  size="sm" 
+                  color="primary"
+                  size="sm"
                   startContent={<FontAwesomeIcon icon={faRotateRight} />}
                   variant="bordered"
                   onPress={() => handleReconnect(endpoint.id)}
@@ -687,7 +691,6 @@ export default function EndpointsPage() {
       <div className="flex items-center justify-between h-full w-full">
         <div className="flex items-center gap-2">
           <FontAwesomeIcon
-            icon={faBullseye}
             className={
               realTimeData.status === "ONLINE"
                 ? "text-success-600"
@@ -697,6 +700,7 @@ export default function EndpointsPage() {
                     ? "text-default-400"
                     : "text-warning-600"
             }
+            icon={faBullseye}
           />
           <p className="text-small text-default-500">
             {realTimeData.tunnelCount
@@ -709,8 +713,8 @@ export default function EndpointsPage() {
             <DropdownTrigger>
               <Button
                 isIconOnly
-                variant="light"
                 size="sm"
+                variant="light"
                 onPress={(e) => {
                   (e as any).stopPropagation?.();
                 }}
@@ -750,49 +754,62 @@ export default function EndpointsPage() {
             >
               <DropdownItem
                 key="addTunnel"
-                startContent={<FontAwesomeIcon icon={faPlus} fixedWidth />}
                 className="text-primary"
                 color="primary"
+                startContent={<FontAwesomeIcon fixedWidth icon={faPlus} />}
               >
                 添加实例
               </DropdownItem>
               <DropdownItem
                 key="refresTunnel"
-                startContent={<FontAwesomeIcon icon={faSync} fixedWidth />}
                 className="text-secondary"
                 color="secondary"
+                startContent={<FontAwesomeIcon fixedWidth icon={faSync} />}
               >
                 同步实例
               </DropdownItem>
               <DropdownItem
                 key="rename"
-                startContent={<FontAwesomeIcon icon={faPen} fixedWidth />}
                 className="text-warning"
                 color="warning"
+                startContent={<FontAwesomeIcon fixedWidth icon={faPen} />}
               >
                 重命名
               </DropdownItem>
               <DropdownItem
                 key="editApiKey"
-                startContent={<FontAwesomeIcon icon={faKey} fixedWidth />}
                 className="text-warning"
                 color="warning"
+                startContent={<FontAwesomeIcon fixedWidth icon={faKey} />}
               >
                 修改密钥
               </DropdownItem>
               <DropdownItem
                 key="copy"
-                startContent={<FontAwesomeIcon icon={faCopy} fixedWidth />}
                 className="text-success"
                 color="success"
+                startContent={<FontAwesomeIcon fixedWidth icon={faCopy} />}
               >
                 复制配置
               </DropdownItem>
               <DropdownItem
-                key="toggle" 
-                className={realTimeData.status==='ONLINE' ? 'text-warning' : 'text-success'}
-                color={realTimeData.status==='ONLINE' ? 'warning' : 'success'}
-                startContent={<FontAwesomeIcon icon={realTimeData.status==='ONLINE'?faPlugCircleXmark:faPlug} fixedWidth/> }
+                key="toggle"
+                className={
+                  realTimeData.status === "ONLINE"
+                    ? "text-warning"
+                    : "text-success"
+                }
+                color={realTimeData.status === "ONLINE" ? "warning" : "success"}
+                startContent={
+                  <FontAwesomeIcon
+                    fixedWidth
+                    icon={
+                      realTimeData.status === "ONLINE"
+                        ? faPlugCircleXmark
+                        : faPlug
+                    }
+                  />
+                }
               >
                 {realTimeData.status === "ONLINE" ? "断开连接" : "连接主控"}
               </DropdownItem>
@@ -800,7 +817,7 @@ export default function EndpointsPage() {
                 key="delete"
                 className="text-danger"
                 color="danger"
-                startContent={<FontAwesomeIcon icon={faTrash} fixedWidth />}
+                startContent={<FontAwesomeIcon fixedWidth icon={faTrash} />}
               >
                 删除主控
               </DropdownItem>
@@ -940,6 +957,7 @@ export default function EndpointsPage() {
         description: "隧道 URL 不能为空",
         color: "warning",
       });
+
       return;
     }
     try {
@@ -995,6 +1013,7 @@ export default function EndpointsPage() {
   // 复制安装脚本到剪贴板
   function handleCopyInstallScript() {
     const cmd = "bash <(wget -qO- https://run.nodepass.eu/np.sh)";
+
     copyToClipboard(cmd, "安装脚本已复制到剪贴板", showManualCopyModal);
   }
 
@@ -1034,14 +1053,14 @@ export default function EndpointsPage() {
         </div>
         <div className="flex flex-wrap items-center gap-2 md:gap-4 mt-2 md:mt-0">
           <Button
-            startContent={ <FontAwesomeIcon icon={faFileDownload} />}
+            startContent={<FontAwesomeIcon icon={faFileDownload} />}
             variant="flat"
             onPress={handleExportData}
           >
             导出数据
           </Button>
           <Button
-            startContent={ <FontAwesomeIcon icon={faFileImport} />}
+            startContent={<FontAwesomeIcon icon={faFileImport} />}
             variant="flat"
             onPress={onImportOpen}
           >
@@ -1057,7 +1076,9 @@ export default function EndpointsPage() {
           <Button
             startContent={<FontAwesomeIcon icon={faRotateRight} />}
             variant="flat"
-            onPress={async () => {await fetchEndpoints();}}
+            onPress={async () => {
+              await fetchEndpoints();
+            }}
           >
             刷新
           </Button>
@@ -1065,7 +1086,7 @@ export default function EndpointsPage() {
             aria-label="布局切换"
             className="w-auto"
             selectedKey={viewMode}
-            onSelectionChange={(key)=>setViewMode(key as 'card' | 'table')}
+            onSelectionChange={(key) => setViewMode(key as "card" | "table")}
           >
             <Tab
               key="card"
@@ -1143,7 +1164,7 @@ export default function EndpointsPage() {
             return (
               <Card
                 key={endpoint.id}
-                isPressable 
+                isPressable
                 as="div"
                 className="relative w-full h-[200px]"
                 onPress={() => navigate(`/endpoints/details?id=${endpoint.id}`)}
@@ -1152,9 +1173,13 @@ export default function EndpointsPage() {
                 <div className="absolute right-4 top-6 z-10">
                   <Chip
                     color={
-                      realTimeData.status === 'ONLINE' ? "success" : 
-                      realTimeData.status === 'FAIL' ? "danger" : 
-                      realTimeData.status === 'DISCONNECT' ? 'default' : 'warning'
+                      realTimeData.status === "ONLINE"
+                        ? "success"
+                        : realTimeData.status === "FAIL"
+                          ? "danger"
+                          : realTimeData.status === "DISCONNECT"
+                            ? "default"
+                            : "warning"
                     }
                     radius="full"
                     variant="flat"
@@ -1226,8 +1251,8 @@ export default function EndpointsPage() {
               <div className="flex flex-col items-center gap-4">
                 <div className="w-16 h-16 rounded-full bg-primary-100 flex items-center justify-center">
                   <FontAwesomeIcon
-                    icon={faPlus}
                     className="text-xl text-primary"
+                    icon={faPlus}
                   />
                 </div>
                 <div className="text-center">
@@ -1288,6 +1313,7 @@ export default function EndpointsPage() {
               <>
                 {endpoints.map((ep) => {
                   const realTimeData = getEndpointDisplayData(ep);
+
                   return (
                     <TableRow key={ep.id}>
                       <TableCell>{ep.id}</TableCell>
@@ -1324,14 +1350,14 @@ export default function EndpointsPage() {
                         </span>
                         <Tooltip content="修改名称" size="sm">
                           <FontAwesomeIcon
-                            icon={faPen}
                             className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer ps-1"
+                            icon={faPen}
                             onClick={() => handleCardClick(ep)}
                           />
                         </Tooltip>
                       </TableCell>
                       <TableCell className="w-32">
-                        <Chip size="sm" variant="flat" className="text-xs">
+                        <Chip className="text-xs" size="sm" variant="flat">
                           {ep.ver ? ep.ver : "unknown"}
                         </Chip>
                       </TableCell>
@@ -1351,9 +1377,9 @@ export default function EndpointsPage() {
                           <Tooltip content="查看详情">
                             <Button
                               isIconOnly
+                              color="primary"
                               size="sm"
                               variant="light"
-                              color="primary"
                               onPress={() =>
                                 navigate(`/endpoints/details?id=${ep.id}`)
                               }
@@ -1371,9 +1397,9 @@ export default function EndpointsPage() {
                           <Tooltip content="同步实例">
                             <Button
                               isIconOnly
+                              color="secondary"
                               size="sm"
                               variant="light"
-                              color="secondary"
                               onPress={() => handleRefreshTunnels(ep.id)}
                             >
                               <FontAwesomeIcon icon={faSync} />
@@ -1383,9 +1409,9 @@ export default function EndpointsPage() {
                           <Tooltip content="修改密钥">
                             <Button
                               isIconOnly
+                              color="warning"
                               size="sm"
                               variant="light"
-                              color="warning"
                               onPress={() => handleEditApiKeyClick(ep)}
                             >
                               <FontAwesomeIcon icon={faKey} />
@@ -1395,9 +1421,9 @@ export default function EndpointsPage() {
                           <Tooltip content="复制配置">
                             <Button
                               isIconOnly
+                              color="success"
                               size="sm"
                               variant="light"
-                              color="success"
                               onPress={() => handleCopyConfig(ep)}
                             >
                               <FontAwesomeIcon icon={faCopy} />
@@ -1413,13 +1439,13 @@ export default function EndpointsPage() {
                           >
                             <Button
                               isIconOnly
-                              size="sm"
-                              variant="light"
                               color={
                                 realTimeData.status === "ONLINE"
                                   ? "warning"
                                   : "success"
                               }
+                              size="sm"
+                              variant="light"
                               onPress={() => {
                                 if (realTimeData.status === "ONLINE")
                                   handleDisconnect(ep.id);
@@ -1439,9 +1465,9 @@ export default function EndpointsPage() {
                           <Tooltip content="删除主控">
                             <Button
                               isIconOnly
+                              color="danger"
                               size="sm"
                               variant="light"
-                              color="danger"
                               onPress={() => handleDeleteClick(ep)}
                             >
                               <FontAwesomeIcon icon={faTrash} />
@@ -1456,11 +1482,11 @@ export default function EndpointsPage() {
                 <TableRow key="add-row">
                   <TableCell colSpan={6}>
                     <Button
-                      variant="light"
                       className="w-full border-2 border-dashed border-default-300 hover:border-primary"
+                      variant="light"
                       onPress={onAddOpen}
                     >
-                      <FontAwesomeIcon icon={faPlus} className="mr-2" />
+                      <FontAwesomeIcon className="mr-2" icon={faPlus} />
                       添加 API 主控
                     </Button>
                   </TableCell>
@@ -1501,8 +1527,8 @@ export default function EndpointsPage() {
       {/* 添加隧道弹窗 */}
       <Modal
         isOpen={isAddTunnelOpen}
-        onOpenChange={onAddTunnelOpenChange}
         placement="center"
+        onOpenChange={onAddTunnelOpenChange}
       >
         <ModalContent>
           {(onClose) => (
@@ -1538,8 +1564,8 @@ export default function EndpointsPage() {
       {/* 删除确认模态框 */}
       <Modal
         isOpen={isDeleteOpen}
-        onOpenChange={onDeleteOpenChange}
         placement="center"
+        onOpenChange={onDeleteOpenChange}
       >
         <ModalContent>
           {(onClose) => (
@@ -1571,7 +1597,7 @@ export default function EndpointsPage() {
                   取消
                 </Button>
                 <Button
-                  color="danger" 
+                  color="danger"
                   startContent={<FontAwesomeIcon icon={faTrash} />}
                   onPress={() => {
                     handleDeleteEndpoint();
@@ -1595,9 +1621,10 @@ export default function EndpointsPage() {
 
       {/* 导入数据模态框 */}
       <Modal
-        backdrop="blur" 
+        backdrop="blur"
         classNames={{
-          backdrop: "bg-gradient-to-t from-zinc-900 to-zinc-900/10 backdrop-opacity-20"
+          backdrop:
+            "bg-gradient-to-t from-zinc-900 to-zinc-900/10 backdrop-opacity-20",
         }}
         isOpen={isImportOpen}
         placement="center"
@@ -1609,8 +1636,8 @@ export default function EndpointsPage() {
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <Icon
-                    icon="solar:import-bold"
                     className="text-primary"
+                    icon="solar:import-bold"
                     width={24}
                   />
                   导入数据
@@ -1622,7 +1649,12 @@ export default function EndpointsPage() {
                     <Button
                       color="primary"
                       isDisabled={isSubmitting}
-                      startContent={<Icon icon="solar:folder-with-files-linear" width={18} />}
+                      startContent={
+                        <Icon
+                          icon="solar:folder-with-files-linear"
+                          width={18}
+                        />
+                      }
                       variant="light"
                       onPress={() => fileInputRef.current?.click()}
                     >
@@ -1649,17 +1681,21 @@ export default function EndpointsPage() {
               </ModalBody>
               <ModalFooter>
                 <Button
-                  color="danger" 
-                  isDisabled={isSubmitting} 
+                  color="danger"
+                  isDisabled={isSubmitting}
                   variant="light"
                   onPress={onClose}
                 >
                   取消
                 </Button>
                 <Button
-                  color="primary" 
+                  color="primary"
                   isLoading={isSubmitting}
-                  startContent={!isSubmitting ? <Icon icon="solar:check-circle-linear" width={18} /> : null}
+                  startContent={
+                    !isSubmitting ? (
+                      <Icon icon="solar:check-circle-linear" width={18} />
+                    ) : null
+                  }
                   onPress={handleImportData}
                 >
                   {isSubmitting ? "导入中..." : "开始导入"}

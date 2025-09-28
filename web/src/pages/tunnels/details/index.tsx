@@ -42,7 +42,6 @@ import {
   faExpand,
   faHammer,
   faBug,
-  faTag,
 } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate } from "react-router-dom";
 import { addToast } from "@heroui/toast";
@@ -52,24 +51,17 @@ import { Icon } from "@iconify/react";
 
 import { FullscreenChartModal } from "./fullscreen-chart-modal";
 import CellValue from "./cell-value";
-
 import OriginalCellValue from "./original-cell-value";
+
 import { Snippet } from "@/components/ui/snippet";
 // 引入 SimpleCreateTunnelModal 组件
 import SimpleCreateTunnelModal from "@/components/tunnels/simple-create-tunnel-modal";
 import RenameTunnelModal from "@/components/tunnels/rename-tunnel-modal";
 import InstanceTagModal from "@/components/tunnels/instance-tag-modal";
-
-
 import { TrafficStatsCard } from "@/components/tunnels/traffic-stats-card";
 import { ConnectionsStatsCard } from "@/components/tunnels/connections-stats-card";
 import { NetworkQualityCard } from "@/components/tunnels/network-quality-card";
-
-
 import { useTunnelActions } from "@/lib/hooks/use-tunnel-actions";
-
-
-
 import { DetailedTrafficChart } from "@/components/ui/detailed-traffic-chart";
 import { SpeedChart } from "@/components/ui/speed-chart";
 import { ConnectionsChart } from "@/components/ui/connections-chart";
@@ -127,7 +119,7 @@ interface TunnelInfo {
   tunnelAddress: string;
   targetAddress: string;
   commandLine: string;
-  instanceTags?: Array<{key: string; value: string}>;
+  instanceTags?: Array<{ key: string; value: string }>;
 }
 
 interface PageParams {
@@ -321,7 +313,10 @@ export default function TunnelDetailPage() {
 
       // 设置基本信息
       console.log("[隧道详情] 接收到的数据:", data.tunnelInfo);
-      setTunnelInfo(data.tunnelInfo);
+      setTunnelInfo({
+        ...data.tunnelInfo,
+        instanceTags: data.tunnelInfo.tags || [],
+      });
 
       setInitialDataLoaded(true);
     } catch (error) {
@@ -356,7 +351,8 @@ export default function TunnelDetailPage() {
   // 重命名模态控制
   const [isRenameModalOpen, setIsRenameModalOpen] = React.useState(false);
   // 实例标签模态控制
-  const [isInstanceTagModalOpen, setIsInstanceTagModalOpen] = React.useState(false);
+  const [isInstanceTagModalOpen, setIsInstanceTagModalOpen] =
+    React.useState(false);
 
   // 是否移入回收站
   const [moveToRecycle, setMoveToRecycle] = React.useState(false);
@@ -920,12 +916,12 @@ export default function TunnelDetailPage() {
           setTunnelInfo((prev) =>
             prev
               ? {
-                ...prev,
-                status: {
-                  type: data.status === "running" ? "success" : "danger",
-                  text: data.status === "running" ? "运行中" : "已停止",
-                },
-              }
+                  ...prev,
+                  status: {
+                    type: data.status === "running" ? "success" : "danger",
+                    text: data.status === "running" ? "运行中" : "已停止",
+                  },
+                }
               : null,
           );
         }
@@ -940,18 +936,18 @@ export default function TunnelDetailPage() {
           setTunnelInfo((prev) =>
             prev
               ? {
-                ...prev,
-                traffic: {
-                  tcpRx: data.tcpRx,
-                  tcpTx: data.tcpTx,
-                  udpRx: data.udpRx,
-                  udpTx: data.udpTx,
-                  pool: data.pool || prev.traffic.pool,
-                  ping: data.ping || prev.traffic.ping,
-                  tcps: data.tcps || prev.traffic.tcps,
-                  udps: data.udps || prev.traffic.udps,
-                },
-              }
+                  ...prev,
+                  traffic: {
+                    tcpRx: data.tcpRx,
+                    tcpTx: data.tcpTx,
+                    udpRx: data.udpRx,
+                    udpTx: data.udpTx,
+                    pool: data.pool || prev.traffic.pool,
+                    ping: data.ping || prev.traffic.ping,
+                    tcps: data.tcps || prev.traffic.tcps,
+                    udps: data.udps || prev.traffic.udps,
+                  },
+                }
               : null,
           );
         }
@@ -977,19 +973,19 @@ export default function TunnelDetailPage() {
     const isRunning = tunnelInfo.status.type === "success";
 
     toggleStatus(isRunning, {
-      tunnelId: tunnelInfo.id,
+      tunnelId: tunnelInfo.id.toString(),
       instanceId: tunnelInfo.instanceId,
       tunnelName: tunnelInfo.name,
       onStatusChange: (tunnelId, newStatus) => {
         setTunnelInfo((prev) =>
           prev
             ? {
-              ...prev,
-              status: {
-                type: newStatus ? "success" : "danger",
-                text: newStatus ? "运行中" : "已停止",
-              },
-            }
+                ...prev,
+                status: {
+                  type: newStatus ? "success" : "danger",
+                  text: newStatus ? "运行中" : "已停止",
+                },
+              }
             : null,
         );
       },
@@ -1000,19 +996,19 @@ export default function TunnelDetailPage() {
     if (!tunnelInfo) return;
 
     restart({
-      tunnelId: tunnelInfo.id,
+      tunnelId: tunnelInfo.id.toString(),
       instanceId: tunnelInfo.instanceId,
       tunnelName: tunnelInfo.name,
       onStatusChange: (tunnelId, newStatus) => {
         setTunnelInfo((prev) =>
           prev
             ? {
-              ...prev,
-              status: {
-                type: "success",
-                text: "运行中",
-              },
-            }
+                ...prev,
+                status: {
+                  type: "success",
+                  text: "运行中",
+                },
+              }
             : null,
         );
       },
@@ -1023,7 +1019,7 @@ export default function TunnelDetailPage() {
     if (!tunnelInfo) return;
 
     deleteTunnel({
-      tunnelId: tunnelInfo.id,
+      tunnelId: tunnelInfo.id.toString(),
       instanceId: tunnelInfo.instanceId,
       tunnelName: tunnelInfo.name,
       redirectAfterDelete: true,
@@ -1043,7 +1039,7 @@ export default function TunnelDetailPage() {
   const handleInstanceTagSaved = () => {
     // 刷新隧道信息以获取最新的标签数据
     if (tunnelInfo) {
-      fetchTunnelInfo();
+      fetchTunnelDetails();
     }
   };
 
@@ -1068,12 +1064,12 @@ export default function TunnelDetailPage() {
         setTunnelInfo((prev) =>
           prev
             ? {
-              ...prev,
-              config: {
-                ...prev.config,
-                restart: newRestartValue,
-              },
-            }
+                ...prev,
+                config: {
+                  ...prev.config,
+                  restart: newRestartValue,
+                },
+              }
             : null,
         );
 
@@ -1349,17 +1345,25 @@ export default function TunnelDetailPage() {
             >
               重启
             </Button>
-            {false && (
-              <Button
-                className="flex-shrink-0"
-                color="danger"
-                startContent={<FontAwesomeIcon icon={faTrash} />}
-                variant="flat"
-                onClick={handleDeleteClick}
-              >
-                删除
-              </Button>
-            )}
+            <Button
+              className="flex-shrink-0"
+              color="danger"
+              startContent={<FontAwesomeIcon icon={faTrash} />}
+              variant="flat"
+              onClick={handleDeleteClick}
+            >
+              删除
+            </Button>
+            <Button
+              className="flex-shrink-0"
+              color="secondary"
+              isDisabled={refreshLoading}
+              startContent={<FontAwesomeIcon icon={faHammer} />}
+              variant="flat"
+              onClick={handleRefresh}
+            >
+              重置
+            </Button>
             <Button
               className="flex-shrink-0"
               color="default"
@@ -1400,18 +1404,16 @@ export default function TunnelDetailPage() {
             >
               重启
             </Button>
-            {false && (
-              <Button
-                className="flex-shrink-0"
-                color="danger"
-                size="sm"
-                startContent={<FontAwesomeIcon icon={faTrash} />}
-                variant="flat"
-                onClick={handleDeleteClick}
-              >
-                删除
-              </Button>
-            )}
+            <Button
+              className="flex-shrink-0"
+              color="danger"
+              size="sm"
+              startContent={<FontAwesomeIcon icon={faTrash} />}
+              variant="flat"
+              onClick={handleDeleteClick}
+            >
+              删除
+            </Button>
             <Button
               className="flex-shrink-0"
               color="default"
@@ -1733,14 +1735,28 @@ export default function TunnelDetailPage() {
               <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-4 gap-3 md:gap-4">
                 {/* 基本信息 */}
                 <CellValue
-                  icon={<Icon icon="lucide:hash" className="text-default-600" width={18} height={18} />}
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:hash"
+                      width={18}
+                    />
+                  }
                   label="实例ID"
                   value={tunnelInfo.instanceId}
                 />
 
                 {tunnelInfo.config.mode != null && (
                   <CellValue
-                    icon={<Icon icon="tabler:adjustments" className="text-default-600" width={18} height={18} />}
+                    icon={
+                      <Icon
+                        className="text-default-600"
+                        height={18}
+                        icon="tabler:adjustments"
+                        width={18}
+                      />
+                    }
                     label="模式"
                     value={
                       <Chip color="primary" size="sm" variant="flat">
@@ -1754,13 +1770,27 @@ export default function TunnelDetailPage() {
                 )}
 
                 <CellValue
-                  icon={<Icon icon="lucide:server" className="text-default-600" width={18} height={18} />}
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:server"
+                      width={18}
+                    />
+                  }
                   label="主控"
                   value={tunnelInfo.endpoint}
                 />
 
                 <CellValue
-                  icon={<Icon icon="lucide:git-branch" className="text-default-600" width={18} height={18} />}
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:git-branch"
+                      width={18}
+                    />
+                  }
                   label="版本号"
                   value={
                     <Chip color="secondary" size="sm" variant="flat">
@@ -1770,7 +1800,14 @@ export default function TunnelDetailPage() {
                 />
 
                 <CellValue
-                  icon={<Icon icon="lucide:link" className="text-default-600" width={18} height={18} />}
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:link"
+                      width={18}
+                    />
+                  }
                   label="隧道地址"
                   value={
                     <span className="font-mono text-sm">
@@ -1779,7 +1816,14 @@ export default function TunnelDetailPage() {
                   }
                 />
                 <CellValue
-                  icon={<Icon icon="lucide:target" className="text-default-600" width={18} height={18} />}
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:target"
+                      width={18}
+                    />
+                  }
                   label="目标地址"
                   value={
                     <span className="font-mono text-sm">
@@ -1789,7 +1833,14 @@ export default function TunnelDetailPage() {
                 />
 
                 <CellValue
-                  icon={<Icon icon="lucide:file-text" className="text-default-600" width={18} height={18} />}
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:file-text"
+                      width={18}
+                    />
+                  }
                   label="日志级别"
                   value={
                     <div className="flex items-center gap-2">
@@ -1805,7 +1856,7 @@ export default function TunnelDetailPage() {
                         variant="flat"
                       >
                         {tunnelInfo.config.logLevel === "inherit" ||
-                          tunnelInfo.config.logLevel === ""
+                        tunnelInfo.config.logLevel === ""
                           ? tunnelInfo.config.endpointLog
                             ? `继承主控 [${tunnelInfo.config.endpointLog.toUpperCase()}]`
                             : "继承主控"
@@ -1820,17 +1871,24 @@ export default function TunnelDetailPage() {
                 {/* 仅客户端模式下显示 min/max */}
                 {tunnelInfo.type === "client" && (
                   <CellValue
-                    icon={<Icon icon="lucide:layers" className="text-default-600" width={18} height={18} />}
+                    icon={
+                      <Icon
+                        className="text-default-600"
+                        height={18}
+                        icon="lucide:layers"
+                        width={18}
+                      />
+                    }
                     label="池最小值"
                     value={(() => {
                       const min =
                         tunnelInfo.config.min !== undefined &&
-                          tunnelInfo.config.min !== null
+                        tunnelInfo.config.min !== null
                           ? tunnelInfo.config.min
                           : 64;
                       const max =
                         tunnelInfo.config.max !== undefined &&
-                          tunnelInfo.config.max !== null
+                        tunnelInfo.config.max !== null
                           ? tunnelInfo.config.max
                           : 1024;
 
@@ -1847,17 +1905,24 @@ export default function TunnelDetailPage() {
                 )}
                 {tunnelInfo.type === "server" && (
                   <CellValue
-                    icon={<Icon icon="lucide:layers" className="text-default-600" width={18} height={18} />}
+                    icon={
+                      <Icon
+                        className="text-default-600"
+                        height={18}
+                        icon="lucide:layers"
+                        width={18}
+                      />
+                    }
                     label="池最大值"
                     value={(() => {
                       const min =
                         tunnelInfo.config.min !== undefined &&
-                          tunnelInfo.config.min !== null
+                        tunnelInfo.config.min !== null
                           ? tunnelInfo.config.min
                           : 64;
                       const max =
                         tunnelInfo.config.max !== undefined &&
-                          tunnelInfo.config.max !== null
+                        tunnelInfo.config.max !== null
                           ? tunnelInfo.config.max
                           : 1024;
 
@@ -1876,7 +1941,14 @@ export default function TunnelDetailPage() {
                 {tunnelInfo.config.slot !== undefined &&
                   tunnelInfo.config.slot !== null && (
                     <CellValue
-                      icon={<Icon icon="lucide:link-2" className="text-default-600" width={18} height={18} />}
+                      icon={
+                        <Icon
+                          className="text-default-600"
+                          height={18}
+                          icon="lucide:link-2"
+                          width={18}
+                        />
+                      }
                       label="最大连接数限制"
                       value={
                         <span className="font-mono text-sm">
@@ -1886,7 +1958,14 @@ export default function TunnelDetailPage() {
                     />
                   )}
                 <CellValue
-                  icon={<Icon icon="lucide:rotate-ccw" className="text-default-600" width={18} height={18} />}
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:rotate-ccw"
+                      width={18}
+                    />
+                  }
                   label="自动重启"
                   value={
                     <span className="font-mono text-sm text-default-600">
@@ -1901,7 +1980,14 @@ export default function TunnelDetailPage() {
                 {tunnelInfo.type === "server" && (
                   <>
                     <CellValue
-                      icon={<Icon icon="lucide:shield" className="text-default-600" width={18} height={18} />}
+                      icon={
+                        <Icon
+                          className="text-default-600"
+                          height={18}
+                          icon="lucide:shield"
+                          width={18}
+                        />
+                      }
                       label="TLS 设置"
                       value={
                         <div className="flex items-center gap-2">
@@ -1933,12 +2019,26 @@ export default function TunnelDetailPage() {
                     {tunnelInfo.config.tlsMode === "2" && (
                       <>
                         <CellValue
-                          icon={<Icon icon="lucide:award" className="text-default-600" width={18} height={18} />}
+                          icon={
+                            <Icon
+                              className="text-default-600"
+                              height={18}
+                              icon="lucide:award"
+                              width={18}
+                            />
+                          }
                           label="证书路径"
                           value={tunnelInfo.config.certPath || "未设置"}
                         />
                         <CellValue
-                          icon={<Icon icon="lucide:key" className="text-default-600" width={18} height={18} />}
+                          icon={
+                            <Icon
+                              className="text-default-600"
+                              height={18}
+                              icon="lucide:key"
+                              width={18}
+                            />
+                          }
                           label="密钥路径"
                           value={tunnelInfo.config.keyPath || "未设置"}
                         />
@@ -1949,7 +2049,14 @@ export default function TunnelDetailPage() {
                 {/* 密码显示 - 仅在有密码时显示 */}
                 {tunnelInfo.password && (
                   <CellValue
-                    icon={<Icon icon="lucide:lock" className="text-default-600" width={18} height={18} />}
+                    icon={
+                      <Icon
+                        className="text-default-600"
+                        height={18}
+                        icon="lucide:lock"
+                        width={18}
+                      />
+                    }
                     label="隧道密码"
                     value={
                       <div className="flex items-center gap-2">
@@ -1970,7 +2077,14 @@ export default function TunnelDetailPage() {
 
                 {tunnelInfo.config.read && (
                   <CellValue
-                    icon={<Icon icon="lucide:clock" className="text-default-600" width={18} height={18} />}
+                    icon={
+                      <Icon
+                        className="text-default-600"
+                        height={18}
+                        icon="lucide:clock"
+                        width={18}
+                      />
+                    }
                     label="读取超时"
                     value={
                       <span className="font-mono text-sm text-default-600">
@@ -1982,7 +2096,14 @@ export default function TunnelDetailPage() {
 
                 {tunnelInfo.config.rate && (
                   <CellValue
-                    icon={<Icon icon="lucide:gauge" className="text-default-600" width={18} height={18} />}
+                    icon={
+                      <Icon
+                        className="text-default-600"
+                        height={18}
+                        icon="lucide:gauge"
+                        width={18}
+                      />
+                    }
                     label="速率限制"
                     value={
                       <span className="font-mono text-sm text-default-600">
@@ -1993,28 +2114,71 @@ export default function TunnelDetailPage() {
                   />
                 )}
                 <CellValue
-                  icon={<Icon icon="lucide:shuffle" className="text-default-600" width={18} height={18} />}
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:shuffle"
+                      width={18}
+                    />
+                  }
                   label="Proxy Protocol"
                   value={
-                    tunnelInfo.config.proxyProtocol === true
-                      ? "开启"
-                      : "关闭"
+                    tunnelInfo.config.proxyProtocol === true ? "开启" : "关闭"
                   }
                 />
                 <CellValue
-                  icon={<Icon icon="lucide:tag" className="text-default-600" width={18} height={18} />}
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:tag"
+                      width={18}
+                    />
+                  }
                   label="标签"
-                  value={tunnelInfo?.instanceTags && tunnelInfo.instanceTags.length > 0
-                    ? `${tunnelInfo.instanceTags.length} 个标签`
-                    : "无标签"}
+                  value={
+                    tunnelInfo?.instanceTags &&
+                    Array.isArray(tunnelInfo.instanceTags) &&
+                    tunnelInfo.instanceTags.length > 0
+                      ? "已设置"
+                      : "未设置"
+                  }
                   onPress={handleInstanceTagClick}
+                />
+                <CellValue
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:bug"
+                      width={18}
+                    />
+                  }
+                  label="测试网络"
+                  value={"点击测试连通性"}
+                  onPress={() => setTcpingModalOpen(true)}
                 />
               </div>
               {/* 分隔线和命令行信息 */}
               <Divider className="my-4" />
 
               {/* 命令行信息 */}
-              <div className="space-y-3">
+              <div className="flex gap-2 items-center">
+                <Button
+                  isIconOnly
+                  color="default"
+                  startContent={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:terminal"
+                      width={18}
+                    />
+                  }
+                  variant="flat"
+                  onPress={() => setTcpingModalOpen(true)}
+                />
                 <Snippet
                   className="xs:text-xs"
                   hideCopyButton={false}
@@ -2027,16 +2191,237 @@ export default function TunnelDetailPage() {
           </CardBody>
         </Card>
 
+        {/* 标准字段信息 */}
+        {(() => {
+          // 解析标签数据
+          const parseTagsData = () => {
+            if (
+              !tunnelInfo?.instanceTags ||
+              !Array.isArray(tunnelInfo.instanceTags)
+            ) {
+              return {};
+            }
+
+            const data: Record<string, string> = {};
+
+            tunnelInfo.instanceTags.forEach((tag) => {
+              data[tag.key] = tag.value;
+            });
+
+            return data;
+          };
+
+          const tagsData = parseTagsData();
+          const standardFields = [
+            "startDate",
+            "endDate",
+            "amount",
+            "bandwidth",
+            "trafficVol",
+            "trafficType",
+            "IPv4",
+            "IPv6",
+            "networkRoute",
+            "extra",
+          ];
+          const hasStandardFields = standardFields.some(
+            (field) => tagsData[field],
+          );
+
+          // 计算剩余天数
+          const calculateRemainingDays = () => {
+            if (
+              !tagsData.endDate ||
+              tagsData.endDate === "0000-00-00T23:59:59+08:00"
+            ) {
+              return { days: Infinity, isUnlimited: true };
+            }
+
+            const endDate = new Date(tagsData.endDate);
+            const now = new Date();
+            const diffTime = endDate.getTime() - now.getTime();
+            const diffDays = Math.ceil(diffTime / (1000 * 60 * 60 * 24));
+
+            return { days: Math.max(0, diffDays), isUnlimited: false };
+          };
+
+          const { days: remainingDays, isUnlimited } = calculateRemainingDays();
+
+          // 获取剩余天数的颜色
+          const getDaysColor = (days: number, unlimited: boolean) => {
+            if (unlimited) return "success";
+            if (days <= 3) return "danger";
+            if (days <= 7) return "warning";
+            if (days <= 30) return "primary";
+
+            return "success";
+          };
+
+          if (!hasStandardFields) return null;
+
+          return (
+            <Card className="p-2">
+              <CardBody>
+                <div className="flex flex-wrap gap-4">
+                  {/* 价格信息 */}
+                  {tagsData.amount && (
+                    <div className="flex items-center gap-1">
+                      <Icon
+                        className="text-default-600"
+                        height={16}
+                        icon="material-symbols-light:money-bag"
+                        width={16}
+                      />
+                      <span className="text-sm text-default-600">价格:</span>
+                      <Chip color="primary" size="sm" variant="flat">
+                        {tagsData.amount}
+                      </Chip>
+                    </div>
+                  )}
+
+                  {/* 剩余时间 */}
+                  {(tagsData.startDate || tagsData.endDate) && (
+                    <div className="flex items-center gap-1">
+                      <Icon
+                        className="text-default-600"
+                        height={16}
+                        icon="lucide:clock"
+                        width={16}
+                      />
+                      <span className="text-sm text-default-600">
+                        剩余时间:
+                      </span>
+                      <Chip
+                        color={getDaysColor(remainingDays, isUnlimited)}
+                        size="sm"
+                        variant="flat"
+                      >
+                        {isUnlimited ? "无限期" : `${remainingDays} 天`}
+                      </Chip>
+                    </div>
+                  )}
+
+                  {/* 带宽信息 */}
+                  {tagsData.bandwidth && (
+                    <div className="flex items-center gap-1">
+                      <Icon
+                        className="text-default-600"
+                        height={16}
+                        icon="lucide:gauge"
+                        width={16}
+                      />
+                      <span className="text-sm text-default-600">带宽:</span>
+                      <Chip color="primary" size="sm" variant="flat">
+                        {tagsData.bandwidth}
+                      </Chip>
+                    </div>
+                  )}
+
+                  {/* 流量信息 */}
+                  {tagsData.trafficVol && (
+                    <div className="flex items-center gap-1">
+                      <Icon
+                        className="text-default-600"
+                        height={16}
+                        icon="lucide:activity"
+                        width={16}
+                      />
+                      <span className="text-sm text-default-600">流量:</span>
+                      <Chip color="success" size="sm" variant="flat">
+                        {tagsData.trafficVol}
+                      </Chip>
+                    </div>
+                  )}
+
+                  {/* 路由信息 */}
+                  {tagsData.networkRoute && (
+                    <div className="flex items-center gap-1">
+                      <Icon
+                        className="text-default-600"
+                        height={16}
+                        icon="lucide:route"
+                        width={16}
+                      />
+                      <span className="text-sm text-default-600">路由:</span>
+                      <Chip color="default" size="sm" variant="flat">
+                        {tagsData.networkRoute}
+                      </Chip>
+                    </div>
+                  )}
+
+                  {/* 网络信息 */}
+                  {(tagsData.IPv4 === "1" ||
+                    tagsData.IPv6 === "1" ||
+                    tagsData.trafficType) && (
+                    <div className="flex items-center gap-1">
+                      <Icon
+                        className="text-default-600"
+                        height={16}
+                        icon="lucide:globe"
+                        width={16}
+                      />
+                      <span className="text-sm text-default-600">网络:</span>
+                      <div className="flex gap-1">
+                        {tagsData.IPv4 === "1" && (
+                          <Chip color="secondary" size="sm" variant="flat">
+                            IPv4
+                          </Chip>
+                        )}
+                        {tagsData.IPv6 === "1" && (
+                          <Chip color="secondary" size="sm" variant="flat">
+                            IPv6
+                          </Chip>
+                        )}
+                        {/* {tagsData.trafficType && (
+                          <Chip color="warning" size="sm" variant="flat">
+                            {tagsData.trafficType === '1' ? '单向计算' : '双向计算'}
+                          </Chip>
+                        )} */}
+                      </div>
+                    </div>
+                  )}
+
+                  {/* 额外信息 */}
+                  {tagsData.extra && (
+                    <div className="flex items-center gap-1">
+                      <Icon
+                        className="text-default-600"
+                        height={16}
+                        icon="lucide:info"
+                        width={16}
+                      />
+                      <span className="text-sm text-default-600">其他:</span>
+                      <div className="flex gap-1">
+                        {tagsData.extra.split(",").map((item, index) => (
+                          <Chip
+                            key={index}
+                            color="default"
+                            size="sm"
+                            variant="flat"
+                          >
+                            {item.trim()}
+                          </Chip>
+                        ))}
+                      </div>
+                    </div>
+                  )}
+                </div>
+              </CardBody>
+            </Card>
+          );
+        })()}
+
         {/* 实例操作 */}
-        <Card className="p-2">
-          <CardHeader className="flex items-center justify-between pb-0">
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold">实例操作</h3>
-            </div>
-          </CardHeader>
-          <CardBody>
-            <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
-              <Button
+        {false && (
+          <Card className="p-2">
+            <CardHeader className="flex items-center justify-between pb-0">
+              <div className="flex items-center gap-2">
+                <h3 className="text-lg font-semibold">实例操作</h3>
+              </div>
+            </CardHeader>
+            <CardBody>
+              <div className="grid grid-cols-2 md:grid-cols-5 gap-4">
+                {/* <Button
                 className="h-16 flex flex-col items-center justify-center gap-1 p-2"
                 color="danger"
                 isDisabled={resetLoading}
@@ -2046,50 +2431,21 @@ export default function TunnelDetailPage() {
               >
                 <FontAwesomeIcon className="w-5 h-5" icon={faHammer} />
                 <span className="text-xs">重置实例</span>
-              </Button>
-              <Button
-                className="h-16 flex flex-col items-center justify-center gap-1 p-2"
-                color="primary"
-                size="md"
-                variant="flat"
-                onClick={handleRenameClick}
-              >
-                <FontAwesomeIcon className="w-5 h-5" icon={faPen} />
-                <span className="text-xs">重命名</span>
-              </Button>
-              <Button
-                className="h-16 flex flex-col items-center justify-center gap-1 p-2"
-                color="warning"
-                size="md"
-                variant="flat"
-                onClick={() => setTcpingModalOpen(true)}
-              >
-                <FontAwesomeIcon className="w-5 h-5" icon={faBug} />
-                <span className="text-xs">网络诊断</span>
-              </Button>
-              <Button
-                className="h-16 flex flex-col items-center justify-center gap-1 p-2"
-                color="default"
-                size="md"
-                variant="flat"
-                onClick={handleInstanceTagClick}
-              >
-                <FontAwesomeIcon className="w-5 h-5" icon={faTag} />
-                <span className="text-xs">实例标签</span>
-              </Button>
-              <Button
-                className="h-16 flex flex-col items-center justify-center gap-1 p-2"
-                color="danger"
-                size="md"
-                variant="flat"
-                onClick={handleDeleteClick}
-              >
-                <FontAwesomeIcon className="w-5 h-5" icon={faTrash} />
-                <span className="text-xs">删除实例</span>
-              </Button>
-            </div>
-          </CardBody>
-        </Card>
+              </Button> */}
+                <Button
+                  className="h-16 flex flex-col items-center justify-center gap-1 p-2"
+                  color="warning"
+                  size="md"
+                  variant="flat"
+                  onClick={() => setTcpingModalOpen(true)}
+                >
+                  <FontAwesomeIcon className="w-5 h-5" icon={faBug} />
+                  <span className="text-xs">网络诊断</span>
+                </Button>
+              </div>
+            </CardBody>
+          </Card>
+        )}
 
         {/* 实例设置 - 临时隐藏 */}
         {false && (
@@ -2756,16 +3112,16 @@ export default function TunnelDetailPage() {
       <RenameTunnelModal
         currentName={tunnelInfo?.name || ""}
         isOpen={isRenameModalOpen}
-        tunnelId={tunnelInfo?.id || 0}
+        tunnelId={tunnelInfo?.id?.toString() || ""}
         onOpenChange={setIsRenameModalOpen}
         onRenamed={handleRenameSuccess}
       />
       {/* 实例标签模态框 */}
       <InstanceTagModal
-        isOpen={isInstanceTagModalOpen}
-        onOpenChange={setIsInstanceTagModalOpen}
-        tunnelId={tunnelInfo?.id?.toString() || ""}
         currentTags={tunnelInfo?.instanceTags || []}
+        isOpen={isInstanceTagModalOpen}
+        tunnelId={tunnelInfo?.id?.toString() || ""}
+        onOpenChange={setIsInstanceTagModalOpen}
         onSaved={handleInstanceTagSaved}
       />
 

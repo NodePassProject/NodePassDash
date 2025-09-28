@@ -211,9 +211,9 @@ export default function BatchUrlCreateTunnelModal({
 
   return (
     <Modal
-      isOpen={isOpen} 
-      placement="center" 
-      scrollBehavior="inside" 
+      isOpen={isOpen}
+      placement="center"
+      scrollBehavior="inside"
       size="5xl"
       onOpenChange={onOpenChange}
     >
@@ -229,7 +229,9 @@ export default function BatchUrlCreateTunnelModal({
                 color="primary"
                 isDisabled={loading}
                 size="sm"
-                startContent={<FontAwesomeIcon icon={faPlus} className="text-xs" />}
+                startContent={
+                  <FontAwesomeIcon className="text-xs" icon={faPlus} />
+                }
                 variant="flat"
                 onClick={addNewRule}
               >
@@ -275,12 +277,21 @@ export default function BatchUrlCreateTunnelModal({
                                     <Select
                                       isRequired
                                       placeholder="选择主控"
-                                      selectedKeys={rule.endpointId ? [rule.endpointId] : []}
+                                      selectedKeys={
+                                        rule.endpointId ? [rule.endpointId] : []
+                                      }
                                       size="sm"
                                       variant="bordered"
                                       onSelectionChange={(keys) => {
-                                        const selected = Array.from(keys)[0] as string;
-                                        updateRule(rule.id, 'endpointId', selected);
+                                        const selected = Array.from(
+                                          keys,
+                                        )[0] as string;
+
+                                        updateRule(
+                                          rule.id,
+                                          "endpointId",
+                                          selected,
+                                        );
                                       }}
                                     >
                                       {endpoints.map((endpoint) => (
@@ -298,7 +309,9 @@ export default function BatchUrlCreateTunnelModal({
                                       size="sm"
                                       value={rule.name}
                                       variant="bordered"
-                                      onValueChange={(value) => updateRule(rule.id, 'name', value)}
+                                      onValueChange={(value) =>
+                                        updateRule(rule.id, "name", value)
+                                      }
                                     />
                                   </div>
 
@@ -310,7 +323,9 @@ export default function BatchUrlCreateTunnelModal({
                                       size="sm"
                                       value={rule.url}
                                       variant="bordered"
-                                      onValueChange={(value) => updateRule(rule.id, 'url', value)}
+                                      onValueChange={(value) =>
+                                        updateRule(rule.id, "url", value)
+                                      }
                                     />
                                   </div>
                                 </div>
@@ -322,8 +337,8 @@ export default function BatchUrlCreateTunnelModal({
                                   onClick={() => removeRule(rule.id)}
                                 >
                                   <FontAwesomeIcon
-                                    icon={faTrash}
                                     className="text-xs"
+                                    icon={faTrash}
                                   />
                                 </Button>
                               </div>
@@ -338,8 +353,8 @@ export default function BatchUrlCreateTunnelModal({
             </ModalBody>
             <ModalFooter>
               <Button
-                color="default" 
-                isDisabled={submitting} 
+                color="default"
+                isDisabled={submitting}
                 variant="light"
                 onPress={() => {
                   resetForm();
@@ -352,7 +367,9 @@ export default function BatchUrlCreateTunnelModal({
                 color="primary"
                 isDisabled={loading || tunnelRules.length === 0}
                 isLoading={submitting}
-                startContent={!submitting ? <FontAwesomeIcon icon={faHammer} /> : null}
+                startContent={
+                  !submitting ? <FontAwesomeIcon icon={faHammer} /> : null
+                }
                 onPress={handleSubmit}
               >
                 {submitting ? "创建中..." : `批量创建 (${tunnelRules.length})`}

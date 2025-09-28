@@ -1,20 +1,12 @@
-import React, {
-  useCallback,
-  useEffect,
-  useRef,
-  useState,
-  useMemo,
-} from "react";
+import React, { useCallback, useEffect, useRef, useState } from "react";
 import {
   Button,
   Card,
   CardBody,
   CardHeader,
-  Badge,
   Chip,
   Divider,
   Skeleton,
-  Code,
   Modal,
   ModalContent,
   ModalBody,
@@ -44,7 +36,6 @@ import {
   faClock,
   faPlus,
   faSync,
-  faPen,
   faCopy,
   faPlug,
   faPlugCircleXmark,
@@ -56,8 +47,8 @@ import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
 import { addToast } from "@heroui/toast";
-
 import QRCode from "qrcode";
+
 import { buildApiUrl, formatUrlWithPrivacy } from "@/lib/utils";
 import { OSIcon } from "@/components/ui/os-icon";
 import { useSettings } from "@/components/providers/settings-provider";
@@ -303,6 +294,7 @@ export default function EndpointDetailPage() {
       const res = await fetch(
         buildApiUrl(`/api/endpoints/${endpointId}/detail`),
       );
+
       if (!res.ok) throw new Error("获取主控详情失败");
       const data = await res.json();
 
@@ -330,6 +322,7 @@ export default function EndpointDetailPage() {
       const res = await fetch(
         buildApiUrl(`/api/endpoints/${endpointId}/stats`),
       );
+
       if (!res.ok) throw new Error("获取统计信息失败");
       const data = await res.json();
 
@@ -356,6 +349,7 @@ export default function EndpointDetailPage() {
       const res = await fetch(
         buildApiUrl(`/api/endpoints/${endpointId}/instances`),
       );
+
       if (!res.ok) throw new Error("获取实例列表失败");
       const data = await res.json();
 
@@ -364,6 +358,7 @@ export default function EndpointDetailPage() {
           .map((item: any) => {
             const cmd = item.commandLine || item.url || "";
             let ty = item.type || item.mode || "";
+
             if (!ty && typeof cmd === "string") {
               ty = cmd.includes("client://") ? "client" : "server";
             }
@@ -379,6 +374,7 @@ export default function EndpointDetailPage() {
           .filter(
             (x: any) => x.type && x.instanceId && x.instanceId !== "********",
           );
+
         setInstances(list);
       } else {
         console.warn("获取实例数据格式错误:", data);
@@ -632,6 +628,7 @@ export default function EndpointDetailPage() {
         description: "隧道 URL 不能为空",
         color: "warning",
       });
+
       return;
     }
     try {
@@ -674,6 +671,7 @@ export default function EndpointDetailPage() {
     if (match) {
       const baseUrl = match[1]; // 基础URL部分
       const apiPath = match[2] || "/api"; // API路径部分，默认为 /api
+
       return { baseUrl, apiPath };
     }
 
@@ -705,6 +703,7 @@ export default function EndpointDetailPage() {
         description: "名称和URL地址不能为空",
         color: "warning",
       });
+
       return;
     }
 
@@ -723,6 +722,7 @@ export default function EndpointDetailPage() {
         description: "未检测到任何配置变更",
         color: "warning",
       });
+
       return;
     }
 
@@ -875,9 +875,9 @@ export default function EndpointDetailPage() {
         <div className="flex items-center gap-3">
           <Button
             isIconOnly
+            className="bg-default-100 hover:bg-default-200"
             variant="flat"
             onClick={() => navigate(-1)}
-            className="bg-default-100 hover:bg-default-200"
           >
             <FontAwesomeIcon icon={faArrowLeft} />
           </Button>
@@ -893,10 +893,14 @@ export default function EndpointDetailPage() {
               )}
               <Chip
                 color={
-                  endpointDetail.status === 'ONLINE' ? 'success' : 
-                  endpointDetail.status === 'FAIL' ? 'danger' : 
-                  endpointDetail.status === 'DISCONNECT' ? 'default' : 'warning'
-                } 
+                  endpointDetail.status === "ONLINE"
+                    ? "success"
+                    : endpointDetail.status === "FAIL"
+                      ? "danger"
+                      : endpointDetail.status === "DISCONNECT"
+                        ? "default"
+                        : "warning"
+                }
                 variant="flat"
               >
                 {endpointDetail.status === "ONLINE"
@@ -955,14 +959,12 @@ export default function EndpointDetailPage() {
       </div>
 
       {/* 系统监控统计图 - 仅在实验模式下显示 */}
-      {settings.isExperimentalMode && (
-        <SystemStatsCharts
-          endpointId={endpointId ? parseInt(endpointId) : null}
-          endpointOS={endpointDetail?.os || null}
-          endpointVersion={endpointDetail?.ver || null}
-          isExperimentalMode={settings.isExperimentalMode}
-        />
-      )}
+      <SystemStatsCharts
+        endpointId={endpointId ? parseInt(endpointId) : null}
+        endpointOS={endpointDetail?.os || null}
+        endpointVersion={endpointDetail?.ver || null}
+        isExperimentalMode={true}
+      />
 
       {/* 统计信息卡片 */}
       <Card className="p-2">
@@ -994,8 +996,8 @@ export default function EndpointDetailPage() {
               {/* 隧道数量 */}
               <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 border border-primary/20">
                 <FontAwesomeIcon
-                  icon={faLayerGroup}
                   className="text-primary text-xl"
+                  icon={faLayerGroup}
                 />
                 <div>
                   <p className="text-xs text-default-600">实例总数量</p>
@@ -1009,8 +1011,8 @@ export default function EndpointDetailPage() {
               {/* 日志文件数 */}
               <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-secondary/20 via-secondary/10 to-secondary/5 border border-secondary/20">
                 <FontAwesomeIcon
-                  icon={faFileLines}
                   className="text-secondary text-xl"
+                  icon={faFileLines}
                 />
                 <div>
                   <p className="text-xs text-default-600">日志文件数</p>
@@ -1024,8 +1026,8 @@ export default function EndpointDetailPage() {
               {/* 日志文件大小 */}
               <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-success/20 via-success/10 to-success/5 border border-success/20">
                 <FontAwesomeIcon
-                  icon={faHardDrive}
                   className="text-success text-xl"
+                  icon={faHardDrive}
                 />
                 <div>
                   <p className="text-xs text-default-600">日志文件大小</p>
@@ -1039,8 +1041,8 @@ export default function EndpointDetailPage() {
               {/* 总流量 */}
               <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-warning/20 via-warning/10 to-warning/5 border border-warning/20">
                 <FontAwesomeIcon
-                  icon={faWifi}
                   className="text-warning text-xl"
+                  icon={faWifi}
                 />
                 <div>
                   <p className="text-xs text-default-600">总流量</p>
@@ -1095,7 +1097,7 @@ export default function EndpointDetailPage() {
               {/* 网络调试 */}
               <Button
                 color="primary"
-                isDisabled={endpointDetail.status !== 'ONLINE'}
+                isDisabled={endpointDetail.status !== "ONLINE"}
                 startContent={<FontAwesomeIcon icon={faNetworkWired} />}
                 variant="flat"
                 onPress={onNetworkDebugOpen}
@@ -1229,10 +1231,10 @@ export default function EndpointDetailPage() {
                       <span>操作系统</span>
                     </div>
                     <Chip
+                      className="font-mono"
+                      color="primary"
                       size="sm"
                       variant="flat"
-                      color="primary"
-                      className="font-mono"
                     >
                       <div className="flex items-center gap-2">
                         <OSIcon className="w-3 h-3" os={endpointDetail.os} />
@@ -1249,16 +1251,16 @@ export default function EndpointDetailPage() {
                       <span>架构</span>
                     </div>
                     <Chip
+                      className="font-mono"
+                      color="secondary"
                       size="sm"
                       variant="flat"
-                      color="secondary"
-                      className="font-mono"
                     >
                       <div className="flex items-center gap-2">
                         <OSIcon
                           arch={endpointDetail.arch}
-                          type="arch"
                           className="w-3 h-3"
+                          type="arch"
                         />
                         {endpointDetail.arch}
                       </div>
@@ -1273,8 +1275,8 @@ export default function EndpointDetailPage() {
                       <span>日志级别</span>
                     </div>
                     <Chip
-                      className="font-mono" 
-                      color={getLogLevelColor(endpointDetail.log)} 
+                      className="font-mono"
+                      color={getLogLevelColor(endpointDetail.log)}
                       size="sm"
                       variant="flat"
                     >
@@ -1291,8 +1293,10 @@ export default function EndpointDetailPage() {
                     </div>
                     <div className="flex items-center gap-2">
                       <Chip
-                        color={endpointDetail.tls === '0' ? 'default' : 'success'} 
-                        size="sm" 
+                        color={
+                          endpointDetail.tls === "0" ? "default" : "success"
+                        }
+                        size="sm"
                         variant="flat"
                       >
                         {getTlsDescription(endpointDetail.tls)}
@@ -1312,10 +1316,10 @@ export default function EndpointDetailPage() {
                       <span>在线时长</span>
                     </div>
                     <Chip
+                      className="font-mono"
+                      color="success"
                       size="sm"
                       variant="flat"
-                      color="success"
-                      className="font-mono"
                     >
                       {formatUptime(endpointDetail.uptime)}
                     </Chip>
@@ -1444,8 +1448,8 @@ export default function EndpointDetailPage() {
                         }`}
                       >
                         <FontAwesomeIcon
-                          className="text-xs" 
-                          icon={ins.type === 'server' ? faServer : faDesktop} 
+                          className="text-xs"
+                          icon={ins.type === "server" ? faServer : faDesktop}
                         />
                       </div>
 
@@ -1471,8 +1475,8 @@ export default function EndpointDetailPage() {
                     {/* 左下角类型标签 */}
                     <div className="absolute bottom-2 left-2">
                       <Chip
-                        className="text-xs h-4 px-2" 
-                        color={ins.type === 'server' ? 'primary' : 'secondary'} 
+                        className="text-xs h-4 px-2"
+                        color={ins.type === "server" ? "primary" : "secondary"}
                         size="sm"
                         variant="flat"
                       >
@@ -1490,8 +1494,8 @@ export default function EndpointDetailPage() {
       {/* 提取模态框 */}
       <Modal
         isOpen={extractOpen}
-        onClose={() => setExtractOpen(false)}
         size="lg"
+        onClose={() => setExtractOpen(false)}
       >
         <ModalContent>
           {() => (
@@ -1526,8 +1530,8 @@ export default function EndpointDetailPage() {
       {/* 添加实例模态框 */}
       <Modal
         isOpen={isAddTunnelOpen}
-        onOpenChange={onAddTunnelOpenChange}
         placement="center"
+        onOpenChange={onAddTunnelOpenChange}
       >
         <ModalContent>
           {(onClose) => (
@@ -1570,9 +1574,9 @@ export default function EndpointDetailPage() {
       {/* 修改配置模态框 */}
       <Modal
         isOpen={isEditConfigOpen}
-        onOpenChange={onEditConfigOpenChange}
         placement="center"
         size="lg"
+        onOpenChange={onEditConfigOpenChange}
       >
         <ModalContent>
           {(onClose) => (
@@ -1586,12 +1590,18 @@ export default function EndpointDetailPage() {
 
                   <Input
                     isRequired
-                    endContent={<span className="text-xs text-default-500">{configForm.name.length}/25</span>}
+                    endContent={
+                      <span className="text-xs text-default-500">
+                        {configForm.name.length}/25
+                      </span>
+                    }
                     label="主控名称"
                     maxLength={25}
                     placeholder="请输入主控名称"
                     value={configForm.name}
-                    onValueChange={(value) => setConfigForm(prev => ({...prev, name: value}))}
+                    onValueChange={(value) =>
+                      setConfigForm((prev) => ({ ...prev, name: value }))
+                    }
                   />
 
                   <Input
@@ -1600,7 +1610,9 @@ export default function EndpointDetailPage() {
                     placeholder="http(s)://example.com:9090/api/v1"
                     type="url"
                     value={configForm.url}
-                    onValueChange={(value) => setConfigForm(prev => ({...prev, url: value}))}
+                    onValueChange={(value) =>
+                      setConfigForm((prev) => ({ ...prev, url: value }))
+                    }
                   />
 
                   <Input
@@ -1609,7 +1621,9 @@ export default function EndpointDetailPage() {
                     placeholder="留空表示不修改密钥"
                     type="password"
                     value={configForm.apiKey}
-                    onValueChange={(value) => setConfigForm(prev => ({...prev, apiKey: value}))}
+                    onValueChange={(value) =>
+                      setConfigForm((prev) => ({ ...prev, apiKey: value }))
+                    }
                   />
                 </div>
               </ModalBody>
@@ -1634,8 +1648,8 @@ export default function EndpointDetailPage() {
               <ModalHeader>导入URL</ModalHeader>
               <ModalBody>
                 <Textarea
-                  placeholder="在此粘贴 URL，每行一个..."
                   minRows={10}
+                  placeholder="在此粘贴 URL，每行一个..."
                 />
               </ModalBody>
               <ModalFooter>
@@ -1661,8 +1675,8 @@ export default function EndpointDetailPage() {
       {/* 重置密钥确认模态框 */}
       <Modal
         isOpen={isResetApiKeyOpen}
-        onOpenChange={onResetApiKeyOpenChange}
         placement="center"
+        onOpenChange={onResetApiKeyOpenChange}
       >
         <ModalContent>
           {(onClose) => (
@@ -1676,8 +1690,8 @@ export default function EndpointDetailPage() {
                   <div className="p-4 bg-warning-50 border border-warning-200 rounded-lg">
                     <div className="flex items-start gap-3">
                       <FontAwesomeIcon
-                        icon={faKey}
                         className="text-warning text-lg mt-0.5"
+                        icon={faKey}
                       />
                       <div>
                         <h4 className="font-semibold text-warning-800 mb-1">
@@ -1715,8 +1729,8 @@ export default function EndpointDetailPage() {
       {/* 删除主控确认模态框 */}
       <Modal
         isOpen={isDeleteEndpointOpen}
-        onOpenChange={onDeleteEndpointOpenChange}
         placement="center"
+        onOpenChange={onDeleteEndpointOpenChange}
       >
         <ModalContent>
           {(onClose) => (
@@ -1730,8 +1744,8 @@ export default function EndpointDetailPage() {
                   <div className="p-4 bg-danger-50 border border-danger-200 rounded-lg">
                     <div className="flex items-start gap-3">
                       <FontAwesomeIcon
-                        icon={faTrash}
                         className="text-danger text-lg mt-0.5"
+                        icon={faTrash}
                       />
                       <div>
                         <h4 className="font-semibold text-danger-800 mb-1">
@@ -1771,9 +1785,9 @@ export default function EndpointDetailPage() {
       {/* 二维码模态框 */}
       <Modal
         isOpen={isQrCodeOpen}
-        onOpenChange={onQrCodeOpenChange}
         placement="center"
         size="lg"
+        onOpenChange={onQrCodeOpenChange}
       >
         <ModalContent>
           {(onClose) => (
@@ -1788,9 +1802,9 @@ export default function EndpointDetailPage() {
                     <>
                       <div className="p-4 bg-white rounded-lg border">
                         <img
-                          src={qrCodeDataUrl}
                           alt="主控配置二维码"
                           className="w-64 h-64"
+                          src={qrCodeDataUrl}
                         />
                       </div>
                       <p className="text-sm text-default-500 text-center">
@@ -1805,14 +1819,14 @@ export default function EndpointDetailPage() {
                         <div className="flex items-center justify-center gap-4">
                           {/* iOS 应用 */}
                           <a
-                            href="https://apps.apple.com/us/app/nodepass/id6747930492"
-                            target="_blank"
-                            rel="noopener noreferrer"
                             className="flex items-center gap-2 px-4 py-2 bg-black text-white rounded-lg hover:bg-gray-800 transition-colors"
+                            href="https://apps.apple.com/us/app/nodepass/id6747930492"
+                            rel="noopener noreferrer"
+                            target="_blank"
                           >
                             <Icon
-                              icon="simple-icons:apple"
                               className="w-5 h-5 text-white"
+                              icon="simple-icons:apple"
                             />
                             <span className="text-sm font-medium">
                               iOS 版本
@@ -1821,6 +1835,7 @@ export default function EndpointDetailPage() {
 
                           {/* Android 应用 */}
                           <button
+                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
                             onClick={() => {
                               addToast({
                                 title: "正在开发中",
@@ -1829,11 +1844,10 @@ export default function EndpointDetailPage() {
                                 color: "warning",
                               });
                             }}
-                            className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
                           >
                             <Icon
-                              icon="simple-icons:android"
                               className="w-5 h-5 text-white"
+                              icon="simple-icons:android"
                             />
                             <span className="text-sm font-medium">
                               Android 版本
