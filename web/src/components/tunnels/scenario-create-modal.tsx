@@ -53,6 +53,7 @@ interface TemplateCreateRequest {
   tls?: number;
   cert_path?: string;
   key_path?: string;
+  tunnel_name?: string;
   inbounds?: {
     target_host: string;
     target_port: number;
@@ -215,6 +216,7 @@ export default function ScenarioCreateModal({
           listen_host: "",
           listen_port: parseInt(formData.relayListenPort),
           mode: "single",
+          tunnel_name: formData.tunnelName,
           inbounds: {
             target_host: formData.targetServerAddress,
             target_port: parseInt(formData.targetServicePort),
@@ -240,6 +242,7 @@ export default function ScenarioCreateModal({
           listen_port: parseInt(formData.relayTunnelPort2),
           mode: "bothway",
           tls: parseInt(formData.doubleTlsType),
+          tunnel_name: formData.tunnelName,
           inbounds: {
             target_host: "",
             target_port: parseInt(formData.relayListenPort2),
@@ -278,6 +281,7 @@ export default function ScenarioCreateModal({
           listen_port: parseInt(formData.publicTunnelPort),
           mode: "intranet",
           tls: parseInt(formData.natTlsType),
+          tunnel_name: formData.tunnelName,
           inbounds: {
             target_host: "",
             target_port: parseInt(formData.publicListenPort),

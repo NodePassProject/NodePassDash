@@ -1588,6 +1588,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		TLS        int    `json:"tls,omitempty"`
 		CertPath   string `json:"cert_path,omitempty"`
 		KeyPath    string `json:"key_path,omitempty"`
+		TunnelName string `json:"tunnel_name,omitempty"`
 		Inbounds   *struct {
 			TargetHost string `json:"target_host"`
 			TargetPort int    `json:"target_port"`
@@ -1659,8 +1660,13 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 			req.Log,
 		)
 
-		// 生成隧道名称 - 单端模式使用主控名-single-时间戳
-		tunnelName := fmt.Sprintf("%s-single-%d", endpointName, time.Now().Unix())
+		// 生成隧道名称 - 优先使用用户提供的名称，否则自动生成
+		var tunnelName string
+		if req.TunnelName != "" {
+			tunnelName = req.TunnelName
+		} else {
+			tunnelName = fmt.Sprintf("%s-single-%d", endpointName, time.Now().Unix())
+		}
 
 		// 使用直接URL模式创建隧道，超时时间为 3 秒
 		if err := h.tunnelService.QuickCreateTunnelDirectURL(req.Inbounds.MasterID, tunnelURL, tunnelName, 3*time.Second); err != nil {
@@ -1801,10 +1807,16 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 			req.Log,
 		)
 
-		// ⇔生成隧道名称 - 格式：${入口主控名}to${出口主控名}-${类型}-${时间}
-		timestamp := time.Now().Unix()
-		serverTunnelName := fmt.Sprintf("%s->%s-s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
-		clientTunnelName := fmt.Sprintf("%s->%s-c-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
+		// 生成隧道名称 - 优先使用用户提供的名称，否则自动生成
+		var serverTunnelName, clientTunnelName string
+		if req.TunnelName != "" {
+			serverTunnelName = req.TunnelName + "-s"
+			clientTunnelName = req.TunnelName + "-c"
+		} else {
+			timestamp := time.Now().Unix()
+			serverTunnelName = fmt.Sprintf("%s->%s-s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
+			clientTunnelName = fmt.Sprintf("%s->%s-c-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
+		}
 
 		log.Infof("[API] 开始创建双端隧道 - 先创建server端，再创建client端")
 
@@ -1971,10 +1983,16 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 			req.Log,
 		)
 
-		// 生成隧道名称 - 格式：${入口主控名}to${出口主控名}-${类型}-${时间}
-		timestamp := time.Now().Unix()
-		serverTunnelName := fmt.Sprintf("%s->%s-s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
-		clientTunnelName := fmt.Sprintf("%s->%s-c-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
+		// 生成隧道名称 - 优先使用用户提供的名称，否则自动生成
+		var serverTunnelName, clientTunnelName string
+		if req.TunnelName != "" {
+			serverTunnelName = req.TunnelName + "-s"
+			clientTunnelName = req.TunnelName + "-c"
+		} else {
+			timestamp := time.Now().Unix()
+			serverTunnelName = fmt.Sprintf("%s->%s-s-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
+			clientTunnelName = fmt.Sprintf("%s->%s-c-%d", clientEndpoint.Name, serverEndpoint.Name, timestamp)
+		}
 
 		log.Infof("[API] 开始创建内网穿透隧道 - 先创建server端，再创建client端")
 
