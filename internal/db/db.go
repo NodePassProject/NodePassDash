@@ -5,8 +5,11 @@ import (
 	"NodePassDash/internal/models"
 	"context"
 	"database/sql"
+	"fmt"
+	"io"
 	"log"
 	"os"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -27,7 +30,13 @@ var (
 
 // GetDB 获取GORM数据库实例
 func GetDB() *gorm.DB {
-	// 确保public目录存在
+	// 处理 Docker Compose 配置迁移兼容性
+	if err := handleDockerComposeMigration(); err != nil {
+		log.Printf("[数据库迁移] Docker Compose 配置迁移失败: %v", err)
+		// 迁移失败不阻止启动，但会记录错误
+	}
+
+	// 确保db目录存在
 	dbDir := "db"
 	if err := ensureDir(dbDir); err != nil {
 		return nil
@@ -393,4 +402,175 @@ func ensureDir(dir string) error {
 		return os.MkdirAll(dir, 0755)
 	}
 	return nil
+}
+
+// handleDockerComposeMigration 处理 Docker Compose 配置迁移兼容性
+// 这个函数确保从旧的 ./public:/app/public 映射迁移到新的 ./db:/app/db 映射时数据不丢失
+func handleDockerComposeMigration() error {
+	const (
+		publicDir    = "public"
+		dbDir        = "db"
+		databaseFile = "database.db"
+	)
+
+	publicPath := filepath.Join(publicDir, databaseFile)
+	dbPath := filepath.Join(dbDir, databaseFile)
+
+	// 检查 public 文件夹是否存在
+	publicDirInfo, err := os.Stat(publicDir)
+	if os.IsNotExist(err) {
+		// public 文件夹不存在，说明使用的是新配置，无需处理
+		log.Printf("[数据库迁移] public 文件夹不存在，跳过迁移兼容性处理")
+		return nil
+	}
+
+	if err != nil {
+		return fmt.Errorf("检查 public 文件夹状态失败: %v", err)
+	}
+
+	if !publicDirInfo.IsDir() {
+		return fmt.Errorf("public 路径存在但不是文件夹")
+	}
+
+	// 检查 public 文件夹中是否已经存在 database.db
+	if _, err := os.Stat(publicPath); err == nil {
+		// public/database.db 已存在，需要创建软链接到 db 文件夹
+		log.Printf("[数据库迁移] 检测到 public/database.db，创建软链接到 db 文件夹")
+
+		// 确保 db 目录存在
+		if err := ensureDir(dbDir); err != nil {
+			return fmt.Errorf("创建 db 目录失败: %v", err)
+		}
+
+		// 如果 db/database.db 已存在，先删除它（避免冲突）
+		if _, err := os.Stat(dbPath); err == nil {
+			if err := os.Remove(dbPath); err != nil {
+				return fmt.Errorf("删除现有 db/database.db 失败: %v", err)
+			}
+			log.Printf("[数据库迁移] 已删除现有的 db/database.db")
+		}
+
+		// 创建软链接从 db/database.db 指向 public/database.db
+		absPublicPath, err := filepath.Abs(publicPath)
+		if err != nil {
+			return fmt.Errorf("获取 public/database.db 绝对路径失败: %v", err)
+		}
+
+		if err := os.Symlink(absPublicPath, dbPath); err != nil {
+			return fmt.Errorf("创建软链接 %s -> %s 失败: %v", dbPath, absPublicPath, err)
+		}
+
+		log.Printf("[数据库迁移] 成功创建软链接: %s -> %s", dbPath, absPublicPath)
+		return nil
+	}
+
+	// public 文件夹存在但没有 database.db，检查是否为空
+	entries, err := os.ReadDir(publicDir)
+	if err != nil {
+		return fmt.Errorf("读取 public 文件夹内容失败: %v", err)
+	}
+
+	// 检查 public 文件夹是否为空（或仅包含隐藏文件）
+	isEmpty := true
+	for _, entry := range entries {
+		if !strings.HasPrefix(entry.Name(), ".") {
+			isEmpty = false
+			break
+		}
+	}
+
+	if isEmpty {
+		// public 文件夹为空，检查 db/database.db 是否存在
+		if _, err := os.Stat(dbPath); err == nil {
+			// db/database.db 存在，需要迁移
+			log.Printf("[数据库迁移] 检测到 db/database.db，迁移到 public 文件夹")
+
+			// 复制 db/database.db 到 public/database.db
+			if err := copyFile(dbPath, publicPath); err != nil {
+				return fmt.Errorf("复制数据库文件失败: %v", err)
+			}
+			log.Printf("[数据库迁移] 成功复制 %s -> %s", dbPath, publicPath)
+
+			// 删除原来的 db/database.db
+			if err := os.Remove(dbPath); err != nil {
+				return fmt.Errorf("删除原 db/database.db 失败: %v", err)
+			}
+			log.Printf("[数据库迁移] 已删除原文件 %s", dbPath)
+
+			// 创建软链接从 db/database.db 指向 public/database.db
+			absPublicPath, err := filepath.Abs(publicPath)
+			if err != nil {
+				return fmt.Errorf("获取 public/database.db 绝对路径失败: %v", err)
+			}
+
+			if err := os.Symlink(absPublicPath, dbPath); err != nil {
+				return fmt.Errorf("创建软链接 %s -> %s 失败: %v", dbPath, absPublicPath, err)
+			}
+
+			log.Printf("[数据库迁移] 成功创建软链接: %s -> %s", dbPath, absPublicPath)
+
+			// 同时复制相关的 WAL 和 SHM 文件（如果存在）
+			walPath := dbPath + "-wal"
+			shmPath := dbPath + "-shm"
+			publicWalPath := publicPath + "-wal"
+			publicShmPath := publicPath + "-shm"
+
+			if _, err := os.Stat(walPath); err == nil {
+				if err := copyFile(walPath, publicWalPath); err != nil {
+					log.Printf("[数据库迁移] 复制 WAL 文件失败: %v", err)
+				} else {
+					os.Remove(walPath) // 删除原文件
+					if absWalPath, err := filepath.Abs(publicWalPath); err == nil {
+						os.Symlink(absWalPath, walPath)
+					}
+					log.Printf("[数据库迁移] 成功迁移 WAL 文件")
+				}
+			}
+
+			if _, err := os.Stat(shmPath); err == nil {
+				if err := copyFile(shmPath, publicShmPath); err != nil {
+					log.Printf("[数据库迁移] 复制 SHM 文件失败: %v", err)
+				} else {
+					os.Remove(shmPath) // 删除原文件
+					if absShmPath, err := filepath.Abs(publicShmPath); err == nil {
+						os.Symlink(absShmPath, shmPath)
+					}
+					log.Printf("[数据库迁移] 成功迁移 SHM 文件")
+				}
+			}
+
+			return nil
+		} else {
+			// public 为空且 db/database.db 不存在，这是正常情况（全新安装）
+			log.Printf("[数据库迁移] public 文件夹为空且无现有数据库，正常启动")
+			return nil
+		}
+	} else {
+		// public 文件夹不为空但没有 database.db，可能有其他文件，跳过处理
+		log.Printf("[数据库迁移] public 文件夹非空但无 database.db，跳过迁移处理")
+		return nil
+	}
+}
+
+// copyFile 复制文件
+func copyFile(src, dst string) error {
+	sourceFile, err := os.Open(src)
+	if err != nil {
+		return err
+	}
+	defer sourceFile.Close()
+
+	destFile, err := os.Create(dst)
+	if err != nil {
+		return err
+	}
+	defer destFile.Close()
+
+	_, err = io.Copy(destFile, sourceFile)
+	if err != nil {
+		return err
+	}
+
+	// 确保数据写入磁盘
+	return destFile.Sync()
 }
