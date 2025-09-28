@@ -101,7 +101,7 @@ unzip NodePassDash_Windows_i386.zip
 
 ```bash
 # 创建应用目录
-sudo mkdir -p /opt/nodepassdash/{bin,data,logs,backups}
+sudo mkdir -p /opt/nodepassdash/{bin,db,logs,backups}
 
 # 移动二进制文件
 sudo mv nodepassdash /opt/nodepassdash/bin/
@@ -121,8 +121,7 @@ rm -f NodePassDash_*.tar.gz
 sudo useradd --system --home /opt/nodepassdash --shell /bin/false nodepass
 
 # 设置目录权限
-sudo chown -R nodepass:nodepass /opt/nodepassdash/{data,logs,backups}
-# nodepassdash 运行时会创建 dist 和 public 目录，确保有写权限
+sudo chown -R nodepass:nodepass /opt/nodepassdash/{db,logs,backups}
 sudo chown nodepass:nodepass /opt/nodepassdash
 ```
 
@@ -135,7 +134,7 @@ NodePassDash 支持以下环境变量进行配置：
 | 变量名 | 默认值 | 说明 |
 |--------|--------|------|
 | `PORT` | 3000 | HTTP 服务端口 |
-| `DATA_DIR` | ./data | 数据存储目录 |
+| `DATA_DIR` | ./db | 数据存储目录 |
 | `LOG_DIR` | ./logs | 日志存储目录 |
 | `LOG_LEVEL` | info | 日志级别 (debug/info/warn/error) |
 
@@ -218,7 +217,6 @@ NoNewPrivileges=true
 # PrivateTmp=true
 # ProtectSystem=strict
 # ProtectHome=true
-# nodepassdash 需要在工作目录创建 dist 和 public 目录
 ReadWritePaths=/opt/nodepassdash
 
 # 资源限制
@@ -267,7 +265,6 @@ NoNewPrivileges=true
 # PrivateTmp=true
 # ProtectSystem=strict
 # ProtectHome=true
-# nodepassdash 需要在工作目录创建 dist 和 public 目录
 ReadWritePaths=/opt/nodepassdash
 
 # 资源限制
@@ -330,15 +327,6 @@ sudo journalctl -u nodepassdash -f
 # 禁用服务
 sudo systemctl disable nodepassdash
 ```
-
-### 4. 版本更新说明
-
-⚠️ **重要提醒**: 更新 NodePassDash 时会自动删除 `dist` 目录，这是因为：
-- `dist` 目录包含前端静态资源
-- 每个版本的前端资源可能不同
-- 删除后程序会自动重新释放最新的前端资源
-
-此操作不会影响您的数据，所有配置和数据都存储在 `data` 目录中。
 
 ## 🛠️ 管理脚本
 
@@ -418,13 +406,13 @@ case "$1" in
             fi
             
             # 备份数据（可选）
-            if [[ -d "$INSTALL_DIR/data" ]] && [[ -n "$(ls -A $INSTALL_DIR/data 2>/dev/null)" ]]; then
+            if [[ -d "$INSTALL_DIR/db" ]] && [[ -n "$(ls -A $INSTALL_DIR/db 2>/dev/null)" ]]; then
                 echo "是否备份数据到 /tmp/nodepassdash-backup-$(date +%Y%m%d%H%M%S).tar.gz？[Y/n]"
                 read -r backup_confirm
                 if [[ ! "$backup_confirm" =~ ^[Nn]$ ]]; then
                     backup_file="/tmp/nodepassdash-backup-$(date +%Y%m%d%H%M%S).tar.gz"
                     echo "备份数据到 $backup_file..."
-                    sudo tar -czf "$backup_file" -C "$INSTALL_DIR" data logs config.env 2>/dev/null || true
+                    sudo tar -czf "$backup_file" -C "$INSTALL_DIR" db logs config.env 2>/dev/null || true
                     echo "数据已备份到 $backup_file"
                 fi
             fi
@@ -673,19 +661,16 @@ NodePassDash 安装后的目录结构如下：
 /opt/nodepassdash/
 ├── bin/                    # 二进制文件目录 (root权限)
 │   └── nodepassdash        # 主程序
-├── data/                   # 数据存储目录 (nodepass权限)
+├── db/                   # 数据存储目录 (nodepass权限)
 ├── logs/                   # 日志存储目录 (nodepass权限)
 ├── backups/               # 备份目录 (nodepass权限)
 ├── certs/                 # SSL/TLS 证书目录 (nodepass权限，可选)
 │   ├── server.crt         # SSL 证书文件
 │   └── server.key         # SSL 私钥文件
 ├── config.env             # 配置文件 (nodepass权限，一键安装时创建)
-├── dist/                  # 运行时创建的前端资源 (nodepass权限)
-└── public/                # 运行时创建的静态资源 (nodepass权限)
 ```
 
 **说明：**
-- `dist` 和 `public` 目录会在首次运行时自动创建
 - `certs` 目录和 `config.env` 文件在使用一键安装脚本且配置 HTTPS 时创建
 - 所有数据、日志和配置文件由 `nodepass` 用户拥有
 - 二进制文件由 `root` 用户拥有，确保安全性
@@ -776,7 +761,7 @@ sudo systemctl edit nodepassdash
 
 ```bash
 # 修复数据目录权限
-sudo chown -R nodepass:nodepass /opt/nodepassdash/data /opt/nodepassdash/logs
+sudo chown -R nodepass:nodepass /opt/nodepassdash/db /opt/nodepassdash/logs
 
 # 修复工作目录权限
 sudo chown nodepass:nodepass /opt/nodepassdash
