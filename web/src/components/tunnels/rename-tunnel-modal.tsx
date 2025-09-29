@@ -13,7 +13,6 @@ import { faPen } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 
 import { buildApiUrl } from "@/lib/utils";
-import { useTextLimit, TEXT_LIMITS } from "@/lib/utils/text-limits";
 
 interface RenameTunnelModalProps {
   isOpen: boolean;
@@ -33,9 +32,6 @@ export default function RenameTunnelModal({
   const [newTunnelName, setNewTunnelName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
-  // 使用公共的文本限制工具
-  const textLimit = useTextLimit(newTunnelName, TEXT_LIMITS.TUNNEL_NAME);
-
   // 当模态框打开时，设置当前名称
   React.useEffect(() => {
     if (isOpen) {
@@ -44,7 +40,7 @@ export default function RenameTunnelModal({
   }, [isOpen, currentName]);
 
   const handleSubmit = async () => {
-    if (!newTunnelName.trim() || textLimit.isOverLimit) return;
+    if (!newTunnelName.trim()) return;
 
     try {
       setIsLoading(true);
@@ -101,7 +97,6 @@ export default function RenameTunnelModal({
             <ModalBody>
               <Input
                 autoFocus
-                description={textLimit.description}
                 isDisabled={isLoading}
                 label="实例名称"
                 placeholder="请输入新的实例名称"
@@ -124,8 +119,7 @@ export default function RenameTunnelModal({
                 color="primary"
                 isDisabled={
                   !newTunnelName.trim() ||
-                  newTunnelName.trim() === currentName ||
-                  textLimit.isOverLimit
+                  newTunnelName.trim() === currentName
                 }
                 isLoading={isLoading}
                 onPress={handleSubmit}

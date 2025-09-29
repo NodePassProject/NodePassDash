@@ -171,6 +171,25 @@ release:
   header: |
     ## NodePassDash {{ .Version }}
     
+    - Feature：
+      - 新的实例详情的实例信息布局、合并实例统计表改为tab切换查看
+      - 适配核心1.7的config字段，实例详情支持切换url查看全配置url，实例信息增加显示默认值的显示
+      - logo增加了bage标记dev和beta
+      - 适配核心1.6 proxy protocol字段的设置
+      - 适配核心1.7 tags字段的设置和显示
+      - 新的分组管理配置方式
+      - 
+    - Update:
+      - 合并实例管理列表的流量显示，去除每一行的原标签（现分组）设置，优化各个列宽宽度
+      - 放开实例重命名长度限制
+      - 更新了主控的SwapFree/MemFree对应的数据
+      - 二进制文档部分文案更新
+      - 重构原来的tags标签文案改为分组文案
+      - 仪表盘每周流量 NaN undefined error
+    - Fix:
+      - 修复了新场景创建的指定实例名称失效的问题
+      - 适配了2.x用户未拉最新compose文件导致public文件夹映射的问题
+      - sse实时推送但浏览器提前关闭导致的short write error
   footer: |
     
     ### 📥 下载说明
