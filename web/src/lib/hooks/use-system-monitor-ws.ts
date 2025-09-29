@@ -19,9 +19,9 @@ export interface SystemMonitorData {
   uptime?: number; // 应用运行时间
   // 新增字段，用于计算
   mem_total?: number; // 总内存（字节）
-  mem_free?: number; // 空闲内存（字节）
+  mem_used?: number; // 已使用内存（字节）
   swap_total?: number; // 总Swap（字节）
-  swap_free?: number; // 空闲Swap（字节）
+  swap_used?: number; // 已使用Swap（字节）
 }
 
 interface SystemMonitorWSHookOptions {
@@ -125,12 +125,12 @@ export function useSystemMonitorWS(
             const info = data.info;
 
             // 计算RAM使用率（百分比）
-            const ramUsedBytes = info.mem_total - info.mem_free;
+            const ramUsedBytes = info.mem_used || 0;
             const ramUsagePercent =
               info.mem_total > 0 ? (ramUsedBytes / info.mem_total) * 100 : 0;
 
             // 计算Swap使用率（百分比）
-            const swapUsedBytes = info.swap_total - info.swap_free;
+            const swapUsedBytes = info.swap_used || 0;
             const swapUsagePercent =
               info.swap_total > 0 ? (swapUsedBytes / info.swap_total) * 100 : 0;
 
@@ -157,9 +157,9 @@ export function useSystemMonitorWS(
               diskw: info.diskw || 0,
               // 原始数据（用于计算）
               mem_total: info.mem_total,
-              mem_free: info.mem_free,
+              mem_used: info.mem_used,
               swap_total: info.swap_total,
-              swap_free: info.swap_free,
+              swap_used: info.swap_used,
             };
 
             console.log("[System Monitor WS] 解析后的系统监控数据:", {
@@ -188,12 +188,12 @@ export function useSystemMonitorWS(
             console.log("[System Monitor WS] 检测到直接系统监控数据格式");
 
             // 计算RAM使用率（百分比）
-            const ramUsedBytes = data.mem_total - data.mem_free;
+            const ramUsedBytes = data.mem_used || 0;
             const ramUsagePercent =
               data.mem_total > 0 ? (ramUsedBytes / data.mem_total) * 100 : 0;
 
             // 计算Swap使用率（百分比）
-            const swapUsedBytes = data.swap_total - data.swap_free;
+            const swapUsedBytes = data.swap_used || 0;
             const swapUsagePercent =
               data.swap_total > 0 ? (swapUsedBytes / data.swap_total) * 100 : 0;
 

@@ -356,10 +356,10 @@ type InstanceResult struct {
 	Type          string        `json:"type"`   // client|server
 	Status        string        `json:"status"` // running|stopped|error
 	URL           string        `json:"url"`
-	TCPRx         int64         `json:"tcprx"`
-	TCPTx         int64         `json:"tcptx"`
-	UDPRx         int64         `json:"udprx"`
-	UDPTx         int64         `json:"udptx"`
+	TCPRx         int64         `json:"tcprx"` // 字节（Bytes）为单位
+	TCPTx         int64         `json:"tcptx"` // 字节（Bytes）为单位
+	UDPRx         int64         `json:"udprx"` // 字节（Bytes）为单位
+	UDPTx         int64         `json:"udptx"` // 字节（Bytes）为单位
 	Pool          *int64        `json:"pool,omitempty"`
 	Ping          *int64        `json:"ping,omitempty"`
 	Alias         *string       `json:"alias,omitempty"`
@@ -390,9 +390,9 @@ type EndpointInfoResult struct {
 	Crt       string `json:"crt"`
 	Key       string `json:"key"`
 	CPU       int    `json:"cpu"`        // CPU核心使用百分比
-	MemFree   int64  `json:"mem_free"`   // 空闲内存(字节)
+	MemUsed   int64  `json:"mem_used"`   // 已使用内存(字节)
 	MemTotal  int64  `json:"mem_total"`  // 总内存(字节)
-	SwapFree  int64  `json:"swap_free"`  // 空闲交换空间(字节)
+	SwapUsed  int64  `json:"swap_used"`  // 已使用交换空间(字节)
 	SwapTotal int64  `json:"swap_total"` // 总交换空间(字节)
 	DiskRead  int64  `json:"diskr"`      // 磁盘读取字节数
 	DiskWrite int64  `json:"diskw"`      // 磁盘写入字节数
@@ -400,6 +400,7 @@ type EndpointInfoResult struct {
 	NetTx     int64  `json:"nettx"`      // 网络发送字节数
 	SysUptime int64  `json:"sysup"`      // 系统运行时间(秒)
 	Uptime    int64  `json:"uptime"`     // NodePass运行时间(秒)
+	Alias     string `json:"alias"`      // 端点别名
 }
 
 // TCPingResult 表示TCP连接测试的结果
