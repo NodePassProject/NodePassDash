@@ -1077,12 +1077,11 @@ func buildTunnelFromInstance(endpointID int64, inst nodepass.InstanceResult) *mo
 	tunnel.Status = models.TunnelStatus(inst.Status)
 	tunnel.ProxyProtocol = inst.ProxyProtocol
 
-	// 序列化实例标签为JSON格式
+	// 转换实例标签为map格式并序列化为JSON
 	if len(inst.Tags) > 0 {
-		tagsJSON, err := json.Marshal(inst.Tags)
+		tagsStr, err := nodepass.ConvertInstanceTagsToTagsMap(inst.Tags)
 		if err == nil {
-			tagsStr := string(tagsJSON)
-			tunnel.InstanceTags = &tagsStr
+			tunnel.Tags = tagsStr
 		}
 	}
 

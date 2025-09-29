@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   ModalContent,
@@ -29,12 +29,6 @@ import locale from "react-json-editor-ajrm/locale/zh-cn";
 import { parseDate } from "@internationalized/date";
 
 import { buildApiUrl } from "@/lib/utils";
-
-// 实例标签类型
-interface InstanceTag {
-  key: string;
-  value: string;
-}
 
 // 标签数据结构
 interface TagData {
@@ -79,7 +73,7 @@ interface InstanceTagModalProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   tunnelId: string;
-  currentTags?: InstanceTag[];
+  currentTags?: Record<string, string>; // 只支持map格式
   onSaved: () => void;
 }
 
@@ -87,18 +81,19 @@ export default function InstanceTagModal({
   isOpen,
   onOpenChange,
   tunnelId,
-  currentTags = [],
+  currentTags = {},
   onSaved,
 }: InstanceTagModalProps) {
   const [jsonText, setJsonText] = useState("");
   const [saving, setSaving] = useState(false);
   const [jsonError, setJsonError] = useState<string | null>(null);
 
-  // 原始数据备份，用于对比变化
-  const [originalData, setOriginalData] = useState<TagData>({});
+  // 用于存储JSON编辑器的实时内容（统一数据源）
+  const currentJsonDataRef = useRef<TagData>({});
 
-  // 标准字段状态
-  const [formData, setFormData] = useState<TagData>({});
+  // 删除了原始数据备份逻辑和 formData，只使用JSON数据
+
+  // 表单显示状态（从 JSON 数据中解析）
   const [isUnlimited, setIsUnlimited] = useState(false);
   const [amountMode, setAmountMode] = useState<AmountMode>("none");
   const [prefixCurrency, setPrefixCurrency] = useState("CNY");
@@ -112,165 +107,70 @@ export default function InstanceTagModal({
   // 同步模式：'form' | 'json'
   const [syncMode, setSyncMode] = useState<"form" | "json">("form");
 
-  // 数据转换函数：InstanceTag[] -> TagData
-  const convertTagsToData = (tags: InstanceTag[]): TagData => {
-    const data: TagData = {};
+  // 获取当前 JSON 数据
+  const getCurrentData = (): TagData => currentJsonDataRef.current || {};
 
-    tags.forEach((tag) => {
-      data[tag.key] = tag.value;
-    });
+  // 注释：删除了旧的数组格式转换函数，现在只支持map格式
+
+  // 从表单状态更新JSON中的复合字段
+  const updateJsonFromFormStates = () => {
+    const data: TagData = { ...getCurrentData() };
+    const currentData = getCurrentData();
+
+    // 只更新复合字段（endDate和amount），其他字段由直接更新处理
+    if (currentData.hasOwnProperty('endDate')) {
+      if (isUnlimited) {
+        data.endDate = "0000-00-00T23:59:59+08:00";
+      } else if (!currentData.endDate || currentData.endDate === "0000-00-00T23:59:59+08:00") {
+        delete data.endDate;
+      }
+      // 其他情况保持现有值
+    }
+
+    if (currentData.hasOwnProperty('amount')) {
+      if (amountMode === "free") {
+        data.amount = "Free";
+      } else if (amountMode === "prefix" && amountValue) {
+        const symbol =
+          CURRENCY_OPTIONS.find((c) => c.key === prefixCurrency)?.label || "¥";
+        data.amount = `${symbol}${amountValue}`;
+      } else if (amountMode === "suffix" && amountValue) {
+        data.amount = `${amountValue}${suffixCurrency}`;
+      } else if (amountMode === "none" && amountValue) {
+        data.amount = amountValue;
+      } else {
+        delete data.amount;
+      }
+    }
+
+    if (currentData.hasOwnProperty('bandwidth')) {
+      if (bandwidthValue) {
+        data.bandwidth = `${bandwidthValue}${bandwidthUnit}`;
+      } else {
+        delete data.bandwidth;
+      }
+    }
+
+    if (currentData.hasOwnProperty('trafficVol')) {
+      if (trafficValue) {
+        data.trafficVol = `${trafficValue}${trafficUnit}`;
+      } else {
+        delete data.trafficVol;
+      }
+    }
+
+    // 非标准字段保持不变，不受表单影响
 
     return data;
   };
 
-  // 数据转换函数：TagData -> InstanceTag[]
-  const convertDataToTags = (data: TagData): InstanceTag[] => {
-    return Object.entries(data).map(([key, value]) => ({
-      key,
-      value: String(value),
-    }));
-  };
-
-  // 从表单数据生成完整的TagData
-  const buildTagDataFromForm = (): TagData => {
-    const data: TagData = {};
-
-    if (formData.startDate) data.startDate = formData.startDate;
-
-    if (isUnlimited) {
-      data.endDate = "0000-00-00T23:59:59+08:00";
-    } else if (formData.endDate) {
-      data.endDate = formData.endDate;
+  // 从 JSON 数据初始化表单显示状态
+  const initFormFromJsonData = (data: TagData, skipSyncMode = false) => {
+    // 只在需要时设置同步模式
+    if (!skipSyncMode) {
+      setSyncMode("json");
     }
-
-    if (amountMode === "free") {
-      data.amount = "Free";
-    } else if (amountMode === "prefix" && amountValue) {
-      const symbol =
-        CURRENCY_OPTIONS.find((c) => c.key === prefixCurrency)?.label || "¥";
-
-      data.amount = `${symbol}${amountValue}`;
-    } else if (amountMode === "suffix" && amountValue) {
-      data.amount = `${amountValue}${suffixCurrency}`;
-    } else if (amountMode === "none" && amountValue) {
-      data.amount = amountValue;
-    }
-
-    if (bandwidthValue) {
-      data.bandwidth = `${bandwidthValue}${bandwidthUnit}`;
-    }
-
-    if (trafficValue) {
-      data.trafficVol = `${trafficValue}${trafficUnit}`;
-    }
-
-    if (formData.networkRoute) data.networkRoute = formData.networkRoute;
-    if (formData.extra) data.extra = formData.extra;
-
-    // 添加其他非标准字段
-    Object.keys(formData).forEach((key) => {
-      if (
-        ![
-          "startDate",
-          "endDate",
-          "amount",
-          "bandwidth",
-          "trafficVol",
-          "networkRoute",
-          "extra",
-        ].includes(key)
-      ) {
-        data[key] = formData[key];
-      }
-    });
-
-    return data;
-  };
-
-  // 构建用于提交的标签数据（处理删除逻辑）
-  const buildSubmitTags = (currentData: TagData): InstanceTag[] => {
-    const tags: InstanceTag[] = [];
-
-    console.log("buildSubmitTags - originalData:", originalData); // 调试日志
-    console.log("buildSubmitTags - currentData:", currentData); // 调试日志
-
-    // 获取所有可能的字段（原始数据 + 当前数据）
-    const allKeys = new Set([
-      ...Object.keys(originalData),
-      ...Object.keys(currentData),
-    ]);
-
-    console.log("buildSubmitTags - allKeys:", Array.from(allKeys)); // 调试日志
-
-    allKeys.forEach((key) => {
-      const originalValue = originalData[key];
-      const currentValue = currentData[key];
-
-      console.log(
-        `buildSubmitTags - Key: ${key}, Original: "${originalValue}", Current: "${currentValue}"`,
-      ); // 调试日志
-
-      // 如果原始数据有这个字段，则需要处理
-      if (originalValue !== undefined) {
-        if (
-          currentValue === "" ||
-          currentValue === undefined ||
-          currentValue === null
-        ) {
-          // 字段被删除或清空，发送空值以删除
-          console.log(
-            `buildSubmitTags - Field ${key} was cleared, adding empty value for deletion`,
-          ); // 调试日志
-          tags.push({ key, value: "" });
-        } else {
-          // 字段有值（包括修改和未变化）
-          console.log(
-            `buildSubmitTags - Field ${key} has value, adding: "${String(currentValue)}"`,
-          ); // 调试日志
-          tags.push({ key, value: String(currentValue) });
-        }
-      } else if (
-        currentValue !== undefined &&
-        currentValue !== null &&
-        currentValue !== ""
-      ) {
-        // 新增的字段（不包括空值）
-        console.log(
-          `buildSubmitTags - New field ${key} added with value: "${String(currentValue)}"`,
-        ); // 调试日志
-        tags.push({ key, value: String(currentValue) });
-      }
-    });
-
-    console.log("buildSubmitTags - Final tags:", tags); // 调试日志
-
-    return tags;
-  };
-
-  // 从 JSON 对象构建标签数组（包含空值）
-  const buildTagsFromJsonObject = (data: TagData): InstanceTag[] => {
-    const tags: InstanceTag[] = [];
-
-    console.log("Building tags from JSON object:", data); // 调试日志
-
-    // 遍历所有字段，包括空值
-    Object.entries(data).forEach(([key, value]) => {
-      // 确保空值也能被正确处理
-      const stringValue =
-        value === null || value === undefined ? "" : String(value);
-
-      tags.push({ key, value: stringValue });
-      console.log(`Added tag: ${key} = "${stringValue}"`); // 调试日志
-    });
-
-    console.log("Final tags array:", tags); // 调试日志
-
-    return tags;
-  };
-
-  // 从 TagData 初始化表单状态
-  const initFormFromData = (data: TagData) => {
-    setFormData(data);
+    // 不再设置 formData，直接从 JSON 数据解析表单状态
 
     // 初始化结束日期
     if (data.endDate === "0000-00-00T23:59:59+08:00") {
@@ -362,56 +262,37 @@ export default function InstanceTagModal({
   // 初始化标签数据
   useEffect(() => {
     if (isOpen) {
-      // 兼容原有的数组格式数据
-      let initialData: TagData = {};
-      let initialJson: string;
+      // 直接使用map格式数据
+      const initialData: TagData = currentTags || {};
+      const initialJson = JSON.stringify(initialData, null, 2);
 
-      if (currentTags && currentTags.length > 0) {
-        // 检查是否有标准字段，如果有则优先显示对象格式
-        const standardFields = [
-          "startDate",
-          "endDate",
-          "amount",
-          "bandwidth",
-          "trafficVol",
-          "networkRoute",
-          "extra",
-        ];
-        const hasStandardFields = currentTags.some((tag) =>
-          standardFields.includes(tag.key),
-        );
-
-        if (hasStandardFields) {
-          // 新格式：转换为对象显示
-          initialData = convertTagsToData(currentTags);
-          initialJson = JSON.stringify(initialData, null, 2);
-        } else {
-          // 旧格式：显示数组格式，但也同步到表单
-          initialData = convertTagsToData(currentTags);
-          initialJson = JSON.stringify(currentTags, null, 2);
-        }
-      } else {
-        initialJson = JSON.stringify(initialData, null, 2);
-      }
-
-      // 设置原始数据备份
-      setOriginalData({ ...initialData });
-      initFormFromData(initialData);
+      // 初始化ref和状态
+      currentJsonDataRef.current = initialData;
+      initFormFromJsonData(initialData);
       setJsonText(initialJson);
       setJsonError(null);
       setSyncMode("form");
+
+      console.log("Initialized with data:", initialData); // 调试日志
     }
   }, [isOpen, currentTags]);
 
-  // 同步表单数据到JSON
-  const syncFormToJson = () => {
-    if (syncMode === "json") return; // 防止循环同步
+  // 直接更新单个字段到JSON
+  const updateJsonField = (field: string, value: any) => {
+    const data = { ...getCurrentData() };
 
-    setSyncMode("form");
-    const data = buildTagDataFromForm();
+    if (value !== null && value !== undefined && value !== "") {
+      data[field] = value;
+    } else {
+      delete data[field];
+    }
 
-    setJsonText(JSON.stringify(data, null, 2));
+    const jsonString = JSON.stringify(data, null, 2);
+    setJsonText(jsonString);
+    currentJsonDataRef.current = data;
     setJsonError(null);
+
+    console.log(`Updated field ${field}:`, value, "-> New data:", data);
   };
 
   // JSON文本变化处理
@@ -421,7 +302,7 @@ export default function InstanceTagModal({
     // react-json-editor-ajrm 返回的是对象，包含 jsObject 和其他信息
     if (content.error) {
       setJsonError(content.error.reason || "JSON 格式错误");
-
+      currentJsonDataRef.current = {};
       return;
     }
 
@@ -431,53 +312,30 @@ export default function InstanceTagModal({
     const jsonObject = content.jsObject || {};
     const value = JSON.stringify(jsonObject, null, 2);
 
+    // 更新状态和ref
     setJsonText(value);
+    currentJsonDataRef.current = jsonObject;
     setSyncMode("json");
 
     console.log("Parsed JSON object:", jsonObject); // 调试日志
-    console.log("Original data for comparison:", originalData); // 调试日志
+    console.log("Updated currentJsonDataRef:", currentJsonDataRef.current); // 调试日志
 
-    // 实时验证JSON格式
+    // 实时验证JSON格式并同步到表单
     try {
       const parsed = jsonObject;
 
       // 允许空对象
       if (parsed === null || parsed === undefined) {
-        if (syncMode === "json") {
-          initFormFromData({});
-        }
-
+        initFormFromJsonData({}, true); // 跳过syncMode设置，避免冲突
         return;
       }
 
-      // 支持两种格式：数组格式（旧）和对象格式（新）
-      if (Array.isArray(parsed)) {
-        // 数组格式验证（放宽验证，允许空值）
-        for (let i = 0; i < parsed.length; i++) {
-          const tag = parsed[i];
-
-          if (!tag || typeof tag !== "object" || tag.key === undefined) {
-            setJsonError(`第 ${i + 1} 个标签格式不正确，必须包含 key 字段`);
-
-            return;
-          }
-        }
-        // 数组格式转换为对象同步到表单
-        if (syncMode === "json") {
-          const convertedData = convertTagsToData(parsed);
-
-          initFormFromData(convertedData);
-        }
-
-        return;
-      } else if (typeof parsed === "object" && parsed !== null) {
-        // 对象格式验证和同步（允许空值）
-        if (syncMode === "json") {
-          initFormFromData(parsed);
-        }
+      // 只支持对象格式
+      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
+        // 对象格式验证和同步到表单
+        initFormFromJsonData(parsed, true); // 跳过syncMode设置，避免冲突
       } else {
-        setJsonError("数据必须是对象或数组格式");
-
+        setJsonError("数据必须是JSON对象格式");
         return;
       }
     } catch (error) {
@@ -486,13 +344,18 @@ export default function InstanceTagModal({
     }
   };
 
-  // 表单字段变化时同步到JSON
+  // 表单字段变化时直接更新JSON
   useEffect(() => {
-    if (syncMode === "form") {
-      syncFormToJson();
+    if (syncMode !== "json") {
+      console.log("Form changed, updating JSON. SyncMode:", syncMode); // 调试日志
+      // 直接更新JSON中的复合字段
+      const data = updateJsonFromFormStates();
+      const jsonString = JSON.stringify(data, null, 2);
+      setJsonText(jsonString);
+      currentJsonDataRef.current = data;
+      setJsonError(null);
     }
   }, [
-    formData,
     isUnlimited,
     amountMode,
     prefixCurrency,
@@ -502,7 +365,21 @@ export default function InstanceTagModal({
     bandwidthUnit,
     trafficValue,
     trafficUnit,
+    syncMode,
   ]);
+
+  // 确保 JSON 变化后重置同步模式
+  useEffect(() => {
+    if (syncMode === "json") {
+      // 稍后重置为 form 模式，允许表单继续同步
+      const timer = setTimeout(() => {
+        console.log("Resetting sync mode to form"); // 调试日志
+        setSyncMode("form");
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [syncMode]);
 
   // 保存标签设置
   const handleSave = async () => {
@@ -520,14 +397,20 @@ export default function InstanceTagModal({
         return;
       }
 
-      // 解析JSON
+      // 优先使用ref中的实时数据，如果没有则使用jsonText
       let data: any = {};
 
       try {
-        if (jsonText.trim() === "") {
+        // 优先使用currentJsonDataRef中的数据
+        if (currentJsonDataRef.current && Object.keys(currentJsonDataRef.current).length > 0) {
+          data = currentJsonDataRef.current;
+          console.log("Using ref data:", data); // 调试日志
+        } else if (jsonText.trim() === "") {
           data = {};
+          console.log("Using empty data"); // 调试日志
         } else {
           data = JSON.parse(jsonText);
+          console.log("Using parsed jsonText:", data); // 调试日志
         }
       } catch (error) {
         addToast({
@@ -539,41 +422,15 @@ export default function InstanceTagModal({
         return;
       }
 
-      // 根据JSON格式决定如何处理数据
-      let tags: InstanceTag[] = [];
-
-      console.log("Save function - data:", data); // 调试日志
-      console.log("Save function - jsonText:", jsonText); // 调试日志
-      console.log("Save function - syncMode:", syncMode); // 调试日志
-      console.log("Save function - originalData:", originalData); // 调试日志
-
-      if (Array.isArray(data)) {
-        // 数组格式直接使用
-        console.log("Using array format data directly");
-        tags = data;
-      } else {
-        // 对象格式：根据 syncMode 决定处理方式
-        if (syncMode === "json") {
-          // 来自 JSON 编辑器的更改，使用对比逻辑处理删除
-          console.log("Using buildSubmitTags for JSON editor changes");
-          tags = buildSubmitTags(data);
-        } else {
-          // 来自表单的更改，也使用对比逻辑
-          console.log("Using buildSubmitTags for form changes");
-          tags = buildSubmitTags(data);
-        }
-      }
-
-      console.log("Final tags to submit:", tags); // 调试日志
+      // 直接发送map格式的JSON数据
+      console.log("Final tags to submit:", data); // 调试日志
 
       const response = await fetch(
-        buildApiUrl(`/api/tunnels/${tunnelId}/instance-tags`),
+        buildApiUrl(`/api/tunnels/${tunnelId}/tags`),
         {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            tags: tags,
-          }),
+          body: JSON.stringify(data),
         },
       );
 
@@ -604,29 +461,9 @@ export default function InstanceTagModal({
     }
   };
 
-  // 检查是否有变化
-  const hasChanges = () => {
-    try {
-      const currentData = JSON.parse(jsonText);
-
-      // 对比当前数据和原始数据
-      if (Array.isArray(currentData)) {
-        // 数组格式的比较
-        const originalTags = convertDataToTags(originalData);
-
-        return JSON.stringify(currentData) !== JSON.stringify(originalTags);
-      } else {
-        // 对象格式的比较
-        return JSON.stringify(currentData) !== JSON.stringify(originalData);
-      }
-    } catch {
-      // JSON解析失败时，认为有变化
-      return true;
-    }
-  };
 
   return (
-    <Modal isOpen={isOpen} size="5xl" onOpenChange={onOpenChange}>
+    <Modal isOpen={isOpen} size="3xl" onOpenChange={onOpenChange}>
       <ModalContent>
         {(onClose) => (
           <>
@@ -659,77 +496,71 @@ export default function InstanceTagModal({
               <div className="grid grid-cols-2 gap-6 h-full">
                 {/* 左侧：标准字段输入 */}
                 <div className="space-y-4">
-                  {/* 开始日期和结束日期 */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-default-600 mb-2 block">
-                        开始日期
+                  {/* 开始日期 */}
+                  <div>
+                    <label className="text-sm font-medium text-default-600 mb-2 block">
+                      开始日期
+                    </label>
+                    <DatePicker
+                      className="w-full"
+                      value={
+                        getCurrentData().startDate
+                          ? parseDate(
+                              getCurrentData().startDate.split("T")[0],
+                            ) as any
+                          : null
+                      }
+                      onChange={(date) => {
+                        if (date) {
+                          updateJsonField('startDate', `${date.toString()}T12:58:17.636Z`);
+                        } else {
+                          updateJsonField('startDate', null);
+                        }
+                      }}
+                    />
+                  </div>
+
+                  {/* 结束日期 */}
+                  <div>
+                    <div className="flex items-center justify-between mb-2">
+                      <label className="text-sm font-medium text-default-600">
+                        结束日期
                       </label>
-                      <DatePicker
-                        className="w-full"
-                        value={
-                          formData.startDate
-                            ? parseDate(
-                                formData.startDate.split("T")[0],
-                              ) as any
-                            : null
-                        }
-                        onChange={(date) => {
-                          const newData = { ...formData };
-
-                          if (date) {
-                            newData.startDate = `${date.toString()}T12:58:17.636Z`;
-                          } else {
-                            delete newData.startDate;
-                          }
-                          setFormData(newData);
-                        }}
-                      />
+                      <Checkbox
+                        isSelected={isUnlimited}
+                        size="sm"
+                        onValueChange={setIsUnlimited}
+                      >
+                        无限期
+                      </Checkbox>
                     </div>
-                    <div>
-                      <div className="flex items-center justify-between mb-2">
-                        <label className="text-sm font-medium text-default-600">
-                          结束日期
-                        </label>
-                        <Checkbox
-                          isSelected={isUnlimited}
-                          size="sm"
-                          onValueChange={setIsUnlimited}
-                        >
-                          无限期
-                        </Checkbox>
-                      </div>
-                      <DatePicker
-                        className="w-full"
-                        isDisabled={isUnlimited}
-                        minValue={
-                          formData.startDate
-                            ? parseDate(
-                                formData.startDate.split("T")[0],
-                              ) as any
-                            : undefined
+                    <DatePicker
+                      className="w-full"
+                      isDisabled={isUnlimited}
+                      minValue={
+                        getCurrentData().startDate
+                          ? parseDate(
+                              getCurrentData().startDate.split("T")[0],
+                            ) as any
+                          : undefined
+                      }
+                      value={
+                        !isUnlimited &&
+                        getCurrentData().endDate &&
+                        getCurrentData().endDate !== "0000-00-00T23:59:59+08:00"
+                          ? parseDate(
+                              getCurrentData().endDate.split("T")[0],
+                            ) as any
+                          : null
+                      }
+                      onChange={(date) => {
+                        if (date) {
+                          updateJsonField('endDate', `${date.toString()}T12:58:17.636Z`);
+                        } else {
+                          updateJsonField('endDate', null);
                         }
-                        value={
-                          !isUnlimited &&
-                          formData.endDate &&
-                          formData.endDate !== "0000-00-00T23:59:59+08:00"
-                            ? parseDate(
-                                formData.endDate.split("T")[0],
-                              ) as any
-                            : null
-                        }
-                        onChange={(date) => {
-                          const newData = { ...formData };
-
-                          if (date) {
-                            newData.endDate = `${date.toString()}T12:58:17.636Z`;
-                          } else {
-                            delete newData.endDate;
-                          }
-                          setFormData(newData);
-                        }}
-                      />
-                    </div>
+                      }}
+                    />
                   </div>
 
                   {/* 金额 */}
@@ -801,79 +632,58 @@ export default function InstanceTagModal({
                     </div>
                   </div>
 
-                  {/* 带宽和流量 */}
-                  <div className="grid grid-cols-2 gap-4">
-                    <div>
-                      <label className="text-sm font-medium text-default-600 mb-2 block">
-                        带宽
-                      </label>
-                      <Input
-                        endContent={
-                          <select
-                            className="border-0 bg-transparent text-default-600 text-sm outline-none"
-                            value={bandwidthUnit}
-                            onChange={(e) => setBandwidthUnit(e.target.value)}
-                          >
-                            {BANDWIDTH_UNITS.map((unit) => (
-                              <option key={unit.key} value={unit.key}>
-                                {unit.label}
-                              </option>
-                            ))}
-                          </select>
-                        }
-                        placeholder="输入带宽"
-                        size="sm"
-                        value={bandwidthValue}
-                        onValueChange={setBandwidthValue}
-                      />
-                    </div>
-                    <div>
-                      <label className="text-sm font-medium text-default-600 mb-2 block">
-                        流量
-                      </label>
-                      <Input
-                        endContent={
-                          <select
-                            className="border-0 bg-transparent text-default-600 text-sm outline-none"
-                            value={trafficUnit}
-                            onChange={(e) => setTrafficUnit(e.target.value)}
-                          >
-                            {TRAFFIC_UNITS.map((unit) => (
-                              <option key={unit.key} value={unit.key}>
-                                {unit.label}
-                              </option>
-                            ))}
-                          </select>
-                        }
-                        placeholder="输入流量"
-                        size="sm"
-                        value={trafficValue}
-                        onValueChange={setTrafficValue}
-                      />
-                    </div>
-                  </div>
-
-                  {/* 网络路由 */}
+                  {/* 带宽 */}
                   <div>
                     <label className="text-sm font-medium text-default-600 mb-2 block">
-                      网络路由
+                      带宽
                     </label>
                     <Input
-                      placeholder="输入网络路由"
+                      endContent={
+                        <select
+                          className="border-0 bg-transparent text-default-600 text-sm outline-none"
+                          value={bandwidthUnit}
+                          onChange={(e) => setBandwidthUnit(e.target.value)}
+                        >
+                          {BANDWIDTH_UNITS.map((unit) => (
+                            <option key={unit.key} value={unit.key}>
+                              {unit.label}
+                            </option>
+                          ))}
+                        </select>
+                      }
+                      placeholder="输入带宽"
                       size="sm"
-                      value={formData.networkRoute || ""}
-                      onValueChange={(value) => {
-                        const newData = { ...formData };
-
-                        if (value) {
-                          newData.networkRoute = value;
-                        } else {
-                          delete newData.networkRoute;
-                        }
-                        setFormData(newData);
-                      }}
+                      value={bandwidthValue}
+                      onValueChange={setBandwidthValue}
                     />
                   </div>
+
+                  {/* 流量 */}
+                  <div>
+                    <label className="text-sm font-medium text-default-600 mb-2 block">
+                      流量
+                    </label>
+                    <Input
+                      endContent={
+                        <select
+                          className="border-0 bg-transparent text-default-600 text-sm outline-none"
+                          value={trafficUnit}
+                          onChange={(e) => setTrafficUnit(e.target.value)}
+                        >
+                          {TRAFFIC_UNITS.map((unit) => (
+                            <option key={unit.key} value={unit.key}>
+                              {unit.label}
+                            </option>
+                          ))}
+                        </select>
+                      }
+                      placeholder="输入流量"
+                      size="sm"
+                      value={trafficValue}
+                      onValueChange={setTrafficValue}
+                    />
+                  </div>
+
 
                   {/* 额外信息 */}
                   <div>
@@ -883,16 +693,9 @@ export default function InstanceTagModal({
                     <Input
                       placeholder="输入额外信息，使用逗号分隔"
                       size="sm"
-                      value={formData.extra || ""}
+                      value={getCurrentData().extra || ""}
                       onValueChange={(value) => {
-                        const newData = { ...formData };
-
-                        if (value) {
-                          newData.extra = value;
-                        } else {
-                          delete newData.extra;
-                        }
-                        setFormData(newData);
+                        updateJsonField('extra', value || null);
                       }}
                     />
                   </div>
@@ -968,43 +771,7 @@ export default function InstanceTagModal({
 
                         const data = JSON.parse(jsonText.trim());
 
-                        if (Array.isArray(data)) {
-                          // 数组格式
-                          const validCount = data.filter(
-                            (tag: any) =>
-                              tag &&
-                              typeof tag === "object" &&
-                              tag.key &&
-                              tag.value,
-                          ).length;
-
-                          if (validCount === data.length && data.length > 0) {
-                            return (
-                              <div className="text-success-600 flex items-center gap-1">
-                                <span>✓</span>
-                                <span>
-                                  检测到 {validCount} 个标签（数组格式）
-                                </span>
-                              </div>
-                            );
-                          } else if (data.length === 0) {
-                            return (
-                              <div className="text-warning-600 flex items-center gap-1">
-                                <span>!</span>
-                                <span>空数组，将清除所有标签</span>
-                              </div>
-                            );
-                          } else {
-                            return (
-                              <div className="text-warning-600 flex items-center gap-1">
-                                <span>⚠</span>
-                                <span>
-                                  有效标签：{validCount} / {data.length}
-                                </span>
-                              </div>
-                            );
-                          }
-                        } else if (typeof data === "object" && data !== null) {
+                        if (typeof data === "object" && data !== null && !Array.isArray(data)) {
                           // 对象格式
                           const fieldCount = Object.keys(data).length;
 
@@ -1013,7 +780,7 @@ export default function InstanceTagModal({
                               <div className="text-success-600 flex items-center gap-1">
                                 <span>✓</span>
                                 <span>
-                                  检测到 {fieldCount} 个字段（对象格式）
+                                  检测到 {fieldCount} 个字段
                                 </span>
                               </div>
                             );
@@ -1029,7 +796,7 @@ export default function InstanceTagModal({
                           return (
                             <div className="text-danger-600 flex items-center gap-1">
                               <span>✗</span>
-                              <span>必须是 JSON 对象或数组格式</span>
+                              <span>必须是JSON对象格式</span>
                             </div>
                           );
                         }
@@ -1056,7 +823,7 @@ export default function InstanceTagModal({
                 </Button>
                 <Button
                   color="primary"
-                  isDisabled={!hasChanges() || !!jsonError}
+                  isDisabled={!!jsonError}
                   isLoading={saving}
                   startContent={<FontAwesomeIcon icon={faSave} />}
                   onPress={handleSave}

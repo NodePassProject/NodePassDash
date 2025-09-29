@@ -2,6 +2,7 @@ package nodepass
 
 import (
 	"crypto/tls"
+	"encoding/json"
 	"fmt"
 	"time"
 
@@ -135,6 +136,28 @@ func ControlInstance(endpointID int64, instanceID, action string) (InstanceResul
 		Action: &action,
 	}
 	return PatchInstance(endpointID, instanceID, body)
+}
+
+// ConvertInstanceTagsToTagsMap 将InstanceTag数组转换为map[string]string并序列化为JSON字符串
+func ConvertInstanceTagsToTagsMap(instanceTags []InstanceTag) (*string, error) {
+	if len(instanceTags) == 0 {
+		return nil, nil
+	}
+
+	// 转换为map
+	tagsMap := make(map[string]string)
+	for _, tag := range instanceTags {
+		tagsMap[tag.Key] = tag.Value
+	}
+
+	// 序列化为JSON
+	jsonBytes, err := json.Marshal(tagsMap)
+	if err != nil {
+		return nil, err
+	}
+
+	jsonStr := string(jsonBytes)
+	return &jsonStr, nil
 }
 
 // PatchInstance 更新指定实例的别名 (PATCH /instances/{id})
@@ -346,6 +369,7 @@ type InstanceResult struct {
 	Mode          *int          `json:"mode,omitempty"`
 	ProxyProtocol *bool         `json:"proxyProtocol,omitempty"`
 	Tags          []InstanceTag `json:"tags,omitempty"`
+	Config        *string       `json:"config,omitempty"`
 }
 
 type patchBody struct {

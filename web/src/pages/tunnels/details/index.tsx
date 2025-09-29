@@ -72,54 +72,68 @@ import { useMetricsTrend } from "@/lib/hooks/use-metrics-trend";
 import TunnelStatsCharts from "@/components/ui/tunnel-stats-charts";
 import { useSettings } from "@/components/providers/settings-provider";
 
+// 状态映射函数
+const getStatusText = (status: string): string => {
+  switch (status) {
+    case "success":
+      return "运行中";
+    case "warning":
+      return "有错误";
+    case "danger":
+      return "已停止";
+    case "default":
+      return "已离线";
+    default:
+      return "未知";
+  }
+};
+
 interface TunnelInfo {
   id: number;
   instanceId: string;
   name: string;
   type: "server" | "client"; // 统一使用英文类型
-  status: {
-    type: "success" | "danger" | "warning";
-    text: string;
+  status: "success" | "danger" | "warning"; // 简化为字符串
+  endpoint: {
+    name: string;
+    id: number;
+    version: string;
+    tls: string;
+    log: string;
   };
-  endpoint: string;
-  endpointId: string;
-  endpointVersion?: string;
   password?: string;
-  config: {
-    listenPort: number;
-    targetPort: number;
-    tls: boolean;
-    logLevel: string;
-    tlsMode?: string; // 添加 tlsMode 字段
-    endpointTLS?: string; // 主控的TLS配置
-    endpointLog?: string; // 主控的Log配置
-    min?: number | null;
-    max?: number | null;
-    slot?: number | null; // 最大连接数限制
-    restart: boolean; // 添加 restart 字段
-    certPath?: string; // TLS证书路径
-    keyPath?: string; // TLS密钥路径
-    mode?: number | null; // 隧道模式 (0, 1, 2)
-    read?: string; // 读取配置
-    rate?: string; // 速率限制配置
-    proxyProtocol?: boolean | null; // Proxy Protocol 支持
-  };
-  traffic: {
-    tcpRx: number;
-    tcpTx: number;
-    udpRx: number;
-    udpTx: number;
-    pool: number | null;
-    ping: number | null;
-    tcps: number | null;
-    udps: number | null;
-  };
-  nodepassInfo: any;
-  error?: string;
+  certPath?: string;
+  keyPath?: string;
+  listenPort: number;
+  logLevel: string;
+  max?: number | null;
+  min?: number | null;
+  mode?: number | null;
+  proxyProtocol?: boolean | null;
+  rate?: number | null;
+  read?: string;
+  restart: boolean;
+  slot?: number | null;
+  targetPort: number;
+  tlsMode: string;
+  commandLine: string;
+  configLine: string; // 新增字段
+  config: any; // 解析后的配置对象
+  tags: { [key: string]: string }; // 改为对象形式
   tunnelAddress: string;
   targetAddress: string;
-  commandLine: string;
-  instanceTags?: Array<{ key: string; value: string }>;
+  // traffic 数据扁平化到根级别
+  ping: number | null;
+  pool: number | null;
+  tcpRx: number;
+  tcpTx: number;
+  tcps: number | null;
+  udpRx: number;
+  udpTx: number;
+  udps: number | null;
+  nodepassInfo: any;
+  error?: string;
+  instanceTags?: { [key: string]: string }; // 兼容原有逻辑，改为对象形式
 }
 
 interface PageParams {
@@ -312,10 +326,10 @@ export default function TunnelDetailPage() {
       const data = await response.json();
 
       // 设置基本信息
-      console.log("[隧道详情] 接收到的数据:", data.tunnelInfo);
+      console.log("[隧道详情] 接收到的数据:", data);
       setTunnelInfo({
-        ...data.tunnelInfo,
-        instanceTags: data.tunnelInfo.tags || [],
+        ...data,
+        instanceTags: data.tags || {}, // 现在是map格式
       });
 
       setInitialDataLoaded(true);
@@ -350,6 +364,7 @@ export default function TunnelDetailPage() {
 
   // 重命名模态控制
   const [isRenameModalOpen, setIsRenameModalOpen] = React.useState(false);
+  const [showConfigLine, setShowConfigLine] = React.useState(false);
   // 实例标签模态控制
   const [isInstanceTagModalOpen, setIsInstanceTagModalOpen] =
     React.useState(false);
@@ -845,11 +860,11 @@ export default function TunnelDetailPage() {
 
   // 当隧道信息加载完成后，初始化日志日期
   React.useEffect(() => {
-    if (tunnelInfo?.endpointId && tunnelInfo?.instanceId && !logDate) {
+    if (tunnelInfo?.endpoint?.id && tunnelInfo?.instanceId && !logDate) {
       initializeLogDate();
     }
   }, [
-    tunnelInfo?.endpointId,
+    tunnelInfo?.endpoint?.id,
     tunnelInfo?.instanceId,
     logDate,
     initializeLogDate,
@@ -917,10 +932,7 @@ export default function TunnelDetailPage() {
             prev
               ? {
                   ...prev,
-                  status: {
-                    type: data.status === "running" ? "success" : "danger",
-                    text: data.status === "running" ? "运行中" : "已停止",
-                  },
+                  status: data.status === "running" ? "success" : "danger",
                 }
               : null,
           );
@@ -937,16 +949,15 @@ export default function TunnelDetailPage() {
             prev
               ? {
                   ...prev,
-                  traffic: {
-                    tcpRx: data.tcpRx,
-                    tcpTx: data.tcpTx,
-                    udpRx: data.udpRx,
-                    udpTx: data.udpTx,
-                    pool: data.pool || prev.traffic.pool,
-                    ping: data.ping || prev.traffic.ping,
-                    tcps: data.tcps || prev.traffic.tcps,
-                    udps: data.udps || prev.traffic.udps,
-                  },
+                  // traffic 数据扁平化到根级别
+                  tcpRx: data.tcpRx,
+                  tcpTx: data.tcpTx,
+                  udpRx: data.udpRx,
+                  udpTx: data.udpTx,
+                  pool: data.pool || prev.pool,
+                  ping: data.ping || prev.ping,
+                  tcps: data.tcps || prev.tcps,
+                  udps: data.udps || prev.udps,
                 }
               : null,
           );
@@ -970,7 +981,7 @@ export default function TunnelDetailPage() {
   const handleToggleStatus = () => {
     if (!tunnelInfo) return;
 
-    const isRunning = tunnelInfo.status.type === "success";
+    const isRunning = tunnelInfo.status === "success";
 
     toggleStatus(isRunning, {
       tunnelId: tunnelInfo.id.toString(),
@@ -981,10 +992,7 @@ export default function TunnelDetailPage() {
           prev
             ? {
                 ...prev,
-                status: {
-                  type: newStatus ? "success" : "danger",
-                  text: newStatus ? "运行中" : "已停止",
-                },
+                status: newStatus ? "success" : "danger",
               }
             : null,
         );
@@ -1004,10 +1012,7 @@ export default function TunnelDetailPage() {
           prev
             ? {
                 ...prev,
-                status: {
-                  type: "success",
-                  text: "运行中",
-                },
+                status: "success",
               }
             : null,
         );
@@ -1065,10 +1070,7 @@ export default function TunnelDetailPage() {
           prev
             ? {
                 ...prev,
-                config: {
-                  ...prev.config,
-                  restart: newRestartValue,
-                },
+                restart: newRestartValue,
               }
             : null,
         );
@@ -1117,7 +1119,7 @@ export default function TunnelDetailPage() {
     if (!tunnelInfo || tcpingLoading) return;
 
     // 直接使用当前实例的目标地址和端口
-    const targetAddress = `${tunnelInfo.targetAddress}:${tunnelInfo.config.targetPort}`;
+    const targetAddress = `${tunnelInfo.targetAddress}:${tunnelInfo.targetPort}`;
 
     setTcpingTarget(targetAddress);
     setTcpingLoading(true);
@@ -1311,10 +1313,10 @@ export default function TunnelDetailPage() {
             </Chip>
             <Chip
               className="flex-shrink-0"
-              color={tunnelInfo.status.type}
+              color={tunnelInfo.status}
               variant="flat"
             >
-              {tunnelInfo.status.text}
+              {getStatusText(tunnelInfo.status)}
             </Chip>
           </div>
 
@@ -1323,22 +1325,22 @@ export default function TunnelDetailPage() {
             <Button
               className="flex-shrink-0"
               color={
-                tunnelInfo.status.type === "success" ? "warning" : "success"
+                tunnelInfo.status === "success" ? "warning" : "success"
               }
               startContent={
                 <FontAwesomeIcon
-                  icon={tunnelInfo.status.type === "success" ? faStop : faPlay}
+                  icon={tunnelInfo.status === "success" ? faStop : faPlay}
                 />
               }
               variant="flat"
               onClick={handleToggleStatus}
             >
-              {tunnelInfo.status.type === "success" ? "停止" : "启动"}
+              {tunnelInfo.status === "success" ? "停止" : "启动"}
             </Button>
             <Button
               className="flex-shrink-0"
               color="primary"
-              isDisabled={tunnelInfo.status.type !== "success"}
+              isDisabled={tunnelInfo.status !== "success"}
               startContent={<FontAwesomeIcon icon={faRotateRight} />}
               variant="flat"
               onClick={handleRestart}
@@ -1380,23 +1382,23 @@ export default function TunnelDetailPage() {
             <Button
               className="flex-shrink-0"
               color={
-                tunnelInfo.status.type === "success" ? "warning" : "success"
+                tunnelInfo.status === "success" ? "warning" : "success"
               }
               size="sm"
               startContent={
                 <FontAwesomeIcon
-                  icon={tunnelInfo.status.type === "success" ? faStop : faPlay}
+                  icon={tunnelInfo.status === "success" ? faStop : faPlay}
                 />
               }
               variant="flat"
               onClick={handleToggleStatus}
             >
-              {tunnelInfo.status.type === "success" ? "停止" : "启动"}
+              {tunnelInfo.status === "success" ? "停止" : "启动"}
             </Button>
             <Button
               className="flex-shrink-0"
               color="primary"
-              isDisabled={tunnelInfo.status.type !== "success"}
+              isDisabled={tunnelInfo.status !== "success"}
               size="sm"
               startContent={<FontAwesomeIcon icon={faRotateRight} />}
               variant="flat"
@@ -1547,19 +1549,28 @@ export default function TunnelDetailPage() {
           <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
             <TrafficStatsCard
               formatTrafficValue={formatTrafficValue}
-              trafficData={tunnelInfo.traffic}
+              trafficData={{
+                tcpRx: tunnelInfo.tcpRx,
+                tcpTx: tunnelInfo.tcpTx,
+                udpRx: tunnelInfo.udpRx,
+                udpTx: tunnelInfo.udpTx,
+                pool: tunnelInfo.pool,
+                ping: tunnelInfo.ping,
+                tcps: tunnelInfo.tcps,
+                udps: tunnelInfo.udps,
+              }}
             />
             <ConnectionsStatsCard
               connectionsData={{
-                pool: tunnelInfo.traffic.pool,
-                tcps: tunnelInfo.traffic.tcps,
-                udps: tunnelInfo.traffic.udps,
+                pool: tunnelInfo.pool,
+                tcps: tunnelInfo.tcps,
+                udps: tunnelInfo.udps,
               }}
             />
             <NetworkQualityCard
               networkData={{
-                ping: tunnelInfo.traffic.ping,
-                pool: tunnelInfo.traffic.pool,
+                ping: tunnelInfo.ping,
+                pool: tunnelInfo.pool,
               }}
             />
           </div>
@@ -1582,7 +1593,7 @@ export default function TunnelDetailPage() {
                   <p className="text-xs md:text-sm lg:text-lg font-bold text-blue-700 dark:text-blue-300">
                     {(() => {
                       const { value, unit } = formatTrafficValue(
-                        tunnelInfo.traffic.tcpRx,
+                        tunnelInfo.tcpRx,
                       );
 
                       return `${value} ${unit}`;
@@ -1601,7 +1612,7 @@ export default function TunnelDetailPage() {
                   <p className="text-xs md:text-sm lg:text-lg font-bold text-green-700 dark:text-green-300">
                     {(() => {
                       const { value, unit } = formatTrafficValue(
-                        tunnelInfo.traffic.tcpTx,
+                        tunnelInfo.tcpTx,
                       );
 
                       return `${value} ${unit}`;
@@ -1620,7 +1631,7 @@ export default function TunnelDetailPage() {
                   <p className="text-xs md:text-sm lg:text-lg font-bold text-purple-700 dark:text-purple-300">
                     {(() => {
                       const { value, unit } = formatTrafficValue(
-                        tunnelInfo.traffic.udpRx,
+                        tunnelInfo.udpRx,
                       );
 
                       return `${value} ${unit}`;
@@ -1639,7 +1650,7 @@ export default function TunnelDetailPage() {
                   <p className="text-xs md:text-sm lg:text-lg font-bold text-orange-700 dark:text-orange-300">
                     {(() => {
                       const { value, unit } = formatTrafficValue(
-                        tunnelInfo.traffic.udpTx,
+                        tunnelInfo.udpTx,
                       );
 
                       return `${value} ${unit}`;
@@ -1649,7 +1660,7 @@ export default function TunnelDetailPage() {
               </CardBody>
             </Card>
 
-            {tunnelInfo.traffic.ping !== null && (
+            {tunnelInfo.ping !== null && (
               <Card className="p-1 md:p-2 bg-pink-50 dark:bg-pink-950/30 shadow-none">
                 <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
                   <div className="text-center">
@@ -1657,14 +1668,14 @@ export default function TunnelDetailPage() {
                       端内延迟
                     </p>
                     <p className="text-xs md:text-sm lg:text-lg font-bold text-pink-700 dark:text-pink-300">
-                      {tunnelInfo.traffic.ping}ms
+                      {tunnelInfo.ping}ms
                     </p>
                   </div>
                 </CardBody>
               </Card>
             )}
 
-            {tunnelInfo.traffic.pool !== null && (
+            {tunnelInfo.pool !== null && (
               <Card className="p-1 md:p-2 bg-cyan-50 dark:bg-cyan-950/30 shadow-none">
                 <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
                   <div className="text-center">
@@ -1672,14 +1683,14 @@ export default function TunnelDetailPage() {
                       池连接数
                     </p>
                     <p className="text-xs md:text-sm lg:text-lg font-bold text-cyan-700 dark:text-cyan-300">
-                      {tunnelInfo.traffic.pool}
+                      {tunnelInfo.pool}
                     </p>
                   </div>
                 </CardBody>
               </Card>
             )}
 
-            {tunnelInfo.traffic.tcps !== null && (
+            {tunnelInfo.tcps !== null && (
               <Card className="p-1 md:p-2 bg-amber-50 dark:bg-amber-950/30 shadow-none">
                 <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
                   <div className="text-center">
@@ -1687,14 +1698,14 @@ export default function TunnelDetailPage() {
                       TCP连接数
                     </p>
                     <p className="text-xs md:text-sm lg:text-lg font-bold text-amber-700 dark:text-amber-300">
-                      {tunnelInfo.traffic.tcps}
+                      {tunnelInfo.tcps}
                     </p>
                   </div>
                 </CardBody>
               </Card>
             )}
 
-            {tunnelInfo.traffic.udps !== null && (
+            {tunnelInfo.udps !== null && (
               <Card className="p-1 md:p-2 bg-teal-50 dark:bg-teal-950/30 shadow-none">
                 <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
                   <div className="text-center">
@@ -1702,7 +1713,7 @@ export default function TunnelDetailPage() {
                       UDP连接数
                     </p>
                     <p className="text-xs md:text-sm lg:text-lg font-bold text-teal-700 dark:text-teal-300">
-                      {tunnelInfo.traffic.udps}
+                      {tunnelInfo.udps}
                     </p>
                   </div>
                 </CardBody>
@@ -1747,7 +1758,7 @@ export default function TunnelDetailPage() {
                   value={tunnelInfo.instanceId}
                 />
 
-                {tunnelInfo.config.mode != null && (
+                {tunnelInfo.mode != null && (
                   <CellValue
                     icon={
                       <Icon
@@ -1762,7 +1773,7 @@ export default function TunnelDetailPage() {
                       <Chip color="primary" size="sm" variant="flat">
                         {getTunnelModeText(
                           tunnelInfo.type,
-                          tunnelInfo.config.mode,
+                          tunnelInfo.mode,
                         )}
                       </Chip>
                     }
@@ -1779,7 +1790,7 @@ export default function TunnelDetailPage() {
                     />
                   }
                   label="主控"
-                  value={tunnelInfo.endpoint}
+                  value={tunnelInfo.endpoint.name}
                 />
 
                 <CellValue
@@ -1794,7 +1805,7 @@ export default function TunnelDetailPage() {
                   label="版本号"
                   value={
                     <Chip color="secondary" size="sm" variant="flat">
-                      {tunnelInfo.endpointVersion || "< v1.4.0"}
+                      {tunnelInfo.endpoint.version || "< v1.4.0"}
                     </Chip>
                   }
                 />
@@ -1811,7 +1822,7 @@ export default function TunnelDetailPage() {
                   label="隧道地址"
                   value={
                     <span className="font-mono text-sm">
-                      {tunnelInfo.tunnelAddress}:{tunnelInfo.config.listenPort}
+                      {tunnelInfo.tunnelAddress}:{tunnelInfo.listenPort}
                     </span>
                   }
                 />
@@ -1827,7 +1838,7 @@ export default function TunnelDetailPage() {
                   label="目标地址"
                   value={
                     <span className="font-mono text-sm">
-                      {tunnelInfo.targetAddress}:{tunnelInfo.config.targetPort}
+                      {tunnelInfo.targetAddress}:{tunnelInfo.targetPort}
                     </span>
                   }
                 />
@@ -1846,23 +1857,23 @@ export default function TunnelDetailPage() {
                     <div className="flex items-center gap-2">
                       <Chip
                         color={
-                          tunnelInfo.config.logLevel === "inherit"
+                          tunnelInfo.logLevel === "inherit"
                             ? "primary"
-                            : tunnelInfo.config.logLevel === "none"
+                            : tunnelInfo.logLevel === "none"
                               ? "warning"
                               : "default"
                         }
                         size="sm"
                         variant="flat"
                       >
-                        {tunnelInfo.config.logLevel === "inherit" ||
-                        tunnelInfo.config.logLevel === ""
-                          ? tunnelInfo.config.endpointLog
-                            ? `继承主控 [${tunnelInfo.config.endpointLog.toUpperCase()}]`
+                        {tunnelInfo.logLevel === "inherit" ||
+                        tunnelInfo.logLevel === ""
+                          ? tunnelInfo.endpoint.log
+                            ? `继承主控 [${tunnelInfo.endpoint.log.toUpperCase()}]`
                             : "继承主控"
-                          : tunnelInfo.config.logLevel === "none"
+                          : tunnelInfo.logLevel === "none"
                             ? "无日志 [NONE]"
-                            : tunnelInfo.config.logLevel.toUpperCase()}
+                            : tunnelInfo.logLevel.toUpperCase()}
                       </Chip>
                     </div>
                   }
@@ -1881,23 +1892,25 @@ export default function TunnelDetailPage() {
                     }
                     label="池最小值"
                     value={(() => {
-                      const min =
-                        tunnelInfo.config.min !== undefined &&
-                        tunnelInfo.config.min !== null
-                          ? tunnelInfo.config.min
+                      const hasValue = tunnelInfo.min !== undefined && tunnelInfo.min !== null;
+                      const configValue = tunnelInfo.config?.min;
+                      const displayValue = hasValue
+                        ? tunnelInfo.min
+                        : configValue
+                          ? configValue
                           : 64;
-                      const max =
-                        tunnelInfo.config.max !== undefined &&
-                        tunnelInfo.config.max !== null
-                          ? tunnelInfo.config.max
-                          : 1024;
 
                       return (
                         <span className="font-mono text-sm">
-                          {min}
-                          <span className="text-default-400 text-xs">
+                          {displayValue}
+                          <span className="text-default-400 text-xs ml-1">
                             (min)
                           </span>
+                          {!hasValue && configValue && (
+                            <span className="text-default-400 text-xs ml-1">
+                              (默认)
+                            </span>
+                          )}
                         </span>
                       );
                     })()}
@@ -1915,48 +1928,58 @@ export default function TunnelDetailPage() {
                     }
                     label="池最大值"
                     value={(() => {
-                      const min =
-                        tunnelInfo.config.min !== undefined &&
-                        tunnelInfo.config.min !== null
-                          ? tunnelInfo.config.min
-                          : 64;
-                      const max =
-                        tunnelInfo.config.max !== undefined &&
-                        tunnelInfo.config.max !== null
-                          ? tunnelInfo.config.max
+                      const hasValue = tunnelInfo.max !== undefined && tunnelInfo.max !== null;
+                      const configValue = tunnelInfo.config?.max;
+                      const displayValue = hasValue
+                        ? tunnelInfo.max
+                        : configValue
+                          ? configValue
                           : 1024;
 
                       return (
                         <span className="font-mono text-sm">
-                          {max}
-                          <span className="text-default-400 text-xs">
+                          {displayValue}
+                          <span className="text-default-400 text-xs ml-1">
                             (max)
                           </span>
+                          {!hasValue && configValue && (
+                            <span className="text-default-400 text-xs ml-1">
+                              (默认)
+                            </span>
+                          )}
                         </span>
                       );
                     })()}
                   />
                 )}
 
-                {tunnelInfo.config.slot !== undefined &&
-                  tunnelInfo.config.slot !== null && (
-                    <CellValue
-                      icon={
-                        <Icon
-                          className="text-default-600"
-                          height={18}
-                          icon="lucide:link-2"
-                          width={18}
-                        />
-                      }
-                      label="最大连接数限制"
-                      value={
-                        <span className="font-mono text-sm">
-                          {tunnelInfo.config.slot}
-                        </span>
-                      }
+                <CellValue
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:link-2"
+                      width={18}
                     />
-                  )}
+                  }
+                  label="最大连接数限制"
+                  value={
+                    <span className="font-mono text-sm">
+                      {tunnelInfo.slot !== undefined && tunnelInfo.slot !== null
+                        ? tunnelInfo.slot
+                        : tunnelInfo.config?.slot
+                          ? (
+                              <>
+                                {tunnelInfo.config.slot}
+                                <span className="text-default-400 text-xs ml-1">
+                                  (默认)
+                                </span>
+                              </>
+                            )
+                          : "未设置"}
+                    </span>
+                  }
+                />
                 <CellValue
                   icon={
                     <Icon
@@ -1969,11 +1992,11 @@ export default function TunnelDetailPage() {
                   label="自动重启"
                   value={
                     <span className="font-mono text-sm text-default-600">
-                      {tunnelInfo.config.restart ? "开启" : "禁用"}
+                      {tunnelInfo.restart ? "开启" : "禁用"}
                     </span>
                   }
                   onPress={() =>
-                    handleRestartToggle(!tunnelInfo.config.restart)
+                    handleRestartToggle(!tunnelInfo.restart)
                   }
                 />
                 {/* 仅服务端模式显示TLS设置 */}
@@ -1990,79 +2013,120 @@ export default function TunnelDetailPage() {
                       }
                       label="TLS 设置"
                       value={
-                        <div className="flex items-center gap-2">
+                        <div className="flex items-center">
                           <Chip
                             color={
-                              tunnelInfo.config.tlsMode === "inherit"
-                                ? "primary"
-                                : tunnelInfo.config.tlsMode === "0"
-                                  ? "default"
+                              tunnelInfo.tlsMode === "inherit" || tunnelInfo.tlsMode === ""
+                                ? "default"
+                                : tunnelInfo.tlsMode === "0"
+                                  ? "primary"
                                   : "success"
                             }
                             size="sm"
                             variant="flat"
                           >
-                            {tunnelInfo.config.tlsMode === "inherit"
-                              ? tunnelInfo.config.endpointTLS
-                                ? `继承主控 [${getTLSModeText(tunnelInfo.config.endpointTLS)}]`
-                                : "继承主控设置"
-                              : tunnelInfo.config.tlsMode === "0"
+                            {tunnelInfo.tlsMode === "inherit" || tunnelInfo.tlsMode === ""
+                              ? (
+                                  <>
+                                    继承主控
+                                  </>
+                                )
+                              : tunnelInfo.tlsMode === "0"
                                 ? "无 TLS 加密"
-                                : tunnelInfo.config.tlsMode === "1"
+                                : tunnelInfo.tlsMode === "1"
                                   ? "自签名证书"
                                   : "自定义证书"}
                           </Chip>
+                            {(tunnelInfo.tlsMode === "inherit" || tunnelInfo.tlsMode === "") && tunnelInfo.endpoint.tls && (
+                              <span className="text-default-400 text-xs ml-1">
+                                ({getTLSModeText(tunnelInfo.endpoint.tls)})
+                              </span>
+                            )}
                         </div>
                       }
                     />
-                    {/* 当TLS模式为2时显示证书路径 */}
-                    {tunnelInfo.config.tlsMode === "2" && (
-                      <>
-                        <CellValue
-                          icon={
-                            <Icon
-                              className="text-default-600"
-                              height={18}
-                              icon="lucide:award"
-                              width={18}
-                            />
-                          }
-                          label="证书路径"
-                          value={tunnelInfo.config.certPath || "未设置"}
+                    {/* server模式下显示证书路径和密钥路径 */}
+                    <CellValue
+                      icon={
+                        <Icon
+                          className="text-default-600"
+                          height={18}
+                          icon="lucide:award"
+                          width={18}
                         />
-                        <CellValue
-                          icon={
-                            <Icon
-                              className="text-default-600"
-                              height={18}
-                              icon="lucide:key"
-                              width={18}
-                            />
-                          }
-                          label="密钥路径"
-                          value={tunnelInfo.config.keyPath || "未设置"}
+                      }
+                      label="证书路径"
+                      value={
+                        (tunnelInfo.tlsMode === "2"&&tunnelInfo.certPath) ? tunnelInfo.certPath
+                          : tunnelInfo.config?.certPath
+                            ? (
+                                <>
+                                  {tunnelInfo.config.certPath}
+                                  <span className="text-default-400 text-xs ml-1">
+                                    (默认)
+                                  </span>
+                                </>
+                              )
+                            : "-"
+                      }
+                    />
+                    <CellValue
+                      icon={
+                        <Icon
+                          className="text-default-600"
+                          height={18}
+                          icon="lucide:key"
+                          width={18}
                         />
-                      </>
-                    )}
+                      }
+                      label="密钥路径"
+                      value={
+                        (tunnelInfo.tlsMode === "2"&&tunnelInfo.keyPath)
+                          ? tunnelInfo.keyPath
+                          : tunnelInfo.config?.keyPath
+                            ? (
+                                <>
+                                  {tunnelInfo.config.keyPath}
+                                  <span className="text-default-400 text-xs ml-1">
+                                    (默认)
+                                  </span>
+                                </>
+                              )
+                            : "-"
+                      }
+                    />
                   </>
                 )}
-                {/* 密码显示 - 仅在有密码时显示 */}
-                {tunnelInfo.password && (
-                  <CellValue
-                    icon={
-                      <Icon
-                        className="text-default-600"
-                        height={18}
-                        icon="lucide:lock"
-                        width={18}
-                      />
-                    }
-                    label="隧道密码"
-                    value={
-                      <div className="flex items-center gap-2">
-                        <span className="font-mono text-xs md:text-sm break-all text-default-500">
-                          {isPasswordVisible ? tunnelInfo.password : "••••••••"}
-                        </span>
+                <CellValue
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:lock"
+                      width={18}
+                    />
+                  }
+                  label="隧道密码"
+                  value={
+                    <div className="flex items-center gap-2">
+                      <span className="font-mono text-xs md:text-sm break-all text-default-500">
+                        {tunnelInfo.type === "client" && tunnelInfo.mode === 1
+                          ? "-"
+                          : tunnelInfo.password
+                            ? (isPasswordVisible ? tunnelInfo.password : "••••••••")
+                            : tunnelInfo.config?.password
+                              ? (
+                                  <>
+                                    {isPasswordVisible ? tunnelInfo.config.password : "••••••••"}
+                                    <span className="text-default-400 text-xs ml-1">
+                                      (默认)
+                                    </span>
+                                  </>
+                                )
+                              : "未设置"}
+                      </span>
+                      {(tunnelInfo.password || tunnelInfo.config?.password) &&
+                       !(tunnelInfo.type === "client" && tunnelInfo.mode === 1) && (
                         <FontAwesomeIcon
                           className="text-xs cursor-pointer hover:text-primary w-4 text-default-500"
                           icon={isPasswordVisible ? faEyeSlash : faEye}
@@ -2070,49 +2134,91 @@ export default function TunnelDetailPage() {
                             setIsPasswordVisible(!isPasswordVisible)
                           }
                         />
-                      </div>
-                    }
-                  />
-                )}
+                      )}
+                    </div>
+                  }
+                />
 
-                {tunnelInfo.config.read && (
-                  <CellValue
-                    icon={
-                      <Icon
-                        className="text-default-600"
-                        height={18}
-                        icon="lucide:clock"
-                        width={18}
-                      />
-                    }
-                    label="读取超时"
-                    value={
-                      <span className="font-mono text-sm text-default-600">
-                        {tunnelInfo.config.read}
-                      </span>
-                    }
-                  />
-                )}
+                <CellValue
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:clock"
+                      width={18}
+                    />
+                  }
+                  label="读取超时"
+                  value={
+                    <span className="font-mono text-sm text-default-600">
+                      {tunnelInfo.read
+                        ? tunnelInfo.read
+                        : tunnelInfo.config?.read
+                          ? (
+                              <>
+                                {tunnelInfo.config.read}
+                                <span className="text-default-400 text-xs ml-1">
+                                  (默认)
+                                </span>
+                              </>
+                            )
+                          : "未设置"}
+                    </span>
+                  }
+                />
 
-                {tunnelInfo.config.rate && (
-                  <CellValue
-                    icon={
-                      <Icon
-                        className="text-default-600"
-                        height={18}
-                        icon="lucide:gauge"
-                        width={18}
-                      />
-                    }
-                    label="速率限制"
-                    value={
-                      <span className="font-mono text-sm text-default-600">
-                        {tunnelInfo.config.rate}
-                        <span className="text-default-400 text-xs">Mbps</span>
-                      </span>
-                    }
-                  />
-                )}
+                <CellValue
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:gauge"
+                      width={18}
+                    />
+                  }
+                  label="速率限制"
+                  value={
+                    <span className="font-mono text-sm text-default-600">
+                      {(() => {
+                        const rateValue = tunnelInfo.rate !== undefined && tunnelInfo.rate !== null
+                          ? tunnelInfo.rate
+                          : tunnelInfo.config?.rate;
+                        const isFromConfig = tunnelInfo.rate === undefined || tunnelInfo.rate === null;
+
+                        if (rateValue === undefined || rateValue === null) {
+                          return "未设置";
+                        }
+
+                        const numValue = typeof rateValue === 'string' ? parseFloat(rateValue) : rateValue;
+
+                        if (numValue === 0) {
+                          return (
+                            <>
+                              不限制
+                              {isFromConfig && tunnelInfo.config?.rate !== undefined && (
+                                <span className="text-default-400 text-xs ml-1">
+                                  (默认)
+                                </span>
+                              )}
+                            </>
+                          );
+                        } else {
+                          return (
+                            <>
+                              {rateValue}
+                              <span className="text-default-400 text-xs ml-1">Mbps</span>
+                              {isFromConfig && tunnelInfo.config?.rate !== undefined && (
+                                <span className="text-default-400 text-xs ml-1">
+                                  (默认)
+                                </span>
+                              )}
+                            </>
+                          );
+                        }
+                      })()}
+                    </span>
+                  }
+                />
                 <CellValue
                   icon={
                     <Icon
@@ -2124,7 +2230,7 @@ export default function TunnelDetailPage() {
                   }
                   label="Proxy Protocol"
                   value={
-                    tunnelInfo.config.proxyProtocol === true ? "开启" : "关闭"
+                    tunnelInfo.proxyProtocol === true ? "开启" : "关闭"
                   }
                 />
                 <CellValue
@@ -2139,8 +2245,8 @@ export default function TunnelDetailPage() {
                   label="标签"
                   value={
                     tunnelInfo?.instanceTags &&
-                    Array.isArray(tunnelInfo.instanceTags) &&
-                    tunnelInfo.instanceTags.length > 0
+                    typeof tunnelInfo.instanceTags === 'object' &&
+                    Object.keys(tunnelInfo.instanceTags).length > 0
                       ? "已设置"
                       : "未设置"
                   }
@@ -2165,26 +2271,36 @@ export default function TunnelDetailPage() {
 
               {/* 命令行信息 */}
               <div className="flex gap-2 items-center">
-                <Button
-                  isIconOnly
-                  color="default"
-                  startContent={
-                    <Icon
-                      className="text-default-600"
-                      height={18}
-                      icon="lucide:terminal"
-                      width={18}
+                {tunnelInfo.configLine && (
+                  <Tooltip
+                    content={showConfigLine ? "切换显示命令URL" : "切换显示配置URL"}
+                    placement="top"
+                  >
+                    <Button
+                      isIconOnly
+                      color={showConfigLine ? "primary" : "default"}
+                      startContent={
+                        <Icon
+                          className={showConfigLine ? "text-primary-foreground" : "text-default-600"}
+                          height={18}
+                          icon="lucide:terminal"
+                          width={18}
+                        />
+                      }
+                      variant="flat"
+                      onPress={() => setShowConfigLine(!showConfigLine)}
                     />
-                  }
-                  variant="flat"
-                  onPress={() => setTcpingModalOpen(true)}
-                />
+                  </Tooltip>
+                )}
                 <Snippet
                   className="xs:text-xs"
+                  color={showConfigLine && tunnelInfo.configLine ? "primary" : "default"}
                   hideCopyButton={false}
                   hideSymbol={true}
                 >
-                  {tunnelInfo.commandLine}
+                  {showConfigLine && tunnelInfo.configLine
+                    ? tunnelInfo.configLine
+                    : tunnelInfo.commandLine}
                 </Snippet>
               </div>
             </div>
@@ -2197,18 +2313,13 @@ export default function TunnelDetailPage() {
           const parseTagsData = () => {
             if (
               !tunnelInfo?.instanceTags ||
-              !Array.isArray(tunnelInfo.instanceTags)
+              typeof tunnelInfo.instanceTags !== 'object'
             ) {
               return {};
             }
 
-            const data: Record<string, string> = {};
-
-            tunnelInfo.instanceTags.forEach((tag) => {
-              data[tag.key] = tag.value;
-            });
-
-            return data;
+            // 现在instanceTags直接是map格式，不需要转换
+            return tunnelInfo.instanceTags as Record<string, string>;
           };
 
           const tagsData = parseTagsData();
@@ -2428,7 +2539,7 @@ export default function TunnelDetailPage() {
                 {/* 左侧：开关设置项 */}
                 <div className="space-y-4">
                   {/* 自动重启配置 */}
-                  {tunnelInfo.endpointVersion && (
+                  {tunnelInfo.endpoint.version && (
                     <OriginalCellValue
                       label="自动重启"
                       value={
@@ -2456,7 +2567,7 @@ export default function TunnelDetailPage() {
                               </span>
                             }
                             isDisabled={isUpdatingRestart}
-                            isSelected={tunnelInfo.config.restart}
+                            isSelected={tunnelInfo.restart}
                             size="sm"
                             startContent={
                               <span className="text-xs text-default-600">
@@ -3026,7 +3137,7 @@ export default function TunnelDetailPage() {
           <CardBody>
             <FileLogViewer
               date={logDate}
-              endpointId={tunnelInfo?.endpointId || ""}
+              endpointId={tunnelInfo?.endpoint?.id || ""}
               instanceId={tunnelInfo?.instanceId || ""}
               isRealtimeMode={isRealtimeLogging}
               triggerRefresh={logRefreshTrigger}
@@ -3045,26 +3156,26 @@ export default function TunnelDetailPage() {
           editData={{
             // SimpleCreateTunnelModal 需要的字段整理
             id: tunnelInfo.id,
-            endpointId: tunnelInfo.endpointId,
+            endpointId: tunnelInfo.endpoint.id,
             type: tunnelInfo.type, // 已经是英文类型，直接使用
             name: tunnelInfo.name,
             tunnelAddress: tunnelInfo.tunnelAddress,
-            tunnelPort: String(tunnelInfo.config.listenPort),
+            tunnelPort: String(tunnelInfo.listenPort),
             targetAddress: tunnelInfo.targetAddress,
-            targetPort: String(tunnelInfo.config.targetPort),
-            tlsMode: tunnelInfo.config.tlsMode,
-            logLevel: tunnelInfo.config.logLevel,
+            targetPort: String(tunnelInfo.targetPort),
+            tlsMode: tunnelInfo.tlsMode,
+            logLevel: tunnelInfo.logLevel,
             password: tunnelInfo.password,
-            min: tunnelInfo.config.min,
-            max: tunnelInfo.config.max,
-            slot: tunnelInfo.config.slot,
-            certPath: tunnelInfo.config.certPath,
-            keyPath: tunnelInfo.config.keyPath,
+            min: tunnelInfo.min,
+            max: tunnelInfo.max,
+            slot: tunnelInfo.slot,
+            certPath: tunnelInfo.certPath,
+            keyPath: tunnelInfo.keyPath,
             // 新增字段
-            read: tunnelInfo.config.read,
-            rate: tunnelInfo.config.rate,
-            mode: tunnelInfo.config.mode,
-            proxyProtocol: tunnelInfo.config.proxyProtocol,
+            read: tunnelInfo.read,
+            rate: tunnelInfo.rate,
+            mode: tunnelInfo.mode,
+            proxyProtocol: tunnelInfo.proxyProtocol,
           }}
           isOpen={editModalOpen}
           mode="edit"
@@ -3086,7 +3197,23 @@ export default function TunnelDetailPage() {
       />
       {/* 实例标签模态框 */}
       <InstanceTagModal
-        currentTags={tunnelInfo?.instanceTags || []}
+        currentTags={(() => {
+          const tags = tunnelInfo?.instanceTags;
+          if (!tags) return [];
+
+          // 如果已经是数组格式，直接返回
+          if (Array.isArray(tags)) return tags;
+
+          // 如果是对象格式，转换为数组格式
+          if (typeof tags === 'object') {
+            return Object.entries(tags).map(([key, value]) => ({
+              key,
+              value: String(value)
+            }));
+          }
+
+          return [];
+        })()}
         isOpen={isInstanceTagModalOpen}
         tunnelId={tunnelInfo?.id?.toString() || ""}
         onOpenChange={setIsInstanceTagModalOpen}

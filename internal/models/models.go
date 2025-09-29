@@ -83,8 +83,11 @@ type Tunnel struct {
 	// Proxy Protocol 支持
 	ProxyProtocol *bool `json:"proxyProtocol,omitempty" gorm:"column:proxy_protocol"`
 
-	// 实例标签 (JSON格式存储)
-	InstanceTags *string `json:"instance_tags,omitempty" gorm:"type:text;column:instance_tags"`
+	// 标签 (JSON格式存储为map[string]string)
+	Tags *string `json:"tags,omitempty" gorm:"type:text;column:tags"`
+
+	// 配置行 (存储Config字段内容)
+	ConfigLine *string `json:"configLine,omitempty" gorm:"type:text;column:config_line"`
 
 	CreatedAt     time.Time `json:"createdAt" gorm:"autoCreateTime;index;column:created_at"`
 	UpdatedAt     time.Time `json:"updatedAt" gorm:"autoUpdateTime;column:updated_at"`

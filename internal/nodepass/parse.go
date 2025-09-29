@@ -231,6 +231,7 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 		"last_event_time": tunnel.LastEventTime,
 		"updated_at":      time.Now(),
 		"proxy_protocol":  tunnel.ProxyProtocol,
+		"config_line":     tunnel.ConfigLine,
 	}
 
 	if tunnel.CertPath != nil {
@@ -262,8 +263,11 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 	if tunnel.ProxyProtocol != nil {
 		updates["proxy_protocol"] = tunnel.ProxyProtocol
 	}
-	if tunnel.InstanceTags != nil {
-		updates["instance_tags"] = tunnel.InstanceTags
+	if tunnel.Tags != nil {
+		updates["tags"] = tunnel.Tags
+	}
+	if tunnel.ConfigLine != nil {
+		updates["config_line"] = tunnel.ConfigLine
 	}
 	return updates
 }

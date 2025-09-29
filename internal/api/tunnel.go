@@ -3,6 +3,7 @@ package api
 import (
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/metrics"
+	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
@@ -75,7 +76,7 @@ func SetupTunnelRoutes(rg *gin.RouterGroup, tunnelService *tunnel.Service, sseMa
 	rg.GET("/tunnels/:id/ping-trend", tunnelHandler.HandleGetTunnelPingTrend)
 	rg.GET("/tunnels/:id/pool-trend", tunnelHandler.HandleGetTunnelPoolTrend)
 	rg.GET("/tunnels/:id/export-logs", tunnelHandler.HandleExportTunnelLogs)
-	rg.PUT("/tunnels/:id/instance-tags", tunnelHandler.HandleUpdateInstanceTags)
+	rg.PUT("/tunnels/:id/tags", tunnelHandler.HandleUpdateInstanceTags)
 
 	// 新的统一 metrics 趋势接口 - 基于 ServiceHistory 表，使用 instanceId
 	rg.GET("/tunnels/:id/metrics-trend", tunnelMetricsHandler.HandleGetTunnelMetricsTrend)
@@ -971,6 +972,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		TunnelAddress   string
 		TargetAddress   string
 		CommandLine     string
+		ConfigLine      *string
 		PasswordNS      sql.NullString
 		CertPathNS      sql.NullString
 		KeyPathNS       sql.NullString
@@ -990,14 +992,14 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		Rate            sql.NullInt64
 		Slot            sql.NullInt64
 		ProxyProtocol   sql.NullBool
-		InstanceTags    sql.NullString
+		Tags            sql.NullString
 	}
 
 	query := `SELECT t.id, t.instance_id, t.name, t.type, t.status, t.endpoint_id,
 		   e.name, e.tls, e.log, e.ver, t.tunnel_port, t.target_port, t.tls_mode, t.log_level,
-		   t.tunnel_address, t.target_address, t.command_line, t.password, t.cert_path, t.key_path,
+		   t.tunnel_address, t.target_address, t.command_line, t.config_line, t.password, t.cert_path, t.key_path,
 		   t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.pool, t.ping, t.tcps, t.udps,
-		   t.min, t.max, ifnull(t.restart, 0), t.mode, t.read, t.rate, t.slot, t.proxy_protocol, t.instance_tags
+		   t.min, t.max, ifnull(t.restart, 0), t.mode, t.read, t.rate, t.slot, t.proxy_protocol, t.tags
 		   FROM tunnels t
 		   LEFT JOIN endpoints e ON t.endpoint_id = e.id
 		   WHERE t.id = ?`
@@ -1019,6 +1021,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		&tunnelRecord.TunnelAddress,
 		&tunnelRecord.TargetAddress,
 		&tunnelRecord.CommandLine,
+		&tunnelRecord.ConfigLine,
 		&tunnelRecord.PasswordNS,
 		&tunnelRecord.CertPathNS,
 		&tunnelRecord.KeyPathNS,
@@ -1038,7 +1041,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		&tunnelRecord.Rate,
 		&tunnelRecord.Slot,
 		&tunnelRecord.ProxyProtocol,
-		&tunnelRecord.InstanceTags,
+		&tunnelRecord.Tags,
 	); err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "隧道不存在"})
@@ -1083,16 +1086,12 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 
 	// 状态映射
 	statusType := "danger"
-	statusText := "已停止"
 	if tunnelRecord.Status == "running" {
 		statusType = "success"
-		statusText = "运行中"
 	} else if tunnelRecord.Status == "error" {
 		statusType = "warning"
-		statusText = "有错误"
 	} else if tunnelRecord.Status == "offline" {
 		statusType = "default"
-		statusText = "已离线"
 	}
 
 	// 端口转换
@@ -1109,114 +1108,147 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		read = tunnelRecord.Read.String
 	}
 
-	// 2. 组装响应（不再包含日志数据）
+	// 2. 使用 nodepass 解析 configLine 得到配置
+	var parsedConfig *nodepass.TunnelConfig
+	if tunnelRecord.ConfigLine != nil && *tunnelRecord.ConfigLine != "" {
+		parsedConfig = nodepass.ParseTunnelConfig(*tunnelRecord.ConfigLine)
+	} else {
+		// 如果没有 ConfigLine，使用 CommandLine 作为备选，或创建空配置
+		if tunnelRecord.CommandLine != "" {
+			parsedConfig = nodepass.ParseTunnelConfig(tunnelRecord.CommandLine)
+		} else {
+			parsedConfig = &nodepass.TunnelConfig{}
+		}
+	}
+
+	// 3. 组装扁平化响应结构（匹配 after.json）
 	resp := map[string]interface{}{
-		"tunnelInfo": map[string]interface{}{
-			"id":         tunnelRecord.ID,
-			"instanceId": instanceID,
-			"name":       tunnelRecord.Name,
-			"type":       tunnelRecord.Type,
-			"status": map[string]string{
-				"type": statusType,
-				"text": statusText,
-			},
-			"endpoint":        endpointName,
-			"endpointId":      tunnelRecord.EndpointID,
-			"endpointVersion": endpointVersion,
-			"password":        password, // 添加密码字段
-			"config": map[string]interface{}{
-				"listenPort":  listenPort,
-				"targetPort":  targetPort,
-				"tls":         tunnelRecord.TLSMode != "0",
-				"logLevel":    tunnelRecord.LogLevel,
-				"tlsMode":     tunnelRecord.TLSMode,
-				"endpointTLS": endpointTLS, // 主控的TLS配置
-				"endpointLog": endpointLog, // 主控的Log配置
-				"certPath":    certPath,    // TLS证书路径
-				"keyPath":     keyPath,     // TLS密钥路径
-				"min": func() interface{} {
-					if tunnelRecord.Min.Valid {
-						return tunnelRecord.Min.Int64
-					}
-					return nil
-				}(),
-				"max": func() interface{} {
-					if tunnelRecord.Max.Valid {
-						return tunnelRecord.Max.Int64
-					}
-					return nil
-				}(),
-				"restart": tunnelRecord.Restart,
-				"mode": func() interface{} {
-					if tunnelRecord.Mode.Valid {
-						return tunnelRecord.Mode.Int64
-					}
-					return nil
-				}(),
-				"read": read,
-				"rate": func() interface{} {
-					if tunnelRecord.Rate.Valid {
-						return tunnelRecord.Rate.Int64
-					}
-					return nil
-				}(),
-				"slot": func() interface{} {
-					if tunnelRecord.Slot.Valid {
-						return tunnelRecord.Slot.Int64
-					}
-					return nil
-				}(),
-				"proxyProtocol": func() interface{} {
-					if tunnelRecord.ProxyProtocol.Valid {
-						return tunnelRecord.ProxyProtocol.Bool
-					}
-					return nil
-				}(),
-			},
-			"traffic": map[string]interface{}{
-				"tcpRx": tunnelRecord.TCPRx,
-				"tcpTx": tunnelRecord.TCPTx,
-				"udpRx": tunnelRecord.UDPRx,
-				"udpTx": tunnelRecord.UDPTx,
-				"pool": func() interface{} {
-					if tunnelRecord.Pool.Valid {
-						return tunnelRecord.Pool.Int64
-					}
-					return nil
-				}(),
-				"ping": func() interface{} {
-					if tunnelRecord.Ping.Valid {
-						return tunnelRecord.Ping.Int64
-					}
-					return nil
-				}(),
-				"tcps": func() interface{} {
-					if tunnelRecord.TCPs.Valid {
-						return tunnelRecord.TCPs.Int64
-					}
-					return nil
-				}(),
-				"udps": func() interface{} {
-					if tunnelRecord.UDPs.Valid {
-						return tunnelRecord.UDPs.Int64
-					}
-					return nil
-				}(),
-			},
-			"tunnelAddress": tunnelRecord.TunnelAddress,
-			"targetAddress": tunnelRecord.TargetAddress,
-			"commandLine":   tunnelRecord.CommandLine,
-			"tags": func() interface{} {
-				if tunnelRecord.InstanceTags.Valid && tunnelRecord.InstanceTags.String != "" {
-					var tags []nodepass.InstanceTag
-					if err := json.Unmarshal([]byte(tunnelRecord.InstanceTags.String), &tags); err == nil {
-						return tags
-					}
-					return []nodepass.InstanceTag{}
-				}
-				return []nodepass.InstanceTag{}
-			}(),
+		"id":            tunnelRecord.ID,
+		"instanceId":    instanceID,
+		"name":          tunnelRecord.Name,
+		"type":          tunnelRecord.Type,
+		"status":        statusType, // 简化为字符串
+		"targetAddress": tunnelRecord.TargetAddress,
+		"tunnelAddress": tunnelRecord.TunnelAddress,
+		"mode": func() interface{} {
+			if tunnelRecord.Mode.Valid {
+				return tunnelRecord.Mode.Int64
+			}
+			return nil
+		}(),
+		"password":   password,
+		"certPath":   certPath,
+		"keyPath":    keyPath,
+		"listenPort": listenPort,
+		"logLevel":   tunnelRecord.LogLevel,
+		"max": func() interface{} {
+			if tunnelRecord.Max.Valid {
+				return tunnelRecord.Max.Int64
+			}
+			return nil
+		}(),
+		"min": func() interface{} {
+			if tunnelRecord.Min.Valid {
+				return tunnelRecord.Min.Int64
+			}
+			return nil
+		}(),
+		"proxyProtocol": func() interface{} {
+			if tunnelRecord.ProxyProtocol.Valid {
+				return tunnelRecord.ProxyProtocol.Bool
+			}
+			return nil
+		}(),
+		"rate": func() interface{} {
+			if tunnelRecord.Rate.Valid {
+				return tunnelRecord.Rate.Int64
+			}
+			return nil
+		}(),
+		"read":    read,
+		"restart": tunnelRecord.Restart,
+		"slot": func() interface{} {
+			if tunnelRecord.Slot.Valid {
+				return tunnelRecord.Slot.Int64
+			}
+			return nil
+		}(),
+		"targetPort":  targetPort,
+		"tlsMode":     tunnelRecord.TLSMode,
+		"commandLine": tunnelRecord.CommandLine,
+		"configLine":  tunnelRecord.ConfigLine, // 预留字段
+
+		// endpoint 改为对象形式
+		"endpoint": map[string]interface{}{
+			"name":    endpointName,
+			"id":      tunnelRecord.EndpointID,
+			"version": endpointVersion,
+			"tls":     endpointTLS,
+			"log":     endpointLog,
 		},
+
+		// config 字段：使用解析后的配置
+		"config": map[string]interface{}{
+			"type":          parsedConfig.Type,
+			"tunnelAddress": parsedConfig.TunnelAddress,
+			"tunnelPort":    parsedConfig.TunnelPort,
+			"targetAddress": parsedConfig.TargetAddress,
+			"targetPort":    parsedConfig.TargetPort,
+			"tlsMode":       parsedConfig.TLSMode,
+			"logLevel":      parsedConfig.LogLevel,
+			"certPath":      parsedConfig.CertPath,
+			"keyPath":       parsedConfig.KeyPath,
+			"password":      parsedConfig.Password,
+			"min":           parsedConfig.Min,
+			"max":           parsedConfig.Max,
+			"mode":          parsedConfig.Mode,
+			"read":          parsedConfig.Read,
+			"rate":          parsedConfig.Rate,
+			"slot":          parsedConfig.Slot,
+			"proxy":         parsedConfig.Proxy,
+		},
+
+		// tags 改为对象形式（从 JSON 解析）
+		"tags": func() interface{} {
+			if tunnelRecord.Tags.Valid && tunnelRecord.Tags.String != "" {
+				var tagsMap map[string]string
+				if err := json.Unmarshal([]byte(tunnelRecord.Tags.String), &tagsMap); err == nil {
+					return tagsMap
+				}
+				return map[string]string{}
+			}
+			return map[string]string{}
+		}(),
+
+		// traffic 数据扁平化到根级别
+		"ping": func() interface{} {
+			if tunnelRecord.Ping.Valid {
+				return tunnelRecord.Ping.Int64
+			}
+			return 0
+		}(),
+		"pool": func() interface{} {
+			if tunnelRecord.Pool.Valid {
+				return tunnelRecord.Pool.Int64
+			}
+			return 0
+		}(),
+		"tcpRx": tunnelRecord.TCPRx,
+		"tcpTx": tunnelRecord.TCPTx,
+		"tcps": func() interface{} {
+			if tunnelRecord.TCPs.Valid {
+				return tunnelRecord.TCPs.Int64
+			}
+			return 0
+		}(),
+		"udpRx": tunnelRecord.UDPRx,
+		"udpTx": tunnelRecord.UDPTx,
+		"udps": func() interface{} {
+			if tunnelRecord.UDPs.Valid {
+				return tunnelRecord.UDPs.Int64
+			}
+			return 0
+		}(),
 	}
 
 	c.JSON(http.StatusOK, resp)
@@ -3576,7 +3608,7 @@ func (h *TunnelHandler) HandleTunnelTCPing(c *gin.Context) {
 	c.JSON(http.StatusOK, response)
 }
 
-// HandleUpdateInstanceTags 更新隧道实例标签 (PUT /api/tunnels/{id}/instance-tags)
+// HandleUpdateInstanceTags 更新隧道标签 (PUT /api/tunnels/{id}/tags)
 func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 	// 获取隧道ID
 	idStr := c.Param("id")
@@ -3590,42 +3622,73 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 		return
 	}
 
-	// 解析请求体
-	var req struct {
-		Tags []nodepass.InstanceTag `json:"tags"`
-	}
-	if err := c.ShouldBindJSON(&req); err != nil {
-		log.Errorf("[API]解析实例标签请求失败: %v", err)
+	// 解析请求体 - 直接接收map格式的数据
+	var requestData map[string]interface{}
+	if err := c.ShouldBindJSON(&requestData); err != nil {
+		log.Errorf("[API]解析标签请求失败: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "无效的请求格式",
+			"message": "无效的请求格式，必须是JSON对象",
 		})
 		return
 	}
 
-	// 验证标签格式
-	for _, tag := range req.Tags {
-		if strings.TrimSpace(tag.Key) == "" {
+	// 首先获取当前tunnel的原始tags进行对比
+	var currentTunnel models.Tunnel
+	if err := h.tunnelService.GormDB().Where("id = ?", tunnelID).First(&currentTunnel).Error; err != nil {
+		log.Errorf("[API]获取隧道信息失败: tunnelID=%d, err=%v", tunnelID, err)
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"message": "隧道不存在",
+		})
+		return
+	}
+
+	// 解析当前的tags
+	originalTagsMap := make(map[string]string)
+	if currentTunnel.Tags != nil && *currentTunnel.Tags != "" {
+		if err := json.Unmarshal([]byte(*currentTunnel.Tags), &originalTagsMap); err != nil {
+			log.Warnf("[API]解析原始tags失败: %v", err)
+		}
+	}
+
+	// 将请求数据转换为统一的InstanceTag格式，并处理删除逻辑
+	var tags []nodepass.InstanceTag
+	newTagsMap := make(map[string]string)
+
+	// 构建新的tags map
+	for key, value := range requestData {
+		if strings.TrimSpace(key) == "" {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
 				"message": "标签键不能为空",
 			})
 			return
 		}
+		newTagsMap[key] = fmt.Sprintf("%v", value)
 	}
 
-	// 检查重复的键
-	keyMap := make(map[string]bool)
-	for _, tag := range req.Tags {
-		if keyMap[tag.Key] {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"success": false,
-				"message": "标签键不能重复",
-			})
-			return
-		}
-		keyMap[tag.Key] = true
+	// 添加所有新的或修改的tags
+	for key, value := range newTagsMap {
+		tags = append(tags, nodepass.InstanceTag{
+			Key:   key,
+			Value: value,
+		})
 	}
+
+	// 找出被删除的keys，为它们添加空值以便nodepass删除
+	for originalKey := range originalTagsMap {
+		if _, exists := newTagsMap[originalKey]; !exists {
+			// 这个key在新的map中不存在，说明被删除了
+			tags = append(tags, nodepass.InstanceTag{
+				Key:   originalKey,
+				Value: "", // 空值表示删除
+			})
+			log.Debugf("[API]检测到删除的标签: %s", originalKey)
+		}
+	}
+
+	log.Debugf("[API]最终发送给nodepass的tags: %+v", tags)
 
 	// 获取隧道的实例ID和端点ID
 	instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
@@ -3656,19 +3719,19 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 		return
 	}
 
-	// 调用NodePass API更新实例标签
-	result, err := nodepass.UpdateInstanceTags(endpointID, instanceID, req.Tags)
+	// 调用NodePass API更新标签
+	result, err := nodepass.UpdateInstanceTags(endpointID, instanceID, tags)
 	if err != nil {
-		log.Errorf("[API]更新实例标签失败: tunnelID=%d, instanceID=%s, err=%v", tunnelID, instanceID, err)
+		log.Errorf("[API]更新标签失败: tunnelID=%d, instanceID=%s, err=%v", tunnelID, instanceID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"message": "更新实例标签失败",
+			"message": "更新标签失败",
 			"error":   err.Error(),
 		})
 		return
 	}
 
-	log.Infof("[API]实例标签更新成功: tunnelID=%d, instanceID=%s, tagsCount=%d", tunnelID, instanceID, len(req.Tags))
+	log.Infof("[API]标签更新成功: tunnelID=%d, instanceID=%s, tagsCount=%d", tunnelID, instanceID, len(tags))
 
 	// 返回成功响应
 	c.JSON(http.StatusOK, gin.H{

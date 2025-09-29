@@ -1496,6 +1496,11 @@ func (s *Service) DB() *sql.DB {
 	return sqlDB
 }
 
+// GormDB 返回 GORM 数据库实例，供需要使用 GORM 方法的调用者使用
+func (s *Service) GormDB() *gorm.DB {
+	return s.db
+}
+
 // QuickCreateTunnel 根据完整 URL 快速创建隧道实例 (server://addr:port/target:port?params)
 func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string) error {
 	// 使用统一的parseUrl方法解析URL
