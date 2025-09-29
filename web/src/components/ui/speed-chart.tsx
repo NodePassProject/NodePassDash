@@ -56,17 +56,16 @@ const formatAxisTime = (timestamp: string): string => {
   });
 };
 
-// 速率格式化函数 - 将字节/秒转换为比特/秒
+// 速率格式化函数 - 格式化字节/秒
 const formatSpeedValue = (bytesPerSecond: number) => {
-  const units = ["b/s", "Kb/s", "Mb/s", "Gb/s", "Tb/s"];
+  const units = ["B/s", "KB/s", "MB/s", "GB/s", "TB/s"];
 
-  // 将字节转换为比特（乘以8）
-  let value = Math.abs(bytesPerSecond) * 8;
+  let value = Math.abs(bytesPerSecond);
   let unitIndex = 0;
 
-  // 使用1000作为进制（符合网络速率标准）
-  while (value >= 1000 && unitIndex < units.length - 1) {
-    value /= 1000;
+  // 使用1024作为进制
+  while (value >= 1024 && unitIndex < units.length - 1) {
+    value /= 1024;
     unitIndex++;
   }
 

@@ -2432,13 +2432,13 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 		switch tunnel.Status {
 		case "running":
 			tunnel.StatusInfo.Type = "success"
-			tunnel.StatusInfo.Text = "运行中"
+			tunnel.StatusInfo.Text = "运行"
 		case "stopped":
 			tunnel.StatusInfo.Type = "danger"
-			tunnel.StatusInfo.Text = "已停止"
+			tunnel.StatusInfo.Text = "停止"
 		case "error":
 			tunnel.StatusInfo.Type = "warning"
-			tunnel.StatusInfo.Text = "有错误"
+			tunnel.StatusInfo.Text = "错误"
 		case "offline":
 			tunnel.StatusInfo.Type = "default"
 			tunnel.StatusInfo.Text = "离线"

@@ -494,7 +494,7 @@ func (s *Service) sendTunnelUpdateByInstanceId(instanceID string, data SSEResp) 
 
 	subscribers, exists := s.tunnelSubs[instanceID]
 	if !exists {
-		log.Warnf("[SSE]隧道 %s 没有订阅者", instanceID)
+		// log.Debug("[SSE]隧道 %s 没有订阅者", instanceID)
 		return
 	}
 
