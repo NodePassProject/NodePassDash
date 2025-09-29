@@ -42,6 +42,8 @@ import {
   faNetworkWired,
   faCog,
   faQrcode,
+  faMicrochip,
+  faMemory,
 } from "@fortawesome/free-solid-svg-icons";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
@@ -54,6 +56,8 @@ import { OSIcon } from "@/components/ui/os-icon";
 import { useSettings } from "@/components/providers/settings-provider";
 import SystemStatsCharts from "@/components/ui/system-stats-charts";
 import NetworkDebugModal from "@/components/ui/network-debug-modal";
+import { SimpleCircleChart } from "@/components/ui/simple-circle-chart";
+import { useSystemMonitorWS, SystemMonitorData } from "@/lib/hooks/use-system-monitor-ws";
 
 // 主控详情接口定义
 interface EndpointDetail {
@@ -105,6 +109,35 @@ export default function EndpointDetailPage() {
     null,
   );
   const [statsLoading, setStatsLoading] = useState(true);
+
+  // 实时系统状态
+  const [cpuUsage, setCpuUsage] = useState(0);
+  const [memoryUsage, setMemoryUsage] = useState(0);
+  const [swapUsage, setSwapUsage] = useState(0);
+  const [hasSwap, setHasSwap] = useState(false);
+  const [realTimeTraffic, setRealTimeTraffic] = useState({
+    uploadSpeed: 0,
+    downloadSpeed: 0,
+    tcpConnections: 0,
+    udpConnections: 0,
+  });
+  const [realTimeDisk, setRealTimeDisk] = useState({
+    usage: 0,
+    fileCount: 0,
+    readSpeed: 0,
+    writeSpeed: 0,
+  });
+
+  // 网络和磁盘速率计算状态
+  const [previousNetRx, setPreviousNetRx] = useState<number | null>(null);
+  const [previousNetTx, setPreviousNetTx] = useState<number | null>(null);
+  const [previousDiskR, setPreviousDiskR] = useState<number | null>(null);
+  const [previousDiskW, setPreviousDiskW] = useState<number | null>(null);
+  const [previousTimestamp, setPreviousTimestamp] = useState<number | null>(null);
+  const [netRxRate, setNetRxRate] = useState(0);
+  const [netTxRate, setNetTxRate] = useState(0);
+  const [diskRRate, setDiskRRate] = useState(0);
+  const [diskWRate, setDiskWRate] = useState(0);
   const [instances, setInstances] = useState<
     Array<{
       instanceId: string;
@@ -400,6 +433,123 @@ export default function EndpointDetailPage() {
     endpointId,
   ]);
   const memoizedFetchInstances = useCallback(fetchInstances, [endpointId]);
+
+  // SystemMonitor WebSocket连接用于实时系统数据
+  const {
+    isConnected: isSystemMonitorConnected,
+    isConnecting: isSystemMonitorConnecting,
+    error: systemMonitorError,
+    latestData: systemMonitorData,
+    connect: connectSystemMonitor,
+    disconnect: disconnectSystemMonitor,
+  } = useSystemMonitorWS(
+    endpointId ? parseInt(endpointId) : null,
+    {
+      onData: (data: SystemMonitorData) => {
+        console.log('[SystemMonitor] 收到实时数据:', data);
+
+        // 更新CPU使用率
+        if (data.cpu !== undefined) {
+          setCpuUsage(Math.round(data.cpu));
+        }
+
+        // 更新内存使用率
+        if (data.ram !== undefined) {
+          setMemoryUsage(Math.round(data.ram));
+        }
+
+        // 更新Swap使用率
+        if (data.swap !== undefined) {
+          setSwapUsage(Math.round(data.swap));
+          // 如果收到swap数据且大于0，设置hasSwap为true
+          if (data.swap > 0) {
+            setHasSwap(true);
+          }
+        }
+
+        // 计算网络和磁盘速率
+        const currentTime = data.timestamp;
+
+        if (previousTimestamp && currentTime > previousTimestamp) {
+          const timeDiff = (currentTime - previousTimestamp) / 1000; // 转换为秒
+
+          // 计算网络速率
+          if (previousNetRx !== null && data.netrx !== undefined) {
+            const rxDiff = Math.max(0, data.netrx - previousNetRx);
+            const rxRate = Math.round(rxDiff / timeDiff);
+            setNetRxRate(rxRate);
+          }
+
+          if (previousNetTx !== null && data.nettx !== undefined) {
+            const txDiff = Math.max(0, data.nettx - previousNetTx);
+            const txRate = Math.round(txDiff / timeDiff);
+            setNetTxRate(txRate);
+          }
+
+          // 计算磁盘I/O速率
+          if (previousDiskR !== null && data.diskr !== undefined) {
+            const diskRDiff = Math.max(0, data.diskr - previousDiskR);
+            const diskRRate = Math.round(diskRDiff / timeDiff);
+            setDiskRRate(diskRRate);
+          }
+
+          if (previousDiskW !== null && data.diskw !== undefined) {
+            const diskWDiff = Math.max(0, data.diskw - previousDiskW);
+            const diskWRate = Math.round(diskWDiff / timeDiff);
+            setDiskWRate(diskWRate);
+          }
+        }
+
+        // 更新实时流量数据
+        setRealTimeTraffic({
+          uploadSpeed: netTxRate,
+          downloadSpeed: netRxRate,
+          tcpConnections: 0, // SystemMonitor不提供连接数数据
+          udpConnections: 0,
+        });
+
+        // 更新磁盘I/O数据
+        setRealTimeDisk({
+          usage: endpointStats?.fileLogSize || 0, // 使用日志文件大小作为磁盘使用量
+          fileCount: endpointStats?.fileLogCount || 0, // 使用日志文件数量
+          readSpeed: diskRRate,
+          writeSpeed: diskWRate,
+        });
+
+        // 保存当前值为下次计算准备
+        setPreviousNetRx(data.netrx || 0);
+        setPreviousNetTx(data.nettx || 0);
+        setPreviousDiskR(data.diskr || 0);
+        setPreviousDiskW(data.diskw || 0);
+        setPreviousTimestamp(currentTime);
+      },
+      onError: (error) => {
+        console.error('[SystemMonitor] 连接错误:', error);
+      },
+    }
+  );
+
+  // 检查版本兼容性并自动连接SystemMonitor（类似SystemStatsCharts的逻辑）
+  useEffect(() => {
+    // 只有当端点在线且版本兼容时才连接SystemMonitor
+    if (endpointDetail?.status === "ONLINE" && endpointDetail?.ver) {
+      // 检查版本是否支持SystemMonitor (假设v2.0.0以上支持)
+      const versionMatch = endpointDetail.ver.match(/v?(\d+)\.(\d+)\.(\d+)/);
+      if (versionMatch) {
+        const [, major, minor] = versionMatch.map(Number);
+        const isVersionSupported = major > 2 || (major === 2 && minor >= 0);
+
+        if (isVersionSupported && !isSystemMonitorConnected && !isSystemMonitorConnecting) {
+          console.log('[SystemMonitor] 版本兼容，开始连接系统监控...');
+          connectSystemMonitor();
+        }
+      }
+    } else if (isSystemMonitorConnected && endpointDetail?.status !== "ONLINE") {
+      // 如果端点离线，断开SystemMonitor连接
+      console.log('[SystemMonitor] 端点离线，断开系统监控连接');
+      disconnectSystemMonitor();
+    }
+  }, [endpointDetail?.status, endpointDetail?.ver, isSystemMonitorConnected, isSystemMonitorConnecting, connectSystemMonitor, disconnectSystemMonitor]);
 
   // 主控操作函数
   const handleConnect = async () => {
@@ -937,441 +1087,631 @@ export default function EndpointDetailPage() {
           >
             <FontAwesomeIcon icon={faRotateRight} />
           </Button>
-          <Button
-            className="hidden md:flex"
-            color="warning"
-            startContent={<FontAwesomeIcon icon={faBug} />}
-            variant="flat"
-            onPress={() => navigate(`/endpoints/sse-debug?id=${endpointId}`)}
-          >
-            SSE调试
-          </Button>
-          <Button
-            isIconOnly
-            className="md:hidden"
-            color="warning"
-            variant="flat"
-            onPress={() => navigate(`/endpoints/sse-debug?id=${endpointId}`)}
-          >
-            <FontAwesomeIcon icon={faBug} />
-          </Button>
         </div>
       </div>
 
       {/* 系统监控统计图 - 仅在实验模式下显示 */}
-      <SystemStatsCharts
-        endpointId={endpointId ? parseInt(endpointId) : null}
-        endpointOS={endpointDetail?.os || null}
-        endpointVersion={endpointDetail?.ver || null}
-        isExperimentalMode={true}
-      />
+      {settings.isExperimentalMode && (
+        <SystemStatsCharts
+          endpointId={endpointId ? parseInt(endpointId) : null}
+          endpointOS={endpointDetail?.os || null}
+          endpointVersion={endpointDetail?.ver || null}
+          isExperimentalMode={settings.isExperimentalMode}
+        />
+      )}
 
-      {/* 统计信息卡片 */}
-      <Card className="p-2">
-        <CardHeader>
-          <div className="flex flex-col flex-1">
-            <p className="text-lg font-semibold">主控统计</p>
-            <p className="text-sm text-default-500">当前主控的数据统计概览</p>
-          </div>
-        </CardHeader>
-        <CardBody>
-          {statsLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {Array.from({ length: 4 }, (_, index) => (
-                <div
-                  key={index}
-                  className="flex items-center gap-3 p-4 bg-default/10 rounded-lg"
-                >
-                  <Skeleton className="w-6 h-6 rounded" />
-                  <div className="flex-1">
-                    <Skeleton className="h-3 w-16 mb-1" />
-                    <Skeleton className="h-5 w-12 mb-1" />
-                    <Skeleton className="h-3 w-20" />
-                  </div>
-                </div>
-              ))}
-            </div>
-          ) : endpointStats ? (
-            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
-              {/* 隧道数量 */}
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 border border-primary/20">
-                <FontAwesomeIcon
-                  className="text-primary text-xl"
-                  icon={faLayerGroup}
-                />
-                <div>
-                  <p className="text-xs text-default-600">实例总数量</p>
-                  <p className="text-xl font-bold text-primary">
-                    {endpointStats.tunnelCount}
-                  </p>
-                  <p className="text-xs text-default-500">活跃实例</p>
-                </div>
-              </div>
-
-              {/* 日志文件数 */}
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-secondary/20 via-secondary/10 to-secondary/5 border border-secondary/20">
-                <FontAwesomeIcon
-                  className="text-secondary text-xl"
-                  icon={faFileLines}
-                />
-                <div>
-                  <p className="text-xs text-default-600">日志文件数</p>
-                  <p className="text-xl font-bold text-secondary">
-                    {endpointStats.fileLogCount}
-                  </p>
-                  <p className="text-xs text-default-500">日志文件</p>
-                </div>
-              </div>
-
-              {/* 日志文件大小 */}
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-success/20 via-success/10 to-success/5 border border-success/20">
-                <FontAwesomeIcon
-                  className="text-success text-xl"
-                  icon={faHardDrive}
-                />
-                <div>
-                  <p className="text-xs text-default-600">日志文件大小</p>
-                  <p className="text-xl font-bold text-success">
-                    {formatFileSize(endpointStats.fileLogSize)}
-                  </p>
-                  <p className="text-xs text-default-500">磁盘占用</p>
-                </div>
-              </div>
-
-              {/* 总流量 */}
-              <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-warning/20 via-warning/10 to-warning/5 border border-warning/20">
-                <FontAwesomeIcon
-                  className="text-warning text-xl"
-                  icon={faWifi}
-                />
-                <div>
-                  <p className="text-xs text-default-600">总流量</p>
-                  <p className="text-lg font-bold text-warning">
-                    ↑{formatTraffic(endpointStats.totalTrafficOut)}
-                  </p>
-                  <p className="text-sm font-bold text-danger">
-                    ↓{formatTraffic(endpointStats.totalTrafficIn)}
-                  </p>
-                </div>
-              </div>
-            </div>
-          ) : (
-            <div className="text-center py-8">
-              <p className="text-default-500">无法获取统计数据</p>
-            </div>
-          )}
-        </CardBody>
-      </Card>
-
-      {/* 主控操作 */}
-      {endpointDetail && (
+      {/* 统计信息卡片 - 隐藏 */}
+      {false && (
         <Card className="p-2">
           <CardHeader>
-            <h3 className="text-lg font-semibold">主控操作</h3>
+            <div className="flex flex-col flex-1">
+              <p className="text-lg font-semibold">主控统计</p>
+              <p className="text-sm text-default-500">当前主控的数据统计概览</p>
+            </div>
           </CardHeader>
           <CardBody>
-            <div className="flex flex-wrap items-center gap-3">
-              {/* 添加实例 */}
-              <Button
-                color="primary"
-                startContent={<FontAwesomeIcon icon={faPlus} />}
-                variant="flat"
-                onPress={handleAddTunnel}
-              >
-                添加实例
-              </Button>
+            {statsLoading ? (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {Array.from({ length: 4 }, (_, index) => (
+                  <div
+                    key={index}
+                    className="flex items-center gap-3 p-4 bg-default/10 rounded-lg"
+                  >
+                    <Skeleton className="w-6 h-6 rounded" />
+                    <div className="flex-1">
+                      <Skeleton className="h-3 w-16 mb-1" />
+                      <Skeleton className="h-5 w-12 mb-1" />
+                      <Skeleton className="h-3 w-20" />
+                    </div>
+                  </div>
+                ))}
+              </div>
+            ) : endpointStats ? (
+              <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+                {/* 隧道数量 */}
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 border border-primary/20">
+                  <FontAwesomeIcon
+                    className="text-primary text-xl"
+                    icon={faLayerGroup}
+                  />
+                  <div>
+                    <p className="text-xs text-default-600">实例总数量</p>
+                    <p className="text-xl font-bold text-primary">
+                      {endpointStats.tunnelCount}
+                    </p>
+                    <p className="text-xs text-default-500">活跃实例</p>
+                  </div>
+                </div>
 
-              {/* 同步实例 */}
-              <Button
-                color="secondary"
-                startContent={<FontAwesomeIcon icon={faSync} />}
-                variant="flat"
-                onPress={handleRefreshTunnels}
-              >
-                同步实例
-              </Button>
+                {/* 日志文件数 */}
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-secondary/20 via-secondary/10 to-secondary/5 border border-secondary/20">
+                  <FontAwesomeIcon
+                    className="text-secondary text-xl"
+                    icon={faFileLines}
+                  />
+                  <div>
+                    <p className="text-xs text-default-600">日志文件数</p>
+                    <p className="text-xl font-bold text-secondary">
+                      {endpointStats.fileLogCount}
+                    </p>
+                    <p className="text-xs text-default-500">日志文件</p>
+                  </div>
+                </div>
 
-              {/* 分隔线 */}
-              <Divider className="h-8 hidden md:block" orientation="vertical" />
+                {/* 日志文件大小 */}
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-success/20 via-success/10 to-success/5 border border-success/20">
+                  <FontAwesomeIcon
+                    className="text-success text-xl"
+                    icon={faHardDrive}
+                  />
+                  <div>
+                    <p className="text-xs text-default-600">日志文件大小</p>
+                    <p className="text-xl font-bold text-success">
+                      {formatFileSize(endpointStats.fileLogSize)}
+                    </p>
+                    <p className="text-xs text-default-500">磁盘占用</p>
+                  </div>
+                </div>
 
-              {/* 网络调试 */}
-              <Button
-                color="primary"
-                isDisabled={endpointDetail.status !== "ONLINE"}
-                startContent={<FontAwesomeIcon icon={faNetworkWired} />}
-                variant="flat"
-                onPress={onNetworkDebugOpen}
-              >
-                网络调试
-              </Button>
-
-              {/* 连接/断开按钮 */}
-              {endpointDetail.status === "ONLINE" ? (
-                <Button
-                  color="warning"
-                  startContent={<FontAwesomeIcon icon={faPlugCircleXmark} />}
-                  variant="flat"
-                  onPress={handleDisconnect}
-                >
-                  断开连接
-                </Button>
-              ) : (
-                <Button
-                  color="success"
-                  startContent={<FontAwesomeIcon icon={faPlug} />}
-                  variant="flat"
-                  onPress={handleConnect}
-                >
-                  连接主控
-                </Button>
-              )}
-
-              {/* 分隔线 */}
-              <Divider className="h-8 hidden md:block" orientation="vertical" />
-
-              {/* 复制配置 */}
-              <Button
-                color="default"
-                startContent={<FontAwesomeIcon icon={faCopy} />}
-                variant="flat"
-                onPress={handleCopyConfig}
-              >
-                复制配置
-              </Button>
-
-              {/* 修改配置 */}
-              <Button
-                color="primary"
-                startContent={<FontAwesomeIcon icon={faCog} />}
-                variant="flat"
-                onPress={handleEditConfig}
-              >
-                修改配置
-              </Button>
-
-              {/* 重置密钥 */}
-              <Button
-                color="success"
-                startContent={<FontAwesomeIcon icon={faKey} />}
-                variant="flat"
-                onPress={onResetApiKeyOpen}
-              >
-                重置密钥
-              </Button>
-
-              {/* 删除主控 */}
-              <Button
-                color="danger"
-                startContent={<FontAwesomeIcon icon={faTrash} />}
-                variant="flat"
-                onPress={onDeleteEndpointOpen}
-              >
-                删除主控
-              </Button>
-            </div>
+                {/* 总流量 */}
+                <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-warning/20 via-warning/10 to-warning/5 border border-warning/20">
+                  <FontAwesomeIcon
+                    className="text-warning text-xl"
+                    icon={faWifi}
+                  />
+                  <div>
+                    <p className="text-xs text-default-600">总流量</p>
+                    <p className="text-lg font-bold text-warning">
+                      ↑{formatTraffic(endpointStats.totalTrafficOut)}
+                    </p>
+                    <p className="text-sm font-bold text-danger">
+                      ↓{formatTraffic(endpointStats.totalTrafficIn)}
+                    </p>
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="text-center py-8">
+                <p className="text-default-500">无法获取统计数据</p>
+              </div>
+            )}
           </CardBody>
         </Card>
       )}
 
-      {/* 主控详情信息 */}
-      {endpointDetail && (
-        <Card className="p-2">
-          <CardHeader className="flex items-center justify-between">
-            <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold">主控信息</h3>
-              <Button
-                isIconOnly
-                color="primary"
-                size="sm"
-                title="显示二维码"
-                variant="flat"
-                onPress={generateQRCode}
-              >
-                <FontAwesomeIcon icon={faQrcode} />
-              </Button>
-            </div>
-          </CardHeader>
-          <CardBody>
-            <div className="space-y-4">
-              {/* 详细信息网格 */}
-              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-                {/* 连接信息 */}
-                <div className="space-y-2">
-                  <div className="flex items-center gap-2 text-small text-default-500">
-                    <FontAwesomeIcon icon={faServer} />
-                    <span>服务地址</span>
-                  </div>
-                  <p className="text-small font-mono truncate">
-                    {formatUrlWithPrivacy(
-                      endpointDetail.url,
-                      endpointDetail.apiPath,
-                      settings.isPrivacyMode,
-                    )}
-                  </p>
+      {/* 主控信息和详细统计的左右布局 */}
+      <div className="grid grid-cols-1 lg:grid-cols-4 gap-6">
+        {/* 左侧：主控信息 - 占1份 */}
+        <div className="lg:col-span-1">
+          {endpointDetail && (
+            <Card className="p-2 h-full">
+              <CardHeader className="flex items-center justify-between">
+                <div className="flex items-center gap-2">
+                  <h3 className="text-lg font-semibold">主控信息</h3>
+                  <Button
+                    isIconOnly
+                    color="primary"
+                    size="sm"
+                    title="显示二维码"
+                    variant="flat"
+                    onPress={generateQRCode}
+                  >
+                    <FontAwesomeIcon icon={faQrcode} />
+                  </Button>
                 </div>
-
-                {(endpointDetail.uptime == null ||
-                  endpointDetail.uptime == 0) && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-small text-default-500">
-                      <FontAwesomeIcon icon={faKey} />
-                      <span>API Key</span>
-                    </div>
-                    <p className="text-small font-mono truncate">
-                      ••••••••••••••••••••••••••••••••
-                    </p>
-                  </div>
-                )}
-
-                {/* 系统信息 */}
-                {endpointDetail.os && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-small text-default-500">
-                      <FontAwesomeIcon icon={faDesktop} />
-                      <span>操作系统</span>
-                    </div>
-                    <Chip
-                      className="font-mono"
-                      color="primary"
-                      size="sm"
-                      variant="flat"
-                    >
-                      <div className="flex items-center gap-2">
-                        <OSIcon className="w-3 h-3" os={endpointDetail.os} />
-                        {endpointDetail.os}
+              </CardHeader>
+              <CardBody>
+                <div className="space-y-4">
+                  {/* 详细信息网格 - 改为一列 */}
+                  <div className="grid grid-cols-1 gap-4">
+                    {/* 连接信息 */}
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-small text-default-500">
+                        <FontAwesomeIcon icon={faServer} />
+                        <span>服务地址</span>
                       </div>
-                    </Chip>
-                  </div>
-                )}
-
-                {endpointDetail.arch && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-small text-default-500">
-                      <FontAwesomeIcon icon={faCode} />
-                      <span>架构</span>
+                      <p className="text-small font-mono truncate">
+                        {formatUrlWithPrivacy(
+                          endpointDetail.url,
+                          endpointDetail.apiPath,
+                          settings.isPrivacyMode,
+                        )}
+                      </p>
                     </div>
-                    <Chip
-                      className="font-mono"
-                      color="secondary"
-                      size="sm"
-                      variant="flat"
-                    >
-                      <div className="flex items-center gap-2">
-                        <OSIcon
-                          arch={endpointDetail.arch}
-                          className="w-3 h-3"
-                          type="arch"
-                        />
-                        {endpointDetail.arch}
+
+                    {(endpointDetail.uptime == null ||
+                      endpointDetail.uptime == 0) && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-small text-default-500">
+                          <FontAwesomeIcon icon={faKey} />
+                          <span>API Key</span>
+                        </div>
+                        <p className="text-small font-mono truncate">
+                          ••••••••••••••••••••••••••••••••
+                        </p>
                       </div>
-                    </Chip>
-                  </div>
-                )}
+                    )}
 
-                {endpointDetail.log && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-small text-default-500">
-                      <FontAwesomeIcon icon={faGlobe} />
-                      <span>日志级别</span>
-                    </div>
-                    <Chip
-                      className="font-mono"
-                      color={getLogLevelColor(endpointDetail.log)}
-                      size="sm"
-                      variant="flat"
-                    >
-                      {endpointDetail.log.toUpperCase()}
-                    </Chip>
-                  </div>
-                )}
+                    {/* 系统信息 */}
+                    {endpointDetail.os && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-small text-default-500">
+                          <FontAwesomeIcon icon={faDesktop} />
+                          <span>操作系统</span>
+                        </div>
+                        <Chip
+                          className="font-mono"
+                          color="primary"
+                          size="sm"
+                          variant="flat"
+                        >
+                          <div className="flex items-center gap-2">
+                            <OSIcon className="w-3 h-3" os={endpointDetail.os} />
+                            {endpointDetail.os}
+                          </div>
+                        </Chip>
+                      </div>
+                    )}
 
-                {endpointDetail.tls && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-small text-default-500">
-                      <FontAwesomeIcon icon={faLock} />
-                      <span>TLS配置</span>
-                    </div>
-                    <div className="flex items-center gap-2">
+                    {endpointDetail.arch && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-small text-default-500">
+                          <FontAwesomeIcon icon={faCode} />
+                          <span>架构</span>
+                        </div>
+                        <Chip
+                          className="font-mono"
+                          color="secondary"
+                          size="sm"
+                          variant="flat"
+                        >
+                          <div className="flex items-center gap-2">
+                            <OSIcon
+                              arch={endpointDetail.arch}
+                              className="w-3 h-3"
+                              type="arch"
+                            />
+                            {endpointDetail.arch}
+                          </div>
+                        </Chip>
+                      </div>
+                    )}
+
+                    <div className="space-y-2">
+                      <div className="flex items-center gap-2 text-small text-default-500">
+                        <FontAwesomeIcon icon={faGlobe} />
+                        <span>日志级别</span>
+                      </div>
                       <Chip
-                        color={
-                          endpointDetail.tls === "0" ? "default" : "success"
-                        }
+                        className="font-mono"
+                        color={endpointDetail.log ? getLogLevelColor(endpointDetail.log) : "default"}
                         size="sm"
                         variant="flat"
                       >
-                        {getTlsDescription(endpointDetail.tls)}
+                        {endpointDetail.log ? endpointDetail.log.toUpperCase() : "-"}
                       </Chip>
-                      {/* <span className="text-tiny text-default-400">
-                        (Level {endpointDetail.tls})
-                      </span> */}
+                    </div>
+
+                    {endpointDetail.tls && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-small text-default-500">
+                          <FontAwesomeIcon icon={faLock} />
+                          <span>TLS配置</span>
+                        </div>
+                        <div className="flex items-center gap-2">
+                          <Chip
+                            color={
+                              endpointDetail.tls === "0" ? "default" : "success"
+                            }
+                            size="sm"
+                            variant="flat"
+                          >
+                            {getTlsDescription(endpointDetail.tls)}
+                          </Chip>
+                        </div>
+                      </div>
+                    )}
+
+                    {/* 在线时长 */}
+                    {endpointDetail.uptime != null && endpointDetail.uptime > 0 && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-small text-default-500">
+                          <FontAwesomeIcon icon={faClock} />
+                          <span>在线时长</span>
+                        </div>
+                        <Chip
+                          className="font-mono"
+                          color="success"
+                          size="sm"
+                          variant="flat"
+                        >
+                          {formatUptime(endpointDetail.uptime)}
+                        </Chip>
+                      </div>
+                    )}
+
+                    {/* 证书配置 - 仅当TLS=2时显示 */}
+                    {endpointDetail.tls === "2" && endpointDetail.crt && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-small text-default-500">
+                          <FontAwesomeIcon icon={faCertificate} />
+                          <span>证书路径</span>
+                        </div>
+                        <p className="text-small font-mono truncate">
+                          {endpointDetail.crt}
+                        </p>
+                      </div>
+                    )}
+
+                    {endpointDetail.tls === "2" && endpointDetail.keyPath && (
+                      <div className="space-y-2">
+                        <div className="flex items-center gap-2 text-small text-default-500">
+                          <FontAwesomeIcon icon={faKey} />
+                          <span>密钥路径</span>
+                        </div>
+                        <p className="text-small font-mono truncate">
+                          {endpointDetail.keyPath}
+                        </p>
+                      </div>
+                    )}
+                  </div>
+
+                  {/* 时间信息 */}
+                  <Divider />
+                  <div className="grid grid-cols-1 gap-2 text-small text-default-500">
+                    <div>
+                      <span className="font-medium">创建时间：</span>
+                      {new Date(endpointDetail.createdAt).toLocaleString("zh-CN")}
+                    </div>
+                    <div>
+                      <span className="font-medium">更新时间：</span>
+                      {new Date(endpointDetail.updatedAt).toLocaleString("zh-CN")}
+                    </div>
+                    <div>
+                      <span className="font-medium">最后检查：</span>
+                      {new Date(endpointDetail.lastCheck).toLocaleString("zh-CN")}
                     </div>
                   </div>
-                )}
+                </div>
+              </CardBody>
+            </Card>
+          )}
+        </div>
 
-                {/* 在线时长 */}
-                {endpointDetail.uptime != null && endpointDetail.uptime > 0 && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-small text-default-500">
-                      <FontAwesomeIcon icon={faClock} />
-                      <span>在线时长</span>
-                    </div>
-                    <Chip
-                      className="font-mono"
-                      color="success"
-                      size="sm"
+        {/* 右侧：详细统计卡片 - 占3份 */}
+        <div className="lg:col-span-3 space-y-6">
+          <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
+        {/* CPU使用率 - 圆圈图 */}
+        <SimpleCircleChart
+          title="CPU使用率"
+          icon={faMicrochip}
+          percentage={cpuUsage}
+          color="primary"
+          loading={statsLoading}
+        />
+
+        {/* 内存使用率 - 圆圈图 */}
+        <SimpleCircleChart
+          title="内存使用率"
+          icon={faMemory}
+          percentage={memoryUsage}
+          color="success"
+          loading={statsLoading}
+        />
+
+        {/* Swap内存使用率 - 圆圈图（仅在有swap时显示） */}
+        {hasSwap && (
+          <SimpleCircleChart
+            title="Swap使用率"
+            icon={faMemory}
+            percentage={swapUsage}
+            color="warning"
+            loading={statsLoading}
+          />
+        )}
+
+        {statsLoading ? (
+          <>
+            {Array.from({ length: 4 }, (_, index) => (
+              <div
+                key={index}
+                className="aspect-square p-4 bg-default/10 rounded-lg flex flex-col items-center justify-center"
+              >
+                <Skeleton className="w-8 h-8 rounded mb-2" />
+                <Skeleton className="h-4 w-16 mb-1" />
+                <Skeleton className="h-3 w-12" />
+              </div>
+            ))}
+          </>
+        ) : endpointStats ? (
+          <>
+            {/* 网络速度卡片 */}
+            <Card className="aspect-square p-4 bg-white dark:bg-default-50 border-0 shadow-sm hover:shadow-md transition-all">
+              <CardBody className="flex flex-col p-0">
+                {/* 标题区域 */}
+                <div className="flex items-center gap-2 mb-4">
+                  <FontAwesomeIcon
+                    className="text-default-500 text-sm"
+                    icon={faWifi}
+                  />
+                  {/* lucide:globe */}
+                  <span className="text-sm text-default-600 font-medium">网络速度</span>
+                </div>
+
+                {/* 数据区域 */}
+                <div className="flex-1 flex flex-col justify-center space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">↑</span>
+                    <span className="text-lg font-semibold text-foreground">
+                      {realTimeTraffic.uploadSpeed > 0 ? `${formatTraffic(realTimeTraffic.uploadSpeed)}/s` : '-'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-lg">↓</span>
+                    <span className="text-lg font-semibold text-foreground">
+                      {realTimeTraffic.downloadSpeed > 0 ? `${formatTraffic(realTimeTraffic.downloadSpeed)}/s` : '-'}
+                    </span>
+                  </div>
+                </div>
+
+              </CardBody>
+            </Card>
+
+            {/* 磁盘I/O速度卡片 */}
+            <Card className="aspect-square p-4 bg-white dark:bg-default-50 border-0 shadow-sm hover:shadow-md transition-all">
+              <CardBody className="flex flex-col p-0">
+                {/* 标题区域 */}
+                <div className="flex items-center gap-2 mb-4">
+                  <FontAwesomeIcon
+                    className="text-default-500 text-sm"
+                    icon={faHardDrive}
+                  />
+                  <span className="text-sm text-default-600 font-medium">磁盘I/O</span>
+                </div>
+
+                {/* 数据区域 */}
+                <div className="flex-1 flex flex-col justify-center space-y-2">
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-default-600">读</span>
+                    <span className="text-lg font-semibold text-foreground">
+                      {realTimeDisk.readSpeed > 0 ? `${formatTraffic(realTimeDisk.readSpeed)}/s` : '-'}
+                    </span>
+                  </div>
+                  <div className="flex items-center gap-2">
+                    <span className="text-sm text-default-600">写</span>
+                    <span className="text-lg font-semibold text-foreground">
+                      {realTimeDisk.writeSpeed > 0 ? `${formatTraffic(realTimeDisk.writeSpeed)}/s` : '-'}
+                    </span>
+                  </div>
+                </div>
+
+              </CardBody>
+            </Card>
+
+            {/* 日志占用卡片 */}
+            <Card className="aspect-square p-4 bg-white dark:bg-default-50 border-0 shadow-sm hover:shadow-md transition-all">
+              <CardBody className="flex flex-col p-0">
+                {/* 标题区域 */}
+                <div className="flex items-center gap-2 mb-4">
+                  <FontAwesomeIcon
+                    className="text-default-500 text-sm"
+                    icon={faFileLines}
+                  />
+                  <span className="text-sm text-default-600 font-medium">日志占用</span>
+                </div>
+
+                {/* 数据区域 */}
+                <div className="flex-1 flex flex-col justify-center">
+                  <div className="text-2xl font-bold text-foreground mb-1">
+                    {formatFileSize(endpointStats.fileLogSize)}
+                  </div>
+                  <div className="text-sm text-default-500">
+                    {endpointStats.fileLogCount} 个文件
+                  </div>
+                </div>
+              </CardBody>
+            </Card>
+
+            {/* 实例统计卡片 */}
+            <Card className="aspect-square p-4 bg-white dark:bg-default-50 border-0 shadow-sm hover:shadow-md transition-all">
+              <CardBody className="flex flex-col p-0">
+                {/* 标题区域 */}
+                <div className="flex items-center gap-2 mb-4">
+                  <FontAwesomeIcon
+                    className="text-default-500 text-sm"
+                    icon={faLayerGroup}
+                  />
+                  <span className="text-sm text-default-600 font-medium">实例统计</span>
+                </div>
+
+                {/* 数据区域 */}
+                <div className="flex-1 flex flex-col justify-center">
+                  <div className="text-2xl font-bold text-foreground mb-1">
+                    {endpointStats.tunnelCount}
+                  </div>
+                  <div className="text-sm text-default-500">
+                    活跃实例
+                  </div>
+                </div>
+
+              </CardBody>
+            </Card>
+
+            {/* 流量统计卡片 */}
+            <Card className="aspect-square p-4 bg-white dark:bg-default-50 border-0 shadow-sm hover:shadow-md transition-all">
+              <CardBody className="flex flex-col p-0">
+                {/* 标题区域 */}
+                <div className="flex items-center gap-2 mb-4">
+                  <FontAwesomeIcon
+                    className="text-default-500 text-sm"
+                    icon={faNetworkWired}
+                  />
+                  <span className="text-sm text-default-600 font-medium">总流量</span>
+                </div>
+
+                {/* 数据区域 */}
+                <div className="flex-1 flex flex-col justify-center items-center space-y-2">
+                  <div className="text-lg font-semibold text-foreground text-center">
+                    ↑ {formatTraffic(endpointStats.totalTrafficOut + endpointStats.tcpTrafficOut + endpointStats.udpTrafficOut)}
+                  </div>
+                  <div className="text-lg font-semibold text-foreground text-center">
+                    ↓ {formatTraffic(endpointStats.totalTrafficIn + endpointStats.tcpTrafficIn + endpointStats.udpTrafficIn)}
+                  </div>
+                </div>
+
+              </CardBody>
+            </Card>
+
+          </>
+        ) : (
+          <div className="col-span-full text-center py-8">
+            <p className="text-default-500">无法获取统计数据</p>
+          </div>
+        )}
+          </div>
+
+          {/* 主控操作 */}
+          {endpointDetail && (
+            <Card className="p-2">
+              {/* <CardHeader>
+                <h3 className="text-lg font-semibold">主控操作</h3>
+              </CardHeader> */}
+              <CardBody>
+                <div className="grid grid-cols-2 md:grid-cols-7 gap-3">
+                  {/* 添加实例 */}
+                  <Button
+                    color="primary"
+                    startContent={<FontAwesomeIcon icon={faPlus} />}
+                    variant="flat"
+                    onPress={handleAddTunnel}
+                  >
+                    添加实例
+                  </Button>
+
+                  {/* 同步实例 */}
+                  <Button
+                    color="secondary"
+                    startContent={<FontAwesomeIcon icon={faSync} />}
+                    variant="flat"
+                    onPress={handleRefreshTunnels}
+                  >
+                    同步实例
+                  </Button>
+
+                  {/* 分隔线 */}
+                  {/* <Divider className="h-8 hidden md:block" orientation="vertical" /> */}
+
+                  {/* 网络调试 */}
+                  <Button
+                    color="primary"
+                    isDisabled={endpointDetail.status !== "ONLINE"}
+                    startContent={<FontAwesomeIcon icon={faNetworkWired} />}
+                    variant="flat"
+                    onPress={onNetworkDebugOpen}
+                  >
+                    网络调试
+                  </Button>
+
+                  {/* 连接/断开按钮 */}
+                  {endpointDetail.status === "ONLINE" ? (
+                    <Button
+                      color="warning"
+                      startContent={<FontAwesomeIcon icon={faPlugCircleXmark} />}
                       variant="flat"
+                      onPress={handleDisconnect}
                     >
-                      {formatUptime(endpointDetail.uptime)}
-                    </Chip>
-                  </div>
-                )}
+                      断开连接
+                    </Button>
+                  ) : (
+                    <Button
+                      color="success"
+                      startContent={<FontAwesomeIcon icon={faPlug} />}
+                      variant="flat"
+                      onPress={handleConnect}
+                    >
+                      连接主控
+                    </Button>
+                  )}
 
-                {/* 证书配置 - 仅当TLS=2时显示 */}
-                {endpointDetail.tls === "2" && endpointDetail.crt && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-small text-default-500">
-                      <FontAwesomeIcon icon={faCertificate} />
-                      <span>证书路径</span>
-                    </div>
-                    <p className="text-small font-mono truncate">
-                      {endpointDetail.crt}
-                    </p>
-                  </div>
-                )}
+                  {/* 分隔线 */}
+                  {/* <Divider className="h-8 hidden md:block" orientation="vertical" /> */}
 
-                {endpointDetail.tls === "2" && endpointDetail.keyPath && (
-                  <div className="space-y-2">
-                    <div className="flex items-center gap-2 text-small text-default-500">
-                      <FontAwesomeIcon icon={faKey} />
-                      <span>密钥路径</span>
-                    </div>
-                    <p className="text-small font-mono truncate">
-                      {endpointDetail.keyPath}
-                    </p>
-                  </div>
-                )}
-              </div>
+                  {/* 复制配置 */}
+                  <Button
+                    color="default"
+                    startContent={<FontAwesomeIcon icon={faCopy} />}
+                    variant="flat"
+                    onPress={handleCopyConfig}
+                  >
+                    复制配置
+                  </Button>
 
-              {/* 时间信息 */}
-              <Divider />
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-small text-default-500">
-                <div>
-                  <span className="font-medium">创建时间：</span>
-                  {new Date(endpointDetail.createdAt).toLocaleString("zh-CN")}
+                  {/* 修改配置 */}
+                  <Button
+                    color="primary"
+                    startContent={<FontAwesomeIcon icon={faCog} />}
+                    variant="flat"
+                    onPress={handleEditConfig}
+                  >
+                    修改配置
+                  </Button>
+
+                  {/* 重置密钥 */}
+                  <Button
+                    color="success"
+                    startContent={<FontAwesomeIcon icon={faKey} />}
+                    variant="flat"
+                    onPress={onResetApiKeyOpen}
+                  >
+                    重置密钥
+                  </Button>
+
+                  {/* SSE调试 */}
+                  <Button
+                    color="warning"
+                    startContent={<FontAwesomeIcon icon={faBug} />}
+                    variant="flat"
+                    onPress={() => navigate(`/endpoints/sse-debug?id=${endpointId}`)}
+                  >
+                    SSE调试
+                  </Button>
+
+                  {/* 删除主控 */}
+                  <Button
+                    color="danger"
+                    startContent={<FontAwesomeIcon icon={faTrash} />}
+                    variant="flat"
+                    onPress={onDeleteEndpointOpen}
+                  >
+                    删除主控
+                  </Button>
                 </div>
-                <div>
-                  <span className="font-medium">更新时间：</span>
-                  {new Date(endpointDetail.updatedAt).toLocaleString("zh-CN")}
-                </div>
-                <div>
-                  <span className="font-medium">最后检查：</span>
-                  {new Date(endpointDetail.lastCheck).toLocaleString("zh-CN")}
-                </div>
-              </div>
-            </div>
-          </CardBody>
-        </Card>
-      )}
+              </CardBody>
+            </Card>
+          )}
+        </div>
+      </div>
+
 
       {/* 实例列表 */}
       <Card className="p-2">

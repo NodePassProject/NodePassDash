@@ -26,7 +26,7 @@ import {
 import { addToast } from "@heroui/toast";
 import JSONInput from "react-json-editor-ajrm";
 import locale from "react-json-editor-ajrm/locale/zh-cn";
-import { parseDate, type DateValue } from "@internationalized/date";
+import { parseDate } from "@internationalized/date";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -669,9 +669,9 @@ export default function InstanceTagModal({
                         className="w-full"
                         value={
                           formData.startDate
-                            ? (parseDate(
+                            ? parseDate(
                                 formData.startDate.split("T")[0],
-                              ) as DateValue)
+                              ) as any
                             : null
                         }
                         onChange={(date) => {
@@ -704,18 +704,18 @@ export default function InstanceTagModal({
                         isDisabled={isUnlimited}
                         minValue={
                           formData.startDate
-                            ? (parseDate(
+                            ? parseDate(
                                 formData.startDate.split("T")[0],
-                              ) as DateValue)
+                              ) as any
                             : undefined
                         }
                         value={
                           !isUnlimited &&
                           formData.endDate &&
                           formData.endDate !== "0000-00-00T23:59:59+08:00"
-                            ? (parseDate(
+                            ? parseDate(
                                 formData.endDate.split("T")[0],
-                              ) as DateValue)
+                              ) as any
                             : null
                         }
                         onChange={(date) => {
@@ -917,7 +917,7 @@ export default function InstanceTagModal({
                           primitive: "#569CD6",
                         }}
                         confirmGood={false}
-                        height="420px"
+                        height="370px"
                         id="json-editor"
                         locale={locale}
                         modifyErrorText={() => ""}
@@ -946,7 +946,7 @@ export default function InstanceTagModal({
                 </div>
               </div>
             </ModalBody>
-            <ModalFooter className="flex items-center pt-0 justify-between">
+            <ModalFooter className="flex items-center pt-2 justify-between">
               <div className="flex gap-2">
                 {jsonError && (
                   <p className="text-danger text-sm">{jsonError}</p>

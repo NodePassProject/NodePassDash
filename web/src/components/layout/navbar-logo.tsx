@@ -1,8 +1,9 @@
-import { NavbarBrand, Link, cn } from "@heroui/react";
+import { NavbarBrand, Link, cn, Badge } from "@heroui/react";
 import { useTheme } from "next-themes";
 import { useIsSSR } from "@react-aria/ssr";
 
 import { fontSans } from "@/config/fonts";
+import { getVersion } from "@/lib/version";
 
 // NodePass Logo 组件
 const NodePassLogo = () => {
@@ -41,10 +42,39 @@ const NodePassLogo = () => {
  * 导航栏Logo组件
  */
 export const NavbarLogo = () => {
+  // 检测环境和版本
+  const isDev = import.meta.env.DEV;
+  const version = getVersion();
+  const isBeta = version.includes('beta');
+
+  // 确定badge内容和颜色
+  const getBadgeProps = () => {
+    if (isDev) {
+      return { content: "dev", color: "default" as const };
+    }
+    if (isBeta) {
+      return { content: "beta", color: "default" as const };
+    }
+    return null;
+  };
+
+  const badgeProps = getBadgeProps();
+
   return (
     <NavbarBrand as="li" className="gap-3 max-w-fit">
       <Link className="flex justify-start items-center gap-2" href="/">
-        <NodePassLogo />
+        {badgeProps ? (
+          <Badge
+            content={badgeProps.content}
+            color={badgeProps.color}
+            size="sm"
+            variant="flat"
+          >
+            <NodePassLogo />
+          </Badge>
+        ) : (
+          <NodePassLogo />
+        )}
         <p className={cn("font-bold text-foreground", fontSans.className)}>
           NodePassDash
         </p>

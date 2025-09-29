@@ -2349,38 +2349,6 @@ export default function TunnelDetailPage() {
                     </div>
                   )}
 
-                  {/* 网络信息 */}
-                  {(tagsData.IPv4 === "1" ||
-                    tagsData.IPv6 === "1" ||
-                    tagsData.trafficType) && (
-                    <div className="flex items-center gap-1">
-                      <Icon
-                        className="text-default-600"
-                        height={16}
-                        icon="lucide:globe"
-                        width={16}
-                      />
-                      <span className="text-sm text-default-600">网络:</span>
-                      <div className="flex gap-1">
-                        {tagsData.IPv4 === "1" && (
-                          <Chip color="secondary" size="sm" variant="flat">
-                            IPv4
-                          </Chip>
-                        )}
-                        {tagsData.IPv6 === "1" && (
-                          <Chip color="secondary" size="sm" variant="flat">
-                            IPv6
-                          </Chip>
-                        )}
-                        {/* {tagsData.trafficType && (
-                          <Chip color="warning" size="sm" variant="flat">
-                            {tagsData.trafficType === '1' ? '单向计算' : '双向计算'}
-                          </Chip>
-                        )} */}
-                      </div>
-                    </div>
-                  )}
-
                   {/* 额外信息 */}
                   {tagsData.extra && (
                     <div className="flex items-center gap-1">
