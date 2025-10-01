@@ -1,8 +1,9 @@
+import { readFileSync } from "fs";
+
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import tsconfigPaths from "vite-tsconfig-paths";
-import { readFileSync } from "fs";
-import tailwindcss from "@tailwindcss/vite"
+import tailwindcss from "@tailwindcss/vite";
 
 // 读取package.json获取版本号
 const packageJson = JSON.parse(readFileSync("./package.json", "utf-8"));
@@ -12,24 +13,24 @@ export default defineConfig(({ mode }) => ({
   plugins: [react(), tsconfigPaths(), tailwindcss()],
   define: {
     __APP_VERSION__: JSON.stringify(packageJson.version),
-    __DEV_MODE__: JSON.stringify(mode === 'development'),
+    __DEV_MODE__: JSON.stringify(mode === "development"),
   },
   build: {
-    outDir: '../cmd/server/dist',
+    outDir: "../cmd/server/dist",
   },
   server: {
     proxy: {
-      '/api': {
-        target: process.env.VITE_API_BASE || 'http://localhost:3000',
+      "/api": {
+        target: process.env.VITE_API_BASE || "http://localhost:3000",
         changeOrigin: true,
         secure: false,
         ws: true, // 启用 WebSocket 代理
       },
-      '/docs-proxy': {
-        target: 'https://raw.githubusercontent.com',
+      "/docs-proxy": {
+        target: "https://raw.githubusercontent.com",
         changeOrigin: true,
         secure: true,
-        rewrite: (path) => path.replace(/^\/docs-proxy/, ''),
+        rewrite: (path) => path.replace(/^\/docs-proxy/, ""),
       },
     },
   },
