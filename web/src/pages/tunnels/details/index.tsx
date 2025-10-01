@@ -3197,23 +3197,7 @@ export default function TunnelDetailPage() {
       />
       {/* 实例标签模态框 */}
       <InstanceTagModal
-        currentTags={(() => {
-          const tags = tunnelInfo?.instanceTags;
-          if (!tags) return [];
-
-          // 如果已经是数组格式，直接返回
-          if (Array.isArray(tags)) return tags;
-
-          // 如果是对象格式，转换为数组格式
-          if (typeof tags === 'object') {
-            return Object.entries(tags).map(([key, value]) => ({
-              key,
-              value: String(value)
-            }));
-          }
-
-          return [];
-        })()}
+        currentTags={tunnelInfo?.instanceTags || {}}
         isOpen={isInstanceTagModalOpen}
         tunnelId={tunnelInfo?.id?.toString() || ""}
         onOpenChange={setIsInstanceTagModalOpen}

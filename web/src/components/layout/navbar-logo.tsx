@@ -50,10 +50,10 @@ export const NavbarLogo = () => {
   // 确定badge内容和颜色
   const getBadgeProps = () => {
     if (isDev) {
-      return { content: "dev", color: "default" as const };
+      return { content: "dev", color: "secondary" as const };
     }
     if (isBeta) {
-      return { content: "beta", color: "default" as const };
+      return { content: "beta", color: "primary" as const };
     }
     return null;
   };
@@ -64,20 +64,27 @@ export const NavbarLogo = () => {
     <NavbarBrand as="li" className="gap-3 max-w-fit">
       <Link className="flex justify-start items-center gap-2" href="/">
         {badgeProps ? (
-          <Badge
-            content={badgeProps.content}
-            color={badgeProps.color}
-            size="sm"
-            variant="flat"
-          >
+          <>
             <NodePassLogo />
-          </Badge>
+            <Badge
+              content={badgeProps.content}
+              color={badgeProps.color}
+              variant="flat"
+              size="sm"
+            >
+              <p className={cn("font-bold text-foreground", fontSans.className)}>
+                NodePassDash
+              </p>
+            </Badge>
+          </>
         ) : (
-          <NodePassLogo />
+          <>
+            <NodePassLogo />
+            <p className={cn("font-bold text-foreground", fontSans.className)}>
+              NodePassDash
+            </p>
+          </>
         )}
-        <p className={cn("font-bold text-foreground", fontSans.className)}>
-          NodePassDash
-        </p>
       </Link>
     </NavbarBrand>
   );

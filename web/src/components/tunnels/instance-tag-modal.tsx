@@ -1,6 +1,4 @@
-"use client";
-
-import React, { useState, useEffect, useRef } from "react";
+import React, { useState, useEffect } from "react";
 import {
   Modal,
   ModalContent,
@@ -8,574 +6,491 @@ import {
   ModalBody,
   ModalFooter,
   Button,
-  Tooltip,
   Input,
+  Textarea,
   DatePicker,
   Checkbox,
-  RadioGroup,
-  Radio,
   Select,
   SelectItem,
+  RadioGroup,
+  Radio,
+  Divider,
 } from "@heroui/react";
-import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faTag,
-  faSave,
-  faQuestionCircle,
-} from "@fortawesome/free-solid-svg-icons";
-import { addToast } from "@heroui/toast";
-import JSONInput from "react-json-editor-ajrm";
-import locale from "react-json-editor-ajrm/locale/zh-cn";
 import { parseDate } from "@internationalized/date";
+import { addToast } from "@heroui/toast";
 
-import { buildApiUrl } from "@/lib/utils";
-
-// 标签数据结构
-interface TagData {
-  startDate?: string;
-  endDate?: string;
-  amount?: string;
-  bandwidth?: string;
-  trafficVol?: string;
-  networkRoute?: string;
-  extra?: string;
-  [key: string]: any;
+interface InstanceTagModalProps {
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  tunnelId: string;
+  currentTags?: { [key: string]: string };
+  onSaved?: () => void;
 }
 
-// 金额模式类型
-type AmountMode = "none" | "prefix" | "suffix" | "free";
-
-// 货币选项
+// 币种选项
 const CURRENCY_OPTIONS = [
-  { key: "CNY", label: "¥", value: "CNY" },
-  { key: "USD", label: "$", value: "USD" },
-  { key: "EUR", label: "€", value: "EUR" },
-  { key: "GBP", label: "£", value: "GBP" },
-  { key: "JPY", label: "¥", value: "JPY" },
+  { key: "CNY", label: "¥", symbol: "¥" },
+  { key: "USD", label: "$", symbol: "$" },
+  { key: "EUR", label: "€", symbol: "€" },
+  { key: "GBP", label: "£", symbol: "£" },
+  { key: "JPY", label: "¥", symbol: "¥" },
 ];
 
-// 带宽单位选项
+// 币种代码
+const CURRENCY_CODES = [
+  { key: "CNY", label: "CNY" },
+  { key: "USD", label: "USD" },
+  { key: "EUR", label: "EUR" },
+  { key: "GBP", label: "GBP" },
+  { key: "JPY", label: "JPY" },
+];
+
+// 带宽单位
 const BANDWIDTH_UNITS = [
   { key: "Kbps", label: "Kbps" },
   { key: "Mbps", label: "Mbps" },
   { key: "Gbps", label: "Gbps" },
 ];
 
-// 流量单位选项
+// 流量单位
 const TRAFFIC_UNITS = [
-  { key: "MB/月", label: "MB/月" },
-  { key: "GB/月", label: "GB/月" },
-  { key: "TB/月", label: "TB/月" },
-  { key: "PB/月", label: "PB/月" },
+  { key: "MB", label: "MB" },
+  { key: "GB", label: "GB" },
+  { key: "TB", label: "TB" },
+  { key: "MB/Month", label: "MB/Month" },
+  { key: "GB/Month", label: "GB/Month" },
+  { key: "TB/Month", label: "TB/Month" },
 ];
 
-interface InstanceTagModalProps {
-  isOpen: boolean;
-  onOpenChange: (open: boolean) => void;
-  tunnelId: string;
-  currentTags?: Record<string, string>; // 只支持map格式
-  onSaved: () => void;
-}
-
-export default function InstanceTagModal({
+const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
   isOpen,
   onOpenChange,
   tunnelId,
   currentTags = {},
   onSaved,
-}: InstanceTagModalProps) {
-  const [jsonText, setJsonText] = useState("");
-  const [saving, setSaving] = useState(false);
-  const [jsonError, setJsonError] = useState<string | null>(null);
-
-  // 用于存储JSON编辑器的实时内容（统一数据源）
-  const currentJsonDataRef = useRef<TagData>({});
-
-  // 删除了原始数据备份逻辑和 formData，只使用JSON数据
-
-  // 表单显示状态（从 JSON 数据中解析）
+}) => {
+  // 标准字段状态
+  const [startDate, setStartDate] = useState<string>("");
+  const [endDate, setEndDate] = useState<string>("");
   const [isUnlimited, setIsUnlimited] = useState(false);
-  const [amountMode, setAmountMode] = useState<AmountMode>("none");
-  const [prefixCurrency, setPrefixCurrency] = useState("CNY");
-  const [suffixCurrency, setSuffixCurrency] = useState("CNY");
-  const [amountValue, setAmountValue] = useState("");
-  const [bandwidthValue, setBandwidthValue] = useState("");
-  const [bandwidthUnit, setBandwidthUnit] = useState("Mbps");
-  const [trafficValue, setTrafficValue] = useState("");
-  const [trafficUnit, setTrafficUnit] = useState("GB/月");
 
-  // 同步模式：'form' | 'json'
-  const [syncMode, setSyncMode] = useState<"form" | "json">("form");
+  // 金额相关状态
+  const [amountValue, setAmountValue] = useState<string>("");
+  const [amountType, setAmountType] = useState<string>("none"); // none, prefix, suffix, free
+  const [prefixCurrency, setPrefixCurrency] = useState<string>("CNY");
+  const [suffixCurrency, setSuffixCurrency] = useState<string>("CNY");
 
-  // 获取当前 JSON 数据
-  const getCurrentData = (): TagData => currentJsonDataRef.current || {};
+  // 带宽和流量
+  const [bandwidthValue, setBandwidthValue] = useState<string>("");
+  const [bandwidthUnit, setBandwidthUnit] = useState<string>("Mbps");
+  const [trafficValue, setTrafficValue] = useState<string>("");
+  const [trafficUnit, setTrafficUnit] = useState<string>("GB/Month");
 
-  // 注释：删除了旧的数组格式转换函数，现在只支持map格式
+  // 其他字段
+  const [networkRoute, setNetworkRoute] = useState<string>("");
+  const [extra, setExtra] = useState<string>("");
 
-  // 从表单状态更新JSON中的复合字段
-  const updateJsonFromFormStates = () => {
-    const data: TagData = { ...getCurrentData() };
-    const currentData = getCurrentData();
+  // JSON 编辑器状态
+  const [jsonValue, setJsonValue] = useState<string>("");
+  const [isJsonError, setIsJsonError] = useState(false);
 
-    // 只更新复合字段（endDate和amount），其他字段由直接更新处理
-    if (currentData.hasOwnProperty('endDate')) {
-      if (isUnlimited) {
-        data.endDate = "0000-00-00T23:59:59+08:00";
-      } else if (!currentData.endDate || currentData.endDate === "0000-00-00T23:59:59+08:00") {
-        delete data.endDate;
-      }
-      // 其他情况保持现有值
+  // 扩展字段存储（用于保留非标准字段）
+  const [extendedFields, setExtendedFields] = useState<{ [key: string]: string }>({});
+
+  // 是否正在保存
+  const [isSaving, setIsSaving] = useState(false);
+
+  // 标准字段列表（用于区分标准字段和扩展字段）
+  const STANDARD_FIELDS = [
+    'startDate', 'endDate', 'amount', 'bandwidth',
+    'trafficVol', 'networkRoute', 'extra'
+  ];
+
+  // 从当前tags初始化状态
+  useEffect(() => {
+    if (currentTags && Object.keys(currentTags).length > 0) {
+      initializeFromTags(currentTags);
+    } else {
+      resetToDefaults();
     }
+  }, [currentTags, isOpen]);
 
-    if (currentData.hasOwnProperty('amount')) {
-      if (amountMode === "free") {
-        data.amount = "Free";
-      } else if (amountMode === "prefix" && amountValue) {
-        const symbol =
-          CURRENCY_OPTIONS.find((c) => c.key === prefixCurrency)?.label || "¥";
-        data.amount = `${symbol}${amountValue}`;
-      } else if (amountMode === "suffix" && amountValue) {
-        data.amount = `${amountValue}${suffixCurrency}`;
-      } else if (amountMode === "none" && amountValue) {
-        data.amount = amountValue;
-      } else {
-        delete data.amount;
-      }
-    }
+  // 初始化表单数据
+  const initializeFromTags = (tags: { [key: string]: string }) => {
+    setStartDate(tags.startDate || "");
 
-    if (currentData.hasOwnProperty('bandwidth')) {
-      if (bandwidthValue) {
-        data.bandwidth = `${bandwidthValue}${bandwidthUnit}`;
-      } else {
-        delete data.bandwidth;
-      }
-    }
-
-    if (currentData.hasOwnProperty('trafficVol')) {
-      if (trafficValue) {
-        data.trafficVol = `${trafficValue}${trafficUnit}`;
-      } else {
-        delete data.trafficVol;
-      }
-    }
-
-    // 非标准字段保持不变，不受表单影响
-
-    return data;
-  };
-
-  // 从 JSON 数据初始化表单显示状态
-  const initFormFromJsonData = (data: TagData, skipSyncMode = false) => {
-    // 只在需要时设置同步模式
-    if (!skipSyncMode) {
-      setSyncMode("json");
-    }
-    // 不再设置 formData，直接从 JSON 数据解析表单状态
-
-    // 初始化结束日期
-    if (data.endDate === "0000-00-00T23:59:59+08:00") {
+    // 处理结束日期和无限期
+    if (tags.endDate === "0000-00-00T23:59:59+08:00") {
       setIsUnlimited(true);
+      setEndDate("");
     } else {
       setIsUnlimited(false);
+      setEndDate(tags.endDate || "");
     }
 
-    // 初始化金额模式
-    if (data.amount === "Free") {
-      setAmountMode("free");
-      setAmountValue("");
-    } else if (data.amount) {
-      const amount = data.amount;
-      // 检查是否以货币符号开头
-      const prefixMatch = CURRENCY_OPTIONS.find((c) =>
-        amount.startsWith(c.label),
-      );
+    // 处理金额
+    parseAmount(tags.amount || "");
 
-      if (prefixMatch) {
-        setAmountMode("prefix");
-        setPrefixCurrency(prefixMatch.key);
-        setAmountValue(amount.substring(prefixMatch.label.length));
-      } else {
-        // 检查是否以货币代码结尾
-        const suffixMatch = CURRENCY_OPTIONS.find((c) =>
-          amount.endsWith(c.key),
-        );
+    // 处理带宽
+    parseBandwidth(tags.bandwidth || "");
 
-        if (suffixMatch) {
-          setAmountMode("suffix");
-          setSuffixCurrency(suffixMatch.key);
-          setAmountValue(
-            amount.substring(0, amount.length - suffixMatch.key.length),
-          );
-        } else {
-          setAmountMode("none");
-          setAmountValue(amount);
-        }
+    // 处理流量
+    parseTraffic(tags.trafficVol || "");
+
+    setNetworkRoute(tags.networkRoute || "");
+    setExtra(tags.extra || "");
+
+    // 提取扩展字段（非标准字段）
+    const extended: { [key: string]: string } = {};
+    Object.keys(tags).forEach(key => {
+      if (!STANDARD_FIELDS.includes(key)) {
+        extended[key] = tags[key];
       }
-    } else {
-      setAmountMode("none");
-      setAmountValue("");
-    }
+    });
+    setExtendedFields(extended);
 
-    // 初始化带宽
-    if (data.bandwidth) {
-      const bandwidthMatch = BANDWIDTH_UNITS.find((unit) =>
-        data.bandwidth!.endsWith(unit.key),
-      );
-
-      if (bandwidthMatch) {
-        setBandwidthValue(
-          data.bandwidth.substring(
-            0,
-            data.bandwidth.length - bandwidthMatch.key.length,
-          ),
-        );
-        setBandwidthUnit(bandwidthMatch.key);
-      } else {
-        setBandwidthValue(data.bandwidth);
-      }
-    } else {
-      setBandwidthValue("");
-    }
-
-    // 初始化流量
-    if (data.trafficVol) {
-      const trafficMatch = TRAFFIC_UNITS.find((unit) =>
-        data.trafficVol!.endsWith(unit.key),
-      );
-
-      if (trafficMatch) {
-        setTrafficValue(
-          data.trafficVol.substring(
-            0,
-            data.trafficVol.length - trafficMatch.key.length,
-          ),
-        );
-        setTrafficUnit(trafficMatch.key);
-      } else {
-        setTrafficValue(data.trafficVol);
-      }
-    } else {
-      setTrafficValue("");
-    }
+    // 更新JSON显示
+    updateJsonFromFields(tags);
   };
 
-  // 初始化标签数据
-  useEffect(() => {
-    if (isOpen) {
-      // 直接使用map格式数据
-      const initialData: TagData = currentTags || {};
-      const initialJson = JSON.stringify(initialData, null, 2);
-
-      // 初始化ref和状态
-      currentJsonDataRef.current = initialData;
-      initFormFromJsonData(initialData);
-      setJsonText(initialJson);
-      setJsonError(null);
-      setSyncMode("form");
-
-      console.log("Initialized with data:", initialData); // 调试日志
-    }
-  }, [isOpen, currentTags]);
-
-  // 直接更新单个字段到JSON
-  const updateJsonField = (field: string, value: any) => {
-    const data = { ...getCurrentData() };
-
-    if (value !== null && value !== undefined && value !== "") {
-      data[field] = value;
-    } else {
-      delete data[field];
-    }
-
-    const jsonString = JSON.stringify(data, null, 2);
-    setJsonText(jsonString);
-    currentJsonDataRef.current = data;
-    setJsonError(null);
-
-    console.log(`Updated field ${field}:`, value, "-> New data:", data);
+  // 重置为默认值
+  const resetToDefaults = () => {
+    setStartDate("");
+    setEndDate("");
+    setIsUnlimited(false);
+    setAmountValue("");
+    setAmountType("none");
+    setBandwidthValue("");
+    setTrafficValue("");
+    setNetworkRoute("");
+    setExtra("");
+    setExtendedFields({});
+    setJsonValue("{}");
   };
 
-  // JSON文本变化处理
-  const handleJsonChange = (content: any) => {
-    console.log("JSON Editor changed:", content); // 调试日志
-
-    // react-json-editor-ajrm 返回的是对象，包含 jsObject 和其他信息
-    if (content.error) {
-      setJsonError(content.error.reason || "JSON 格式错误");
-      currentJsonDataRef.current = {};
+  // 解析金额字段
+  const parseAmount = (amount: string) => {
+    if (!amount) {
+      setAmountType("none");
+      setAmountValue("");
       return;
     }
 
-    setJsonError(null);
+    // 检查是否为免费
+    if (amount.toLowerCase().includes("免费") || amount.toLowerCase().includes("free")) {
+      setAmountType("free");
+      setAmountValue("");
+      return;
+    }
 
-    // 确保空值也能被正确处理
-    const jsonObject = content.jsObject || {};
-    const value = JSON.stringify(jsonObject, null, 2);
-
-    // 更新状态和ref
-    setJsonText(value);
-    currentJsonDataRef.current = jsonObject;
-    setSyncMode("json");
-
-    console.log("Parsed JSON object:", jsonObject); // 调试日志
-    console.log("Updated currentJsonDataRef:", currentJsonDataRef.current); // 调试日志
-
-    // 实时验证JSON格式并同步到表单
-    try {
-      const parsed = jsonObject;
-
-      // 允许空对象
-      if (parsed === null || parsed === undefined) {
-        initFormFromJsonData({}, true); // 跳过syncMode设置，避免冲突
-        return;
+    // 检查前缀货币符号
+    const prefixMatch = amount.match(/^([¥$€£])(.+)/);
+    if (prefixMatch) {
+      setAmountType("prefix");
+      const symbol = prefixMatch[1];
+      const currency = CURRENCY_OPTIONS.find(c => c.symbol === symbol);
+      if (currency) {
+        setPrefixCurrency(currency.key);
       }
+      setAmountValue(prefixMatch[2]);
+      return;
+    }
 
-      // 只支持对象格式
-      if (typeof parsed === "object" && parsed !== null && !Array.isArray(parsed)) {
-        // 对象格式验证和同步到表单
-        initFormFromJsonData(parsed, true); // 跳过syncMode设置，避免冲突
-      } else {
-        setJsonError("数据必须是JSON对象格式");
-        return;
-      }
-    } catch (error) {
-      console.error("JSON processing error:", error); // 调试日志
-      setJsonError("JSON 格式无效");
+    // 检查后缀货币代码
+    const suffixMatch = amount.match(/^(.+?)(CNY|USD|EUR|GBP|JPY)$/);
+    if (suffixMatch) {
+      setAmountType("suffix");
+      setAmountValue(suffixMatch[1]);
+      setSuffixCurrency(suffixMatch[2]);
+      return;
+    }
+
+    // 默认为普通输入
+    setAmountType("none");
+    setAmountValue(amount);
+  };
+
+  // 解析带宽
+  const parseBandwidth = (bandwidth: string) => {
+    if (!bandwidth) return;
+
+    const match = bandwidth.match(/^(.+?)(Kbps|Mbps|Gbps)$/);
+    if (match) {
+      setBandwidthValue(match[1]);
+      setBandwidthUnit(match[2]);
+    } else {
+      setBandwidthValue(bandwidth);
     }
   };
 
-  // 表单字段变化时直接更新JSON
-  useEffect(() => {
-    if (syncMode !== "json") {
-      console.log("Form changed, updating JSON. SyncMode:", syncMode); // 调试日志
-      // 直接更新JSON中的复合字段
-      const data = updateJsonFromFormStates();
-      const jsonString = JSON.stringify(data, null, 2);
-      setJsonText(jsonString);
-      currentJsonDataRef.current = data;
-      setJsonError(null);
+  // 解析流量
+  const parseTraffic = (traffic: string) => {
+    if (!traffic) return;
+
+    const match = traffic.match(/^(.+?)(MB|GB|TB|MB\/Month|GB\/Month|TB\/Month)$/);
+    if (match) {
+      setTrafficValue(match[1]);
+      setTrafficUnit(match[2]);
+    } else {
+      setTrafficValue(traffic);
     }
+  };
+
+  // 从字段更新JSON（保留扩展字段）
+  const updateJsonFromFields = (additionalTags: { [key: string]: string } = {}) => {
+    const tags: { [key: string]: string } = { ...extendedFields }; // 先添加扩展字段
+
+    // 添加标准字段
+    if (startDate) tags.startDate = startDate;
+
+    if (isUnlimited) {
+      tags.endDate = "0000-00-00T23:59:59+08:00";
+    } else if (endDate) {
+      tags.endDate = endDate;
+    }
+
+    // 处理金额
+    if (amountType === "free") {
+      tags.amount = "free";
+    } else if (amountType === "prefix" && amountValue) {
+      const currency = CURRENCY_OPTIONS.find(c => c.key === prefixCurrency);
+      tags.amount = `${currency?.symbol}${amountValue}`;
+    } else if (amountType === "suffix" && amountValue) {
+      tags.amount = `${amountValue}${suffixCurrency}`;
+    } else if (amountType === "none" && amountValue) {
+      tags.amount = amountValue;
+    }
+
+    if (bandwidthValue) {
+      tags.bandwidth = `${bandwidthValue}${bandwidthUnit}`;
+    }
+
+    if (trafficValue) {
+      tags.trafficVol = `${trafficValue}${trafficUnit}`;
+    }
+
+    if (networkRoute) tags.networkRoute = networkRoute;
+    if (extra) tags.extra = extra;
+
+    // 如果有 additionalTags（初始化时），合并它们但不覆盖已经处理的标准字段
+    Object.keys(additionalTags).forEach(key => {
+      if (!STANDARD_FIELDS.includes(key)) {
+        tags[key] = additionalTags[key];
+      }
+    });
+
+    setJsonValue(JSON.stringify(tags, null, 2));
+    setIsJsonError(false);
+  };
+
+  // 当字段变化时更新JSON
+  useEffect(() => {
+    updateJsonFromFields();
   }, [
+    startDate,
+    endDate,
     isUnlimited,
-    amountMode,
+    amountValue,
+    amountType,
     prefixCurrency,
     suffixCurrency,
-    amountValue,
     bandwidthValue,
     bandwidthUnit,
     trafficValue,
     trafficUnit,
-    syncMode,
+    networkRoute,
+    extra,
+    extendedFields,
   ]);
 
-  // 确保 JSON 变化后重置同步模式
-  useEffect(() => {
-    if (syncMode === "json") {
-      // 稍后重置为 form 模式，允许表单继续同步
-      const timer = setTimeout(() => {
-        console.log("Resetting sync mode to form"); // 调试日志
-        setSyncMode("form");
-      }, 100);
-
-      return () => clearTimeout(timer);
-    }
-  }, [syncMode]);
-
-  // 保存标签设置
-  const handleSave = async () => {
+  // 从JSON更新字段（支持扩展字段）
+  const updateFieldsFromJson = (jsonString: string) => {
     try {
-      setSaving(true);
+      const tags = JSON.parse(jsonString);
+      if (typeof tags === 'object' && tags !== null) {
+        // 分离标准字段和扩展字段
+        const standardTags: { [key: string]: string } = {};
+        const extendedTags: { [key: string]: string } = {};
 
-      // 检查是否有JSON错误
-      if (jsonError) {
-        addToast({
-          title: "错误",
-          description: jsonError,
-          color: "danger",
+        Object.keys(tags).forEach(key => {
+          if (STANDARD_FIELDS.includes(key)) {
+            standardTags[key] = tags[key];
+          } else {
+            extendedTags[key] = tags[key];
+          }
         });
 
-        return;
-      }
+        // 更新扩展字段
+        setExtendedFields(extendedTags);
 
-      // 优先使用ref中的实时数据，如果没有则使用jsonText
-      let data: any = {};
+        // 更新标准字段（不调用 initializeFromTags，避免循环）
+        setStartDate(standardTags.startDate || "");
 
-      try {
-        // 优先使用currentJsonDataRef中的数据
-        if (currentJsonDataRef.current && Object.keys(currentJsonDataRef.current).length > 0) {
-          data = currentJsonDataRef.current;
-          console.log("Using ref data:", data); // 调试日志
-        } else if (jsonText.trim() === "") {
-          data = {};
-          console.log("Using empty data"); // 调试日志
+        // 处理结束日期和无限期
+        if (standardTags.endDate === "0000-00-00T23:59:59+08:00") {
+          setIsUnlimited(true);
+          setEndDate("");
         } else {
-          data = JSON.parse(jsonText);
-          console.log("Using parsed jsonText:", data); // 调试日志
+          setIsUnlimited(false);
+          setEndDate(standardTags.endDate || "");
         }
-      } catch (error) {
-        addToast({
-          title: "错误",
-          description: "JSON 格式无效",
-          color: "danger",
-        });
 
-        return;
+        // 处理金额
+        parseAmount(standardTags.amount || "");
+
+        // 处理带宽
+        parseBandwidth(standardTags.bandwidth || "");
+
+        // 处理流量
+        parseTraffic(standardTags.trafficVol || "");
+
+        setNetworkRoute(standardTags.networkRoute || "");
+        setExtra(standardTags.extra || "");
+
+        setIsJsonError(false);
       }
-
-      // 直接发送map格式的JSON数据
-      console.log("Final tags to submit:", data); // 调试日志
-
-      const response = await fetch(
-        buildApiUrl(`/api/tunnels/${tunnelId}/tags`),
-        {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify(data),
-        },
-      );
-
-      if (!response.ok) {
-        const error = await response.json();
-
-        throw new Error(error.message || "设置实例标签失败");
-      }
-
-      addToast({
-        title: "成功",
-        description: "实例标签设置成功",
-        color: "success",
-      });
-
-      onSaved();
-      onOpenChange(false);
     } catch (error) {
-      console.error("设置实例标签失败:", error);
-      addToast({
-        title: "错误",
-        description:
-          error instanceof Error ? error.message : "设置实例标签失败",
-        color: "danger",
-      });
-    } finally {
-      setSaving(false);
+      setIsJsonError(true);
     }
   };
 
+  // 处理JSON输入变化
+  const handleJsonChange = (value: string) => {
+    setJsonValue(value);
+    updateFieldsFromJson(value);
+  };
+
+  // 保存标签
+  const handleSave = async () => {
+    try {
+      const tags = JSON.parse(jsonValue);
+      setIsSaving(true);
+
+      const response = await fetch(`/api/tunnels/${tunnelId}/tags`, {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(tags),
+      });
+
+      if (!response.ok) {
+        throw new Error("保存标签失败");
+      }
+
+      addToast({
+        title: "保存成功",
+        description: "实例标签已更新",
+        color: "success",
+      });
+
+      onSaved?.();
+      onOpenChange(false);
+    } catch (error) {
+      console.error("保存标签失败:", error);
+      addToast({
+        title: "保存失败",
+        description: error instanceof Error ? error.message : "未知错误",
+        color: "danger",
+      });
+    } finally {
+      setIsSaving(false);
+    }
+  };
 
   return (
-    <Modal isOpen={isOpen} size="3xl" onOpenChange={onOpenChange}>
+    <Modal
+      isOpen={isOpen}
+      onOpenChange={onOpenChange}
+      size="5xl"
+      scrollBehavior="inside"
+      className="max-h-[90vh]"
+    >
       <ModalContent>
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1">
-              <div className="flex items-center gap-2">
-                <FontAwesomeIcon className="text-primary" icon={faTag} />
-                实例标签设置
-                <Tooltip
-                  content={
-                    <div className="p-2 max-w-xs">
-                      <p className="font-medium mb-2">使用说明：</p>
-                      <ul className="text-xs space-y-1">
-                        <li>• 左侧为标准字段输入，右侧为 JSON 格式</li>
-                        <li>• 左右两侧实时同步，可随意编辑</li>
-                        <li>• 空对象 {} 表示清除所有标签</li>
-                        <li>• 支持自定义字段扩展</li>
-                      </ul>
-                    </div>
-                  }
-                  placement="bottom"
-                >
-                  <FontAwesomeIcon
-                    className="text-default-400 cursor-help text-sm"
-                    icon={faQuestionCircle}
-                  />
-                </Tooltip>
-              </div>
+              <h2 className="text-xl font-semibold">编辑实例标签</h2>
             </ModalHeader>
-            <ModalBody className="max-h-[70vh] overflow-y-auto">
-              <div className="grid grid-cols-2 gap-6 h-full">
-                {/* 左侧：标准字段输入 */}
-                <div className="space-y-4">
-                  {/* 开始日期 */}
-                  <div>
-                    <label className="text-sm font-medium text-default-600 mb-2 block">
-                      开始日期
-                    </label>
-                    <DatePicker
-                      className="w-full"
-                      value={
-                        getCurrentData().startDate
-                          ? parseDate(
-                              getCurrentData().startDate.split("T")[0],
-                            ) as any
-                          : null
-                      }
-                      onChange={(date) => {
-                        if (date) {
-                          updateJsonField('startDate', `${date.toString()}T12:58:17.636Z`);
-                        } else {
-                          updateJsonField('startDate', null);
-                        }
-                      }}
-                    />
-                  </div>
+            <ModalBody>
+              <div className="flex gap-6 h-full">
+                {/* 左侧：标准字段表单 */}
+                <div className="flex-1 space-y-2">
+                  {/* 日期字段 */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4">
+                      {/* 开始日期 */}
+                      <div className="flex flex-col gap-2">
+                        <label className="text-sm font-medium text-default-700">开始日期</label>
+                        <DatePicker
+                          value={startDate ? parseDate(startDate.split('T')[0]) : undefined}
+                          onChange={(date) => {
+                            if (date) {
+                              // 格式化为 YYYY-MM-DD 然后拼接时区时间
+                              const year = date.year;
+                              const month = String(date.month).padStart(2, '0');
+                              const day = String(date.day).padStart(2, '0');
+                              setStartDate(`${year}-${month}-${day}T00:00:00+08:00`);
+                            } else {
+                              setStartDate('');
+                            }
+                          }}
+                          showMonthAndYearPickers
+                          variant="bordered"
+                          granularity="day"
+                        />
+                      </div>
 
-                  {/* 结束日期 */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-medium text-default-600">
-                        结束日期
-                      </label>
-                      <Checkbox
-                        isSelected={isUnlimited}
-                        size="sm"
-                        onValueChange={setIsUnlimited}
-                      >
-                        无限期
-                      </Checkbox>
+                      {/* 结束日期 */}
+                      <div className="flex flex-col gap-1.5">
+                        <div className="flex items-center justify-between">
+                          <label className="text-sm font-medium text-default-700">结束日期</label>
+                          <Checkbox
+                            isSelected={isUnlimited}
+                            onValueChange={(checked) => {
+                              setIsUnlimited(checked);
+                              if (checked) {
+                                setEndDate(''); // 清空日期，会在updateJsonFromFields中设置为特殊值
+                              }
+                            }}
+                            size="sm"
+                          >
+                            无限期
+                          </Checkbox>
+                        </div>
+                        <DatePicker
+                          value={!isUnlimited && endDate ? parseDate(endDate.split('T')[0]) : undefined}
+                          onChange={(date) => {
+                            if (date) {
+                              // 格式化为 YYYY-MM-DD 然后拼接时区时间
+                              const year = date.year;
+                              const month = String(date.month).padStart(2, '0');
+                              const day = String(date.day).padStart(2, '0');
+                              setEndDate(`${year}-${month}-${day}T23:59:59+08:00`);
+                            } else {
+                              setEndDate('');
+                            }
+                          }}
+                          showMonthAndYearPickers
+                          variant="bordered"
+                          isDisabled={isUnlimited}
+                          minValue={startDate ? parseDate(startDate.split('T')[0]) : undefined}
+                          granularity="day"
+                        />
+                      </div>
                     </div>
-                    <DatePicker
-                      className="w-full"
-                      isDisabled={isUnlimited}
-                      minValue={
-                        getCurrentData().startDate
-                          ? parseDate(
-                              getCurrentData().startDate.split("T")[0],
-                            ) as any
-                          : undefined
-                      }
-                      value={
-                        !isUnlimited &&
-                        getCurrentData().endDate &&
-                        getCurrentData().endDate !== "0000-00-00T23:59:59+08:00"
-                          ? parseDate(
-                              getCurrentData().endDate.split("T")[0],
-                            ) as any
-                          : null
-                      }
-                      onChange={(date) => {
-                        if (date) {
-                          updateJsonField('endDate', `${date.toString()}T12:58:17.636Z`);
-                        } else {
-                          updateJsonField('endDate', null);
-                        }
-                      }}
-                    />
                   </div>
 
-                  {/* 金额 */}
-                  <div>
-                    <div className="flex items-center justify-between mb-2">
-                      <label className="text-sm font-medium text-default-600">
-                        金额
-                      </label>
+                  {/* 金额字段 */}
+                  <div className="flex flex-col gap-1.5">
+                    <div className="flex items-center justify-between">
+                      <label className="text-sm font-medium text-default-700">金额</label>
                       <RadioGroup
+                        value={amountType}
+                        onValueChange={setAmountType}
                         orientation="horizontal"
+                        className="gap-2"
                         size="sm"
-                        value={amountMode}
-                        onValueChange={(value) =>
-                          setAmountMode(value as AmountMode)
-                        }
                       >
                         <Radio value="none">无格式</Radio>
                         <Radio value="prefix">前缀</Radio>
@@ -584,257 +499,207 @@ export default function InstanceTagModal({
                       </RadioGroup>
                     </div>
 
-                    <div className="flex gap-2">
-                      {amountMode === "prefix" && (
+                    {/* 金额输入区域 */}
+                    {amountType === "none" && (
+                      <Input
+                        placeholder="输入金额"
+                        value={amountValue}
+                        onValueChange={setAmountValue}
+                        variant="bordered"
+                      />
+                    )}
+
+                    {amountType === "prefix" && (
+                      <div className="flex gap-2">
                         <Select
-                          className="w-20"
                           selectedKeys={[prefixCurrency]}
-                          size="sm"
-                          onSelectionChange={(keys) =>
-                            setPrefixCurrency(Array.from(keys)[0] as string)
-                          }
+                          onSelectionChange={(keys) => {
+                            const selected = Array.from(keys)[0] as string;
+                            setPrefixCurrency(selected);
+                          }}
+                          className="w-32"
+                          variant="bordered"
+                          aria-label="货币符号"
                         >
                           {CURRENCY_OPTIONS.map((currency) => (
+                            <SelectItem key={currency.key}>
+                              {currency.symbol}
+                            </SelectItem>
+                          ))}
+                        </Select>
+                        <Input
+                          placeholder="输入金额"
+                          value={amountValue}
+                          onValueChange={setAmountValue}
+                          variant="bordered"
+                          className="flex-1"
+                          startContent={
+                            <span className="text-default-500">
+                              {CURRENCY_OPTIONS.find(c => c.key === prefixCurrency)?.symbol}
+                            </span>
+                          }
+                        />
+                      </div>
+                    )}
+
+                    {amountType === "suffix" && (
+                      <div className="flex gap-2">
+                        <Input
+                          placeholder="输入金额"
+                          value={amountValue}
+                          onValueChange={setAmountValue}
+                          variant="bordered"
+                          className="flex-1"
+                          endContent={
+                            <span className="text-default-500">
+                              {suffixCurrency}
+                            </span>
+                          }
+                        />
+                        <Select
+                          selectedKeys={[suffixCurrency]}
+                          onSelectionChange={(keys) => {
+                            const selected = Array.from(keys)[0] as string;
+                            setSuffixCurrency(selected);
+                          }}
+                          className="w-32"
+                          variant="bordered"
+                          aria-label="货币代码"
+                        >
+                          {CURRENCY_CODES.map((currency) => (
                             <SelectItem key={currency.key}>
                               {currency.label}
                             </SelectItem>
                           ))}
                         </Select>
-                      )}
+                      </div>
+                    )}
 
+                    {amountType === "free" && (
                       <Input
-                        className="flex-1"
-                        isDisabled={amountMode === "free"}
-                        placeholder={
-                          amountMode === "free" ? "免费" : "输入金额"
-                        }
-                        size="sm"
-                        value={amountValue}
-                        onValueChange={setAmountValue}
+                        placeholder="free"
+                        value="free"
+                        variant="bordered"
+                        isDisabled
                       />
+                    )}
+                  </div>
 
-                      {amountMode === "suffix" && (
-                        <Select
-                          className="w-20"
-                          selectedKeys={[suffixCurrency]}
-                          size="sm"
-                          onSelectionChange={(keys) =>
-                            setSuffixCurrency(Array.from(keys)[0] as string)
+                  {/* 带宽和流量字段 */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4">
+                      {/* 带宽 */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-sm font-medium text-default-700">带宽</label>
+                        <Input
+                          placeholder="输入带宽数值"
+                          value={bandwidthValue}
+                          onValueChange={setBandwidthValue}
+                          variant="bordered"
+                          endContent={
+                            <select
+                              value={bandwidthUnit}
+                              onChange={(e) => setBandwidthUnit(e.target.value)}
+                              className="outline-none border-none bg-transparent text-default-500 text-sm"
+                            >
+                              {BANDWIDTH_UNITS.map((unit) => (
+                                <option key={unit.key} value={unit.key}>
+                                  {unit.label}
+                                </option>
+                              ))}
+                            </select>
                           }
-                        >
-                          {CURRENCY_OPTIONS.map((currency) => (
-                            <SelectItem key={currency.key}>
-                              {currency.key}
-                            </SelectItem>
-                          ))}
-                        </Select>
-                      )}
+                        />
+                      </div>
+
+                      {/* 流量 */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-sm font-medium text-default-700">流量</label>
+                        <Input
+                          placeholder="输入流量数值"
+                          value={trafficValue}
+                          onValueChange={setTrafficValue}
+                          variant="bordered"
+                          endContent={
+                            <select
+                              value={trafficUnit}
+                              onChange={(e) => setTrafficUnit(e.target.value)}
+                              className="outline-none border-none bg-transparent text-default-500 text-sm"
+                            >
+                              {TRAFFIC_UNITS.map((unit) => (
+                                <option key={unit.key} value={unit.key}>
+                                  {unit.label}
+                                </option>
+                              ))}
+                            </select>
+                          }
+                        />
+                      </div>
                     </div>
                   </div>
 
-                  {/* 带宽 */}
-                  <div>
-                    <label className="text-sm font-medium text-default-600 mb-2 block">
-                      带宽
-                    </label>
-                    <Input
-                      endContent={
-                        <select
-                          className="border-0 bg-transparent text-default-600 text-sm outline-none"
-                          value={bandwidthUnit}
-                          onChange={(e) => setBandwidthUnit(e.target.value)}
-                        >
-                          {BANDWIDTH_UNITS.map((unit) => (
-                            <option key={unit.key} value={unit.key}>
-                              {unit.label}
-                            </option>
-                          ))}
-                        </select>
-                      }
-                      placeholder="输入带宽"
-                      size="sm"
-                      value={bandwidthValue}
-                      onValueChange={setBandwidthValue}
-                    />
-                  </div>
+                  {/* 其他信息字段 */}
+                  <div className="space-y-4">
+                    <div className="grid grid-cols-1 gap-4">
+                      {/* 网络路由 */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-sm font-medium text-default-700">网络路由</label>
+                        <Input
+                          placeholder="例如：4837、9929、联通 等"
+                          value={networkRoute}
+                          onValueChange={setNetworkRoute}
+                          variant="bordered"
+                        />
+                      </div>
 
-                  {/* 流量 */}
-                  <div>
-                    <label className="text-sm font-medium text-default-600 mb-2 block">
-                      流量
-                    </label>
-                    <Input
-                      endContent={
-                        <select
-                          className="border-0 bg-transparent text-default-600 text-sm outline-none"
-                          value={trafficUnit}
-                          onChange={(e) => setTrafficUnit(e.target.value)}
-                        >
-                          {TRAFFIC_UNITS.map((unit) => (
-                            <option key={unit.key} value={unit.key}>
-                              {unit.label}
-                            </option>
-                          ))}
-                        </select>
-                      }
-                      placeholder="输入流量"
-                      size="sm"
-                      value={trafficValue}
-                      onValueChange={setTrafficValue}
-                    />
-                  </div>
-
-
-                  {/* 额外信息 */}
-                  <div>
-                    <label className="text-sm font-medium text-default-600 mb-2 block">
-                      额外信息
-                    </label>
-                    <Input
-                      placeholder="输入额外信息，使用逗号分隔"
-                      size="sm"
-                      value={getCurrentData().extra || ""}
-                      onValueChange={(value) => {
-                        updateJsonField('extra', value || null);
-                      }}
-                    />
+                      {/* 额外信息 */}
+                      <div className="flex flex-col gap-1.5">
+                        <label className="text-sm font-medium text-default-700">额外信息</label>
+                        <Input
+                          placeholder="使用逗号分隔多个信息"
+                          value={extra}
+                          onValueChange={setExtra}
+                          variant="bordered"
+                        />
+                      </div>
+                    </div>
                   </div>
                 </div>
 
-                {/* 右侧：JSON 编辑器 */}
-                <div className="space-y-4">
-                  <div className="space-y-2">
-                    <div className="border border-default-200 rounded-lg overflow-hidden">
-                      <JSONInput
-                        key={`json-editor-${isOpen}`}
-                        allowEmpty={true}
-                        colors={{
-                          default: "#D4D4D4",
-                          background: "#1E1E1E",
-                          background_warning: "#1E1E1E",
-                          string: "#CE9178",
-                          number: "#B5CEA8",
-                          colon: "#D4D4D4",
-                          keys: "#9CDCFE",
-                          keys_whiteSpace: "#D4D4D4",
-                          primitive: "#569CD6",
-                        }}
-                        confirmGood={false}
-                        height="370px"
-                        id="json-editor"
-                        locale={locale}
-                        modifyErrorText={() => ""}
-                        placeholder={(() => {
-                          try {
-                            return JSON.parse(jsonText);
-                          } catch {
-                            return {};
-                          }
-                        })()}
-                        reset={false}
-                        style={{
-                          body: {
-                            fontSize: "13px",
-                            fontFamily:
-                              'Monaco, Menlo, "Ubuntu Mono", monospace',
-                          },
-                        }}
-                        theme="dark_vscode_tribute"
-                        viewOnly={false}
-                        width="100%"
-                        onChange={handleJsonChange}
-                      />
-                    </div>
-                  </div>
+                <Divider orientation="vertical" />
+
+                {/* 右侧：JSON编辑器 */}
+                <div className="flex-1 space-y-4">
+                  <Textarea
+                    value={jsonValue}
+                    onValueChange={handleJsonChange}
+                    minRows={20}
+                    maxRows={25}
+                    variant="bordered"
+                    className="font-mono text-sm"
+                    color={isJsonError ? "danger" : "default"}
+                  />
                 </div>
               </div>
             </ModalBody>
-            <ModalFooter className="flex items-center pt-2 justify-between">
-              <div className="flex gap-2">
-                {jsonError && (
-                  <p className="text-danger text-sm">{jsonError}</p>
-                )}
-
-                {/* JSON验证提示 */}
-                {jsonText && (
-                  <div className="text-xs">
-                    {(() => {
-                      try {
-                        if (jsonText.trim() === "") {
-                          return (
-                            <div className="text-default-500 flex items-center gap-1">
-                              <span>•</span>
-                              <span>空对象将清除所有标签</span>
-                            </div>
-                          );
-                        }
-
-                        const data = JSON.parse(jsonText.trim());
-
-                        if (typeof data === "object" && data !== null && !Array.isArray(data)) {
-                          // 对象格式
-                          const fieldCount = Object.keys(data).length;
-
-                          if (fieldCount > 0) {
-                            return (
-                              <div className="text-success-600 flex items-center gap-1">
-                                <span>✓</span>
-                                <span>
-                                  检测到 {fieldCount} 个字段
-                                </span>
-                              </div>
-                            );
-                          } else {
-                            return (
-                              <div className="text-warning-600 flex items-center gap-1">
-                                <span>!</span>
-                                <span>空对象，将清除所有标签</span>
-                              </div>
-                            );
-                          }
-                        } else {
-                          return (
-                            <div className="text-danger-600 flex items-center gap-1">
-                              <span>✗</span>
-                              <span>必须是JSON对象格式</span>
-                            </div>
-                          );
-                        }
-                      } catch {
-                        return (
-                          <div className="text-danger-600 flex items-center gap-1">
-                            <span>✗</span>
-                            <span>JSON 格式错误</span>
-                          </div>
-                        );
-                      }
-                    })()}
-                  </div>
-                )}
-              </div>
-              <div className="flex gap-2">
-                <Button
-                  color="default"
-                  isDisabled={saving}
-                  variant="flat"
-                  onPress={onClose}
-                >
-                  取消
-                </Button>
-                <Button
-                  color="primary"
-                  isDisabled={!!jsonError}
-                  isLoading={saving}
-                  startContent={<FontAwesomeIcon icon={faSave} />}
-                  onPress={handleSave}
-                >
-                  保存
-                </Button>
-              </div>
+            <ModalFooter>
+              <Button color="danger" variant="light" onPress={onClose}>
+                取消
+              </Button>
+              <Button
+                color="primary"
+                onPress={handleSave}
+                isLoading={isSaving}
+                isDisabled={isJsonError}
+              >
+                保存
+              </Button>
             </ModalFooter>
           </>
         )}
       </ModalContent>
     </Modal>
   );
-}
+};
+
+export default InstanceTagModal;

@@ -49,11 +49,11 @@ const formatTotal = (value: number | undefined) => {
 
 function DailyStatsChartComponent({
   title = "今日流量",
-  categories = ["TCP入站", "TCP出站", "UDP入站", "UDP出站"],
+  categories = ["TCP In", "TCP Out", "UDP In", "UDP Out"],
   color = "success",
   chartData = [],
   unit = "",
-  unitTitle = "总流量",
+  unitTitle = "Total",
   total = 0,
   loading = false,
   formatBytes = (bytes: number) => `${bytes} B`,
@@ -175,14 +175,14 @@ function DailyStatsChartComponent({
                 <g>
                   <text textAnchor="middle" x="50%" y="48%">
                     <tspan
-                      className="fill-default-500 text-[0.6rem]"
+                      className="fill-default-500 text-xs"
                       dy="-0.5em"
                       x="50%"
                     >
                       {unitTitle}
                     </tspan>
                     <tspan
-                      className="fill-foreground text-tiny font-semibold"
+                      className="fill-foreground text-base font-bold"
                       dy="1.5em"
                       x="50%"
                     >

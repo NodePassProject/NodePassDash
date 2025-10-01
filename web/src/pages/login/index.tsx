@@ -46,9 +46,9 @@ export default function LoginPage() {
   // 系统配置错误状态
   const [systemError, setSystemError] = useState("");
 
-  const { theme } = useTheme();
-  // 判断当前是否为暗色主题
-  const isDark = theme === "dark";
+  const { resolvedTheme } = useTheme();
+  // 判断当前是否为暗色主题 - 使用 resolvedTheme 来获取实际应用的主题
+  const isDark = resolvedTheme === "dark";
   // 根据主题选择对应的 Logo
   const logoSrc = isDark ? "/nodepass-logo-3.svg" : "/nodepass-logo-1.svg";
 

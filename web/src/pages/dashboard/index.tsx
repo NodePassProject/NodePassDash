@@ -789,8 +789,9 @@ export default function DashboardPage() {
                 </span>
               </div>
             </CardHeader>
-            <CardBody className="p-5 pt-3 overflow-y-auto scrollbar-hide">
-              <div className="space-y-3">
+            <CardBody className="p-5 pt-3 overflow-hidden">
+              <div className="h-full overflow-y-auto scrollbar-hide">
+                <div className="space-y-3 pb-5">
                 {loading ? (
                   // 加载状态骨架屏
                   [1, 2, 3, 4].map((i) => (
@@ -877,6 +878,7 @@ export default function DashboardPage() {
                     </div>
                   </div>
                 )}
+                </div>
               </div>
             </CardBody>
           </Card>
@@ -900,25 +902,25 @@ export default function DashboardPage() {
         {/* 今日统计 - 右侧占三分之一 */}
         <div className="w-full">
           <DailyStatsChart
-            categories={["TCP入站", "TCP出站", "UDP入站", "UDP出站"]}
+            categories={["TCP In", "TCP Out", "UDP In", "UDP Out"]}
             chartData={[
               {
-                name: "TCP入站",
+                name: "TCP In",
                 value: todayTrafficData.tcpIn,
                 valueText: formatBytes(todayTrafficData.tcpIn),
               },
               {
-                name: "TCP出站",
+                name: "TCP Out",
                 value: todayTrafficData.tcpOut,
                 valueText: formatBytes(todayTrafficData.tcpOut),
               },
               {
-                name: "UDP入站",
+                name: "UDP In",
                 value: todayTrafficData.udpIn,
                 valueText: formatBytes(todayTrafficData.udpIn),
               },
               {
-                name: "UDP出站",
+                name: "UDP Out",
                 value: todayTrafficData.udpOut,
                 valueText: formatBytes(todayTrafficData.udpOut),
               },
@@ -928,7 +930,7 @@ export default function DashboardPage() {
             loading={trafficLoading}
             title="今日流量"
             total={todayTrafficData.total}
-            unitTitle="总流量"
+            unitTitle="Total"
           />
         </div>
 

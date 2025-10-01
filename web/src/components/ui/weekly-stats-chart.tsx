@@ -152,8 +152,8 @@ function WeeklyStatsChartComponent({
             data={chartData}
             margin={{
               top: 20,
-              right: 14,
-              left: -8,
+              right: 15,
+              left: 10,
               bottom: 5,
             }}
           >
@@ -164,13 +164,7 @@ function WeeklyStatsChartComponent({
               tickFormatter={formatWeekday}
               tickLine={false}
             />
-            <YAxis
-              axisLine={false}
-              domain={[0, "dataMax"]}
-              style={{ fontSize: "var(--heroui-font-size-tiny)" }}
-              tickFormatter={(value) => formatBytes(Math.max(0, value))}
-              tickLine={false}
-            />
+            <YAxis hide />
             <Tooltip
               content={({ label, payload }) => (
                 <div className="rounded-medium bg-background text-tiny shadow-small flex h-auto min-w-[120px] items-center gap-x-2 p-2">

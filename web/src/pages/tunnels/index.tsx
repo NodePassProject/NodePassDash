@@ -1132,12 +1132,12 @@ export default function TunnelsPage() {
       prev.map((tunnel) =>
         tunnel.id === tunnelId
           ? {
-              ...tunnel,
-              status: {
-                type: isRunning ? ("success" as const) : ("danger" as const),
-                text: isRunning ? "运行中" : "已停止",
-              },
-            }
+            ...tunnel,
+            status: {
+              type: isRunning ? ("success" as const) : ("danger" as const),
+              text: isRunning ? "运行中" : "已停止",
+            },
+          }
           : tunnel,
       ),
     );
@@ -1948,17 +1948,18 @@ export default function TunnelsPage() {
             </div>
           ) : (
             // 桌面端：表格布局
-            <Table
-              isHeaderSticky
-              aria-label="实例表格"
-              bottomContent={renderPagination()}
-              selectedKeys={selectedKeys}
-              selectionMode="multiple"
-              sortDescriptor={sortDescriptor}
-              topContent={renderGroupFilter()}
-              onSelectionChange={setSelectedKeys}
-              onSortChange={handleSortChange}
-            >
+            <div className="[&_th:first-child]:!w-10 [&_th:first-child]:!max-w-10 [&_td:first-child]:!w-10 [&_td:first-child]:!max-w-10">
+              <Table
+                isHeaderSticky
+                aria-label="实例表格"
+                bottomContent={renderPagination()}
+                selectedKeys={selectedKeys}
+                selectionMode="multiple"
+                sortDescriptor={sortDescriptor}
+                topContent={renderGroupFilter()}
+                onSelectionChange={setSelectedKeys}
+                onSortChange={handleSortChange}
+              >
               <TableHeader columns={columns}>
                 {(column) => (
                   <TableColumn
@@ -1971,9 +1972,17 @@ export default function TunnelsPage() {
                           ? "w-[100px]"
                           : column.key === "type"
                             ? "w-[80px]"
-                            : column.key === "endpoint"
-                              ? "w-[120px]"
-                              : ""
+                            : column.key === "status"
+                              ? "w-[80px]"
+                              : column.key === "name"
+                                ? "flex-1 min-w-[150px]"
+                                : column.key === "endpoint"
+                                  ? "flex-1 min-w-[120px]"
+                                  : column.key === "tunnelAddress"
+                                    ? "flex-1 min-w-[140px]"
+                                    : column.key === "targetAddress"
+                                      ? "flex-1 min-w-[140px]"
+                                      : ""
                     }
                     hideHeader={false}
                   >
@@ -2028,256 +2037,257 @@ export default function TunnelsPage() {
               >
                 {loading
                   ? // Loading 状态：显示 Skeleton
-                    Array.from({ length: 5 }).map((_, index) => (
-                      <TableRow key={`skeleton-${index}`}>
-                        <TableCell>
-                          <Skeleton className="w-16 h-6 rounded-lg" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="w-24 h-5 rounded-lg" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="w-20 h-6 rounded-lg" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="w-32 h-5 rounded-lg" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="w-32 h-5 rounded-lg" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="w-16 h-6 rounded-lg" />
-                        </TableCell>
-                        <TableCell>
-                          <Skeleton className="w-24 h-5 rounded-lg" />
-                        </TableCell>
-                        <TableCell>
-                          <div className="flex justify-center gap-1">
-                            <Skeleton className="w-8 h-8 rounded-lg" />
-                            <Skeleton className="w-8 h-8 rounded-lg" />
-                            <Skeleton className="w-8 h-8 rounded-lg" />
-                            <Skeleton className="w-8 h-8 rounded-lg" />
-                            <Skeleton className="w-8 h-8 rounded-lg" />
-                          </div>
-                        </TableCell>
-                      </TableRow>
-                    ))
+                  Array.from({ length: 5 }).map((_, index) => (
+                    <TableRow key={`skeleton-${index}`}>
+                      <TableCell>
+                        <Skeleton className="w-16 h-6 rounded-lg" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="w-24 h-5 rounded-lg" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="w-20 h-6 rounded-lg" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="w-32 h-5 rounded-lg" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="w-32 h-5 rounded-lg" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="w-16 h-6 rounded-lg" />
+                      </TableCell>
+                      <TableCell>
+                        <Skeleton className="w-24 h-5 rounded-lg" />
+                      </TableCell>
+                      <TableCell>
+                        <div className="flex justify-center gap-1">
+                          <Skeleton className="w-8 h-8 rounded-lg" />
+                          <Skeleton className="w-8 h-8 rounded-lg" />
+                          <Skeleton className="w-8 h-8 rounded-lg" />
+                          <Skeleton className="w-8 h-8 rounded-lg" />
+                          <Skeleton className="w-8 h-8 rounded-lg" />
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))
                   : // 正常数据
-                    items.map((tunnel) => (
-                      <TableRow key={tunnel.id}>
-                        {/* 类型列 */}
-                        <TableCell>
-                          <Chip
-                            color={
-                              tunnel.type === "server" ? "primary" : "secondary"
-                            }
-                            size="sm"
-                            variant="flat"
-                          >
-                            {getTypeDisplayText(tunnel.type)}
-                          </Chip>
-                        </TableCell>
+                  items.map((tunnel) => (
+                    <TableRow key={tunnel.id}>
+                      {/* 类型列 */}
+                      <TableCell>
+                        <Chip
+                          color={
+                            tunnel.type === "server" ? "primary" : "secondary"
+                          }
+                          size="sm"
+                          variant="flat"
+                        >
+                          {getTypeDisplayText(tunnel.type)}
+                        </Chip>
+                      </TableCell>
 
-                        {/* 名称列 */}
-                        <TableCell className="min-w-[120px] max-h-[2.5em] ">
-                          <Tooltip
-                            content={
-                              <div className="text-xs">
-                                <div className="font-medium">{tunnel.name}</div>
-                                <div className="text-default-400">
-                                  {tunnel.instanceId}
-                                </div>
+                      {/* 名称列 */}
+                      <TableCell className="min-w-[120px] max-h-[2.5em] ">
+                        <Tooltip
+                          content={
+                            <div className="text-xs">
+                              <div className="font-medium">{tunnel.name}</div>
+                              <div className="text-default-400">
+                                {tunnel.instanceId}
                               </div>
-                            }
-                            size="sm"
-                          >
-                            <div
-                              className="text-sm font-semibold leading-tight cursor-help overflow-hidden text-ellipsis "
-                              style={{ wordBreak: "break-all" }}
-                            >
-                              {tunnel.name}
-                              <Tooltip content="修改名称" size="sm">
-                                <FontAwesomeIcon
-                                  className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer ml-1 inline align-baseline"
-                                  icon={faPen}
-                                  onClick={(e) => {
-                                    e.stopPropagation();
-                                    handleEditClick(tunnel);
-                                  }}
-                                />
-                              </Tooltip>
                             </div>
-                          </Tooltip>
-                        </TableCell>
-
-                        {/* 主控列 */}
-                        <TableCell className="min-w-[120px]">
-                          <Tooltip
-                            content={
-                              <div className="text-xs">
-                                <div className="font-medium">
-                                  {tunnel.endpoint}
-                                </div>
-                                {tunnel.version && (
-                                  <div className="text-default-400">
-                                    版本: {tunnel.version}
-                                  </div>
-                                )}
-                              </div>
-                            }
-                            placement="top"
-                            size="sm"
+                          }
+                          size="sm"
+                        >
+                          <div
+                            className="text-sm font-semibold leading-tight cursor-help overflow-hidden text-ellipsis "
+                            style={{ wordBreak: "break-all" }}
                           >
-                            <Chip
-                              className="cursor-help hover:opacity-80 h-auto"
-                              color="default"
-                              size="sm"
-                              variant="bordered"
-                            >
-                              <div className="line-clamp-2 overflow-hidden text-ellipsis leading-tight text-xs whitespace-normal break-words">
-                                {tunnel.endpoint}
-                              </div>
-                            </Chip>
-                          </Tooltip>
-                        </TableCell>
-
-                        {/* 隧道地址列 */}
-                        <TableCell className="text-sm text-default-600 font-mono">
-                          {formatAddress(
-                            tunnel.tunnelAddress,
-                            tunnel.tunnelPort,
-                          )}
-                        </TableCell>
-
-                        {/* 目标地址列 */}
-                        <TableCell className="text-sm text-default-600 font-mono">
-                          {formatAddress(
-                            tunnel.targetAddress,
-                            tunnel.targetPort,
-                          )}
-                        </TableCell>
-
-                        {/* 状态列 */}
-                        <TableCell className="min-w-[50px]">
-                          <Chip
-                            color={tunnel.status.type}
-                            size="sm"
-                            variant="flat"
-                          >
-                            {tunnel.status.text}
-                          </Chip>
-                        </TableCell>
-
-                        {/* 流量列 */}
-                        <TableCell className="text-sm text-default-600 font-mono min-w-[100px]">
-                          <TrafficInfo traffic={tunnel.traffic} />
-                        </TableCell>
-
-                        {/* 操作列 */}
-                        <TableCell>
-                          <div className="flex justify-center gap-1">
-                            <Tooltip content="查看实例" size="sm">
-                              <Button
-                                isIconOnly
-                                color="primary"
-                                size="sm"
-                                startContent={
-                                  <FontAwesomeIcon
-                                    className="text-xs "
-                                    icon={faEye}
-                                  />
-                                }
-                                variant="light"
-                                onClick={() =>
-                                  navigate(`/tunnels/details?id=${tunnel.id}`)
-                                }
-                              />
-                            </Tooltip>
-                            <Tooltip
-                              content={
-                                tunnel.status.type === "success"
-                                  ? "停止实例"
-                                  : "启动实例"
-                              }
-                              size="sm"
-                            >
-                              <Button
-                                isIconOnly
-                                color={
-                                  tunnel.status.type === "success"
-                                    ? "warning"
-                                    : "success"
-                                }
-                                size="sm"
-                                startContent={
-                                  <FontAwesomeIcon
-                                    className="text-xs"
-                                    icon={
-                                      tunnel.status.type === "success"
-                                        ? faStop
-                                        : faPlay
-                                    }
-                                  />
-                                }
-                                variant="light"
-                                onClick={() => handleToggleStatus(tunnel)}
-                              />
-                            </Tooltip>
-                            <Tooltip content="重启实例" size="sm">
-                              <Button
-                                isIconOnly
-                                color="secondary"
-                                isDisabled={tunnel.status.type !== "success"}
-                                size="sm"
-                                startContent={
-                                  <FontAwesomeIcon
-                                    className="text-xs"
-                                    icon={faRotateRight}
-                                  />
-                                }
-                                variant="light"
-                                onClick={() => handleRestart(tunnel)}
-                              />
-                            </Tooltip>
-                            <Tooltip content="编辑实例" size="sm">
-                              <Button
-                                isIconOnly
-                                color="warning"
-                                size="sm"
-                                startContent={
-                                  <FontAwesomeIcon
-                                    className="text-xs"
-                                    icon={faPen}
-                                  />
-                                }
-                                variant="light"
-                                onClick={() => {
-                                  setEditTunnel(tunnel);
-                                  setEditModalOpen(true);
+                            {tunnel.name}
+                            <Tooltip content="修改名称" size="sm">
+                              <FontAwesomeIcon
+                                className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer ml-1 inline align-baseline"
+                                icon={faPen}
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  handleEditClick(tunnel);
                                 }}
                               />
                             </Tooltip>
-                            <Tooltip content="删除实例" size="sm">
-                              <Button
-                                isIconOnly
-                                color="danger"
-                                size="sm"
-                                startContent={
-                                  <FontAwesomeIcon
-                                    className="text-xs"
-                                    icon={faTrash}
-                                  />
-                                }
-                                variant="light"
-                                onClick={() => handleDeleteClick(tunnel)}
-                              />
-                            </Tooltip>
                           </div>
-                        </TableCell>
-                      </TableRow>
-                    ))}
+                        </Tooltip>
+                      </TableCell>
+
+                      {/* 主控列 */}
+                      <TableCell className="min-w-[120px]">
+                        <Tooltip
+                          content={
+                            <div className="text-xs">
+                              <div className="font-medium">
+                                {tunnel.endpoint}
+                              </div>
+                              {tunnel.version && (
+                                <div className="text-default-400">
+                                  版本: {tunnel.version}
+                                </div>
+                              )}
+                            </div>
+                          }
+                          placement="top"
+                          size="sm"
+                        >
+                          <Chip
+                            className="cursor-help hover:opacity-80 h-auto"
+                            color="default"
+                            size="sm"
+                            variant="bordered"
+                          >
+                            <div className="line-clamp-2 overflow-hidden text-ellipsis leading-tight text-xs whitespace-normal break-words">
+                              {tunnel.endpoint}
+                            </div>
+                          </Chip>
+                        </Tooltip>
+                      </TableCell>
+
+                      {/* 隧道地址列 */}
+                      <TableCell className="text-sm text-default-600 font-mono">
+                        {formatAddress(
+                          tunnel.tunnelAddress,
+                          tunnel.tunnelPort,
+                        )}
+                      </TableCell>
+
+                      {/* 目标地址列 */}
+                      <TableCell className="text-sm text-default-600 font-mono">
+                        {formatAddress(
+                          tunnel.targetAddress,
+                          tunnel.targetPort,
+                        )}
+                      </TableCell>
+
+                      {/* 状态列 */}
+                      <TableCell className="max-w-[50px]">
+                        <Chip
+                          color={tunnel.status.type}
+                          size="sm"
+                          variant="flat"
+                        >
+                          {tunnel.status.text}
+                        </Chip>
+                      </TableCell>
+
+                      {/* 流量列 */}
+                      <TableCell className="text-sm text-default-600 font-mono  max-w-[80px]">
+                        <TrafficInfo traffic={tunnel.traffic} />
+                      </TableCell>
+
+                      {/* 操作列 */}
+                      <TableCell className="w-[140px]">
+                        <div className="flex justify-center gap-1">
+                          <Tooltip content="查看实例" size="sm">
+                            <Button
+                              isIconOnly
+                              color="primary"
+                              size="sm"
+                              startContent={
+                                <FontAwesomeIcon
+                                  className="text-xs "
+                                  icon={faEye}
+                                />
+                              }
+                              variant="light"
+                              onClick={() =>
+                                navigate(`/tunnels/details?id=${tunnel.id}`)
+                              }
+                            />
+                          </Tooltip>
+                          <Tooltip
+                            content={
+                              tunnel.status.type === "success"
+                                ? "停止实例"
+                                : "启动实例"
+                            }
+                            size="sm"
+                          >
+                            <Button
+                              isIconOnly
+                              color={
+                                tunnel.status.type === "success"
+                                  ? "warning"
+                                  : "success"
+                              }
+                              size="sm"
+                              startContent={
+                                <FontAwesomeIcon
+                                  className="text-xs"
+                                  icon={
+                                    tunnel.status.type === "success"
+                                      ? faStop
+                                      : faPlay
+                                  }
+                                />
+                              }
+                              variant="light"
+                              onClick={() => handleToggleStatus(tunnel)}
+                            />
+                          </Tooltip>
+                          <Tooltip content="重启实例" size="sm">
+                            <Button
+                              isIconOnly
+                              color="secondary"
+                              isDisabled={tunnel.status.type !== "success"}
+                              size="sm"
+                              startContent={
+                                <FontAwesomeIcon
+                                  className="text-xs"
+                                  icon={faRotateRight}
+                                />
+                              }
+                              variant="light"
+                              onClick={() => handleRestart(tunnel)}
+                            />
+                          </Tooltip>
+                          <Tooltip content="编辑实例" size="sm">
+                            <Button
+                              isIconOnly
+                              color="warning"
+                              size="sm"
+                              startContent={
+                                <FontAwesomeIcon
+                                  className="text-xs"
+                                  icon={faPen}
+                                />
+                              }
+                              variant="light"
+                              onClick={() => {
+                                setEditTunnel(tunnel);
+                                setEditModalOpen(true);
+                              }}
+                            />
+                          </Tooltip>
+                          <Tooltip content="删除实例" size="sm">
+                            <Button
+                              isIconOnly
+                              color="danger"
+                              size="sm"
+                              startContent={
+                                <FontAwesomeIcon
+                                  className="text-xs"
+                                  icon={faTrash}
+                                />
+                              }
+                              variant="light"
+                              onClick={() => handleDeleteClick(tunnel)}
+                            />
+                          </Tooltip>
+                        </div>
+                      </TableCell>
+                    </TableRow>
+                  ))}
               </TableBody>
-            </Table>
+              </Table>
+            </div>
           )}
         </div>
       </div>
