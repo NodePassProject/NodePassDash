@@ -46,7 +46,7 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 	}
 
 	query := `
-		SELECT 
+		SELECT
 			t.id, t.instance_id, t.name, t.endpoint_id, t.type,
 			t.tunnel_address, t.tunnel_port, t.target_address, t.target_port,
 			t.tls_mode, t.cert_path, t.key_path, t.log_level, t.command_line,
@@ -57,8 +57,8 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 			tag.id AS tag_id, tag.name AS tag_name
 		FROM tunnels t
 		LEFT JOIN endpoints e ON t.endpoint_id = e.id
-		LEFT JOIN tunnel_tags tt ON t.id = tt.tunnel_id
-		LEFT JOIN tags tag ON tt.tag_id = tag.id
+		LEFT JOIN tunnel_groups tt ON t.id = tt.tunnel_id
+		LEFT JOIN groups tag ON tt.group_id = tag.id
 		ORDER BY t.created_at DESC
 	`
 
@@ -2590,8 +2590,8 @@ func (s *Service) getGroupsByTunnelIDs(tunnelIDs []int64) (map[int64][]models.Gr
 
 	query := fmt.Sprintf(`
 		SELECT tt.tunnel_id, t.id, t.name
-		FROM tunnel_tags tt
-		JOIN tags t ON tt.tag_id = t.id
+		FROM tunnel_groups tt
+		JOIN groups t ON tt.group_id = t.id
 		WHERE tt.tunnel_id IN (%s)
 	`, placeholders)
 

@@ -250,7 +250,7 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 		// 修改配置：更新名称、URL、API路径，可选的API密钥
 		updates := make(map[string]interface{})
 		needUpdateCache := false
-		
+
 		if req.Name != "" {
 			// 检查新名称是否已存在
 			var count int64
@@ -262,7 +262,7 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 			}
 			updates["name"] = req.Name
 		}
-		
+
 		if req.URL != "" && req.URL != endpoint.URL {
 			// 检查URL是否重复
 			var count int64
@@ -279,17 +279,17 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 			}
 			needUpdateCache = true
 		}
-		
+
 		if req.APIPath != "" && req.APIPath != endpoint.APIPath {
 			updates["api_path"] = req.APIPath
 			needUpdateCache = true
 		}
-		
+
 		if req.APIKey != "" && req.APIKey != endpoint.APIKey {
 			updates["api_key"] = req.APIKey
 			needUpdateCache = true
 		}
-		
+
 		updates["updated_at"] = time.Now()
 
 		if err := s.db.Model(&endpoint).Updates(updates).Error; err != nil {
@@ -311,7 +311,7 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 		if req.APIKey == "" {
 			return nil, errors.New("API密钥不能为空")
 		}
-		
+
 		updates := map[string]interface{}{
 			"api_key":    req.APIKey,
 			"updated_at": time.Now(),
@@ -336,11 +336,11 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 // DeleteEndpoint 删除端点
 func (s *Service) DeleteEndpoint(id int64) error {
 	return s.db.Transaction(func(tx *gorm.DB) error {
-		// 1) 删除隧道标签关联表记录（通过隧道ID关联）
-		if err := tx.Exec("DELETE FROM tunnel_tags WHERE tunnel_id IN (SELECT id FROM tunnels WHERE endpoint_id = ?)", id).Error; err != nil {
+		// 1) 删除隧道分组关联表记录（通过隧道ID关联）
+		if err := tx.Exec("DELETE FROM tunnel_groups WHERE tunnel_id IN (SELECT id FROM tunnels WHERE endpoint_id = ?)", id).Error; err != nil {
 			// 忽略记录不存在的错误
 			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return fmt.Errorf("删除隧道标签关联失败: %v", err)
+				return fmt.Errorf("删除隧道分组关联失败: %v", err)
 			}
 		}
 

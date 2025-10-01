@@ -417,11 +417,11 @@ func (h *TunnelHandler) HandleDeleteTunnel(c *gin.Context) {
 	var endpointID int64
 	if err := h.tunnelService.DB().QueryRow(`SELECT id, endpoint_id FROM tunnels WHERE instance_id = ?`, req.InstanceID).Scan(&tunnelID, &endpointID); err != nil {
 	} else {
-		// 清理隧道标签关联
-		if _, err := h.tunnelService.DB().Exec("DELETE FROM tunnel_tags WHERE tunnel_id = ?", tunnelID); err != nil {
-			log.Warnf("[API] 删除隧道标签关联失败: tunnelID=%d, err=%v", tunnelID, err)
+		// 清理隧道分组关联
+		if _, err := h.tunnelService.DB().Exec("DELETE FROM tunnel_groups WHERE tunnel_id = ?", tunnelID); err != nil {
+			log.Warnf("[API] 删除隧道分组关联失败: tunnelID=%d, err=%v", tunnelID, err)
 		} else {
-			log.Infof("[API] 已删除隧道标签关联: tunnelID=%d", tunnelID)
+			log.Infof("[API] 已删除隧道分组关联: tunnelID=%d", tunnelID)
 		}
 	}
 
