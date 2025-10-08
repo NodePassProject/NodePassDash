@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { addToast } from "@heroui/toast";
+import { processAnsiColors } from "@/lib/utils/ansi";
 
 interface FileLogEntry {
   timestamp: string;
@@ -209,7 +210,7 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
       const lines = logContent.split("\n").filter((line) => line.length > 0);
       const newLogEntries: FileLogEntry[] = lines.map((line, index) => ({
         timestamp: new Date().toISOString(),
-        content: line,
+        content: processAnsiColors(line), // 处理ANSI颜色
         filePath: "live", // 标记为实时日志
       }));
 

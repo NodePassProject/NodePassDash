@@ -1167,7 +1167,7 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 					if err = tx.Where("tunnel_id = ?", tunnel.ID).Delete(&models.TunnelOperationLog{}).Error; err != nil {
 						log.Warnf("[API] 删除隧道 %d 操作日志失败: %v", tunnel.ID, err)
 					}
-					
+
 					if err = tx.Delete(&models.Tunnel{}, tunnel.ID).Error; err != nil {
 						return fmt.Errorf("删除隧道失败: %v", err)
 					}
@@ -1445,9 +1445,9 @@ func (h *EndpointHandler) HandleEndpointFileLogs(c *gin.Context) {
 		return
 	}
 
-	// 转换为LogEntry格式以保持兼容性
-	var logEntries []log.LogEntry
-	for _, logLine := range logs {
+	// 转换为统一的日志格式
+	var logEntries []map[string]interface{}
+	for i, logLine := range logs {
 		if logLine != "" {
 			// 尝试解析日志行中的时间戳
 			var timestamp time.Time
@@ -1462,10 +1462,13 @@ func (h *EndpointHandler) HandleEndpointFileLogs(c *gin.Context) {
 				timestamp = targetDate // 如果没有时间戳，使用目标日期
 			}
 
-			logEntries = append(logEntries, log.LogEntry{
-				Timestamp: timestamp,
-				Content:   logLine,
-				FilePath:  fmt.Sprintf("%s.log", targetDate.Format("2006-01-02")),
+			logEntries = append(logEntries, map[string]interface{}{
+				"id":        i + 1,
+				"message":   processAnsiColors(logLine), // 处理ANSI颜色
+				"content":   processAnsiColors(logLine), // 保持向后兼容
+				"isHtml":    true,
+				"timestamp": timestamp,
+				"filePath":  fmt.Sprintf("%s.log", targetDate.Format("2006-01-02")),
 			})
 		}
 	}

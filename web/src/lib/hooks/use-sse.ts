@@ -64,23 +64,55 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
             "原始数据:",
             event.data,
           );
+          // 继续处理，不中断连接
         }
+      }
+    };
+
+    eventSource.onopen = () => {
+      if (isMountedRef.current) {
+        console.log("[前端SSE] ✅ EventSource连接已打开");
       }
     };
 
     eventSource.onerror = (error) => {
       if (isMountedRef.current) {
-        console.error(`[前端SSE] 隧道SSE连接错误`, error);
+        console.error(
+          `[前端SSE] 隧道SSE连接错误 readyState=${eventSource.readyState}`,
+          error,
+        );
         onError(error);
       }
     };
 
+    // 定期检查连接状态（用于调试）
+    const statusCheckInterval = setInterval(() => {
+      if (eventSource && isMountedRef.current) {
+        const states = ["CONNECTING", "OPEN", "CLOSED"];
+        const stateText = states[eventSource.readyState] || "UNKNOWN";
+
+        console.log(
+          `[前端SSE] 连接状态检查: ${stateText} (${eventSource.readyState})`,
+        );
+
+        // 如果连接关闭了，但没有触发onerror，手动触发
+        if (eventSource.readyState === 2) {
+          // CLOSED
+          console.warn("[前端SSE] ⚠️ 检测到连接已关闭，但未触发onerror");
+        }
+      }
+    }, 10000); // 每10秒检查一次
+
     return () => {
       isMountedRef.current = false;
+
+      // 清理状态检查
+      clearInterval(statusCheckInterval);
 
       // 强制清理EventSource连接
       if (eventSourceRef.current) {
         try {
+          console.log("[前端SSE] 正在关闭EventSource连接");
           eventSourceRef.current.close();
         } catch (error) {
           console.debug("[前端SSE] 关闭隧道SSE失败", error);

@@ -72,6 +72,7 @@ func SetupTunnelRoutes(rg *gin.RouterGroup, tunnelService *tunnel.Service, sseMa
 	rg.POST("/tunnels/:id/action", tunnelHandler.HandleControlTunnel)
 	rg.GET("/tunnels/:id/details", tunnelHandler.HandleGetTunnelDetails)
 	rg.GET("/tunnels/:id/file-logs", tunnelHandler.HandleTunnelFileLogs)
+	rg.DELETE("/tunnels/:id/file-logs/clear", tunnelHandler.HandleClearTunnelFileLogs)
 	rg.GET("/tunnels/:id/traffic-trend", tunnelHandler.HandleGetTunnelTrafficTrend)
 	rg.GET("/tunnels/:id/ping-trend", tunnelHandler.HandleGetTunnelPingTrend)
 	rg.GET("/tunnels/:id/pool-trend", tunnelHandler.HandleGetTunnelPoolTrend)
@@ -1438,6 +1439,47 @@ func (h *TunnelHandler) HandleTunnelFileLogs(c *gin.Context) {
 			"hasMoreDays": hasMoreDays,
 			"totalCount":  len(logs),
 		},
+	})
+}
+
+// HandleClearTunnelFileLogs 清空指定隧道的文件日志 (DELETE /api/tunnels/{id}/file-logs/clear)
+func (h *TunnelHandler) HandleClearTunnelFileLogs(c *gin.Context) {
+	idStr := c.Param("id")
+	if idStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少隧道ID"})
+		return
+	}
+
+	db := h.tunnelService.DB()
+
+	// 查询隧道获得 endpointId
+	var endpointID int64
+	if err := db.QueryRow(`SELECT endpoint_id FROM tunnels WHERE instance_id = ?`, idStr).Scan(&endpointID); err != nil {
+		if err == sql.ErrNoRows {
+			c.JSON(http.StatusNotFound, gin.H{"error": "隧道不存在"})
+			return
+		}
+		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
+		return
+	}
+
+	// 检查是否有FileLogger
+	if h.sseManager == nil || h.sseManager.GetFileLogger() == nil {
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "文件日志服务不可用"})
+		return
+	}
+
+	// 清空文件日志
+	err := h.sseManager.GetFileLogger().ClearLogs(endpointID, idStr)
+	if err != nil {
+		log.Warnf("[API]清空文件日志失败: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "清空日志失败"})
+		return
+	}
+
+	c.JSON(http.StatusOK, map[string]interface{}{
+		"success": true,
+		"message": "文件日志已清空",
 	})
 }
 

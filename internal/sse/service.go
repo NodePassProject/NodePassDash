@@ -490,13 +490,21 @@ func (s *Service) updateEndpointTunnelCount(endpointID int64) {
 // sendTunnelUpdateByInstanceId 根据实例ID发送隧道更新
 func (s *Service) sendTunnelUpdateByInstanceId(instanceID string, data SSEResp) {
 	s.mu.RLock()
-	defer s.mu.RUnlock()
-
 	subscribers, exists := s.tunnelSubs[instanceID]
 	if !exists {
+		s.mu.RUnlock()
 		// log.Debug("[SSE]隧道 %s 没有订阅者", instanceID)
 		return
 	}
+
+	// 创建订阅者副本，避免在遍历时修改map
+	clientList := make([]*Client, 0, len(subscribers))
+	clientIDs := make([]string, 0, len(subscribers))
+	for clientID, client := range subscribers {
+		clientList = append(clientList, client)
+		clientIDs = append(clientIDs, clientID)
+	}
+	s.mu.RUnlock()
 
 	jsonData, err := json.Marshal(data)
 	if err != nil {
@@ -504,19 +512,39 @@ func (s *Service) sendTunnelUpdateByInstanceId(instanceID string, data SSEResp) 
 		return
 	}
 
-	for clientID, client := range subscribers {
+	// 记录需要删除的客户端
+	disconnectedClients := make([]string, 0)
+
+	for i, client := range clientList {
+		clientID := clientIDs[i]
 		if err := client.Send(jsonData); err != nil {
 			// 检查是否是连接断开错误，使用更合适的日志级别
 			if client.IsDisconnected() {
-				log.Warnf("[SSE]客户端 %s 连接已断开，移除订阅", clientID)
-				// 从订阅列表中移除已断开的客户端
-				delete(subscribers, clientID)
+				log.Warnf("[SSE]客户端 %s 连接已断开，标记移除订阅", clientID)
+				disconnectedClients = append(disconnectedClients, clientID)
 			} else {
 				log.Errorf("发送隧道更新给客户端 %s 失败: %v", clientID, err)
 			}
 		} else {
 			log.Debugf("[SSE]隧道 %s 的订阅者 %s 推送成功", instanceID, clientID)
 		}
+	}
+
+	// 如果有断开的客户端，获取写锁并移除它们
+	if len(disconnectedClients) > 0 {
+		s.mu.Lock()
+		if subscribers, exists := s.tunnelSubs[instanceID]; exists {
+			for _, clientID := range disconnectedClients {
+				delete(subscribers, clientID)
+				log.Infof("[SSE]已移除断开连接的客户端 %s from tunnel %s", clientID, instanceID)
+			}
+			// 如果订阅者列表为空，删除整个条目
+			if len(subscribers) == 0 {
+				delete(s.tunnelSubs, instanceID)
+				log.Debugf("[SSE]隧道 %s 无订阅者，清理订阅列表", instanceID)
+			}
+		}
+		s.mu.Unlock()
 	}
 }
 

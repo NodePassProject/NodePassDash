@@ -352,10 +352,6 @@ export default function TunnelStatsCharts({
   instanceId,
   isExperimentalMode = true,
 }: TunnelStatsChartsProps) {
-  console.log("[TunnelStatsCharts] 组件初始化:", {
-    instanceId,
-    isExperimentalMode,
-  });
   const [dataHistory, setDataHistory] = useState<TunnelMonitorData[]>([]);
   const [previousTcpRx, setPreviousTcpRx] = useState<number | null>(null);
   const [previousTcpTx, setPreviousTcpTx] = useState<number | null>(null);
@@ -396,16 +392,10 @@ export default function TunnelStatsCharts({
         });
       },
       onData: (data) => {
-        console.log("[TunnelStatsCharts] 收到隧道监控数据:", data);
-
         // 使用数据中的 timestamp
         const currentTimestamp = data.timestamp;
 
         if (!currentTimestamp) {
-          console.warn(
-            "[TunnelStatsCharts] 数据中缺少 timestamp，无法计算速率",
-          );
-
           return;
         }
 
@@ -415,13 +405,6 @@ export default function TunnelStatsCharts({
             // 计算时间差值（毫秒 -> 秒）
             const timeDiffMs = currentTimestamp - prevTime;
             const timeDiff = timeDiffMs / 1000;
-
-            console.log("[TunnelStatsCharts] 时间差值计算:", {
-              prevTime: new Date(prevTime).toISOString(),
-              currentTime: new Date(currentTimestamp).toISOString(),
-              timeDiffMs: `${timeDiffMs}ms`,
-              timeDiff: `${timeDiff.toFixed(2)}s`,
-            });
 
             // 计算TCP速率
             setPreviousTcpRx((prevTcpRx) => {
@@ -434,14 +417,6 @@ export default function TunnelStatsCharts({
                 const rate = dataDiff / timeDiff; // 字节/秒
 
                 setTcpRxRate(rate);
-                console.log("[TunnelStatsCharts] TCP下行速率计算:", {
-                  prevValue: prevTcpRx,
-                  currentValue: data.tcpRx,
-                  dataDiff: `${dataDiff} bytes`,
-                  timeDiff: `${timeDiff.toFixed(2)}s`,
-                  rate: `${(rate / 1024).toFixed(2)} KB/s`,
-                  rateMbps: `${(rate / 1024 / 1024).toFixed(2)} MB/s`,
-                });
               } else if (data.tcpRx !== undefined) {
                 setTcpRxRate(0); // 第一次或无效数据
               }
@@ -459,14 +434,6 @@ export default function TunnelStatsCharts({
                 const rate = dataDiff / timeDiff;
 
                 setTcpTxRate(rate);
-                console.log("[TunnelStatsCharts] TCP上行速率计算:", {
-                  prevValue: prevTcpTx,
-                  currentValue: data.tcpTx,
-                  dataDiff: `${dataDiff} bytes`,
-                  timeDiff: `${timeDiff.toFixed(2)}s`,
-                  rate: `${(rate / 1024).toFixed(2)} KB/s`,
-                  rateMbps: `${(rate / 1024 / 1024).toFixed(2)} MB/s`,
-                });
               } else if (data.tcpTx !== undefined) {
                 setTcpTxRate(0);
               }
@@ -485,14 +452,6 @@ export default function TunnelStatsCharts({
                 const rate = dataDiff / timeDiff;
 
                 setUdpRxRate(rate);
-                console.log("[TunnelStatsCharts] UDP下行速率计算:", {
-                  prevValue: prevUdpRx,
-                  currentValue: data.udpRx,
-                  dataDiff: `${dataDiff} bytes`,
-                  timeDiff: `${timeDiff.toFixed(2)}s`,
-                  rate: `${(rate / 1024).toFixed(2)} KB/s`,
-                  rateMbps: `${(rate / 1024 / 1024).toFixed(2)} MB/s`,
-                });
               } else if (data.udpRx !== undefined) {
                 setUdpRxRate(0);
               }
@@ -510,14 +469,6 @@ export default function TunnelStatsCharts({
                 const rate = dataDiff / timeDiff;
 
                 setUdpTxRate(rate);
-                console.log("[TunnelStatsCharts] UDP上行速率计算:", {
-                  prevValue: prevUdpTx,
-                  currentValue: data.udpTx,
-                  dataDiff: `${dataDiff} bytes`,
-                  timeDiff: `${timeDiff.toFixed(2)}s`,
-                  rate: `${(rate / 1024).toFixed(2)} KB/s`,
-                  rateMbps: `${(rate / 1024 / 1024).toFixed(2)} MB/s`,
-                });
               } else if (data.udpTx !== undefined) {
                 setUdpTxRate(0);
               }
@@ -526,7 +477,6 @@ export default function TunnelStatsCharts({
             });
           } else {
             // 第一次数据，初始化前一次的值
-            console.log("[TunnelStatsCharts] 初始化首次数据");
             setPreviousTcpRx(data.tcpRx || null);
             setPreviousTcpTx(data.tcpTx || null);
             setPreviousUdpRx(data.udpRx || null);
@@ -544,11 +494,6 @@ export default function TunnelStatsCharts({
           };
 
           const newHistory = [...prev, processedData].slice(-10);
-
-          console.log(
-            "[TunnelStatsCharts] 历史数据更新，长度:",
-            newHistory.length,
-          );
 
           return newHistory;
         });
@@ -576,8 +521,6 @@ export default function TunnelStatsCharts({
       value2: item.tcpTx || 0, // TCP发送
     }));
 
-    console.log("[TunnelStatsCharts] TCP流量图表数据更新:", chartData);
-
     return chartData;
   }, [dataHistory]);
 
@@ -588,8 +531,6 @@ export default function TunnelStatsCharts({
       value2: item.udpTx || 0, // UDP发送
     }));
 
-    console.log("[TunnelStatsCharts] UDP流量图表数据更新:", chartData);
-
     return chartData;
   }, [dataHistory]);
 
@@ -598,8 +539,6 @@ export default function TunnelStatsCharts({
       time: `${index}`,
       value: item.ping || 0,
     }));
-
-    console.log("[TunnelStatsCharts] 延迟图表数据更新:", chartData);
 
     return chartData;
   }, [dataHistory]);
@@ -610,8 +549,6 @@ export default function TunnelStatsCharts({
       value1: item.pool || 0, // 连接池
       value2: (item.tcps || 0) + (item.udps || 0), // 总连接数
     }));
-
-    console.log("[TunnelStatsCharts] 连接数图表数据更新:", chartData);
 
     return chartData;
   }, [dataHistory]);
@@ -635,14 +572,6 @@ export default function TunnelStatsCharts({
       icon: "solar:transmission-bold",
     };
 
-    console.log("[TunnelStatsCharts] TCP数据对象更新:", {
-      sendRate: data.value1,
-      receiveRate: data.value2,
-      chartLength: data.chartData.length,
-      tcpTxRate,
-      tcpRxRate,
-    });
-
     return data;
   }, [tcpTxRate, tcpRxRate, tcpTrafficChartData]);
 
@@ -664,14 +593,6 @@ export default function TunnelStatsCharts({
       icon: "solar:transmission-square-bold",
     };
 
-    console.log("[TunnelStatsCharts] UDP数据对象更新:", {
-      sendRate: data.value1,
-      receiveRate: data.value2,
-      chartLength: data.chartData.length,
-      udpTxRate,
-      udpRxRate,
-    });
-
     return data;
   }, [udpTxRate, udpRxRate, udpTrafficChartData]);
 
@@ -689,11 +610,6 @@ export default function TunnelStatsCharts({
       color: "success",
       icon: "solar:clock-circle-bold",
     };
-
-    console.log("[TunnelStatsCharts] 延迟数据对象更新:", {
-      value: data.value,
-      chartLength: data.chartData.length,
-    });
 
     return data;
   }, [latestData?.ping, latencyChartData]);
@@ -716,10 +632,6 @@ export default function TunnelStatsCharts({
         { time: "1", value: 0 },
       ];
     }
-    console.log("[TunnelStatsCharts] 连接池数据对象更新:", {
-      value: data.value,
-      chartLength: data.chartData.length,
-    });
 
     return data;
   }, [latestData?.pool, dataHistory]);
@@ -746,44 +658,12 @@ export default function TunnelStatsCharts({
         { time: "1", value1: 0, value2: 0 },
       ];
     }
-    console.log("[TunnelStatsCharts] 连接数据对象更新:", {
-      tcp: data.value1,
-      udp: data.value2,
-      chartLength: data.chartData.length,
-    });
 
     return data;
   }, [latestData?.tcps, latestData?.udps, dataHistory]);
 
-  // 调试信息
-  console.log("[TunnelStatsCharts] 组件状态:", {
-    instanceId,
-    isExperimentalMode,
-    shouldConnect,
-    isConnected,
-    dataHistoryLength: dataHistory.length,
-    latestData: latestData
-      ? {
-          instanceId: latestData.instanceId,
-          timestamp: latestData.timestamp,
-          tcpRx: latestData.tcpRx,
-          tcpTx: latestData.tcpTx,
-          udpRx: latestData.udpRx,
-          udpTx: latestData.udpTx,
-        }
-      : null,
-    currentRates: {
-      tcpRxRate,
-      tcpTxRate,
-      udpRxRate,
-      udpTxRate,
-    },
-  });
-
   // 如果不满足启动条件，不显示组件
   if (!shouldConnect) {
-    console.log("[TunnelStatsCharts] 不满足启动条件，不显示组件");
-
     return <></>;
   }
 

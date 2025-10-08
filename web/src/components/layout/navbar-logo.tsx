@@ -1,4 +1,4 @@
-import { NavbarBrand, Link, cn, Badge } from "@heroui/react";
+import { NavbarBrand, Link, cn, Chip } from "@heroui/react";
 import { useTheme } from "next-themes";
 import { useIsSSR } from "@react-aria/ssr";
 
@@ -50,7 +50,7 @@ export const NavbarLogo = () => {
   // 确定badge内容和颜色
   const getBadgeProps = () => {
     if (isDev) {
-      return { content: "dev", color: "secondary" as const };
+      return { content: "dev", color: "default" as const };
     }
     if (isBeta) {
       return { content: "beta", color: "primary" as const };
@@ -62,28 +62,15 @@ export const NavbarLogo = () => {
 
   return (
     <NavbarBrand as="li" className="gap-3 max-w-fit">
-      <Link className="flex justify-start items-center gap-2" href="/">
-        {badgeProps ? (
-          <>
-            <NodePassLogo />
-            <Badge
-              content={badgeProps.content}
-              color={badgeProps.color}
-              variant="flat"
-              size="sm"
-            >
-              <p className={cn("font-bold text-foreground", fontSans.className)}>
-                NodePassDash
-              </p>
-            </Badge>
-          </>
-        ) : (
-          <>
-            <NodePassLogo />
-            <p className={cn("font-bold text-foreground", fontSans.className)}>
-              NodePassDash
-            </p>
-          </>
+      <Link className="flex justify-start items-center" href="/">
+        <NodePassLogo />
+        <p className={cn("font-bold text-foreground pl-1", fontSans.className)}>
+          NodePassDash
+        </p>
+        {badgeProps && (
+          <Chip variant="flat" color={badgeProps.color} size="sm" className="h-5 p-0 ml-1">
+            {badgeProps.content}
+          </Chip>
         )}
       </Link>
     </NavbarBrand>
