@@ -167,7 +167,7 @@ export default function AddEndpointModal({
   return (
     <Modal
       isOpen={isOpen}
-      placement="center"
+      placement="top-center"
       scrollBehavior="inside"
       size="2xl"
       onOpenChange={onOpenChange}

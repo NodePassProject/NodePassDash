@@ -1333,7 +1333,7 @@ export default function TunnelDetailPage() {
                 />
               }
               variant="flat"
-              onClick={handleToggleStatus}
+              onPress={handleToggleStatus}
             >
               {tunnelInfo.status === "success" ? "停止" : "启动"}
             </Button>
@@ -1343,7 +1343,7 @@ export default function TunnelDetailPage() {
               isDisabled={tunnelInfo.status !== "success"}
               startContent={<FontAwesomeIcon icon={faRotateRight} />}
               variant="flat"
-              onClick={handleRestart}
+              onPress={handleRestart}
             >
               重启
             </Button>
@@ -1352,17 +1352,17 @@ export default function TunnelDetailPage() {
               color="danger"
               startContent={<FontAwesomeIcon icon={faTrash} />}
               variant="flat"
-              onClick={handleDeleteClick}
+              onPress={handleDeleteClick}
             >
               删除
             </Button>
             <Button
               className="flex-shrink-0"
               color="secondary"
-              isDisabled={refreshLoading}
+              isDisabled={resetLoading}
               startContent={<FontAwesomeIcon icon={faHammer} />}
               variant="flat"
-              onClick={handleRefresh}
+              onPress={()=> setResetModalOpen(true)}
             >
               重置
             </Button>
@@ -1372,7 +1372,7 @@ export default function TunnelDetailPage() {
               isDisabled={refreshLoading}
               startContent={<FontAwesomeIcon icon={faRefresh} />}
               variant="flat"
-              onClick={handleRefresh}
+              onPress={handleRefresh}
             >
               刷新
             </Button>
