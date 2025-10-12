@@ -82,7 +82,7 @@ NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + Rea
   <a href="https://dash.nodepass.eu/">
     <img src="https://img.shields.io/badge/点击体验_Demo-000?style=for-the-badge&logo=heroui&logoColor=white&labelColor=000" alt="Deploy to NodePassDash">
   </a>
-  <span><strong>演示账号：</strong> <code>nodepass</code> / <code>Np123456</code></span>
+  <span><strong>演示账号：</strong> <code>nodepass</code> / <code>Np123456.</code></span>
 </div>
 
 > ⚠️ **重要提醒：演示环境，请勿更改密码，请勿填写任何敏感信息**
