@@ -39,6 +39,48 @@ func NewTunnelHandler(tunnelService *tunnel.Service, sseManager *sse.Manager) *T
 	}
 }
 
+// normalizeCommandLine 规范化 commandLine，将 URL 参数按字母顺序排序
+// 这样可以确保参数顺序不同但内容相同的 URL 能够正确比较
+func normalizeCommandLine(commandLine string) (string, error) {
+	// 查找 ? 的位置
+	idx := strings.Index(commandLine, "?")
+	if idx == -1 {
+		// 没有查询参数，直接返回
+		return commandLine, nil
+	}
+
+	// 分离基础部分和查询参数部分
+	base := commandLine[:idx]
+	queryStr := commandLine[idx+1:]
+
+	// 解析查询参数
+	values, err := url.ParseQuery(queryStr)
+	if err != nil {
+		return "", fmt.Errorf("解析查询参数失败: %w", err)
+	}
+
+	// 获取所有的参数键并排序
+	keys := make([]string, 0, len(values))
+	for k := range values {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+
+	// 按排序后的顺序重建查询参数
+	params := make([]string, 0, len(keys))
+	for _, k := range keys {
+		for _, v := range values[k] {
+			params = append(params, fmt.Sprintf("%s=%s", k, v))
+		}
+	}
+
+	// 重建完整的 commandLine
+	if len(params) > 0 {
+		return base + "?" + strings.Join(params, "&"), nil
+	}
+	return base, nil
+}
+
 // setupTunnelRoutes 设置隧道相关路由
 func SetupTunnelRoutes(rg *gin.RouterGroup, tunnelService *tunnel.Service, sseManager *sse.Manager, sseProcessor *metrics.SSEProcessor) {
 	// 创建TunnelHandler实例
@@ -3183,71 +3225,99 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{Success: false, Error: "查询端点信息失败"})
 		return
 	}
-	log.Infof("[API] 准备调用 UpdateInstance: instanceID=%s, commandLine=%s", instanceID, commandLine)
-	if _, err := nodepass.UpdateInstance(endpoint.ID, instanceID, commandLine); err != nil {
-		log.Errorf("[API] UpdateInstanceV1 调用失败: %v", err)
-		// 若远端返回 405，则回退旧逻辑（删除+重建）
-		if strings.Contains(err.Error(), "405") || strings.Contains(err.Error(), "404") {
-			log.Infof("[API] 检测到405/404错误，回退到旧逻辑")
-			// 删除旧实例
-			if delErr := h.tunnelService.DeleteTunnelAndWait(instanceID, 3*time.Second, true); delErr != nil {
-				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，删除旧实例错误: " + delErr.Error()})
-				return
-			}
+	// 新版本的隧道更新使用了PUT替代了原方案中删除隧道重新新建的逻辑
+	// 对于不更新隧道参数仅更新隧道名字，应当使用PATCH更新，使用PUT会导致CORE会返回409错误
+	var originalCommandLine string
+	if err := h.tunnelService.DB().QueryRow(
+		`SELECT command_line FROM tunnels WHERE instance_id = ?`, instanceID).Scan(&originalCommandLine); err != nil {
+		log.Errorf("[API] 查询现有command_line失败: %v", err)
+		c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{Success: false, Error: "查询现有隧道配置失败"})
+		return
+	}
 
-			// 重新创建，直接使用指针类型
-			// 处理新增字段的默认值
-			enableSSEStore := true
-			if raw.EnableSSEStore != nil {
-				enableSSEStore = *raw.EnableSSEStore
-			}
+	// 规范化两个 commandLine 以便比较（参数顺序可能不同）
+	normalizedOriginal, err1 := normalizeCommandLine(originalCommandLine)
+	normalizedNew, err2 := normalizeCommandLine(commandLine)
+	if err1 != nil || err2 != nil {
+		log.Warnf("[API] 规范化 commandLine 失败，使用原始比较: err1=%v, err2=%v", err1, err2)
+		normalizedOriginal = originalCommandLine
+		normalizedNew = commandLine
+	}
 
-			enableLogStore := true
-			if raw.EnableLogStore != nil {
-				enableLogStore = *raw.EnableLogStore
-			}
-
-			// 处理Mode字段的类型转换
-			var modePtr *tunnel.TunnelMode
-			if raw.Mode != nil {
-				mode := tunnel.TunnelMode(*raw.Mode)
-				modePtr = &mode
-			}
-
-			createReq := tunnel.CreateTunnelRequest{
-				Name:           raw.Name,
-				EndpointID:     raw.EndpointID,
-				Type:           raw.Type,
-				TunnelAddress:  raw.TunnelAddress,
-				TunnelPort:     tunnelPort,
-				TargetAddress:  raw.TargetAddress,
-				TargetPort:     targetPort,
-				TLSMode:        tunnel.TLSMode(raw.TLSMode),
-				CertPath:       raw.CertPath,
-				KeyPath:        raw.KeyPath,
-				LogLevel:       tunnel.LogLevel(raw.LogLevel),
-				Password:       raw.Password,
-				ProxyProtocol:  raw.ProxyProtocol,
-				Min:            raw.Min,
-				Max:            raw.Max,
-				Slot:           raw.Slot,       // 新增：最大连接数限制
-				Mode:           modePtr,        // 新增：运行模式
-				Read:           raw.Read,       // 新增：数据读取超时时间
-				Rate:           raw.Rate,       // 新增：带宽速率限制
-				EnableSSEStore: enableSSEStore, // 新增：是否启用SSE存储
-				EnableLogStore: enableLogStore, // 新增：是否启用日志存储
-			}
-			newTunnel, crtErr := h.tunnelService.CreateTunnelAndWait(createReq, 3*time.Second)
-			if crtErr != nil {
-				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，创建新实例错误: " + crtErr.Error()})
-				return
-			}
-			c.JSON(http.StatusOK, tunnel.TunnelResponse{Success: true, Message: "编辑实例成功(回退旧逻辑)", Tunnel: newTunnel})
+	if normalizedOriginal == normalizedNew {
+		log.Infof("[API] 隧道配置未发生变化，仅更新隧道名字")
+		if _, err := nodepass.RenameInstance(endpoint.ID, instanceID, raw.Name); err != nil {
+			log.Errorf("[API] RenameInstance 调用失败: %v", err)
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，更新隧道名字失败: " + err.Error()})
 			return
 		}
-		// 其他错误
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: err.Error()})
-		return
+	} else {
+		log.Infof("[API] 准备调用 UpdateInstance: instanceID=%s, commandLine=%s", instanceID, commandLine)
+		if _, err := nodepass.UpdateInstance(endpoint.ID, instanceID, commandLine); err != nil {
+			log.Errorf("[API] UpdateInstanceV1 调用失败: %v", err)
+			// 若远端返回 405，则回退旧逻辑（删除+重建）
+			if strings.Contains(err.Error(), "405") || strings.Contains(err.Error(), "404") {
+				log.Infof("[API] 检测到405/404错误，回退到旧逻辑")
+				// 删除旧实例
+				if delErr := h.tunnelService.DeleteTunnelAndWait(instanceID, 3*time.Second, true); delErr != nil {
+					c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，删除旧实例错误: " + delErr.Error()})
+					return
+				}
+
+				// 重新创建，直接使用指针类型
+				// 处理新增字段的默认值
+				enableSSEStore := true
+				if raw.EnableSSEStore != nil {
+					enableSSEStore = *raw.EnableSSEStore
+				}
+
+				enableLogStore := true
+				if raw.EnableLogStore != nil {
+					enableLogStore = *raw.EnableLogStore
+				}
+
+				// 处理Mode字段的类型转换
+				var modePtr *tunnel.TunnelMode
+				if raw.Mode != nil {
+					mode := tunnel.TunnelMode(*raw.Mode)
+					modePtr = &mode
+				}
+
+				createReq := tunnel.CreateTunnelRequest{
+					Name:           raw.Name,
+					EndpointID:     raw.EndpointID,
+					Type:           raw.Type,
+					TunnelAddress:  raw.TunnelAddress,
+					TunnelPort:     tunnelPort,
+					TargetAddress:  raw.TargetAddress,
+					TargetPort:     targetPort,
+					TLSMode:        tunnel.TLSMode(raw.TLSMode),
+					CertPath:       raw.CertPath,
+					KeyPath:        raw.KeyPath,
+					LogLevel:       tunnel.LogLevel(raw.LogLevel),
+					Password:       raw.Password,
+					ProxyProtocol:  raw.ProxyProtocol,
+					Min:            raw.Min,
+					Max:            raw.Max,
+					Slot:           raw.Slot,       // 新增：最大连接数限制
+					Mode:           modePtr,        // 新增：运行模式
+					Read:           raw.Read,       // 新增：数据读取超时时间
+					Rate:           raw.Rate,       // 新增：带宽速率限制
+					EnableSSEStore: enableSSEStore, // 新增：是否启用SSE存储
+					EnableLogStore: enableLogStore, // 新增：是否启用日志存储
+				}
+				newTunnel, crtErr := h.tunnelService.CreateTunnelAndWait(createReq, 3*time.Second)
+				if crtErr != nil {
+					c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，创建新实例错误: " + crtErr.Error()})
+					return
+				}
+				c.JSON(http.StatusOK, tunnel.TunnelResponse{Success: true, Message: "编辑实例成功(回退旧逻辑)", Tunnel: newTunnel})
+				return
+			}
+			// 其他错误
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: err.Error()})
+			return
+		}
 	}
 
 	// 调用成功后等待数据库同步
