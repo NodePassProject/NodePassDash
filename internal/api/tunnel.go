@@ -59,26 +59,17 @@ func normalizeCommandLine(commandLine string) (string, error) {
 		return "", fmt.Errorf("解析查询参数失败: %w", err)
 	}
 
-	// 获取所有的参数键并排序
-	keys := make([]string, 0, len(values))
-	for k := range values {
-		keys = append(keys, k)
-	}
-	sort.Strings(keys)
-
-	// 按排序后的顺序重建查询参数
-	params := make([]string, 0, len(keys))
-	for _, k := range keys {
-		for _, v := range values[k] {
-			params = append(params, fmt.Sprintf("%s=%s", k, v))
-		}
+	// 使用 Encode() 方法重建查询参数
+	// Encode() 会自动：
+	// 1. 按字母顺序排序键
+	// 2. 正确处理 URL 编码
+	// 3. 正确处理裸键和多值参数
+	encoded := values.Encode()
+	if encoded == "" {
+		return base, nil
 	}
 
-	// 重建完整的 commandLine
-	if len(params) > 0 {
-		return base + "?" + strings.Join(params, "&"), nil
-	}
-	return base, nil
+	return base + "?" + encoded, nil
 }
 
 // setupTunnelRoutes 设置隧道相关路由
