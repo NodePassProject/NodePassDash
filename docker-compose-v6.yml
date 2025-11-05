@@ -5,7 +5,7 @@ services:
     container_name: nodepassdash
     ports:
       - "3000:3000"  # 整合的Next.js应用
-    # enenvironment:
+    # environment:
     #   - PORT=3000
     #   - LOG-LEVEL=INFO
     #   - TLS_CERT=/path/to/cert.pem
