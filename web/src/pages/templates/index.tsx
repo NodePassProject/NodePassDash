@@ -613,6 +613,27 @@ export default function TemplatesPage() {
                 placeholder: "8080",
                 value: formData.userPort,
               },
+              {
+                label: "监听类型",
+                key: "listenType",
+                type: "select",
+                placeholder: "选择监听类型",
+                value: formData.listenType,
+                options: [
+                  {
+                    value: "all",
+                    label: "全部",
+                  },
+                  {
+                    value: "tcp",
+                    label: "TCP",
+                  },
+                  {
+                    value: "udp",
+                    label: "UDP",
+                  },
+                ],
+              }
             ],
           },
           {
@@ -722,6 +743,27 @@ export default function TemplatesPage() {
                 placeholder: "8080",
                 value: formData.userPort,
               },
+              {
+                label: "监听类型",
+                key: "listenType",
+                type: "select",
+                placeholder: "选择监听类型",
+                value: formData.listenType,
+                options: [
+                  {
+                    value: "all",
+                    label: "全部",
+                  },
+                  {
+                    value: "tcp",
+                    label: "TCP",
+                  },
+                  {
+                    value: "udp",
+                    label: "UDP",
+                  },
+                ],
+              }
             ],
           },
           {
@@ -849,6 +891,27 @@ export default function TemplatesPage() {
                 placeholder: "8080",
                 value: formData.userPort,
               },
+              {
+                label: "监听类型",
+                key: "listenType",
+                type: "select",
+                placeholder: "选择监听类型",
+                value: formData.listenType,
+                options: [
+                  {
+                    value: "all",
+                    label: "全部",
+                  },
+                  {
+                    value: "tcp",
+                    label: "TCP",
+                  },
+                  {
+                    value: "udp",
+                    label: "UDP",
+                  },
+                ],
+              }
             ],
           },
           {
