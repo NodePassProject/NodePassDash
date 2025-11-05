@@ -6,7 +6,7 @@ services:
     # network_mode: "host" # 如需要ipv6，可考虑使用host模式
     ports:
       - "3000:3000"  # 整合的Next.js应用
-    # enenvironment:
+    # environment:
     #   - PORT=3000
     #   - LOG-LEVEL=INFO
     #   - TLS_CERT=/path/to/cert.pem

@@ -7,7 +7,7 @@ services:
     container_name: nodepassdash
     ports:
       - "4000:3000"
-    # enenvironment:
+    # environment:
     #   - PORT=3000
     #   - LOG-LEVEL=INFO
     #   - TLS_CERT=/path/to/cert.pem
