@@ -411,14 +411,19 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 				connectionTimeout.Stop()
 			}
 
-			log.Debugf("[Master-%d#SSE]MSG: %s", conn.EndpointID, ev.Data)
+			log.Debugf("[Master-%d#SSE]收到SSE消息: %s", conn.EndpointID, ev.Data)
 
 			// 投递到全局 worker pool 异步处理
 			select {
 			case m.jobs <- eventJob{endpointID: conn.EndpointID, payload: string(ev.Data)}:
+				// 成功投递到队列
 			default:
 				// 如果队列已满，记录告警，避免阻塞 r3labs 读取协程
-				log.Warnf("[Master-%d#SSE]事件处理队列已满，丢弃消息", conn.EndpointID)
+				preview := string(ev.Data)
+				if len(preview) > 100 {
+					preview = preview[:100] + "..."
+				}
+				log.Warnf("[Master-%d#SSE]事件处理队列已满，丢弃消息: %s", conn.EndpointID, preview)
 			}
 		}
 	}

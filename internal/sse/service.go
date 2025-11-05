@@ -439,6 +439,13 @@ func (s *Service) updateTunnelRuntimeInfo(payload SSEResp) {
 		return
 	}
 
+	// 检查是否真的更新了记录（可能找不到匹配的tunnel）
+	if result.RowsAffected == 0 {
+		log.Warnf("[Master-%d]隧道 %s 运行时信息更新失败：找不到匹配的记录（可能tunnel已被删除）",
+			payload.EndpointID, payload.Instance.ID)
+		return
+	}
+
 	log.Debugf("[Master-%d]隧道 %s 运行时信息已更新", payload.EndpointID, payload.Instance.ID)
 }
 
