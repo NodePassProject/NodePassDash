@@ -49,6 +49,7 @@ interface FormData {
   userPort: string;
   masterServer: string;
   listenType: string; // 监听类型：local/external
+  protocolType: string; // 协议类型：all/tcp/udp
   targetIp: string;
   targetPort: string;
   targetMaster: string;
@@ -229,6 +230,7 @@ export default function TemplatesPage() {
     userPort: "",
     masterServer: "",
     listenType: "external", // 默认对外监听
+    protocolType: "all", // 默认全部协议
     targetIp: "",
     targetPort: "",
     targetMaster: "",
@@ -334,6 +336,7 @@ export default function TemplatesPage() {
       userPort: "",
       masterServer: "",
       listenType: "external", // 保持默认值
+      protocolType: "all", // 保持默认值
       targetIp: "",
       targetPort: "",
       targetMaster: "",
@@ -615,7 +618,7 @@ export default function TemplatesPage() {
               },
               {
                 label: "监听类型",
-                key: "listenType",
+                key: "protocolType",
                 type: "select",
                 placeholder: "选择监听类型",
                 value: formData.listenType,
@@ -745,7 +748,7 @@ export default function TemplatesPage() {
               },
               {
                 label: "监听类型",
-                key: "listenType",
+                key: "protocolType",
                 type: "select",
                 placeholder: "选择监听类型",
                 value: formData.listenType,
@@ -893,7 +896,7 @@ export default function TemplatesPage() {
               },
               {
                 label: "监听类型",
-                key: "listenType",
+                key: "protocolType",
                 type: "select",
                 placeholder: "选择监听类型",
                 value: formData.listenType,
