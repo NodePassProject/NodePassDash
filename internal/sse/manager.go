@@ -395,17 +395,25 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 				if !lastEventTime.IsZero() {
 					idleDuration := time.Since(lastEventTime)
 					if idleDuration > maxIdleTime {
-						log.Warnf("[Master-%d#SSE]检测到僵尸连接：已%v未收到任何事件，主动断开重连",
-							conn.EndpointID, idleDuration.Round(time.Second))
-						conn.SetConnected(false)
-						if !conn.IsManuallyDisconnected() {
-							m.markEndpointFail(conn.EndpointID)
-							conn.ResetLastConnectAttempt()
+						// 先检查是否有活跃的隧道，如果有活跃隧道才判定为僵尸连接
+						hasActive := m.hasActiveTunnels(conn.EndpointID)
+						if hasActive {
+							log.Warnf("[Master-%d#SSE]检测到僵尸连接：已%v未收到任何事件（存在活跃隧道），主动断开重连",
+								conn.EndpointID, idleDuration.Round(time.Second))
+							conn.SetConnected(false)
+							if !conn.IsManuallyDisconnected() {
+								m.markEndpointFail(conn.EndpointID)
+								conn.ResetLastConnectAttempt()
+							}
+							return
+						} else {
+							log.Debugf("[Master-%d#SSE]空闲检查：已%v未收到事件，但无活跃隧道，跳过僵尸连接检测",
+								conn.EndpointID, idleDuration.Round(time.Second))
 						}
-						return
+					} else {
+						log.Debugf("[Master-%d#SSE]空闲检查：距离上次事件%v（最大允许%v）",
+							conn.EndpointID, idleDuration.Round(time.Second), maxIdleTime)
 					}
-					log.Debugf("[Master-%d#SSE]空闲检查：距离上次事件%v（最大允许%v）",
-						conn.EndpointID, idleDuration.Round(time.Second), maxIdleTime)
 				}
 			}
 		case ev, ok := <-events:
@@ -490,6 +498,23 @@ func (m *Manager) GetConnectionStatus() map[int64]map[string]interface{} {
 		}
 	}
 	return status
+}
+
+// hasActiveTunnels 检查端点是否有活跃的隧道（状态为 running）
+func (m *Manager) hasActiveTunnels(endpointID int64) bool {
+	var count int
+	err := m.db.QueryRow(`
+		SELECT COUNT(*)
+		FROM tunnels
+		WHERE endpoint_id = ? AND status = 'running'
+	`, endpointID).Scan(&count)
+
+	if err != nil {
+		log.Errorf("[Master-%d#SSE]查询活跃隧道数量失败: %v", endpointID, err)
+		return false
+	}
+
+	return count > 0
 }
 
 // markEndpointFail 更新端点状态为 FAIL
