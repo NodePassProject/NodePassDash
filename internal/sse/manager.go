@@ -364,6 +364,11 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 	connectionTimeout := time.NewTimer(10 * time.Second)
 	defer connectionTimeout.Stop()
 
+	// 空闲超时检测：定期检查是否长时间未收到事件（防止僵尸连接）
+	idleCheckTicker := time.NewTicker(60 * time.Second) // 每60秒检查一次
+	defer idleCheckTicker.Stop()
+	const maxIdleTime = 5 * time.Minute // 最大空闲时间5分钟
+
 	for {
 		select {
 		case <-ctx.Done():
@@ -382,6 +387,26 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 					conn.ResetLastConnectAttempt()
 				}
 				return
+			}
+		case <-idleCheckTicker.C:
+			// 检查是否长时间未收到事件（仅在连接已建立后检查）
+			if connectionEstablished {
+				lastEventTime := conn.GetLastEventTime()
+				if !lastEventTime.IsZero() {
+					idleDuration := time.Since(lastEventTime)
+					if idleDuration > maxIdleTime {
+						log.Warnf("[Master-%d#SSE]检测到僵尸连接：已%v未收到任何事件，主动断开重连",
+							conn.EndpointID, idleDuration.Round(time.Second))
+						conn.SetConnected(false)
+						if !conn.IsManuallyDisconnected() {
+							m.markEndpointFail(conn.EndpointID)
+							conn.ResetLastConnectAttempt()
+						}
+						return
+					}
+					log.Debugf("[Master-%d#SSE]空闲检查：距离上次事件%v（最大允许%v）",
+						conn.EndpointID, idleDuration.Round(time.Second), maxIdleTime)
+				}
 			}
 		case ev, ok := <-events:
 			if !ok {
@@ -410,6 +435,9 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 				// 停止超时计时器
 				connectionTimeout.Stop()
 			}
+
+			// 更新最后事件时间（用于检测僵尸连接）
+			conn.UpdateLastEventTime()
 
 			log.Debugf("[Master-%d#SSE]收到SSE消息: %s", conn.EndpointID, ev.Data)
 
