@@ -66,6 +66,7 @@ type EndpointConnection struct {
 	lastConnectAttempt     time.Time // 最后一次连接尝试时间
 	reconnectAttempts      int       // 重连尝试次数
 	isConnected            bool      // 当前连接状态
+	lastEventTime          time.Time // 最后一次接收到事件的时间
 }
 
 // SetManuallyDisconnected 设置手动断开状态
@@ -126,6 +127,22 @@ func (ec *EndpointConnection) GetReconnectAttempts() int {
 	ec.mu.RLock()
 	defer ec.mu.RUnlock()
 	return ec.reconnectAttempts
+}
+
+// UpdateLastEventTime 更新最后事件时间
+// TODO(性能优化): 如果单个endpoint的tunnel数量很多(100+)且事件频繁，
+// 可以考虑使用atomic.Int64存储Unix纳秒时间戳，或添加频率限制(30s更新一次)来减少锁竞争
+func (ec *EndpointConnection) UpdateLastEventTime() {
+	ec.mu.Lock()
+	defer ec.mu.Unlock()
+	ec.lastEventTime = time.Now()
+}
+
+// GetLastEventTime 获取最后事件时间
+func (ec *EndpointConnection) GetLastEventTime() time.Time {
+	ec.mu.RLock()
+	defer ec.mu.RUnlock()
+	return ec.lastEventTime
 }
 
 // Event 事件类型
