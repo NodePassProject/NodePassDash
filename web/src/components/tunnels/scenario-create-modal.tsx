@@ -117,6 +117,7 @@ export default function ScenarioCreateModal({
 
     // NAT穿透字段
     publicServerEndpoint: "",
+    publicProtocolType: "all", // 公网服务器协议类型
     publicListenPort: "",
     publicTunnelPort: "",
     localServerEndpoint: "",
@@ -127,12 +128,14 @@ export default function ScenarioCreateModal({
 
     // 单端转发字段
     relayServerEndpoint: "",
+    relayProtocolType: "all", // 中转服务器协议类型
     relayListenPort: "",
     targetServerAddress: "",
     targetServicePort: "",
 
     // 双端转发字段
     relayServerEndpoint2: "",
+    relayProtocolType2: "all", // 双端转发协议类型
     relayListenPort2: "",
     relayTunnelPort2: "",
     targetServerEndpoint2: "",
@@ -392,7 +395,8 @@ export default function ScenarioCreateModal({
         <h4 className="text-sm font-medium text-default-700">
           公网服务器（拥有公网IP）
         </h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* 第一行：服务器选择 + 协议选择 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Select
             isRequired
             label="服务器"
@@ -410,6 +414,22 @@ export default function ScenarioCreateModal({
               <SelectItem key={ep.id}>{ep.name}</SelectItem>
             ))}
           </Select>
+          <Select
+            isRequired
+            label="协议类型"
+            placeholder="选择协议类型"
+            selectedKeys={[formData.publicProtocolType]}
+            onSelectionChange={(keys) =>
+              handleField("publicProtocolType", Array.from(keys)[0] as string)
+            }
+          >
+            <SelectItem key="all">全部</SelectItem>
+            <SelectItem key="tcp">TCP</SelectItem>
+            <SelectItem key="udp">UDP</SelectItem>
+          </Select>
+        </div>
+        {/* 第二行：监听端口 + 隧道端口 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Input
             isRequired
             label="监听端口"
@@ -508,22 +528,24 @@ export default function ScenarioCreateModal({
       {/* 中转服务器 */}
       <div className="space-y-3">
         <h4 className="text-sm font-medium text-default-700">中转服务器</h4>
+        {/* 第一行：服务器选择 */}
+        <Select
+          isRequired
+          label="服务器"
+          placeholder="选择中转服务器"
+          selectedKeys={
+            formData.relayServerEndpoint ? [formData.relayServerEndpoint] : []
+          }
+          onSelectionChange={(keys) =>
+            handleField("relayServerEndpoint", Array.from(keys)[0] as string)
+          }
+        >
+          {endpoints.map((ep) => (
+            <SelectItem key={ep.id}>{ep.name}</SelectItem>
+          ))}
+        </Select>
+        {/* 第二行：监听端口 + 协议类型 */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-          <Select
-            isRequired
-            label="服务器"
-            placeholder="选择中转服务器"
-            selectedKeys={
-              formData.relayServerEndpoint ? [formData.relayServerEndpoint] : []
-            }
-            onSelectionChange={(keys) =>
-              handleField("relayServerEndpoint", Array.from(keys)[0] as string)
-            }
-          >
-            {endpoints.map((ep) => (
-              <SelectItem key={ep.id}>{ep.name}</SelectItem>
-            ))}
-          </Select>
           <Input
             isRequired
             label="监听端口"
@@ -532,6 +554,19 @@ export default function ScenarioCreateModal({
             value={formData.relayListenPort}
             onValueChange={(v) => handleField("relayListenPort", v)}
           />
+          <Select
+            isRequired
+            label="协议类型"
+            placeholder="选择协议类型"
+            selectedKeys={[formData.relayProtocolType]}
+            onSelectionChange={(keys) =>
+              handleField("relayProtocolType", Array.from(keys)[0] as string)
+            }
+          >
+            <SelectItem key="all">全部</SelectItem>
+            <SelectItem key="tcp">TCP</SelectItem>
+            <SelectItem key="udp">UDP</SelectItem>
+          </Select>
         </div>
       </div>
 
@@ -574,7 +609,8 @@ export default function ScenarioCreateModal({
       {/* 中转服务器 */}
       <div className="space-y-3">
         <h4 className="text-sm font-medium text-default-700">中转服务器</h4>
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
+        {/* 第一行：服务器选择 + 协议类型 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Select
             isRequired
             label="服务器"
@@ -587,6 +623,22 @@ export default function ScenarioCreateModal({
               <SelectItem key={ep.id}>{ep.name}</SelectItem>
             ))}
           </Select>
+          <Select
+            isRequired
+            label="协议类型"
+            placeholder="选择协议类型"
+            selectedKeys={[formData.relayProtocolType2]}
+            onSelectionChange={(keys) =>
+              handleField("relayProtocolType2", Array.from(keys)[0] as string)
+            }
+          >
+            <SelectItem key="all">全部</SelectItem>
+            <SelectItem key="tcp">TCP</SelectItem>
+            <SelectItem key="udp">UDP</SelectItem>
+          </Select>
+        </div>
+        {/* 第二行：监听端口 + 隧道端口 */}
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Input
             isRequired
             label="监听端口"

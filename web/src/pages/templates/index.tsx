@@ -621,7 +621,7 @@ export default function TemplatesPage() {
                 key: "protocolType",
                 type: "select",
                 placeholder: "选择监听类型",
-                value: formData.listenType,
+                value: formData.protocolType,
                 options: [
                   {
                     value: "all",
@@ -751,7 +751,7 @@ export default function TemplatesPage() {
                 key: "protocolType",
                 type: "select",
                 placeholder: "选择监听类型",
-                value: formData.listenType,
+                value: formData.protocolType,
                 options: [
                   {
                     value: "all",
@@ -899,7 +899,7 @@ export default function TemplatesPage() {
                 key: "protocolType",
                 type: "select",
                 placeholder: "选择监听类型",
-                value: formData.listenType,
+                value: formData.protocolType,
                 options: [
                   {
                     value: "all",
