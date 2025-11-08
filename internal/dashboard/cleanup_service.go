@@ -126,10 +126,14 @@ func (s *CleanupService) cleanupSSEData() CleanupResult {
 
 	for {
 		var deletedCount int64
+		// SQLite 不支持 DELETE ... LIMIT，使用子查询方式
 		err := s.db.Exec(`
-			DELETE FROM endpoint_sse 
-			WHERE event_time < ? 
-			LIMIT ?
+			DELETE FROM endpoint_sse
+			WHERE id IN (
+				SELECT id FROM endpoint_sse
+				WHERE event_time < ?
+				LIMIT ?
+			)
 		`, cutoffTime, batchSize).Error
 
 		if err != nil {
@@ -173,10 +177,14 @@ func (s *CleanupService) cleanupSummaryData() CleanupResult {
 
 	for {
 		var deletedCount int64
+		// SQLite 不支持 DELETE ... LIMIT，使用子查询方式
 		err := s.db.Exec(`
-			DELETE FROM traffic_hourly_summary 
-			WHERE hour_time < ? 
-			LIMIT ?
+			DELETE FROM traffic_hourly_summary
+			WHERE id IN (
+				SELECT id FROM traffic_hourly_summary
+				WHERE hour_time < ?
+				LIMIT ?
+			)
 		`, cutoffTime, batchSize).Error
 
 		if err != nil {
@@ -217,10 +225,14 @@ func (s *CleanupService) cleanupOperationLogs() CleanupResult {
 
 	for {
 		var deletedCount int64
+		// SQLite 不支持 DELETE ... LIMIT，使用子查询方式
 		err := s.db.Exec(`
-			DELETE FROM tunnel_operation_logs 
-			WHERE created_at < ? 
-			LIMIT ?
+			DELETE FROM tunnel_operation_logs
+			WHERE id IN (
+				SELECT id FROM tunnel_operation_logs
+				WHERE created_at < ?
+				LIMIT ?
+			)
 		`, cutoffTime, batchSize).Error
 
 		if err != nil {
@@ -252,20 +264,13 @@ func (s *CleanupService) optimizeTables() CleanupResult {
 		Duration:  0,
 	}
 
-	tables := []string{
-		"endpoint_sse",
-		"traffic_hourly_summary",
-		"tunnel_operation_logs",
-		"tunnels",
-		"endpoints",
-	}
-
-	for _, table := range tables {
-		// MySQL的OPTIMIZE TABLE命令
-		if err := s.db.Exec(fmt.Sprintf("OPTIMIZE TABLE %s", table)).Error; err != nil {
-			// 如果优化失败，记录错误但继续处理其他表
-			log.Printf("[数据清理] 优化表 %s 失败: %v", table, err)
-		}
+	// SQLite 使用 VACUUM 命令来优化数据库
+	// VACUUM 会重建整个数据库文件，回收未使用的空间
+	if err := s.db.Exec("VACUUM").Error; err != nil {
+		log.Printf("[数据清理] VACUUM 优化失败: %v", err)
+		result.Error = fmt.Errorf("VACUUM 优化失败: %v", err)
+	} else {
+		log.Println("[数据清理] VACUUM 优化成功")
 	}
 
 	result.Duration = time.Since(start)
