@@ -11,8 +11,14 @@ import {
   SelectItem,
   Checkbox,
   Divider,
+  Tabs,
+  Tab,
+  Textarea,
+  Tooltip,
+  RadioGroup,
+  Radio
 } from "@heroui/react";
-import { useEffect, useState } from "react";
+import { useEffect, useState, useCallback, useMemo } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faBolt,
@@ -20,6 +26,10 @@ import {
   faEyeSlash,
   faChevronDown,
   faChevronUp,
+  faCircleQuestion,
+  faCirclePlus,
+  faCircleCheck,
+  faDice,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 import { motion, AnimatePresence } from "framer-motion";
@@ -83,6 +93,21 @@ export default function SimpleCreateTunnelModal({
   mode: modalMode = "create",
   editData,
 }: SimpleCreateTunnelModalProps) {
+  // 响应式标签位置配置
+  const [isMobile, setIsMobile] = useState(false);
+  const LABEL_PLACEMENT = isMobile ? ("outside" as const) : ("outside-left" as const);
+
+  // 响应式布局检测
+  useEffect(() => {
+    const handleResize = () => {
+      setIsMobile(window.innerWidth < 768); // md breakpoint
+    };
+
+    handleResize();
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
+  }, []);
+
   const [endpoints, setEndpoints] = useState<EndpointSimple[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -92,6 +117,7 @@ export default function SimpleCreateTunnelModal({
   const [resetChecked, setResetChecked] = useState(false);
   // 可选配置展开状态
   const [isOptionalExpanded, setIsOptionalExpanded] = useState(false);
+  const [isEnableLoadBalancing, setEnableLoadBalancing] = useState(false);
 
   // 表单数据
   const [formData, setFormData] = useState({
@@ -105,6 +131,7 @@ export default function SimpleCreateTunnelModal({
     tlsMode: "0", // 空值表示继承，其他值：0 | 1 | 2
     logLevel: "", // 空值表示继承，其他值：debug, info, warn, error, event
     password: "",
+    listenType: "0",
     min: "",
     max: "",
     slot: "", // 最大连接数限制
@@ -115,6 +142,7 @@ export default function SimpleCreateTunnelModal({
     read: "", // 数据读取超时
     rate: "", // 速率限制
     proxyProtocol: "", // Proxy Protocol 支持：开启/关闭
+    loadBalancingIPs: "", // 负载均衡IP地址，一行一个
   });
 
   // 当打开时加载端点，并在 edit 时填充表单
@@ -189,6 +217,8 @@ export default function SimpleCreateTunnelModal({
               ? "true"
               : "false"
             : "",
+        enableLoadBalancing: editData.enableLoadBalancing || false,
+        loadBalancingIPs: editData.loadBalancingIPs || "",
       }));
     }
   }, [isOpen]);
@@ -214,6 +244,7 @@ export default function SimpleCreateTunnelModal({
       read,
       rate,
       proxyProtocol,
+      loadBalancingIPs,
     } = formData;
 
     // 基本校验
@@ -294,7 +325,7 @@ export default function SimpleCreateTunnelModal({
           min: type === "client" && min !== "" ? parseInt(min) : undefined,
           max:
             (type === "client" && max !== "") ||
-            (type === "server" && max !== "")
+              (type === "server" && max !== "")
               ? parseInt(max)
               : undefined,
           slot: slot !== "" ? parseInt(slot) : undefined,
@@ -304,6 +335,7 @@ export default function SimpleCreateTunnelModal({
           rate: rate !== "" ? parseInt(rate) : undefined,
           proxyProtocol:
             proxyProtocol !== "" ? proxyProtocol === "true" : undefined,
+          loadBalancingIPs: loadBalancingIPs ? loadBalancingIPs : undefined,
           resetTraffic: modalMode === "edit" ? resetChecked : undefined,
         }),
       });
@@ -331,7 +363,7 @@ export default function SimpleCreateTunnelModal({
     }
   };
 
-  const handleField = (field: string, value: string) => {
+  const handleField = useCallback((field: string, value: string) => {
     if (field === "apiEndpoint") {
       // 切换主控时清空密码并重置可见性
       setFormData((prev) => ({ ...prev, [field]: value, password: "" }));
@@ -347,10 +379,10 @@ export default function SimpleCreateTunnelModal({
     } else {
       setFormData((prev) => ({ ...prev, [field]: value }));
     }
-  };
+  }, []);
 
-  // 渲染密码输入框
-  const renderPasswordInput = () => {
+  // 缓存密码输入框渲染结果
+  const passwordInput = useMemo(() => {
     // 尝试不同的匹配方式
     const selectedEndpoint1 = endpoints.find(
       (ep) => ep.id === formData.apiEndpoint,
@@ -393,10 +425,10 @@ export default function SimpleCreateTunnelModal({
         onValueChange={(v) => handleField("password", v)}
       />
     );
-  };
+  }, [endpoints, formData.apiEndpoint, formData.password, isPasswordVisible, handleField]);
 
-  // 渲染 Proxy Protocol 选择器
-  const renderProxyProtocolSelect = () => {
+  // 缓存 Proxy Protocol 选择器渲染结果
+  const proxyProtocolSelect = useMemo(() => {
     return (
       <Select
         label="Proxy Protocol"
@@ -413,19 +445,19 @@ export default function SimpleCreateTunnelModal({
         <SelectItem key="false">关闭</SelectItem>
       </Select>
     );
-  };
+  }, [formData.proxyProtocol, handleField]);
 
   return (
     <Modal
       isOpen={isOpen}
       placement="center"
-      size="lg"
+      size="xl"
       onOpenChange={onOpenChange}
     >
       <ModalContent>
         {(onClose) => (
           <>
-            <ModalHeader className="flex items-center gap-2">
+            <ModalHeader className="flex items-center gap-2 pb-0">
               <FontAwesomeIcon className="text-warning" icon={faBolt} />
               {modalMode === "edit" ? "编辑实例" : "创建实例"}
             </ModalHeader>
@@ -436,235 +468,352 @@ export default function SimpleCreateTunnelModal({
                 </div>
               ) : (
                 <>
-                  {/* 主控 & 实例模式 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <Select
-                      isDisabled={modalMode === "edit"}
-                      label="选择主控"
-                      selectedKeys={[formData.apiEndpoint]}
-                      onSelectionChange={(keys) =>
-                        handleField(
-                          "apiEndpoint",
-                          Array.from(keys)[0] as string,
-                        )
-                      }
-                    >
-                      {endpoints.map((ep) => (
-                        <SelectItem key={ep.id}>{ep.name}</SelectItem>
-                      ))}
-                    </Select>
-                    <Select
-                      label="实例类型"
-                      selectedKeys={[formData.type]}
-                      onSelectionChange={(keys) =>
-                        handleField("type", Array.from(keys)[0] as string)
-                      }
-                      // isDisabled={modalMode==='edit'}
-                    >
-                      <SelectItem key="server">服务端</SelectItem>
-                      <SelectItem key="client">客户端</SelectItem>
-                    </Select>
-                  </div>
-
-                  {/* 实例名称 & 模式选择 */}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-                    <Input
-                      label="实例名称"
-                      placeholder="xxx-tunnel"
-                      value={formData.tunnelName}
-                      onValueChange={(v) => handleField("tunnelName", v)}
-                    />
-                    {/* 服务端模式选择 */}
-                    {formData.type === "server" && (
-                      <Select
-                        label="服务端模式"
-                        selectedKeys={[String(formData.mode)]}
-                        onSelectionChange={(keys) =>
-                          handleField("mode", Array.from(keys)[0] as string)
-                        }
-                      >
-                        <SelectItem key="0">模式0：自动流向检测</SelectItem>
-                        <SelectItem key="1">模式1：强制反向模式</SelectItem>
-                        <SelectItem key="2">模式2：强制正向模式</SelectItem>
-                      </Select>
-                    )}
-
-                    {/* 客户端模式选择 */}
-                    {formData.type === "client" && (
-                      <Select
-                        label="客户端模式"
-                        selectedKeys={[String(formData.mode)]}
-                        onSelectionChange={(keys) =>
-                          handleField("mode", Array.from(keys)[0] as string)
-                        }
-                      >
-                        <SelectItem key="1">模式1：强制单端转发模式</SelectItem>
-                        <SelectItem key="2">模式2：强制双端握手模式</SelectItem>
-                      </Select>
-                    )}
-                  </div>
-
-                  {/* 隧道地址端口 */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      label="隧道地址"
-                      placeholder="0.0.0.0/[2001:db8::1]"
-                      value={formData.tunnelAddress}
-                      onValueChange={(v) => handleField("tunnelAddress", v)}
-                    />
-                    <Input
-                      label="隧道端口"
-                      placeholder="10101"
-                      type="number"
-                      value={formData.tunnelPort}
-                      onValueChange={(v) => handleField("tunnelPort", v)}
-                    />
-                  </div>
-
-                  {/* 目标地址端口 */}
-                  <div className="grid grid-cols-2 gap-2">
-                    <Input
-                      label="目标地址"
-                      placeholder="0.0.0.0/[2001:db8::1]"
-                      value={formData.targetAddress}
-                      onValueChange={(v) => handleField("targetAddress", v)}
-                    />
-                    <Input
-                      label="目标端口"
-                      placeholder="8080"
-                      type="number"
-                      value={formData.targetPort}
-                      onValueChange={(v) => handleField("targetPort", v)}
-                    />
-                  </div>
-
-                  <div
-                    className={`grid grid-cols-${formData.type === "client" ? "1" : "2"} gap-2`}
+                  {/* 实例类型 Tabs */}
+                  <Tabs
+                    color="primary"
+                    fullWidth
+                    isDisabled={modalMode === "edit"}
+                    selectedKey={formData.type}
+                    onSelectionChange={(key) =>
+                      handleField("type", key as string)
+                    }
                   >
-                    {/* 日志级别 */}
-                    <Select
-                      label="日志级别"
-                      selectedKeys={
-                        formData.logLevel ? [formData.logLevel] : ["inherit"]
-                      }
-                      onSelectionChange={(keys) => {
-                        const selectedKey = Array.from(keys)[0] as string;
+                    <Tab key="server" title="服务端" />
+                    <Tab key="client" title="客户端" />
+                  </Tabs>
+                  <div>
+                    <div className="grid grid-cols-2 gap-2 ">
+                      {/* 主控 */}
+                      <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>选择主控</label>
+                        <Select
+                          isDisabled={modalMode === "edit"}
+                          selectedKeys={[formData.apiEndpoint]}
+                          onSelectionChange={(keys) =>
+                            handleField(
+                              "apiEndpoint",
+                              Array.from(keys)[0] as string,
+                            )
+                          }
+                        >
+                          {endpoints.map((ep) => (
+                            <SelectItem key={ep.id}>{ep.name}</SelectItem>
+                          ))}
+                        </Select>
+                      </div>
+                      {/* 实例名称 */}
+                      <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>实例名称</label>
+                        <Input
+                          placeholder="xxx-tunnel"
+                          value={formData.tunnelName}
+                          onValueChange={(v) => handleField("tunnelName", v)}
+                        />
+                      </div>
 
-                        handleField(
-                          "logLevel",
-                          selectedKey === "inherit" ? "" : selectedKey,
-                        );
-                      }}
-                    >
-                      <SelectItem key="inherit">
-                        {(() => {
-                          // 使用相同的匹配逻辑
-                          const selectedEndpoint1 = endpoints.find(
-                            (ep) => ep.id === formData.apiEndpoint,
-                          );
-                          const selectedEndpoint2 = endpoints.find(
-                            (ep) =>
-                              String(ep.id) === String(formData.apiEndpoint),
-                          );
-                          const selectedEndpoint3 = endpoints.find(
-                            (ep) =>
-                              Number(ep.id) === Number(formData.apiEndpoint),
-                          );
-                          const selectedEndpoint =
-                            selectedEndpoint2 ||
-                            selectedEndpoint1 ||
-                            selectedEndpoint3;
-                          const masterLog = selectedEndpoint?.log;
+                      {/* 服务端模式选择 - col-2 布局，总高度 40px */}
+                      <>
+                        <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
+                          <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>运行模式</label>
+                          <Tabs
+                            className="text-xs"
+                            size="sm"
+                            color="secondary"
+                            fullWidth
+                            selectedKey={String(formData.mode)}
+                            onSelectionChange={(key) =>
+                              handleField("mode", key as string)
+                            }
+                          >
+                            <Tab key="0" title="自动" disabled={formData.type === "client"} />
+                            <Tab key="1" title={formData.type === "server" ? "反向" : "单端"} />
+                            <Tab key="2" title={formData.type === "server" ? "正向" : "双端"} />
+                          </Tabs>
+                        </div>
+                        <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
+                          <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>监听类型</label>
+                          <Tabs
+                            classNames={{
+                              tabContent: "group-data-[selected=true]:text-white text-xs ",
+                            }}
+                            color="success"
+                            size="sm"
+                            fullWidth
+                            selectedKey={String(formData.listenType)}
+                            onSelectionChange={(key) =>
+                              handleField("listenType", key as string)
+                            }
+                          >
+                            <Tab key="0" title="ALL" />
+                            <Tab key="1" title="TCP" />
+                            <Tab key="2" title="UDP" />
+                          </Tabs>
+                        </div>
+                      </>
 
-                          return masterLog
-                            ? `继承 (${masterLog.toUpperCase()})`
-                            : "继承主控";
-                        })()}
-                      </SelectItem>
-                      <SelectItem key="debug">Debug</SelectItem>
-                      <SelectItem key="info">Info</SelectItem>
-                      <SelectItem key="warn">Warn</SelectItem>
-                      <SelectItem key="error">Error</SelectItem>
-                      <SelectItem key="event">Event</SelectItem>
-                      <SelectItem key="none">None</SelectItem>
-                    </Select>
-                    {/* TLS 下拉 - server */}
-                    {formData.type === "server" && (
-                      <Select
-                        label="TLS 模式"
-                        selectedKeys={
-                          formData.tlsMode ? [formData.tlsMode] : ["inherit"]
-                        }
-                        onSelectionChange={(keys) => {
-                          const selectedKey = Array.from(keys)[0] as string;
+                      {/* 隧道地址端口 */}
+                      <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>隧道地址</label>
+                        <Input
+                          placeholder="0.0.0.0/[2001:db8::1]"
+                          value={formData.tunnelAddress}
+                          onValueChange={(v) => handleField("tunnelAddress", v)}
+                        />
+                      </div>
+                      <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>隧道端口</label>
+                        <Input
+                          placeholder="0-65535"
+                          type="number"
+                          value={formData.tunnelPort}
+                          onValueChange={(v) => handleField("tunnelPort", v)}
+                          endContent={
+                            formData.type === "server" ? (
+                              <Tooltip content="随机生成端口号">
+                                <button
+                                  type="button"
+                                  className="focus:outline-none cursor-pointer"
+                                  onClick={() => {
+                                    const randomPort = Math.floor(Math.random() * 65536);
+                                    handleField("tunnelPort", String(randomPort));
+                                  }}
+                                >
+                                  <FontAwesomeIcon
+                                    className="w-4 h-4 text-default-400 hover:text-default-600 transition-colors"
+                                    icon={faDice}
+                                  />
+                                </button>
+                              </Tooltip>
+                            ) : null
+                          }
+                        />
+                      </div>
 
-                          handleField(
-                            "tlsMode",
-                            selectedKey === "inherit" ? "" : selectedKey,
-                          );
-                        }}
-                      >
-                        <SelectItem key="inherit">
-                          {(() => {
-                            // 使用相同的匹配逻辑
-                            const selectedEndpoint1 = endpoints.find(
-                              (ep) => ep.id === formData.apiEndpoint,
-                            );
-                            const selectedEndpoint2 = endpoints.find(
-                              (ep) =>
-                                String(ep.id) === String(formData.apiEndpoint),
-                            );
-                            const selectedEndpoint3 = endpoints.find(
-                              (ep) =>
-                                Number(ep.id) === Number(formData.apiEndpoint),
-                            );
-                            const selectedEndpoint =
-                              selectedEndpoint2 ||
-                              selectedEndpoint1 ||
-                              selectedEndpoint3;
-                            const masterTls = selectedEndpoint?.tls;
+                      {/* 目标地址端口 */}
+                      <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>目标地址</label>
+                        <Input
+                          placeholder="0.0.0.0/[2001:db8::1]"
+                          value={formData.targetAddress}
+                          onValueChange={(v) => handleField("targetAddress", v)}
+                          endContent={
+                            <Tooltip content={isEnableLoadBalancing ? "关闭负载均衡" : "增加目标地址"}>
+                              <button
+                                type="button"
+                                className="focus:outline-none cursor-pointer"
+                                onClick={() => {
+                                  if (!isOptionalExpanded) {
+                                    setIsOptionalExpanded(true)
+                                  }
+                                  setEnableLoadBalancing(!isEnableLoadBalancing)
+                                }}
+                              >
+                                <FontAwesomeIcon
+                                  className={`w-5 h-5 transition-colors ${isEnableLoadBalancing
+                                    ? "text-warning-400"
+                                    : "text-default-400 hover:text-default-600"
+                                    }`}
+                                  icon={isEnableLoadBalancing ? faCirclePlus : faCirclePlus}
+                                />
+                              </button>
+                            </Tooltip>
+                          }
+                        />
+                      </div>
+                      <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>目标端口</label>
+                        <Input
+                          placeholder="0-65535"
+                          type="number"
+                          value={formData.targetPort}
+                          onValueChange={(v) => handleField("targetPort", v)}
+                        />
+                      </div>
 
-                            // TLS模式转换
-                            const getTLSModeText = (mode: string) => {
-                              switch (mode) {
-                                case "0":
-                                  return "无 TLS";
-                                case "1":
-                                  return "自签名证书";
-                                case "2":
-                                  return "自定义证书";
-                                default:
-                                  return mode;
+                      {/* TLS 下拉 - server */}
+                      {formData.type === "server" && (
+                        <>
+                          <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
+                            <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>日志级别</label>
+                            <Select
+                              selectedKeys={
+                                formData.logLevel ? [formData.logLevel] : ["inherit"]
                               }
-                            };
+                              onSelectionChange={(keys) => {
+                                const selectedKey = Array.from(keys)[0] as string;
 
-                            return masterTls
-                              ? `继承 (${getTLSModeText(masterTls)})`
-                              : "继承主控";
-                          })()}
-                        </SelectItem>
-                        <SelectItem key="0">模式0：无 TLS</SelectItem>
-                        <SelectItem key="1">模式1：自签名证书</SelectItem>
-                        <SelectItem key="2">模式2：自定义证书</SelectItem>
-                      </Select>
+                                handleField(
+                                  "logLevel",
+                                  selectedKey === "inherit" ? "" : selectedKey,
+                                );
+                              }}
+                            >
+                              <SelectItem key="inherit">
+                                {(() => {
+                                  // 使用相同的匹配逻辑
+                                  const selectedEndpoint1 = endpoints.find(
+                                    (ep) => ep.id === formData.apiEndpoint,
+                                  );
+                                  const selectedEndpoint2 = endpoints.find(
+                                    (ep) =>
+                                      String(ep.id) === String(formData.apiEndpoint),
+                                  );
+                                  const selectedEndpoint3 = endpoints.find(
+                                    (ep) =>
+                                      Number(ep.id) === Number(formData.apiEndpoint),
+                                  );
+                                  const selectedEndpoint =
+                                    selectedEndpoint2 ||
+                                    selectedEndpoint1 ||
+                                    selectedEndpoint3;
+                                  const masterLog = selectedEndpoint?.log;
+
+                                  return masterLog
+                                    ? `继承 (${masterLog.toUpperCase()})`
+                                    : "继承主控";
+                                })()}
+                              </SelectItem>
+                              <SelectItem key="debug">Debug</SelectItem>
+                              <SelectItem key="info">Info</SelectItem>
+                              <SelectItem key="warn">Warn</SelectItem>
+                              <SelectItem key="error">Error</SelectItem>
+                              <SelectItem key="event">Event</SelectItem>
+                              <SelectItem key="none">None</SelectItem>
+                            </Select>
+                          </div>
+                          <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
+                            <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>TLS 模式</label>
+                            <Select
+                              selectedKeys={
+                                formData.tlsMode ? [formData.tlsMode] : ["inherit"]
+                              }
+                              onSelectionChange={(keys) => {
+                                const selectedKey = Array.from(keys)[0] as string;
+
+                                handleField(
+                                  "tlsMode",
+                                  selectedKey === "inherit" ? "" : selectedKey,
+                                );
+                              }}
+                            >
+                              <SelectItem key="inherit">
+                                {(() => {
+                                  // 使用相同的匹配逻辑
+                                  const selectedEndpoint1 = endpoints.find(
+                                    (ep) => ep.id === formData.apiEndpoint,
+                                  );
+                                  const selectedEndpoint2 = endpoints.find(
+                                    (ep) =>
+                                      String(ep.id) === String(formData.apiEndpoint),
+                                  );
+                                  const selectedEndpoint3 = endpoints.find(
+                                    (ep) =>
+                                      Number(ep.id) === Number(formData.apiEndpoint),
+                                  );
+                                  const selectedEndpoint =
+                                    selectedEndpoint2 ||
+                                    selectedEndpoint1 ||
+                                    selectedEndpoint3;
+                                  const masterTls = selectedEndpoint?.tls;
+
+                                  // TLS模式转换
+                                  const getTLSModeText = (mode: string) => {
+                                    switch (mode) {
+                                      case "0":
+                                        return "无 TLS";
+                                      case "1":
+                                        return "自签名证书";
+                                      case "2":
+                                        return "自定义证书";
+                                      default:
+                                        return mode;
+                                    }
+                                  };
+
+                                  return masterTls
+                                    ? `继承 (${getTLSModeText(masterTls)})`
+                                    : "继承主控";
+                                })()}
+                              </SelectItem>
+                              <SelectItem key="0">模式0：无 TLS</SelectItem>
+                              <SelectItem key="1">模式1：自签名证书</SelectItem>
+                              <SelectItem key="2">模式2：自定义证书</SelectItem>
+                            </Select>
+                          </div>
+                        </>
+                      )}
+                      {/* 证书路径 - server & tls 2 */}
+                      {formData.type === "server" && formData.tlsMode === "2" && (
+                        <>
+                          <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
+                            <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>证书路径</label>
+                            <Input
+                              value={formData.certPath}
+                              onValueChange={(v) => handleField("certPath", v)}
+                            />
+                          </div>
+                          <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
+                            <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>密钥路径</label>
+                            <Input
+                              value={formData.keyPath}
+                              onValueChange={(v) => handleField("keyPath", v)}
+                            />
+                          </div>
+                        </>
+                      )}
+                    </div>
+                    {/* 日志级别 */}
+                    {formData.type === "client" && (
+                      <div className={`pt-2 flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>日志级别</label>
+                        <Select
+                          selectedKeys={
+                            formData.logLevel ? [formData.logLevel] : ["inherit"]
+                          }
+                          onSelectionChange={(keys) => {
+                            const selectedKey = Array.from(keys)[0] as string;
+
+                            handleField(
+                              "logLevel",
+                              selectedKey === "inherit" ? "" : selectedKey,
+                            );
+                          }}
+                        >
+                          <SelectItem key="inherit">
+                            {(() => {
+                              // 使用相同的匹配逻辑
+                              const selectedEndpoint1 = endpoints.find(
+                                (ep) => ep.id === formData.apiEndpoint,
+                              );
+                              const selectedEndpoint2 = endpoints.find(
+                                (ep) =>
+                                  String(ep.id) === String(formData.apiEndpoint),
+                              );
+                              const selectedEndpoint3 = endpoints.find(
+                                (ep) =>
+                                  Number(ep.id) === Number(formData.apiEndpoint),
+                              );
+                              const selectedEndpoint =
+                                selectedEndpoint2 ||
+                                selectedEndpoint1 ||
+                                selectedEndpoint3;
+                              const masterLog = selectedEndpoint?.log;
+
+                              return masterLog
+                                ? `继承 (${masterLog.toUpperCase()})`
+                                : "继承主控";
+                            })()}
+                          </SelectItem>
+                          <SelectItem key="debug">Debug</SelectItem>
+                          <SelectItem key="info">Info</SelectItem>
+                          <SelectItem key="warn">Warn</SelectItem>
+                          <SelectItem key="error">Error</SelectItem>
+                          <SelectItem key="event">Event</SelectItem>
+                          <SelectItem key="none">None</SelectItem>
+                        </Select>
+                      </div>
                     )}
                   </div>
-                  {/* 证书路径 - server & tls 2 */}
-                  {formData.type === "server" && formData.tlsMode === "2" && (
-                    <div className="grid grid-cols-2 gap-2">
-                      <Input
-                        label="证书路径 (crt)"
-                        value={formData.certPath}
-                        onValueChange={(v) => handleField("certPath", v)}
-                      />
-                      <Input
-                        label="密钥路径 (key)"
-                        value={formData.keyPath}
-                        onValueChange={(v) => handleField("keyPath", v)}
-                      />
-                    </div>
-                  )}
-
                   {/* 可选区域 */}
                   <div className="relative ">
                     <Divider />
@@ -701,37 +850,45 @@ export default function SimpleCreateTunnelModal({
                           height: { duration: 0.3, ease: "easeInOut" },
                         }}
                       >
-                        <div className="space-y-4">
-                          <div
-                            className={`grid grid-cols-${formData.type === "client" && formData.mode === 2 ? 3 : 1} gap-2`}
+                        <div className="space-y-2">
+                          <div className={`grid grid-cols-${((formData.type === "client" && formData.mode === 2) || formData.type === "server") ? 3 : 1} gap-2`}
                           >
+
                             {formData.type === "client" &&
-                              formData.mode === 2 && (
+                              formData.mode !== 1 && (
                                 <>
-                                  {renderPasswordInput()}
+                                  {passwordInput}
                                   <Input
                                     label="连接池最小容量"
                                     placeholder="64(默认值)"
+                                    type="number"
                                     value={formData.min}
                                     onValueChange={(v) => handleField("min", v)}
                                   />
+                                  {proxyProtocolSelect}
                                 </>
                               )}
-                            {renderProxyProtocolSelect()}
+                            {formData.type === "client" &&
+                              formData.mode === 1 && (
+                                <>
+                                  {proxyProtocolSelect}
+                                </>
+                              )}
+                            {formData.type === "server" && (
+                              <>
+                                {passwordInput}
+                                <Input
+                                  label="连接池最大容量"
+                                  placeholder="1024(默认值)"
+                                  type="number"
+                                  value={formData.max}
+                                  onValueChange={(v) => handleField("max", v)}
+                                />
+                                {proxyProtocolSelect}
+                              </>
+                            )}
                           </div>
 
-                          {formData.type === "server" && (
-                            <div className={`grid grid-cols-3 gap-2`}>
-                              {renderPasswordInput()}
-                              <Input
-                                label="连接池最大容量"
-                                placeholder="1024(默认值)"
-                                value={formData.max}
-                                onValueChange={(v) => handleField("max", v)}
-                              />
-                              {renderProxyProtocolSelect()}
-                            </div>
-                          )}
                           {/* 数据读取超时、速率限制和最大连接数限制 */}
                           <div className="grid grid-cols-3 gap-2">
                             <Input
@@ -749,6 +906,7 @@ export default function SimpleCreateTunnelModal({
                                 </div>
                               }
                               label="速率限制"
+                              type="number"
                               placeholder="100"
                               value={formData.rate}
                               onValueChange={(v) => handleField("rate", v)}
@@ -756,9 +914,34 @@ export default function SimpleCreateTunnelModal({
                             <Input
                               label="最大连接数限制"
                               placeholder="100"
+                              type="number"
                               value={formData.slot}
                               onValueChange={(v) => handleField("slot", v)}
                             />
+                          </div>
+
+                          {/* 负载均衡IP地址 */}
+                          <div className="flex items-start gap-2">
+                            {isEnableLoadBalancing && (
+                              <Textarea
+                                label={
+                                  <div className="flex items-center gap-1">
+                                    <span>附加目标地址</span>
+                                    <Tooltip content="通过增加目标地址达到负载均衡的效果">
+                                      <FontAwesomeIcon
+                                        className="w-4 h-4 text-default-400 cursor-help"
+                                        icon={faCircleQuestion}
+                                      />
+                                    </Tooltip>
+                                  </div>
+                                }
+                                placeholder="逗号分隔如：192.168.1.1,192.168.1.2,192.168.1.3"
+                                minRows={3}
+                                value={formData.loadBalancingIPs}
+                                onValueChange={(v) => handleField("loadBalancingIPs", v)}
+                                className="flex-1"
+                              />
+                            )}
                           </div>
                         </div>
                       </motion.div>
