@@ -2,9 +2,10 @@ package nodepass
 
 import (
 	"crypto/tls"
-	"encoding/json"
 	"fmt"
 	"time"
+
+	"NodePassDash/internal/models"
 
 	"github.com/go-resty/resty/v2"
 )
@@ -138,8 +139,8 @@ func ControlInstance(endpointID int64, instanceID, action string) (InstanceResul
 	return PatchInstance(endpointID, instanceID, body)
 }
 
-// ConvertInstanceTagsToTagsMap 将InstanceTag数组转换为map[string]string并序列化为JSON字符串
-func ConvertInstanceTagsToTagsMap(instanceTags []InstanceTag) (*string, error) {
+// ConvertInstanceTagsToTagsMap 将InstanceTag数组转换为map[string]string
+func ConvertInstanceTagsToTagsMap(instanceTags []InstanceTag) (*map[string]string, error) {
 	if len(instanceTags) == 0 {
 		return nil, nil
 	}
@@ -150,14 +151,7 @@ func ConvertInstanceTagsToTagsMap(instanceTags []InstanceTag) (*string, error) {
 		tagsMap[tag.Key] = tag.Value
 	}
 
-	// 序列化为JSON
-	jsonBytes, err := json.Marshal(tagsMap)
-	if err != nil {
-		return nil, err
-	}
-
-	jsonStr := string(jsonBytes)
-	return &jsonStr, nil
+	return &tagsMap, nil
 }
 
 // PatchInstance 更新指定实例的别名 (PATCH /instances/{id})
@@ -186,9 +180,21 @@ func ResetTraffic(endpointID int64, instanceID string) (InstanceResult, error) {
 }
 
 // UpdateInstanceTags 更新指定实例的标签 (PATCH /instances/{id})
-func UpdateInstanceTags(endpointID int64, instanceID string, tags []InstanceTag) (InstanceResult, error) {
+func UpdateInstanceTags(endpointID int64, instanceID string, tags map[string]string) (InstanceResult, error) {
 	body := patchBody{
-		Tags: tags,
+		Meta: &Meta{
+			Tags: &tags,
+		},
+	}
+	return PatchInstance(endpointID, instanceID, body)
+}
+
+// UpdateInstancePeers 更新指定实例的对端信息 (PATCH /instances/{id})
+func UpdateInstancePeers(endpointID int64, instanceID string, peer *models.Peer) (InstanceResult, error) {
+	body := patchBody{
+		Meta: &Meta{
+			Peer: peer,
+		},
 	}
 	return PatchInstance(endpointID, instanceID, body)
 }
@@ -352,31 +358,36 @@ type InstanceTag struct {
 
 //go:generate stringer -type=Instance
 type InstanceResult struct {
-	ID            string        `json:"id"`
-	Type          string        `json:"type"`   // client|server
-	Status        string        `json:"status"` // running|stopped|error
-	URL           string        `json:"url"`
-	TCPRx         int64         `json:"tcprx"` // 字节（Bytes）为单位
-	TCPTx         int64         `json:"tcptx"` // 字节（Bytes）为单位
-	UDPRx         int64         `json:"udprx"` // 字节（Bytes）为单位
-	UDPTx         int64         `json:"udptx"` // 字节（Bytes）为单位
-	Pool          *int64        `json:"pool,omitempty"`
-	Ping          *int64        `json:"ping,omitempty"`
-	Alias         *string       `json:"alias,omitempty"`
-	Restart       *bool         `json:"restart,omitempty"`
-	TCPs          *int64        `json:"tcps,omitempty"`
-	UDPs          *int64        `json:"udps,omitempty"`
-	Mode          *int          `json:"mode,omitempty"`
-	ProxyProtocol *bool         `json:"proxyProtocol,omitempty"`
-	Tags          []InstanceTag `json:"tags,omitempty"`
-	Config        *string       `json:"config,omitempty"`
+	ID            string  `json:"id"`
+	Type          string  `json:"type"`   // client|server
+	Status        string  `json:"status"` // running|stopped|error
+	URL           string  `json:"url"`
+	TCPRx         int64   `json:"tcprx"` // 字节（Bytes）为单位
+	TCPTx         int64   `json:"tcptx"` // 字节（Bytes）为单位
+	UDPRx         int64   `json:"udprx"` // 字节（Bytes）为单位
+	UDPTx         int64   `json:"udptx"` // 字节（Bytes）为单位
+	Pool          *int64  `json:"pool,omitempty"`
+	Ping          *int64  `json:"ping,omitempty"`
+	Alias         *string `json:"alias,omitempty"`
+	Restart       *bool   `json:"restart,omitempty"`
+	TCPs          *int64  `json:"tcps,omitempty"`
+	UDPs          *int64  `json:"udps,omitempty"`
+	Mode          *int    `json:"mode,omitempty"`
+	ProxyProtocol *bool   `json:"proxyProtocol,omitempty"`
+	Meta          *Meta   `json:"meta,omitempty"`
+	Config        *string `json:"config,omitempty"`
+}
+
+type Meta struct {
+	Peer *models.Peer       `json:"peer,omitempty"`
+	Tags *map[string]string `json:"tags,omitempty"`
 }
 
 type patchBody struct {
-	Restart *bool         `json:"restart,omitempty"`
-	Action  *string       `json:"action,omitempty"` // start|stop|restart|reset
-	Alias   *string       `json:"alias,omitempty"`
-	Tags    []InstanceTag `json:"tags,omitempty"` // 实例标签
+	Restart *bool   `json:"restart,omitempty"`
+	Action  *string `json:"action,omitempty"` // start|stop|restart|reset
+	Alias   *string `json:"alias,omitempty"`
+	Meta    *Meta   `json:"meta,omitempty"` // 实例标签
 }
 
 // EndpointInfoResult NodePass实例的系统信息

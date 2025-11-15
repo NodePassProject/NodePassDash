@@ -29,10 +29,7 @@ interface Tunnel {
   name: string;
   endpoint: string;
   type: "server" | "client";
-  status: {
-    type: "success" | "danger" | "warning";
-    text: string;
-  };
+  status: string;
   group?: {
     id: number;
     name: string;
@@ -63,6 +60,22 @@ export default function GroupInstancesModal({
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [selectedTunnels, setSelectedTunnels] = useState<Selection>(new Set());
+
+    // 根据状态获取状态颜色和文本
+  const getStatusInfo = (status: string) => {
+    switch (status) {
+      case "running":
+        return { type: "success" as const, text: "运行" };
+      case "stopped":
+        return { type: "danger" as const, text: "停止" };
+      case "error":
+        return { type: "warning" as const, text: "错误" };
+      case "offline":
+        return { type: "default" as const, text: "离线" };
+      default:
+        return { type: "default" as const, text: "未知" };
+    }
+  };
 
   // 获取所有实例列表
   const fetchTunnels = async () => {
@@ -289,11 +302,11 @@ export default function GroupInstancesModal({
                             </div>
                           </div>
                           <Chip
-                            color={tunnel.status.type}
+                            color={getStatusInfo(tunnel.status).type}
                             size="sm"
                             variant="flat"
                           >
-                            {tunnel.status.text}
+                            {getStatusInfo(tunnel.status).text}
                           </Chip>
                         </div>
                       </SelectItem>

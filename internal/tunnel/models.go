@@ -71,32 +71,20 @@ type TunnelListResult struct {
 
 // TunnelWithStats 带统计信息的隧道
 type TunnelWithStats struct {
-	models.Tunnel
-	Traffic struct {
-		TCPRx     int64  `json:"tcpRx"`
-		TCPTx     int64  `json:"tcpTx"`
-		UDPRx     int64  `json:"udpRx"`
-		UDPTx     int64  `json:"udpTx"`
-		Pool      *int64 `json:"pool,omitempty"`
-		Ping      *int64 `json:"ping,omitempty"`
-		Total     int64  `json:"total"`
-		Formatted struct {
-			TCPRx string `json:"tcpRx"`
-			TCPTx string `json:"tcpTx"`
-			UDPRx string `json:"udpRx"`
-			UDPTx string `json:"udpTx"`
-			Total string `json:"total"`
-		} `json:"formatted"`
-	} `json:"traffic"`
-	EndpointName    string `json:"endpoint"`
-	EndpointVersion string `json:"version,omitempty"`
-	Type            string `json:"type"`
-	Avatar          string `json:"avatar"`
-	StatusInfo      struct {
-		Type string `json:"type"`
-		Text string `json:"text"`
-	} `json:"status"`
-	Group *Group `json:"group,omitempty"` // 分组信息
+	ID              int64        `json:"id"`                   // 隧道ID
+	Name            string       `json:"name"`                 // 隧道名称
+	EndpointID      int64        `json:"endpointId"`           // 端点ID
+	Type            TunnelType   `json:"type"`                 // 隧道类型
+	Status          TunnelStatus `json:"status"`               // 隧道状态
+	TunnelAddress   string       `json:"tunnelAddress"`        // 隧道地址
+	TunnelPort      string       `json:"tunnelPort"`           // 隧道端口
+	TargetAddress   string       `json:"targetAddress"`        // 目标地址
+	TargetPort      string       `json:"targetPort"`           // 目标端口
+	InstanceID      *string      `json:"instanceId,omitempty"` // 实例ID
+	TotalRx         int64        `json:"totalRx"`              // TCP+UDP 接收汇总
+	TotalTx         int64        `json:"totalTx"`              // TCP+UDP 发送汇总
+	EndpointName    string       `json:"endpoint"`             // 端点名称
+	EndpointVersion string       `json:"version,omitempty"`    // 端点版本
 }
 
 // CreateTunnelRequest 创建隧道请求

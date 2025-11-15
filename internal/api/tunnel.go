@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"gorm.io/gorm"
 )
 
 // TunnelHandler 隧道相关的处理器
@@ -79,14 +80,13 @@ func SetupTunnelRoutes(rg *gin.RouterGroup, tunnelService *tunnel.Service, sseMa
 	tunnelMetricsHandler := NewTunnelMetricsHandler(tunnelService, sseProcessor)
 
 	// 实例相关路由
-	// 实例相关路由
 	rg.GET("/endpoints/:id/instances", tunnelHandler.HandleGetInstances)
 	rg.GET("/endpoints/:id/instances/:instanceId", tunnelHandler.HandleGetInstance)
 	rg.POST("/endpoints/:id/instances/:instanceId/control", tunnelHandler.HandleControlInstance)
 
 	// 隧道相关路由
 	rg.GET("/tunnels", tunnelHandler.HandleGetTunnels)
-	rg.POST("/tunnels", tunnelHandler.HandleCreateTunnel)
+	rg.POST("/tunnels", tunnelHandler.HandleCreateTunnel1)
 	rg.POST("/tunnels/batch", tunnelHandler.HandleBatchCreateTunnels)
 	rg.POST("/tunnels/batch-new", tunnelHandler.HandleNewBatchCreateTunnels)
 	rg.DELETE("/tunnels/batch", tunnelHandler.HandleBatchDeleteTunnels)
@@ -99,7 +99,7 @@ func SetupTunnelRoutes(rg *gin.RouterGroup, tunnelService *tunnel.Service, sseMa
 	rg.PATCH("/tunnels/:id/attributes", tunnelHandler.HandlePatchTunnelAttributes)
 	rg.PATCH("/tunnels/:id/restart", tunnelHandler.HandleSetTunnelRestart)
 	rg.GET("/tunnels/:id", tunnelHandler.HandleGetTunnels)
-	rg.PUT("/tunnels/:id", tunnelHandler.HandleUpdateTunnelV2)
+	rg.PUT("/tunnels/:id", tunnelHandler.HandleUpdateTunnelV3)
 	rg.DELETE("/tunnels/:id", tunnelHandler.HandleDeleteTunnel)
 	rg.PATCH("/tunnels/:id/status", tunnelHandler.HandleControlTunnel)
 	rg.POST("/tunnels/:id/action", tunnelHandler.HandleControlTunnel)
@@ -306,6 +306,41 @@ func (h *TunnelHandler) HandleCreateTunnel(c *gin.Context) {
 
 	// 使用直接URL模式创建隧道，超时时间为 3 秒
 	newTunnel, err := h.tunnelService.CreateTunnelAndWait(req, 3*time.Second)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
+			Success: false,
+			Error:   err.Error(),
+		})
+		return
+	}
+
+	// CreateTunnelAndWait 已经包含了设置别名的逻辑，这里不需要再调用
+
+	c.JSON(http.StatusOK, tunnel.TunnelResponse{
+		Success: true,
+		Message: "隧道创建成功",
+		Tunnel:  newTunnel,
+	})
+}
+
+// HandleCreateTunnel 创建新隧道
+func (h *TunnelHandler) HandleCreateTunnel1(c *gin.Context) {
+
+	// 兼容前端将端口作为字符串提交的情况
+	var raw models.Tunnel
+
+	if err := c.ShouldBindJSON(&raw); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
+			Success: false,
+			Error:   "无效的请求数据",
+		})
+		return
+	}
+
+	log.Infof("[Master-%v] 创建隧道请求: %v", raw.EndpointID, raw.Name)
+
+	// 使用直接URL模式创建隧道，超时时间为 3 秒
+	newTunnel, err := h.tunnelService.NewCreateTunnelAndWait(raw, 3*time.Second)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
@@ -985,99 +1020,12 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		return
 	}
 
-	db := h.tunnelService.DB()
+	db := h.tunnelService.GormDB()
 
-	// 1. 查询隧道及端点信息（包含主控的tls和log信息）
-	var tunnelRecord struct {
-		ID              int64
-		InstanceIDNS    sql.NullString
-		Name            string
-		Type            string
-		Status          string
-		EndpointID      int64
-		EndpointName    sql.NullString
-		EndpointTLS     sql.NullString
-		EndpointLog     sql.NullString
-		EndpointVersion sql.NullString
-		TunnelPort      string
-		TargetPort      string
-		TLSMode         string
-		LogLevel        string
-		TunnelAddress   string
-		TargetAddress   string
-		CommandLine     string
-		ConfigLine      *string
-		PasswordNS      sql.NullString
-		CertPathNS      sql.NullString
-		KeyPathNS       sql.NullString
-		TCPRx           int64
-		TCPTx           int64
-		UDPRx           int64
-		UDPTx           int64
-		Pool            sql.NullInt64
-		Ping            sql.NullInt64
-		TCPs            sql.NullInt64
-		UDPs            sql.NullInt64
-		Min             sql.NullInt64
-		Max             sql.NullInt64
-		Restart         bool
-		Mode            sql.NullInt64
-		Read            sql.NullString
-		Rate            sql.NullInt64
-		Slot            sql.NullInt64
-		ProxyProtocol   sql.NullBool
-		Tags            sql.NullString
-	}
-
-	query := `SELECT t.id, t.instance_id, t.name, t.type, t.status, t.endpoint_id,
-		   e.name, e.tls, e.log, e.ver, t.tunnel_port, t.target_port, t.tls_mode, t.log_level,
-		   t.tunnel_address, t.target_address, t.command_line, t.config_line, t.password, t.cert_path, t.key_path,
-		   t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.pool, t.ping, t.tcps, t.udps,
-		   t.min, t.max, ifnull(t.restart, 0), t.mode, t.read, t.rate, t.slot, t.proxy_protocol, t.tags
-		   FROM tunnels t
-		   LEFT JOIN endpoints e ON t.endpoint_id = e.id
-		   WHERE t.id = ?`
-	if err := db.QueryRow(query, id).Scan(
-		&tunnelRecord.ID,
-		&tunnelRecord.InstanceIDNS,
-		&tunnelRecord.Name,
-		&tunnelRecord.Type,
-		&tunnelRecord.Status,
-		&tunnelRecord.EndpointID,
-		&tunnelRecord.EndpointName,
-		&tunnelRecord.EndpointTLS,
-		&tunnelRecord.EndpointLog,
-		&tunnelRecord.EndpointVersion,
-		&tunnelRecord.TunnelPort,
-		&tunnelRecord.TargetPort,
-		&tunnelRecord.TLSMode,
-		&tunnelRecord.LogLevel,
-		&tunnelRecord.TunnelAddress,
-		&tunnelRecord.TargetAddress,
-		&tunnelRecord.CommandLine,
-		&tunnelRecord.ConfigLine,
-		&tunnelRecord.PasswordNS,
-		&tunnelRecord.CertPathNS,
-		&tunnelRecord.KeyPathNS,
-		&tunnelRecord.TCPRx,
-		&tunnelRecord.TCPTx,
-		&tunnelRecord.UDPRx,
-		&tunnelRecord.UDPTx,
-		&tunnelRecord.Pool,
-		&tunnelRecord.Ping,
-		&tunnelRecord.TCPs,
-		&tunnelRecord.UDPs,
-		&tunnelRecord.Min,
-		&tunnelRecord.Max,
-		&tunnelRecord.Restart,
-		&tunnelRecord.Mode,
-		&tunnelRecord.Read,
-		&tunnelRecord.Rate,
-		&tunnelRecord.Slot,
-		&tunnelRecord.ProxyProtocol,
-		&tunnelRecord.Tags,
-	); err != nil {
-		if err == sql.ErrNoRows {
+	// 使用 GORM 查询隧道及关联的端点信息，自动处理 serializer:json
+	var tunnel models.Tunnel
+	if err := db.Preload("Endpoint").First(&tunnel, id).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "隧道不存在"})
 			return
 		}
@@ -1085,88 +1033,99 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		return
 	}
 
-	instanceID := ""
-	if tunnelRecord.InstanceIDNS.Valid {
-		instanceID = tunnelRecord.InstanceIDNS.String
-	}
-	endpointName := ""
-	if tunnelRecord.EndpointName.Valid {
-		endpointName = tunnelRecord.EndpointName.String
-	}
+	// 提取 Endpoint 信息
+	endpointName := tunnel.Endpoint.Name
 	endpointTLS := ""
-	if tunnelRecord.EndpointTLS.Valid {
-		endpointTLS = tunnelRecord.EndpointTLS.String
+	if tunnel.Endpoint.TLS != nil {
+		endpointTLS = *tunnel.Endpoint.TLS
 	}
 	endpointLog := ""
-	if tunnelRecord.EndpointLog.Valid {
-		endpointLog = tunnelRecord.EndpointLog.String
+	if tunnel.Endpoint.Log != nil {
+		endpointLog = *tunnel.Endpoint.Log
 	}
 	endpointVersion := ""
-	if tunnelRecord.EndpointVersion.Valid {
-		endpointVersion = tunnelRecord.EndpointVersion.String
+	if tunnel.Endpoint.Ver != nil {
+		endpointVersion = *tunnel.Endpoint.Ver
 	}
+
+	// 提取密码、证书路径等可空字段
 	password := ""
-	if tunnelRecord.PasswordNS.Valid {
-		password = tunnelRecord.PasswordNS.String
+	if tunnel.Password != nil {
+		password = *tunnel.Password
 	}
 	certPath := ""
-	if tunnelRecord.CertPathNS.Valid {
-		certPath = tunnelRecord.CertPathNS.String
+	if tunnel.CertPath != nil {
+		certPath = *tunnel.CertPath
 	}
 	keyPath := ""
-	if tunnelRecord.KeyPathNS.Valid {
-		keyPath = tunnelRecord.KeyPathNS.String
+	if tunnel.KeyPath != nil {
+		keyPath = *tunnel.KeyPath
 	}
 
 	// 状态映射
 	statusType := "danger"
-	if tunnelRecord.Status == "running" {
+	if tunnel.Status == "running" {
 		statusType = "success"
-	} else if tunnelRecord.Status == "error" {
+	} else if tunnel.Status == "error" {
 		statusType = "warning"
-	} else if tunnelRecord.Status == "offline" {
+	} else if tunnel.Status == "offline" {
 		statusType = "default"
 	}
 
 	// 端口转换
-	listenPort, _ := strconv.Atoi(tunnelRecord.TunnelPort)
-	targetPort, _ := strconv.Atoi(tunnelRecord.TargetPort)
+	listenPort, _ := strconv.Atoi(tunnel.TunnelPort)
+	targetPort, _ := strconv.Atoi(tunnel.TargetPort)
 
-	// 处理新字段的NULL值
-	// var mode int
-	// if tunnelRecord.Mode.Valid {
-	// 	mode = tunnelRecord.Mode
-	// }
+	// 处理 Read 字段
 	read := ""
-	if tunnelRecord.Read.Valid {
-		read = tunnelRecord.Read.String
+	if tunnel.Read != nil {
+		read = *tunnel.Read
 	}
 
-	// 2. 使用 nodepass 解析 configLine 得到配置
+	// 使用 nodepass 解析 configLine 得到配置
 	var parsedConfig *nodepass.TunnelConfig
-	if tunnelRecord.ConfigLine != nil && *tunnelRecord.ConfigLine != "" {
-		parsedConfig = nodepass.ParseTunnelConfig(*tunnelRecord.ConfigLine)
+	if tunnel.ConfigLine != nil && *tunnel.ConfigLine != "" {
+		parsedConfig = nodepass.ParseTunnelConfig(*tunnel.ConfigLine)
 	} else {
 		// 如果没有 ConfigLine，使用 CommandLine 作为备选，或创建空配置
-		if tunnelRecord.CommandLine != "" {
-			parsedConfig = nodepass.ParseTunnelConfig(tunnelRecord.CommandLine)
+		if tunnel.CommandLine != "" {
+			parsedConfig = nodepass.ParseTunnelConfig(tunnel.CommandLine)
 		} else {
 			parsedConfig = &nodepass.TunnelConfig{}
 		}
 	}
 
-	// 3. 组装扁平化响应结构（匹配 after.json）
+	// 处理 InstanceID 字段
+	instanceID := ""
+	if tunnel.InstanceID != nil {
+		instanceID = *tunnel.InstanceID
+	}
+
+	// 组装扁平化响应结构
 	resp := map[string]interface{}{
-		"id":            tunnelRecord.ID,
+		"id":            tunnel.ID,
 		"instanceId":    instanceID,
-		"name":          tunnelRecord.Name,
-		"type":          tunnelRecord.Type,
+		"name":          tunnel.Name,
+		"type":          tunnel.Type,
 		"status":        statusType, // 简化为字符串
-		"targetAddress": tunnelRecord.TargetAddress,
-		"tunnelAddress": tunnelRecord.TunnelAddress,
+		"targetAddress": tunnel.TargetAddress,
+		"tunnelAddress": tunnel.TunnelAddress,
+		"listenType": func() interface{} {
+			if tunnel.ListenType != nil {
+				return *tunnel.ListenType
+			}
+			return "ALL"
+		}(),
+		// 扩展目标地址（负载均衡地址列表）
+		"extendTargetAddress": func() interface{} {
+			if tunnel.ExtendTargetAddress != nil {
+				return *tunnel.ExtendTargetAddress
+			}
+			return []string{}
+		}(),
 		"mode": func() interface{} {
-			if tunnelRecord.Mode.Valid {
-				return tunnelRecord.Mode.Int64
+			if tunnel.Mode != nil {
+				return *tunnel.Mode
 			}
 			return nil
 		}(),
@@ -1174,48 +1133,48 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		"certPath":   certPath,
 		"keyPath":    keyPath,
 		"listenPort": listenPort,
-		"logLevel":   tunnelRecord.LogLevel,
+		"logLevel":   tunnel.LogLevel,
 		"max": func() interface{} {
-			if tunnelRecord.Max.Valid {
-				return tunnelRecord.Max.Int64
+			if tunnel.Max != nil {
+				return *tunnel.Max
 			}
 			return nil
 		}(),
 		"min": func() interface{} {
-			if tunnelRecord.Min.Valid {
-				return tunnelRecord.Min.Int64
+			if tunnel.Min != nil {
+				return *tunnel.Min
 			}
 			return nil
 		}(),
 		"proxyProtocol": func() interface{} {
-			if tunnelRecord.ProxyProtocol.Valid {
-				return tunnelRecord.ProxyProtocol.Bool
+			if tunnel.ProxyProtocol != nil {
+				return *tunnel.ProxyProtocol
 			}
 			return nil
 		}(),
 		"rate": func() interface{} {
-			if tunnelRecord.Rate.Valid {
-				return tunnelRecord.Rate.Int64
+			if tunnel.Rate != nil {
+				return *tunnel.Rate
 			}
 			return nil
 		}(),
 		"read":    read,
-		"restart": tunnelRecord.Restart,
+		"restart": tunnel.Restart,
 		"slot": func() interface{} {
-			if tunnelRecord.Slot.Valid {
-				return tunnelRecord.Slot.Int64
+			if tunnel.Slot != nil {
+				return *tunnel.Slot
 			}
 			return nil
 		}(),
 		"targetPort":  targetPort,
-		"tlsMode":     tunnelRecord.TLSMode,
-		"commandLine": tunnelRecord.CommandLine,
-		"configLine":  tunnelRecord.ConfigLine, // 预留字段
+		"tlsMode":     tunnel.TLSMode,
+		"commandLine": tunnel.CommandLine,
+		"configLine":  tunnel.ConfigLine,
 
 		// endpoint 改为对象形式
 		"endpoint": map[string]interface{}{
 			"name":    endpointName,
-			"id":      tunnelRecord.EndpointID,
+			"id":      tunnel.EndpointID,
 			"version": endpointVersion,
 			"tls":     endpointTLS,
 			"log":     endpointLog,
@@ -1242,44 +1201,48 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			"proxy":         parsedConfig.Proxy,
 		},
 
-		// tags 改为对象形式（从 JSON 解析）
+		// tags - GORM 自动反序列化为 *map[string]string
 		"tags": func() interface{} {
-			if tunnelRecord.Tags.Valid && tunnelRecord.Tags.String != "" {
-				var tagsMap map[string]string
-				if err := json.Unmarshal([]byte(tunnelRecord.Tags.String), &tagsMap); err == nil {
-					return tagsMap
-				}
-				return map[string]string{}
+			if tunnel.Tags != nil {
+				return *tunnel.Tags
 			}
 			return map[string]string{}
 		}(),
 
+		// peer - GORM 自动反序列化为 *Peer
+		"peer": func() interface{} {
+			if tunnel.Peer != nil {
+				return tunnel.Peer
+			}
+			return nil
+		}(),
+
 		// traffic 数据扁平化到根级别
 		"ping": func() interface{} {
-			if tunnelRecord.Ping.Valid {
-				return tunnelRecord.Ping.Int64
+			if tunnel.Ping != nil {
+				return *tunnel.Ping
 			}
 			return 0
 		}(),
 		"pool": func() interface{} {
-			if tunnelRecord.Pool.Valid {
-				return tunnelRecord.Pool.Int64
+			if tunnel.Pool != nil {
+				return *tunnel.Pool
 			}
 			return 0
 		}(),
-		"tcpRx": tunnelRecord.TCPRx,
-		"tcpTx": tunnelRecord.TCPTx,
+		"tcpRx": tunnel.TCPRx,
+		"tcpTx": tunnel.TCPTx,
 		"tcps": func() interface{} {
-			if tunnelRecord.TCPs.Valid {
-				return tunnelRecord.TCPs.Int64
+			if tunnel.TCPs != nil {
+				return *tunnel.TCPs
 			}
 			return 0
 		}(),
-		"udpRx": tunnelRecord.UDPRx,
-		"udpTx": tunnelRecord.UDPTx,
+		"udpRx": tunnel.UDPRx,
+		"udpTx": tunnel.UDPTx,
 		"udps": func() interface{} {
-			if tunnelRecord.UDPs.Valid {
-				return tunnelRecord.UDPs.Int64
+			if tunnel.UDPs != nil {
+				return *tunnel.UDPs
 			}
 			return 0
 		}(),
@@ -3384,6 +3347,104 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 	c.JSON(http.StatusOK, tunnel.TunnelResponse{Success: true, Message: "编辑实例成功"})
 }
 
+type UpdateTunnelReq struct {
+	models.Tunnel
+	ResetTraffic bool `json:"resetTraffic"`
+}
+
+func (h *TunnelHandler) HandleUpdateTunnelV3(c *gin.Context) {
+	tunnelIDStr := c.Param("id")
+	tunnelID, err := strconv.ParseInt(tunnelIDStr, 10, 64)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "无效的隧道ID"})
+		return
+	}
+
+	// 解析请求体（与创建接口保持一致）
+	var raw UpdateTunnelReq
+	if err := c.ShouldBindJSON(&raw); err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "无效的请求数据"})
+		return
+	}
+	raw.ID = tunnelID
+	// 构建命令行
+	var commandLine string = nodepass.BuildTunnelURLs(raw.Tunnel)
+
+	// 获取实例ID
+	instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
+	if err != nil {
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: err.Error()})
+		return
+	}
+
+	// 获取端点信息
+	var endpoint struct {
+		ID                   int64
+		URL, APIPath, APIKey string
+	}
+	if err := h.tunnelService.DB().QueryRow(`SELECT e.id, url, api_path, api_key FROM endpoints e JOIN tunnels t ON e.id = t.endpoint_id WHERE t.id = ?`, tunnelID).Scan(&endpoint.ID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
+		c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{Success: false, Error: "查询端点信息失败"})
+		return
+	}
+
+	log.Infof("[API] 准备调用 UpdateInstance: instanceID=%s, commandLine=%s", instanceID, commandLine)
+	if _, err := nodepass.UpdateInstance(endpoint.ID, instanceID, commandLine); err != nil {
+		log.Errorf("[API] UpdateInstanceV1 调用失败: %v", err)
+		// 若远端返回 405，则回退旧逻辑（删除+重建）
+		if strings.Contains(err.Error(), "405") || strings.Contains(err.Error(), "404") {
+			log.Infof("[API] 检测到405/404错误")
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，创建新实例错误: " + err.Error()})
+			return
+		}
+		// 其他错误
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: err.Error()})
+		return
+	}
+
+	// 调用成功后等待数据库同步
+	success := false
+	deadline := time.Now().Add(3 * time.Second)
+	for time.Now().Before(deadline) {
+		var dbCmd, dbStatus string
+		if scanErr := h.tunnelService.DB().QueryRow(`SELECT command_line, status FROM tunnels WHERE instance_id = ?`, instanceID).Scan(&dbCmd, &dbStatus); scanErr == nil {
+			if dbCmd == commandLine && dbStatus == "running" {
+				success = true
+				break
+			}
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	if !success {
+		// 超时，直接更新本地数据库，处理min/max/slot字段
+		// 构建新字段的更新值
+		// 准备更新字段
+		updates := nodepass.TunnelToMap(&raw.Tunnel)
+		// 更新 tunnel 表
+		result := h.tunnelService.GormDB().Model(&models.Tunnel{}).
+			Where("endpoint_id = ? AND instance_id = ?", raw.EndpointID, raw.ID).
+			Updates(updates)
+
+		if result.Error != nil {
+			log.Errorf("[Master-%d]更新隧道 %s 运行时信息失败: %v", raw.EndpointID, raw.ID, result.Error)
+			return
+		}
+	}
+
+	// 如果需要重置流量统计
+	if raw.ResetTraffic {
+		log.Infof("[API] 编辑实例后重置流量统计: tunnelID=%d", tunnelID)
+		if err := h.tunnelService.ResetTunnelTrafficByInstanceID(instanceID); err != nil {
+			log.Errorf("[API] 重置流量统计失败: %v", err)
+			// 不返回错误，因为主要操作已经成功，只是重置失败
+		} else {
+			log.Infof("[API] 流量统计重置成功: tunnelID=%d", tunnelID)
+		}
+	}
+
+	c.JSON(http.StatusOK, tunnel.TunnelResponse{Success: true, Message: "编辑实例成功"})
+}
+
 // HandleExportTunnelLogs 导出隧道的所有日志文件和EndpointSSE记录
 func (h *TunnelHandler) HandleExportTunnelLogs(c *gin.Context) {
 	tunnelIDStr := c.Param("id")
@@ -3726,7 +3787,7 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 	}
 
 	// 解析请求体 - 直接接收map格式的数据
-	var requestData map[string]interface{}
+	var requestData map[string]string
 	if err := c.ShouldBindJSON(&requestData); err != nil {
 		log.Errorf("[API]解析标签请求失败: %v", err)
 		c.JSON(http.StatusBadRequest, gin.H{
@@ -3736,62 +3797,7 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 		return
 	}
 
-	// 首先获取当前tunnel的原始tags进行对比
-	var currentTunnel models.Tunnel
-	if err := h.tunnelService.GormDB().Where("id = ?", tunnelID).First(&currentTunnel).Error; err != nil {
-		log.Errorf("[API]获取隧道信息失败: tunnelID=%d, err=%v", tunnelID, err)
-		c.JSON(http.StatusNotFound, gin.H{
-			"success": false,
-			"message": "隧道不存在",
-		})
-		return
-	}
-
-	// 解析当前的tags
-	originalTagsMap := make(map[string]string)
-	if currentTunnel.Tags != nil && *currentTunnel.Tags != "" {
-		if err := json.Unmarshal([]byte(*currentTunnel.Tags), &originalTagsMap); err != nil {
-			log.Warnf("[API]解析原始tags失败: %v", err)
-		}
-	}
-
-	// 将请求数据转换为统一的InstanceTag格式，并处理删除逻辑
-	var tags []nodepass.InstanceTag
-	newTagsMap := make(map[string]string)
-
-	// 构建新的tags map
-	for key, value := range requestData {
-		if strings.TrimSpace(key) == "" {
-			c.JSON(http.StatusBadRequest, gin.H{
-				"success": false,
-				"message": "标签键不能为空",
-			})
-			return
-		}
-		newTagsMap[key] = fmt.Sprintf("%v", value)
-	}
-
-	// 添加所有新的或修改的tags
-	for key, value := range newTagsMap {
-		tags = append(tags, nodepass.InstanceTag{
-			Key:   key,
-			Value: value,
-		})
-	}
-
-	// 找出被删除的keys，为它们添加空值以便nodepass删除
-	for originalKey := range originalTagsMap {
-		if _, exists := newTagsMap[originalKey]; !exists {
-			// 这个key在新的map中不存在，说明被删除了
-			tags = append(tags, nodepass.InstanceTag{
-				Key:   originalKey,
-				Value: "", // 空值表示删除
-			})
-			log.Debugf("[API]检测到删除的标签: %s", originalKey)
-		}
-	}
-
-	log.Debugf("[API]最终发送给nodepass的tags: %+v", tags)
+	log.Debugf("[API]最终发送给nodepass的tags: %+v", requestData)
 
 	// 获取隧道的实例ID和端点ID
 	instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
@@ -3823,7 +3829,7 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 	}
 
 	// 调用NodePass API更新标签
-	result, err := nodepass.UpdateInstanceTags(endpointID, instanceID, tags)
+	result, err := nodepass.UpdateInstanceTags(endpointID, instanceID, requestData)
 	if err != nil {
 		log.Errorf("[API]更新标签失败: tunnelID=%d, instanceID=%s, err=%v", tunnelID, instanceID, err)
 		c.JSON(http.StatusInternalServerError, gin.H{
@@ -3834,7 +3840,7 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 		return
 	}
 
-	log.Infof("[API]标签更新成功: tunnelID=%d, instanceID=%s, tagsCount=%d", tunnelID, instanceID, len(tags))
+	log.Infof("[API]标签更新成功: tunnelID=%d, instanceID=%s, tagsCount=%d", tunnelID, instanceID, len(requestData))
 
 	// 返回成功响应
 	c.JSON(http.StatusOK, gin.H{

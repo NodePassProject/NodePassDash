@@ -2,6 +2,7 @@ package nodepass
 
 import (
 	"NodePassDash/internal/models"
+	"encoding/json"
 	"fmt"
 	"net/url"
 	"strconv"
@@ -11,23 +12,25 @@ import (
 
 // TunnelConfig 表示解析后的隧道配置信息
 type TunnelConfig struct {
-	Type          string // client 或 server
-	TunnelAddress string
-	TunnelPort    string
-	TargetAddress string
-	TargetPort    string
-	TLSMode       string // 空字符串表示不设置（inherit）
-	LogLevel      string // 空字符串表示不设置（inherit）
-	CertPath      string
-	KeyPath       string
-	Password      string
-	Min           string
-	Max           string
-	Mode          string
-	Read          string
-	Rate          string
-	Slot          string
-	Proxy         string // proxy protocol 支持 (0|1)
+	Type                  string // client 或 server
+	TunnelAddress         string
+	TunnelPort            string
+	TargetAddress         string
+	TargetPort            string
+	ExtendTargetAddresses []string // 扩展目标地址列表
+	ListenType            string   // ALL|TCP|UDP
+	TLSMode               string   // 空字符串表示不设置（inherit）
+	LogLevel              string   // 空字符串表示不设置（inherit）
+	CertPath              string
+	KeyPath               string
+	Password              string
+	Min                   string
+	Max                   string
+	Mode                  string
+	Read                  string
+	Rate                  string
+	Slot                  string
+	Proxy                 string // proxy protocol 支持 (0|1)
 }
 
 // ParseTunnelURL 解析隧道实例 URL 并返回 Tunnel 模型
@@ -95,13 +98,31 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 	}
 
 	// 解析 pathPart -> targetAddress:targetPort (兼容 IPv6)
+	// 支持多个逗号拼接的地址，第一个作为主地址，其余放入extendTargetAddress
 	if pathPart != "" {
-		addr, port := parseAddressPort(pathPart)
+		// 检查是否存在多个逗号分隔的地址
+		addresses := strings.Split(pathPart, ",")
+
+		// 处理第一个地址
+		addr, port := parseAddressPort(addresses[0])
 		tunnel.TargetAddress = addr
 		tunnel.TargetPort = port
+
+		// 处理剩余的地址（如果有的话）
+		if len(addresses) > 1 {
+			extendAddrList := make([]string, 0, len(addresses)-1)
+			for i := 1; i < len(addresses); i++ {
+				extendAddr, extendPort := parseAddressPort(addresses[i])
+				extendAddrList = append(extendAddrList, extendAddr+":"+extendPort)
+			}
+			if len(extendAddrList) > 0 {
+				tunnel.ExtendTargetAddress = &extendAddrList
+			}
+		}
 	}
 
 	// 解析查询参数
+	var noTCP, noUDP *string // 用于临时存储notcp和noudp参数
 	if queryPart != "" {
 		for _, kv := range strings.Split(queryPart, "&") {
 			if kv == "" {
@@ -200,12 +221,50 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 					proxyProtocol := true
 					tunnel.ProxyProtocol = &proxyProtocol
 				}
+			case "notcp":
+				// TCP支持控制 (0=启用, 1=禁用)
+				noTCP = &val
+			case "noudp":
+				// UDP支持控制 (0=启用, 1=禁用)
+				noUDP = &val
 			}
+		}
+	}
+
+	// 根据notcp和noudp参数的组合来设置listenType
+	if noTCP != nil || noUDP != nil {
+		// 默认两个都启用
+		tcpEnabled := true
+		udpEnabled := true
+
+		if noTCP != nil {
+			tcpEnabled = *noTCP != "1"
+		}
+		if noUDP != nil {
+			udpEnabled = *noUDP != "1"
+		}
+
+		// 根据启用情况设置listenType
+		var listenType string
+		if tcpEnabled && udpEnabled {
+			listenType = "ALL"
+		} else if tcpEnabled && !udpEnabled {
+			listenType = "TCP"
+		} else if !tcpEnabled && udpEnabled {
+			listenType = "UDP"
+		}
+		// 如果都禁用则不设置listenType
+
+		if listenType != "" {
+			tunnel.ListenType = &listenType
 		}
 	}
 
 	return tunnel
 }
+
+// - Insert/Create 时 - GORM 会调用字段的 Value() 方法进行序列化 ✅
+// - Update 时用 map - 当使用 Updates(map[string]interface{}) 时，GORM 不会调用字段的序列化方法，而是直接把 map中的值传给 SQLite 驱动
 func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 	updates := map[string]interface{}{
 		"name":            tunnel.Name,
@@ -232,6 +291,7 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 		"updated_at":      time.Now(),
 		"proxy_protocol":  tunnel.ProxyProtocol,
 		"config_line":     tunnel.ConfigLine,
+		"listen_type":     tunnel.ListenType,
 	}
 
 	if tunnel.CertPath != nil {
@@ -263,21 +323,32 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 	if tunnel.ProxyProtocol != nil {
 		updates["proxy_protocol"] = tunnel.ProxyProtocol
 	}
+	// Update 时 GORM 不会自动调用序列化器，需要手动序列化为 JSON 字符串
 	if tunnel.Tags != nil {
-		updates["tags"] = tunnel.Tags
+		if tagsJSON, err := json.Marshal(tunnel.Tags); err == nil {
+			updates["tags"] = string(tagsJSON)
+		}
+	}
+	if tunnel.Peer != nil {
+		if peerJSON, err := json.Marshal(tunnel.Peer); err == nil {
+			updates["peer"] = string(peerJSON)
+		}
 	}
 	if tunnel.ConfigLine != nil {
 		updates["config_line"] = tunnel.ConfigLine
+	}
+	if tunnel.ExtendTargetAddress != nil {
+		if extendAddrJSON, err := json.Marshal(tunnel.ExtendTargetAddress); err == nil {
+			updates["extend_target_address"] = string(extendAddrJSON)
+		}
 	}
 	return updates
 }
 
 // ParseTunnelConfig 解析隧道实例 URL 并返回 TunnelConfig
 func ParseTunnelConfig(rawURL string) *TunnelConfig {
-	// 使用现有的ParseTunnelURL逻辑，但返回配置信息
 	cfg := &TunnelConfig{}
 
-	// 简单的URL解析逻辑（可以从ParseTunnelURL中提取）
 	u, err := url.Parse(rawURL)
 	if err != nil {
 		return cfg
@@ -301,12 +372,26 @@ func ParseTunnelConfig(rawURL string) *TunnelConfig {
 
 	pathParts := strings.Trim(u.Path, "/")
 	if pathParts != "" {
-		targetParts := strings.Split(pathParts, ":")
+		// 处理多个逗号分隔的地址
+		addresses := strings.Split(pathParts, ",")
+
+		// 处理第一个地址
+		targetParts := strings.Split(addresses[0], ":")
 		if len(targetParts) >= 1 {
 			cfg.TargetAddress = targetParts[0]
 		}
 		if len(targetParts) >= 2 {
 			cfg.TargetPort = targetParts[1]
+		}
+
+		// 处理剩余的地址
+		if len(addresses) > 1 {
+			for i := 1; i < len(addresses); i++ {
+				extendAddr := strings.Split(addresses[i], ":")
+				if len(extendAddr) >= 1 && extendAddr[0] != "" {
+					cfg.ExtendTargetAddresses = append(cfg.ExtendTargetAddresses, extendAddr[0])
+				}
+			}
 		}
 	}
 
@@ -323,12 +408,38 @@ func ParseTunnelConfig(rawURL string) *TunnelConfig {
 	cfg.Rate = query.Get("rate")
 	cfg.Slot = query.Get("slot")
 	cfg.Proxy = query.Get("proxy")
+	noTCP := query.Get("notcp")
+	noUDP := query.Get("noudp")
+
+	// 根据notcp和noudp参数的组合来设置listenType
+	if noTCP != "" || noUDP != "" {
+		// 默认两个都启用
+		tcpEnabled := true
+		udpEnabled := true
+
+		if noTCP != "" {
+			tcpEnabled = noTCP != "1"
+		}
+		if noUDP != "" {
+			udpEnabled = noUDP != "1"
+		}
+
+		// 根据启用情况设置listenType
+		if tcpEnabled && udpEnabled {
+			cfg.ListenType = "ALL"
+		} else if tcpEnabled && !udpEnabled {
+			cfg.ListenType = "TCP"
+		} else if !tcpEnabled && udpEnabled {
+			cfg.ListenType = "UDP"
+		}
+		// 如果都禁用则不设置listenType
+	}
 
 	return cfg
 }
 
 // BuildTunnelURL 根据配置生成隧道 URL
-func (c *TunnelConfig) BuildTunnelURL() string {
+func (c *TunnelConfig) BuildTunnelConfigURL() string {
 	protocol := c.Type
 	if protocol == "" {
 		protocol = "client" // 默认协议
@@ -352,14 +463,21 @@ func (c *TunnelConfig) BuildTunnelURL() string {
 		}
 	}
 
-	// 添加目标地址和端口
-	if c.TargetAddress != "" || c.TargetPort != "" {
+	// 添加目标地址和端口（包括扩展地址）
+	if c.TargetAddress != "" || c.TargetPort != "" || len(c.ExtendTargetAddresses) > 0 {
 		urlParts = append(urlParts, "/")
 		if c.TargetAddress != "" {
 			urlParts = append(urlParts, c.TargetAddress)
 		}
 		if c.TargetPort != "" {
 			urlParts = append(urlParts, ":"+c.TargetPort)
+		}
+
+		// 添加扩展地址（逗号分隔）
+		if len(c.ExtendTargetAddresses) > 0 {
+			for _, addr := range c.ExtendTargetAddresses {
+				urlParts = append(urlParts, ","+addr)
+			}
 		}
 	}
 
@@ -412,6 +530,20 @@ func (c *TunnelConfig) BuildTunnelURL() string {
 		queryParams = append(queryParams, fmt.Sprintf("proxy=%s", c.Proxy))
 	}
 
+	// 根据listenType生成notcp和noudp参数
+	if c.ListenType != "" {
+		switch c.ListenType {
+		case "TCP":
+			queryParams = append(queryParams, "notcp=0")
+			queryParams = append(queryParams, "noudp=1")
+		case "UDP":
+			queryParams = append(queryParams, "notcp=1")
+			queryParams = append(queryParams, "noudp=0")
+		case "ALL":
+			queryParams = append(queryParams, "notcp=0")
+			queryParams = append(queryParams, "noudp=0")
+		}
+	}
 	// 添加查询参数
 	if len(queryParams) > 0 {
 		urlParts = append(urlParts, "?"+strings.Join(queryParams, "&"))
@@ -479,4 +611,125 @@ func parseAddressPort(part string) (addr, port string) {
 		}
 	}
 	return
+}
+
+// BuildTunnelURLs 将 Tunnel 对象转换为 URL 字符串
+// 用于在其他地方方便地获取隧道的URL配置
+func BuildTunnelURLs(tunnel models.Tunnel) string {
+
+	protocol := string(tunnel.Type)
+	if protocol == "" {
+		protocol = "client" // 默认协议
+	}
+
+	var urlParts []string
+	urlParts = append(urlParts, protocol+"://")
+
+	// 添加密码
+	if tunnel.Password != nil && *tunnel.Password != "" {
+		urlParts = append(urlParts, *tunnel.Password+"@")
+	}
+
+	// 添加隧道地址和端口
+	if tunnel.TunnelAddress != "" || tunnel.TunnelPort != "" {
+		if tunnel.TunnelAddress != "" {
+			urlParts = append(urlParts, tunnel.TunnelAddress)
+		}
+		if tunnel.TunnelPort != "" {
+			urlParts = append(urlParts, ":"+tunnel.TunnelPort)
+		}
+	}
+
+	// 添加目标地址和端口（包括扩展地址）
+	if tunnel.TargetAddress != "" || tunnel.TargetPort != "" || (tunnel.ExtendTargetAddress != nil && len(*tunnel.ExtendTargetAddress) > 0) {
+		urlParts = append(urlParts, "/")
+		if tunnel.TargetAddress != "" {
+			urlParts = append(urlParts, tunnel.TargetAddress)
+		}
+		if tunnel.TargetPort != "" {
+			urlParts = append(urlParts, ":"+tunnel.TargetPort)
+		}
+
+		// 添加扩展地址（逗号分隔）
+		if tunnel.ExtendTargetAddress != nil && len(*tunnel.ExtendTargetAddress) > 0 {
+			for _, addr := range *tunnel.ExtendTargetAddress {
+				urlParts = append(urlParts, ","+addr)
+			}
+		}
+	}
+
+	// 构建查询参数
+	var queryParams []string
+
+	// 只有非空且非inherit才添加log参数
+	if tunnel.LogLevel != "" && tunnel.LogLevel != models.LogLevelInherit {
+		queryParams = append(queryParams, fmt.Sprintf("log=%s", tunnel.LogLevel))
+	}
+
+	// 只有server模式且非空且非inherit才添加tls参数
+	if tunnel.TLSMode != "" && tunnel.TLSMode != models.TLSModeInherit && protocol == "server" {
+		queryParams = append(queryParams, fmt.Sprintf("tls=%s", tunnel.TLSMode))
+	}
+
+	if tunnel.CertPath != nil && *tunnel.CertPath != "" {
+		queryParams = append(queryParams, fmt.Sprintf("crt=%s", url.QueryEscape(*tunnel.CertPath)))
+	}
+
+	if tunnel.KeyPath != nil && *tunnel.KeyPath != "" {
+		queryParams = append(queryParams, fmt.Sprintf("key=%s", url.QueryEscape(*tunnel.KeyPath)))
+	}
+
+	if tunnel.Min != nil {
+		queryParams = append(queryParams, fmt.Sprintf("min=%d", *tunnel.Min))
+	}
+
+	if tunnel.Max != nil {
+		queryParams = append(queryParams, fmt.Sprintf("max=%d", *tunnel.Max))
+	}
+
+	if tunnel.Mode != nil {
+		queryParams = append(queryParams, fmt.Sprintf("mode=%d", *tunnel.Mode))
+	}
+
+	if tunnel.Read != nil && *tunnel.Read != "" {
+		queryParams = append(queryParams, fmt.Sprintf("read=%s", *tunnel.Read))
+	}
+
+	if tunnel.Rate != nil {
+		queryParams = append(queryParams, fmt.Sprintf("rate=%d", *tunnel.Rate))
+	}
+
+	if tunnel.Slot != nil {
+		queryParams = append(queryParams, fmt.Sprintf("slot=%d", *tunnel.Slot))
+	}
+
+	if tunnel.ProxyProtocol != nil {
+		proxyVal := "0"
+		if *tunnel.ProxyProtocol {
+			proxyVal = "1"
+		}
+		queryParams = append(queryParams, fmt.Sprintf("proxy=%s", proxyVal))
+	}
+
+	// 根据listenType生成notcp和noudp参数
+	if tunnel.ListenType != nil && *tunnel.ListenType != "" {
+		switch *tunnel.ListenType {
+		case "TCP":
+			queryParams = append(queryParams, "notcp=0")
+			queryParams = append(queryParams, "noudp=1")
+		case "UDP":
+			queryParams = append(queryParams, "notcp=1")
+			queryParams = append(queryParams, "noudp=0")
+		case "ALL":
+			queryParams = append(queryParams, "notcp=0")
+			queryParams = append(queryParams, "noudp=0")
+		}
+	}
+
+	// 添加查询参数
+	if len(queryParams) > 0 {
+		urlParts = append(urlParts, "?"+strings.Join(queryParams, "&"))
+	}
+
+	return strings.Join(urlParts, "")
 }

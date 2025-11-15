@@ -47,18 +47,15 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 
 	query := `
 		SELECT
-			t.id, t.instance_id, t.name, t.endpoint_id, t.type,
+			t.id, t.name, t.endpoint_id, t.type,
 			t.tunnel_address, t.tunnel_port, t.target_address, t.target_port,
-			t.tls_mode, t.cert_path, t.key_path, t.log_level, t.command_line,
-			t.password, t.restart, t.status, t.min, t.max, t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.pool, t.ping,
-			t.mode, t.read, t.rate,
-			t.created_at, t.updated_at,
+			t.status, t.instance_id,
+			t.tcp_rx + t.udp_rx as total_rx,
+			t.tcp_tx + t.udp_tx as total_tx,
 			e.name AS endpoint_name,
-			tag.id AS tag_id, tag.name AS tag_name
+			COALESCE(e.ver, '') as version
 		FROM tunnels t
 		LEFT JOIN endpoints e ON t.endpoint_id = e.id
-		LEFT JOIN tunnel_groups tt ON t.id = tt.tunnel_id
-		LEFT JOIN groups tag ON tt.group_id = tag.id
 		ORDER BY t.created_at DESC
 	`
 
@@ -71,24 +68,18 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 	var tunnels []TunnelWithStats
 	for rows.Next() {
 		var t TunnelWithStats
-		var typeStr, statusStr, tlsModeStr, logLevelStr string
+		var typeStr, statusStr string
 		var instanceID sql.NullString
-		var certPathNS, keyPathNS, passwordNS sql.NullString
 		var endpointNameNS sql.NullString
-		var minNS, maxNS sql.NullInt64
-		var tagIDNS sql.NullInt64
-		var tagNameNS sql.NullString
-		var poolNS, pingNS sql.NullInt64
+		var version string
 
 		err := rows.Scan(
-			&t.ID, &instanceID, &t.Name, &t.EndpointID, &typeStr,
+			&t.ID, &t.Name, &t.EndpointID, &typeStr,
 			&t.TunnelAddress, &t.TunnelPort, &t.TargetAddress, &t.TargetPort,
-			&tlsModeStr, &certPathNS, &keyPathNS, &logLevelStr, &t.CommandLine,
-			&passwordNS, &t.Restart, &statusStr, &minNS, &maxNS, &t.Traffic.TCPRx, &t.Traffic.TCPTx, &t.Traffic.UDPRx, &t.Traffic.UDPTx, &poolNS, &pingNS,
-			&t.Mode, &t.Read, &t.Rate,
-			&t.CreatedAt, &t.UpdatedAt,
+			&statusStr, &instanceID,
+			&t.TotalRx, &t.TotalTx,
 			&endpointNameNS,
-			&tagIDNS, &tagNameNS,
+			&version,
 		)
 		if err != nil {
 			return nil, err
@@ -98,82 +89,13 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 		if instanceID.Valid {
 			t.InstanceID = &instanceID.String
 		}
-		if certPathNS.Valid {
-			t.CertPath = &certPathNS.String
-		}
-		if keyPathNS.Valid {
-			t.KeyPath = &keyPathNS.String
-		}
-		if passwordNS.Valid {
-			t.Password = &passwordNS.String
-		}
 		if endpointNameNS.Valid {
 			t.EndpointName = endpointNameNS.String
 		}
-		if minNS.Valid {
-			minVal := minNS.Int64
-			t.Min = &minVal
-		}
-		if maxNS.Valid {
-			maxVal := maxNS.Int64
-			t.Max = &maxVal
-		}
 
-		// 处理pool和ping字段
-		if poolNS.Valid {
-			poolVal := poolNS.Int64
-			t.Traffic.Pool = &poolVal
-		}
-		if pingNS.Valid {
-			pingVal := pingNS.Int64
-			t.Traffic.Ping = &pingVal
-		}
-
-		// 处理分组信息
-		if tagIDNS.Valid && tagNameNS.Valid {
-			t.Group = &Group{
-				ID:   tagIDNS.Int64,
-				Name: tagNameNS.String,
-			}
-		}
-
-		t.Type = typeStr
+		t.Type = TunnelType(typeStr)
 		t.Status = TunnelStatus(statusStr)
-		t.TLSMode = TLSMode(tlsModeStr)
-		t.LogLevel = LogLevel(logLevelStr)
-
-		// 计算总流量
-		t.Traffic.Total = t.Traffic.TCPRx + t.Traffic.TCPTx + t.Traffic.UDPRx + t.Traffic.UDPTx
-
-		// 格式化流量数据
-		t.Traffic.Formatted.TCPRx = formatTrafficBytes(t.Traffic.TCPRx)
-		t.Traffic.Formatted.TCPTx = formatTrafficBytes(t.Traffic.TCPTx)
-		t.Traffic.Formatted.UDPRx = formatTrafficBytes(t.Traffic.UDPRx)
-		t.Traffic.Formatted.UDPTx = formatTrafficBytes(t.Traffic.UDPTx)
-		t.Traffic.Formatted.Total = formatTrafficBytes(t.Traffic.Total)
-
-		// 设置类型和头像 - 统一返回英文类型
-		t.Type = string(t.Type)
-		// 保持英文类型，不再转换为中文
-		if len(t.EndpointName) > 0 {
-			t.Avatar = string([]rune(t.EndpointName)[0])
-		}
-
-		// 设置状态信息
-		switch t.Status {
-		case StatusRunning:
-			t.StatusInfo.Type = "success"
-			t.StatusInfo.Text = "运行中"
-		case StatusError:
-			t.StatusInfo.Type = "warning"
-			t.StatusInfo.Text = "错误"
-		case StatusOffline:
-			t.StatusInfo.Type = "default"
-			t.StatusInfo.Text = "离线"
-		default:
-			t.StatusInfo.Type = "danger"
-			t.StatusInfo.Text = "已停止"
-		}
+		t.EndpointVersion = version
 
 		tunnels = append(tunnels, t)
 	}
@@ -1320,6 +1242,158 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 	return tunnel, nil
 }
 
+// CreateTunnelAndWait 先调用 NodePass API 创建隧道，等待 SSE 通知数据库记录后更新名称
+// 如果等待超时，则回退到原来的手动创建逻辑
+func (s *Service) NewCreateTunnelAndWait(req Tunnel, timeout time.Duration) (*Tunnel, error) {
+	log.Infof("[API] 创建隧道（等待模式）: %v", req.Name)
+
+	// 使用GORM检查端点是否存在
+	var endpoint models.Endpoint
+	err := s.db.Where("id = ?", req.EndpointID).First(&endpoint).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return nil, errors.New("指定的端点不存在")
+		}
+		return nil, err
+	}
+
+	// 构建命令行（复用原有逻辑）
+	var commandLine string = nodepass.BuildTunnelURLs(req)
+	log.Infof("[API] 构建的命令行: %s", commandLine)
+
+	// 1. 使用 NodePass 客户端创建实例
+	resp, err := nodepass.CreateInstance(endpoint.ID, commandLine)
+	if err != nil {
+		log.Errorf("[NodePass] 创建实例失败 endpoint=%d cmd=%s err=%v", req.EndpointID, commandLine, err)
+		return nil, err
+	}
+
+	log.Infof("[API] NodePass API 创建成功，instanceID=%s，开始等待SSE通知", resp.ID)
+
+	// 2. 轮询等待数据库中存在该 endpointId+instanceId 记录（通过 SSE 通知）
+	deadline := time.Now().Add(timeout)
+	var tunnelID int64
+	waitSuccess := false
+
+	for time.Now().Before(deadline) {
+		var tunnel models.Tunnel
+		err := s.db.Select("id").Where("endpoint_id = ? AND instance_id = ?", req.EndpointID, resp.ID).First(&tunnel).Error
+		if err == nil {
+			tunnelID = tunnel.ID
+			log.Infof("[API] 检测到SSE已创建隧道记录，tunnelID=%d, instanceID=%s", tunnelID, resp.ID)
+			waitSuccess = true
+			break
+		}
+		if err != gorm.ErrRecordNotFound {
+			log.Warnf("[API] 查询隧道记录时出错: %v", err)
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	now := time.Now()
+
+	if waitSuccess {
+		log.Infof("[API] 等待SSE成功，更新隧道名称为: %s", req.Name)
+
+		// 3. 更新隧道字段（包括名称和其他配置字段）
+		updateFields := map[string]interface{}{
+			"name":       req.Name,
+			"updated_at": now,
+		}
+
+		err = s.db.Model(&models.Tunnel{}).Where("id = ?", tunnelID).Updates(updateFields).Error
+		if err != nil {
+			log.Warnf("[API] 更新隧道名称失败: %v", err)
+		}
+
+		// 记录操作日志
+		waitMessage := "隧道创建成功（等待模式）"
+		operationLog := models.TunnelOperationLog{
+			TunnelID:   &tunnelID,
+			TunnelName: req.Name,
+			Action:     models.OperationActionCreate,
+			Status:     "success",
+			Message:    &waitMessage,
+			CreatedAt:  time.Now(),
+		}
+		s.db.Create(&operationLog)
+
+		// 异步更新端点隧道计数（避免死锁）
+		go func(endpointID int64) {
+			time.Sleep(50 * time.Millisecond)
+			s.updateEndpointTunnelCount(endpointID)
+		}(req.EndpointID)
+
+		// 设置隧道别名
+		if err := s.SetTunnelAlias(tunnelID, req.Name); err != nil {
+			log.Warnf("[API] 设置隧道别名失败，但不影响创建: %v", err)
+		}
+
+		log.Infof("[API] 隧道创建成功（等待模式）: %s (ID: %d, InstanceID: %s)", req.Name, req.ID, req.InstanceID)
+		return &req, nil
+	}
+
+	// 4. 等待超时，执行原来的手动创建逻辑
+	log.Warnf("[API] 等待SSE超时，回退到手动创建模式: %s", resp.ID)
+
+	// 尝试查询是否已存在相同 endpointId+instanceId 的记录（可能由 SSE 先行创建）
+	var existingTunnel models.Tunnel
+	err = s.db.Select("id").Where("endpoint_id = ? AND instance_id = ?", req.EndpointID, resp.ID).First(&existingTunnel).Error
+	var existingID int64
+	if err == nil {
+		existingID = existingTunnel.ID
+	} else if err != gorm.ErrRecordNotFound {
+		return nil, err
+	}
+
+	if existingID == 0 {
+		// 创建新记录
+		err = s.db.Create(&req).Error
+		if err != nil {
+			return nil, err
+		}
+		existingID = req.ID
+	} else {
+		// 已存在，仅更新名称
+		err := s.db.Model(&models.Tunnel{}).Where("id = ?", existingID).Updates(map[string]interface{}{
+			"name":       req.Name,
+			"updated_at": now,
+		}).Error
+		if err != nil {
+			return nil, err
+		}
+	}
+
+	// 记录操作日志
+	fallbackMessage := "隧道创建成功（超时回退模式）"
+	operationLog := models.TunnelOperationLog{
+		TunnelID:   &existingID,
+		TunnelName: req.Name,
+		Action:     models.OperationActionCreate,
+		Status:     "success",
+		Message:    &fallbackMessage,
+		CreatedAt:  time.Now(),
+	}
+	err = s.db.Create(&operationLog).Error
+	if err != nil {
+		return nil, err
+	}
+
+	// 异步更新端点隧道计数（避免死锁）
+	go func(endpointID int64) {
+		time.Sleep(50 * time.Millisecond)
+		s.updateEndpointTunnelCount(endpointID)
+	}(req.EndpointID)
+
+	// 设置隧道别名
+	if err := s.SetTunnelAlias(existingID, req.Name); err != nil {
+		log.Warnf("[API] 设置隧道别名失败，但不影响创建: %v", err)
+	}
+
+	log.Infof("[API] 隧道创建成功（超时回退模式）: %s (ID: %d, InstanceID: %s)", req.Name, req.ID, req.InstanceID)
+	return &req, nil
+}
+
 // PatchTunnel 更新隧道别名或重启策略
 func (s *Service) PatchTunnel(id int64, updates map[string]interface{}) error {
 	log.Infof("[API] 修补隧道: %v, 更新: %+v", id, updates)
@@ -2383,12 +2457,13 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 	args = append(args, params.PageSize, offset)
 
 	// 优化策略3：先查询主表数据，再批量获取关联数据
+	// 只查询需要的字段，在SQL中计算汇总值
 	selectFields := `
-		SELECT 
-			t.id, t.name, t.endpoint_id, t.type, t.tunnel_address, t.tunnel_port, 
-			t.target_address, t.target_port, t.tls_mode, t.log_level, t.status, 
-			t.created_at, t.updated_at, t.min, t.max, t.password, t.restart, 
-			t.pool, t.ping, t.instance_id, t.tcp_rx, t.tcp_tx, t.udp_rx, t.udp_tx, t.mode, t.read, t.rate, t.slot
+		SELECT
+			t.id, t.name, t.endpoint_id, t.type, t.tunnel_address, t.tunnel_port,
+			t.target_address, t.target_port, t.status, t.instance_id,
+			t.tcp_rx + t.udp_rx as total_rx,
+			t.tcp_tx + t.udp_tx as total_tx
 	`
 
 	// 执行主查询
@@ -2400,7 +2475,6 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 	defer rows.Close()
 
 	var tunnels []TunnelWithStats
-	var tunnelIDs []int64
 	var endpointIDs []int64
 
 	// 收集主数据
@@ -2409,46 +2483,14 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 		err := rows.Scan(
 			&tunnel.ID, &tunnel.Name, &tunnel.EndpointID, &tunnel.Type,
 			&tunnel.TunnelAddress, &tunnel.TunnelPort, &tunnel.TargetAddress, &tunnel.TargetPort,
-			&tunnel.TLSMode, &tunnel.LogLevel, &tunnel.Status, &tunnel.CreatedAt, &tunnel.UpdatedAt,
-			&tunnel.Min, &tunnel.Max, &tunnel.Password, &tunnel.Restart,
-			&tunnel.Pool, &tunnel.Ping, &tunnel.InstanceID,
-			&tunnel.TCPRx, &tunnel.TCPTx, &tunnel.UDPRx, &tunnel.UDPTx,
-			&tunnel.Mode, &tunnel.Read, &tunnel.Rate, &tunnel.Slot,
+			&tunnel.Status, &tunnel.InstanceID,
+			&tunnel.TotalRx, &tunnel.TotalTx,
 		)
 		if err != nil {
 			return nil, fmt.Errorf("扫描隧道数据失败: %v", err)
 		}
 
-		// 设置流量统计
-		tunnel.Traffic.TCPRx = tunnel.TCPRx
-		tunnel.Traffic.TCPTx = tunnel.TCPTx
-		tunnel.Traffic.UDPRx = tunnel.UDPRx
-		tunnel.Traffic.UDPTx = tunnel.UDPTx
-		tunnel.Traffic.Pool = tunnel.Pool
-		tunnel.Traffic.Ping = tunnel.Ping
-		tunnel.Traffic.Total = tunnel.TCPRx + tunnel.TCPTx + tunnel.UDPRx + tunnel.UDPTx
-
-		// 设置状态信息
-		switch tunnel.Status {
-		case "running":
-			tunnel.StatusInfo.Type = "success"
-			tunnel.StatusInfo.Text = "运行"
-		case "stopped":
-			tunnel.StatusInfo.Type = "danger"
-			tunnel.StatusInfo.Text = "停止"
-		case "error":
-			tunnel.StatusInfo.Type = "warning"
-			tunnel.StatusInfo.Text = "错误"
-		case "offline":
-			tunnel.StatusInfo.Type = "default"
-			tunnel.StatusInfo.Text = "离线"
-		}
-
-		// 设置类型 - 统一返回英文类型
-		// 保持英文类型，不再转换为中文
-
 		tunnels = append(tunnels, tunnel)
-		tunnelIDs = append(tunnelIDs, tunnel.ID)
 		endpointIDs = append(endpointIDs, tunnel.EndpointID)
 	}
 
@@ -2464,15 +2506,6 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 			return nil, fmt.Errorf("获取主控信息失败: %v", err)
 		}
 
-		// 批量获取分组信息（如果需要）
-		var groupMap map[int64][]models.Group
-		if params.GroupID != "" && params.GroupID != "all" {
-			groupMap, err = s.getGroupsByTunnelIDs(tunnelIDs)
-			if err != nil {
-				return nil, fmt.Errorf("获取分组信息失败: %v", err)
-			}
-		}
-
 		// 填充关联数据
 		for i := range tunnels {
 			// 填充endpoint信息
@@ -2481,13 +2514,6 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 				// 添加version字段到tunnel中
 				if tunnels[i].EndpointVersion == "" {
 					tunnels[i].EndpointVersion = endpoint.Version
-				}
-			}
-
-			// 填充分组信息
-			if groupMap != nil {
-				if groups, exists := groupMap[tunnels[i].ID]; exists && len(groups) > 0 {
-					tunnels[i].Group = &groups[0] // 取第一个分组
 				}
 			}
 		}

@@ -67,7 +67,6 @@ import SimpleCreateTunnelModal from "@/components/tunnels/simple-create-tunnel-m
 import BatchCreateModal from "@/components/tunnels/batch-create-modal";
 import BatchUrlCreateTunnelModal from "@/components/tunnels/batch-url-create-tunnel-modal";
 import GroupManagementModal from "@/components/tunnels/group-management-modal";
-import SimpleGroupModal from "@/components/tunnels/simple-group-modal";
 import ScenarioCreateModal, {
   ScenarioType,
 } from "@/components/tunnels/scenario-create-modal";
@@ -94,25 +93,17 @@ interface Tunnel {
   tunnelPort: string;
   targetAddress: string;
   targetPort: string;
-  status: {
-    type: "success" | "danger" | "warning";
-    text: string;
-  };
-  avatar: string;
+  status: "running" | "stopped" | "error" | "offline";
   // 客户端模式的连接池配置
   min?: number;
   max?: number;
   // 新增字段
-  mode: "0"; // 服务端/客户端模式：服务端默认0，客户端默认1
-  read: ""; // 数据读取超时
-  rate: ""; // 速率限制
-  // 流量统计信息
-  traffic?: {
-    tcpRx: number;
-    tcpTx: number;
-    udpRx: number;
-    udpTx: number;
-  };
+  mode?: "0"; // 服务端/客户端模式：服务端默认0，客户端默认1
+  read?: string; // 数据读取超时
+  rate?: number; // 速率限制
+  // 流量统计信息 - 汇总值
+  totalRx: number; // TCP + UDP 接收汇总
+  totalTx: number; // TCP + UDP 发送汇总
   // 分组信息
   group?: Group;
 }
@@ -529,7 +520,7 @@ export default function TunnelsPage() {
 
     // 过滤出已停止的实例
     const stoppedTunnels = selectedTunnels.filter(
-      (tunnel) => tunnel.status.type !== "success",
+      (tunnel) => tunnel.status !== "running",
     );
 
     if (stoppedTunnels.length === 0) {
@@ -623,7 +614,7 @@ export default function TunnelsPage() {
 
     // 过滤出运行中的实例
     const runningTunnels = selectedTunnels.filter(
-      (tunnel) => tunnel.status.type === "success",
+      (tunnel) => tunnel.status === "running",
     );
 
     if (runningTunnels.length === 0) {
@@ -717,7 +708,7 @@ export default function TunnelsPage() {
 
     // 过滤出运行中的实例（只有运行中的实例才能重启）
     const runningTunnels = selectedTunnels.filter(
-      (tunnel) => tunnel.status.type === "success",
+      (tunnel) => tunnel.status === "running",
     );
 
     if (runningTunnels.length === 0) {
@@ -828,11 +819,6 @@ export default function TunnelsPage() {
   const [groupManagementModalOpen, setGroupManagementModalOpen] =
     useState(false);
 
-  // 简化分组设置模态框状态
-  const [simpleGroupModalOpen, setSimpleGroupModalOpen] = useState(false);
-  const [currentTunnelForGroup, setCurrentTunnelForGroup] =
-    useState<Tunnel | null>(null);
-
   // 场景创建模态框状态
   const [scenarioModalOpen, setScenarioModalOpen] = useState(false);
   const [selectedScenarioType, setSelectedScenarioType] = useState<
@@ -880,21 +866,30 @@ export default function TunnelsPage() {
     return type === "server" ? "服务端" : "客户端";
   };
 
-  // 格式化流量信息组件
-  const TrafficInfo = ({ traffic }: { traffic?: Tunnel["traffic"] }) => {
-    if (!traffic) {
-      return (
-        <div className="text-xs text-default-400 text-left">
-          <div>↑ -</div>
-          <div>↓ -</div>
-        </div>
-      );
+  // 根据状态获取状态颜色和文本
+  const getStatusInfo = (status: string) => {
+    switch (status) {
+      case "running":
+        return { type: "success" as const, text: "运行" };
+      case "stopped":
+        return { type: "danger" as const, text: "停止" };
+      case "error":
+        return { type: "warning" as const, text: "错误" };
+      case "offline":
+        return { type: "default" as const, text: "离线" };
+      default:
+        return { type: "default" as const, text: "未知" };
     }
+  };
 
-    // 合并 TCP 和 UDP 流量
-    const totalRx = traffic.tcpRx + traffic.udpRx;
-    const totalTx = traffic.tcpTx + traffic.udpTx;
-
+  // 格式化流量信息组件
+  const TrafficInfo = ({
+    totalRx,
+    totalTx,
+  }: {
+    totalRx: number;
+    totalTx: number;
+  }) => {
     return (
       <div className="text-xs text-left">
         <div className="text-default-600">
@@ -957,29 +952,18 @@ export default function TunnelsPage() {
           <div className="flex flex-col items-end gap-2">
             <Chip
               className="text-xs"
-              color={tunnel.status.type}
+              color={getStatusInfo(tunnel.status).type}
               size="sm"
               variant="flat"
             >
-              {tunnel.status.text}
+              {getStatusInfo(tunnel.status).text}
             </Chip>
-            {tunnel.group && (
-              <Chip
-                className="text-xs cursor-pointer"
-                color="primary"
-                size="sm"
-                variant="flat"
-                onClick={() => handleGroupClick(tunnel)}
-              >
-                {tunnel.group.name}
-              </Chip>
-            )}
           </div>
         </div>
 
         <div className="flex justify-between items-center">
           <div className="flex-1">
-            <TrafficInfo traffic={tunnel.traffic} />
+            <TrafficInfo totalRx={tunnel.totalRx} totalTx={tunnel.totalTx} />
           </div>
           <div className="flex gap-1">
             <Button
@@ -993,14 +977,14 @@ export default function TunnelsPage() {
             </Button>
             <Button
               isIconOnly
-              color={tunnel.status.type === "success" ? "warning" : "success"}
+              color={tunnel.status === "running" ? "warning" : "success"}
               size="sm"
               variant="light"
               onClick={() => handleToggleStatus(tunnel)}
             >
               <FontAwesomeIcon
                 className="text-xs"
-                icon={tunnel.status.type === "success" ? faStop : faPlay}
+                icon={tunnel.status === "running" ? faStop : faPlay}
               />
             </Button>
             <Dropdown placement="bottom-end">
@@ -1012,7 +996,7 @@ export default function TunnelsPage() {
               <DropdownMenu aria-label="操作选项">
                 <DropdownItem
                   key="restart"
-                  isDisabled={tunnel.status.type !== "success"}
+                  isDisabled={tunnel.status !== "running"}
                   startContent={<FontAwesomeIcon icon={faRotateRight} />}
                   onClick={() => handleRestart(tunnel)}
                 >
@@ -1034,13 +1018,6 @@ export default function TunnelsPage() {
                   onClick={() => handleEditClick(tunnel)}
                 >
                   重命名
-                </DropdownItem>
-                <DropdownItem
-                  key="group"
-                  startContent={<FontAwesomeIcon icon={faTag} />}
-                  onClick={() => handleGroupClick(tunnel)}
-                >
-                  设置分组
                 </DropdownItem>
                 <DropdownItem
                   key="delete"
@@ -1133,10 +1110,7 @@ export default function TunnelsPage() {
         tunnel.id === tunnelId
           ? {
             ...tunnel,
-            status: {
-              type: isRunning ? ("success" as const) : ("danger" as const),
-              text: isRunning ? "运行中" : "已停止",
-            },
+            status: isRunning ? "running" : "stopped",
           }
           : tunnel,
       ),
@@ -1155,7 +1129,7 @@ export default function TunnelsPage() {
 
       return;
     }
-    const isRunning = tunnel.status.type === "success";
+    const isRunning = tunnel.status === "running";
 
     toggleStatus(isRunning, {
       instanceId: tunnel.instanceId,
@@ -1230,12 +1204,6 @@ export default function TunnelsPage() {
   // 处理分组管理
   const handleGroupManagement = () => {
     setGroupManagementModalOpen(true);
-  };
-
-  // 处理简化分组设置
-  const handleGroupClick = (tunnel: Tunnel) => {
-    setCurrentTunnelForGroup(tunnel);
-    setSimpleGroupModalOpen(true);
   };
 
   const handleGroupSaved = useCallback(() => {
@@ -2169,17 +2137,17 @@ export default function TunnelsPage() {
                       {/* 状态列 */}
                       <TableCell className="max-w-[50px]">
                         <Chip
-                          color={tunnel.status.type}
+                          color={getStatusInfo(tunnel.status).type}
                           size="sm"
                           variant="flat"
                         >
-                          {tunnel.status.text}
+                          {getStatusInfo(tunnel.status).text}
                         </Chip>
                       </TableCell>
 
                       {/* 流量列 */}
                       <TableCell className="text-sm text-default-600 font-mono  max-w-[80px]">
-                        <TrafficInfo traffic={tunnel.traffic} />
+                        <TrafficInfo totalRx={tunnel.totalRx} totalTx={tunnel.totalTx} />
                       </TableCell>
 
                       {/* 操作列 */}
@@ -2204,7 +2172,7 @@ export default function TunnelsPage() {
                           </Tooltip>
                           <Tooltip
                             content={
-                              tunnel.status.type === "success"
+                              tunnel.status === "running"
                                 ? "停止实例"
                                 : "启动实例"
                             }
@@ -2213,7 +2181,7 @@ export default function TunnelsPage() {
                             <Button
                               isIconOnly
                               color={
-                                tunnel.status.type === "success"
+                                tunnel.status === "running"
                                   ? "warning"
                                   : "success"
                               }
@@ -2222,7 +2190,7 @@ export default function TunnelsPage() {
                                 <FontAwesomeIcon
                                   className="text-xs"
                                   icon={
-                                    tunnel.status.type === "success"
+                                    tunnel.status === "running"
                                       ? faStop
                                       : faPlay
                                   }
@@ -2236,7 +2204,7 @@ export default function TunnelsPage() {
                             <Button
                               isIconOnly
                               color="secondary"
-                              isDisabled={tunnel.status.type !== "success"}
+                              isDisabled={tunnel.status !== "running"}
                               size="sm"
                               startContent={
                                 <FontAwesomeIcon
@@ -2483,21 +2451,13 @@ export default function TunnelsPage() {
         onSaved={handleGroupSaved}
       />
 
-      {/* 简化分组设置模态框 */}
-      <SimpleGroupModal
-        currentGroup={currentTunnelForGroup?.group}
-        isOpen={simpleGroupModalOpen}
-        tunnelId={currentTunnelForGroup?.id?.toString() || ""}
-        onOpenChange={setSimpleGroupModalOpen}
-        onSaved={handleGroupSaved}
-      />
 
       {/* Quick Edit Modal */}
       {editModalOpen && editTunnel && (
         <SimpleCreateTunnelModal
-          editData={editTunnel as any}
           isOpen={editModalOpen}
           mode="edit"
+          tunnelId={editTunnel.id}
           onOpenChange={(open) => setEditModalOpen(open)}
           onSaved={() => {
             setEditModalOpen(false);

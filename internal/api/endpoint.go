@@ -1077,16 +1077,16 @@ func buildTunnelFromInstance(endpointID int64, inst nodepass.InstanceResult) *mo
 	tunnel.Status = models.TunnelStatus(inst.Status)
 	tunnel.ProxyProtocol = inst.ProxyProtocol
 
-	// 转换实例标签为map格式并序列化为JSON
-	if len(inst.Tags) > 0 {
-		tagsStr, err := nodepass.ConvertInstanceTagsToTagsMap(inst.Tags)
-		if err == nil {
-			tunnel.Tags = tagsStr
-		}
-	}
+	tunnel.Tags = inst.Meta.Tags
+	tunnel.Peer = inst.Meta.Peer
 
 	if tunnel.Mode == nil {
 		tunnel.Mode = (*models.TunnelMode)(inst.Mode)
+	}
+
+	// 复制Config字段到configLine
+	if inst.Config != nil {
+		tunnel.ConfigLine = inst.Config
 	}
 
 	return tunnel

@@ -36,28 +36,37 @@ func (Endpoint) TableName() string {
 	return "endpoints"
 }
 
+// Peer 表示隧道的对端信息
+type Peer struct {
+	SID   *string `json:"sid"`
+	Type  *string `json:"type"`
+	Alias *string `json:"alias"`
+}
+
 // Tunnel 隧道表 - GORM模型
 type Tunnel struct {
-	ID            int64        `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
-	Name          string       `json:"name" gorm:"type:text;not null;index;column:name"`
-	EndpointID    int64        `json:"endpointId" gorm:"not null;index;column:endpoint_id;uniqueIndex:idx_tunnel_unique"`
-	Type          TunnelType   `json:"type" gorm:"type:text;not null;column:type"`
-	Status        TunnelStatus `json:"status" gorm:"type:text;default:'stopped';index;column:status"`
-	TunnelAddress string       `json:"tunnelAddress" gorm:"type:text;not null;column:tunnel_address"`
-	TunnelPort    string       `json:"tunnelPort" gorm:"type:text;not null;column:tunnel_port"`
-	TargetAddress string       `json:"targetAddress" gorm:"type:text;not null;column:target_address"`
-	TargetPort    string       `json:"targetPort" gorm:"type:text;not null;column:target_port"`
-	TLSMode       TLSMode      `json:"tlsMode" gorm:"type:text;column:tls_mode"`
-	CertPath      *string      `json:"certPath,omitempty" gorm:"type:text;column:cert_path"`
-	KeyPath       *string      `json:"keyPath,omitempty" gorm:"type:text;column:key_path"`
-	LogLevel      LogLevel     `json:"logLevel" gorm:"type:text;default:'inherit';column:log_level"`
-	CommandLine   string       `json:"commandLine" gorm:"type:text;not null;column:command_line"`
-	Password      *string      `json:"password,omitempty" gorm:"type:text;column:password"`
-	InstanceID    *string      `json:"instanceId,omitempty" gorm:"type:text;index;column:instance_id;uniqueIndex:idx_tunnel_unique"`
-	Restart       *bool        `json:"restart" gorm:"type:bool;column:restart"`
-	Mode          *TunnelMode  `json:"mode,omitempty" gorm:"type:int;column:mode"`
-	Rate          *int64       `json:"rate,omitempty" gorm:"type:int;column:rate"`
-	Read          *string      `json:"read,omitempty" gorm:"type:text;column:read"`
+	ID                  int64        `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
+	Name                string       `json:"name" gorm:"type:text;not null;index;column:name"`
+	EndpointID          int64        `json:"endpointId" gorm:"not null;index;column:endpoint_id;uniqueIndex:idx_tunnel_unique"`
+	Type                TunnelType   `json:"type" gorm:"type:text;not null;column:type"`
+	Status              TunnelStatus `json:"status" gorm:"type:text;default:'stopped';index;column:status"`
+	TunnelAddress       string       `json:"tunnelAddress" gorm:"type:text;not null;column:tunnel_address"`
+	TunnelPort          string       `json:"tunnelPort" gorm:"type:text;not null;column:tunnel_port"`
+	TargetAddress       string       `json:"targetAddress" gorm:"type:text;not null;column:target_address"`
+	TargetPort          string       `json:"targetPort" gorm:"type:text;not null;column:target_port"`
+	ListenType          *string      `json:"listenType,omitempty" gorm:"type:text;column:listen_type"`
+	ExtendTargetAddress *[]string    `json:"extendTargetAddress,omitempty" gorm:"type:text;serializer:json;column:extend_target_address"`
+	TLSMode             TLSMode      `json:"tlsMode" gorm:"type:text;column:tls_mode"`
+	CertPath            *string      `json:"certPath,omitempty" gorm:"type:text;column:cert_path"`
+	KeyPath             *string      `json:"keyPath,omitempty" gorm:"type:text;column:key_path"`
+	LogLevel            LogLevel     `json:"logLevel" gorm:"type:text;default:'inherit';column:log_level"`
+	CommandLine         string       `json:"commandLine" gorm:"type:text;not null;column:command_line"`
+	Password            *string      `json:"password,omitempty" gorm:"type:text;column:password"`
+	InstanceID          *string      `json:"instanceId,omitempty" gorm:"type:text;index;column:instance_id;uniqueIndex:idx_tunnel_unique"`
+	Restart             *bool        `json:"restart" gorm:"type:bool;column:restart"`
+	Mode                *TunnelMode  `json:"mode,omitempty" gorm:"type:int;column:mode"`
+	Rate                *int64       `json:"rate,omitempty" gorm:"type:int;column:rate"`
+	Read                *string      `json:"read,omitempty" gorm:"type:text;column:read"`
 
 	EnableLogStore bool `json:"enable_log_store,omitempty" gorm:"default:true;type:bool;column:enable_log_store"`
 
@@ -84,11 +93,11 @@ type Tunnel struct {
 	ProxyProtocol *bool `json:"proxyProtocol,omitempty" gorm:"column:proxy_protocol"`
 
 	// 标签 (JSON格式存储为map[string]string)
-	Tags *string `json:"tags,omitempty" gorm:"type:text;column:tags"`
+	Tags *map[string]string `json:"tags,omitempty" gorm:"type:text;serializer:json;column:tags"`
 
 	// 配置行 (存储Config字段内容)
-	ConfigLine *string `json:"configLine,omitempty" gorm:"type:text;column:config_line"`
-
+	ConfigLine    *string   `json:"configLine,omitempty" gorm:"type:text;column:config_line"`
+	Peer          *Peer     `json:"peer,omitempty" gorm:"type:text;serializer:json;column:peer"`
 	CreatedAt     time.Time `json:"createdAt" gorm:"autoCreateTime;index;column:created_at"`
 	UpdatedAt     time.Time `json:"updatedAt" gorm:"autoUpdateTime;column:updated_at"`
 	LastEventTime NullTime  `json:"lastEventTime,omitempty" gorm:"column:last_event_time;type:datetime"`

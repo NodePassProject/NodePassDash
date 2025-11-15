@@ -13,10 +13,9 @@ import {
   Divider,
   Tabs,
   Tab,
+  NumberInput,
   Textarea,
   Tooltip,
-  RadioGroup,
-  Radio
 } from "@heroui/react";
 import { useEffect, useState, useCallback, useMemo } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -30,11 +29,13 @@ import {
   faCirclePlus,
   faCircleCheck,
   faDice,
+  faPen,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 import { motion, AnimatePresence } from "framer-motion";
 
 import { buildApiUrl } from "@/lib/utils";
+import RenameTunnelModal from "./rename-tunnel-modal";
 
 interface EndpointSimple {
   id: string;
@@ -51,7 +52,7 @@ interface SimpleCreateTunnelModalProps {
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
   mode?: "create" | "edit";
-  editData?: Partial<Record<string, any>> & { id?: number };
+  tunnelId?: string | number; // 编辑模式时传入隧道ID
 }
 
 // 版本比较函数
@@ -91,7 +92,7 @@ export default function SimpleCreateTunnelModal({
   onOpenChange,
   onSaved,
   mode: modalMode = "create",
-  editData,
+  tunnelId,
 }: SimpleCreateTunnelModalProps) {
   // 响应式标签位置配置
   const [isMobile, setIsMobile] = useState(false);
@@ -118,6 +119,8 @@ export default function SimpleCreateTunnelModal({
   // 可选配置展开状态
   const [isOptionalExpanded, setIsOptionalExpanded] = useState(false);
   const [isEnableLoadBalancing, setEnableLoadBalancing] = useState(false);
+  // 重命名modal状态
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
 
   // 表单数据
   const [formData, setFormData] = useState({
@@ -131,7 +134,7 @@ export default function SimpleCreateTunnelModal({
     tlsMode: "0", // 空值表示继承，其他值：0 | 1 | 2
     logLevel: "", // 空值表示继承，其他值：debug, info, warn, error, event
     password: "",
-    listenType: "0",
+    listenType: "ALL", // ALL | TCP | UDP
     min: "",
     max: "",
     slot: "", // 最大连接数限制
@@ -143,37 +146,91 @@ export default function SimpleCreateTunnelModal({
     rate: "", // 速率限制
     proxyProtocol: "", // Proxy Protocol 支持：开启/关闭
     loadBalancingIPs: "", // 负载均衡IP地址，一行一个
+    extendTargetAddresses: "", // 扩展目标地址，一行一个
   });
 
-  // 当打开时加载端点，并在 edit 时填充表单
+  // 当打开时加载端点，并在 edit 时从API获取隧道详情
   useEffect(() => {
     if (!isOpen) return;
-    const fetchEndpoints = async () => {
+
+    const fetchData = async () => {
       try {
         setLoading(true);
-        const res = await fetch(
+
+        // 获取主控列表
+        const endpointsRes = await fetch(
           buildApiUrl("/api/endpoints/simple?excludeFailed=true"),
         );
-        const data = await res.json();
+        const endpointsData = await endpointsRes.json();
+        setEndpoints(endpointsData);
 
-        setEndpoints(data);
-        if (data.length) {
-          let defaultEp = String(data[0].id);
+        // 获取编辑数据（如果是编辑模式）
+        if (modalMode === "edit" && tunnelId) {
+          const tunnelRes = await fetch(
+            buildApiUrl(`/api/tunnels/${tunnelId}/details`),
+          );
 
-          if (editData && editData.endpointId) {
-            const epFound = data.find(
-              (e: EndpointSimple) =>
-                String(e.id) === String(editData.endpointId),
-            );
-
-            if (epFound) defaultEp = String(epFound.id);
+          if (!tunnelRes.ok) {
+            throw new Error("获取隧道详情失败");
           }
-          setFormData((prev) => ({ ...prev, apiEndpoint: defaultEp }));
+
+          const tunnel = await tunnelRes.json();
+
+          // 检查是否有扩展目标地址
+          const hasExtendTargetAddress = tunnel.extendTargetAddress &&
+            (Array.isArray(tunnel.extendTargetAddress) ? tunnel.extendTargetAddress.length > 0 : tunnel.extendTargetAddress !== "");
+
+          setFormData((prev) => ({
+            ...prev,
+            type: tunnel.type || prev.type,
+            tunnelName: tunnel.name || "",
+            tunnelAddress: tunnel.tunnelAddress || "",
+            tunnelPort: String(tunnel.listenPort || ""),
+            targetAddress: tunnel.targetAddress || "",
+            targetPort: String(tunnel.targetPort || ""),
+            tlsMode: tunnel.tlsMode ?? prev.tlsMode,
+            logLevel: tunnel.logLevel ?? prev.logLevel,
+            password: tunnel.password || "",
+            min: tunnel.min != null ? String(tunnel.min) : "",
+            max: tunnel.max != null ? String(tunnel.max) : "",
+            slot: tunnel.slot != null ? String(tunnel.slot) : "",
+            certPath: tunnel.certPath || "",
+            keyPath: tunnel.keyPath || "",
+            apiEndpoint: String(tunnel.endpoint?.id || prev.apiEndpoint),
+            // 新增字段
+            mode: tunnel.mode != null ? tunnel.mode : (tunnel.type === "server" ? 0 : 1),
+            read: tunnel.read || "",
+            rate: tunnel.rate != null ? String(tunnel.rate) : "",
+            proxyProtocol:
+              tunnel.proxyProtocol != null
+                ? tunnel.proxyProtocol
+                  ? "true"
+                  : "false"
+                : "",
+            loadBalancingIPs: tunnel.loadBalancingIPs || "",
+            // 扩展目标地址和监听类型
+            listenType: tunnel.listenType || "ALL",
+            extendTargetAddresses: tunnel.extendTargetAddress
+              ? Array.isArray(tunnel.extendTargetAddress)
+                ? tunnel.extendTargetAddress.join("\n")
+                : tunnel.extendTargetAddress
+              : "",
+          }));
+
+          // 如果有扩展目标地址，自动展开可选配置
+          if (hasExtendTargetAddress) {
+            setIsOptionalExpanded(true);
+            setEnableLoadBalancing(true);
+          }
+        } else if (endpointsData.length) {
+          // 创建模式，设置默认主控
+          setFormData((prev) => ({ ...prev, apiEndpoint: String(endpointsData[0].id) }));
         }
       } catch (err) {
+        const errorMsg = err instanceof Error ? err.message : "加载数据失败";
         addToast({
-          title: "获取主控失败",
-          description: "无法获取主控列表",
+          title: modalMode === "edit" ? "获取隧道详情失败" : "获取主控失败",
+          description: errorMsg,
           color: "danger",
         });
       } finally {
@@ -181,47 +238,8 @@ export default function SimpleCreateTunnelModal({
       }
     };
 
-    fetchEndpoints();
-
-    // 填充编辑数据
-    if (modalMode === "edit" && editData) {
-      setFormData((prev) => ({
-        ...prev,
-        type: editData.type || prev.type,
-        tunnelName: editData.name || "",
-        tunnelAddress: editData.tunnelAddress || "",
-        tunnelPort: String(editData.tunnelPort || ""),
-        targetAddress: editData.targetAddress || "",
-        targetPort: String(editData.targetPort || ""),
-        tlsMode: editData.tlsMode ?? prev.tlsMode,
-        logLevel: editData.logLevel ?? prev.logLevel,
-        password: editData.password || "",
-        min: editData.min != null ? String(editData.min) : "",
-        max: editData.max != null ? String(editData.max) : "",
-        slot: editData.slot != null ? String(editData.slot) : "",
-        certPath: editData.certPath || "",
-        keyPath: editData.keyPath || "",
-        apiEndpoint: String(editData.endpointId || prev.apiEndpoint),
-        // 新增字段
-        mode:
-          editData.mode != null
-            ? editData.mode
-            : editData.type === "server"
-              ? 0
-              : 1,
-        read: editData.read || "",
-        rate: editData.rate || "",
-        proxyProtocol:
-          editData.proxyProtocol != null
-            ? editData.proxyProtocol
-              ? "true"
-              : "false"
-            : "",
-        enableLoadBalancing: editData.enableLoadBalancing || false,
-        loadBalancingIPs: editData.loadBalancingIPs || "",
-      }));
-    }
-  }, [isOpen]);
+    fetchData();
+  }, [isOpen, modalMode, tunnelId]);
 
   const handleSubmit = async () => {
     const {
@@ -245,6 +263,8 @@ export default function SimpleCreateTunnelModal({
       rate,
       proxyProtocol,
       loadBalancingIPs,
+      listenType,
+      extendTargetAddresses,
     } = formData;
 
     // 基本校验
@@ -301,7 +321,7 @@ export default function SimpleCreateTunnelModal({
       setSubmitting(true);
       const url =
         modalMode === "edit"
-          ? buildApiUrl(`/api/tunnels/${editData?.id}`)
+          ? buildApiUrl(`/api/tunnels/${tunnelId}`)
           : buildApiUrl("/api/tunnels");
       const method = modalMode === "edit" ? "PUT" : "POST";
       const res = await fetch(url, {
@@ -336,6 +356,14 @@ export default function SimpleCreateTunnelModal({
           proxyProtocol:
             proxyProtocol !== "" ? proxyProtocol === "true" : undefined,
           loadBalancingIPs: loadBalancingIPs ? loadBalancingIPs : undefined,
+          // 扩展目标地址和监听类型
+          listenType: listenType && listenType !== "ALL" ? listenType : undefined,
+          extendTargetAddress: extendTargetAddresses
+            ? extendTargetAddresses
+              .split("\n")
+              .map((addr) => addr.trim())
+              .filter((addr) => addr.length > 0)
+            : undefined,
           resetTraffic: modalMode === "edit" ? resetChecked : undefined,
         }),
       });
@@ -510,11 +538,20 @@ export default function SimpleCreateTunnelModal({
                       {/* 实例名称 */}
                       <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
                         <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>实例名称</label>
-                        <Input
-                          placeholder="xxx-tunnel"
-                          value={formData.tunnelName}
-                          onValueChange={(v) => handleField("tunnelName", v)}
-                        />
+                        {modalMode === "edit" ? (
+                          <div
+                            className="flex-1 px-3 py-2 rounded-lg bg-default-100 cursor-pointer hover:bg-default-200 transition-colors flex items-center justify-between"
+                            onClick={() => setRenameModalOpen(true)}
+                          >
+                            <span className="text-sm text-foreground">{formData.tunnelName}</span>
+                          </div>
+                        ) : (
+                          <Input
+                            placeholder="xxx-tunnel"
+                            value={formData.tunnelName}
+                            onValueChange={(v) => handleField("tunnelName", v)}
+                          />
+                        )}
                       </div>
 
                       {/* 服务端模式选择 - col-2 布局，总高度 40px */}
@@ -545,14 +582,14 @@ export default function SimpleCreateTunnelModal({
                             color="success"
                             size="sm"
                             fullWidth
-                            selectedKey={String(formData.listenType)}
+                            selectedKey={formData.listenType}
                             onSelectionChange={(key) =>
                               handleField("listenType", key as string)
                             }
                           >
-                            <Tab key="0" title="ALL" />
-                            <Tab key="1" title="TCP" />
-                            <Tab key="2" title="UDP" />
+                            <Tab key="ALL" title="ALL" />
+                            <Tab key="TCP" title="TCP" />
+                            <Tab key="UDP" title="UDP" />
                           </Tabs>
                         </div>
                       </>
@@ -568,11 +605,17 @@ export default function SimpleCreateTunnelModal({
                       </div>
                       <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
                         <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>隧道端口</label>
-                        <Input
+                        <NumberInput
                           placeholder="0-65535"
                           type="number"
-                          value={formData.tunnelPort}
-                          onValueChange={(v) => handleField("tunnelPort", v)}
+                          minValue={0}
+                          maxValue={65535}
+                          labelPlacement="outside-left"
+                          value={formData.tunnelPort ? Number(formData.tunnelPort) : undefined}
+                          onValueChange={(v) => handleField("tunnelPort", v ? String(v) : "")}
+                          formatOptions={{
+                            useGrouping: false,
+                          }}
                           endContent={
                             isServerType ? (
                               <Tooltip content="随机生成端口号">
@@ -611,7 +654,12 @@ export default function SimpleCreateTunnelModal({
                                   if (!isOptionalExpanded) {
                                     setIsOptionalExpanded(true)
                                   }
-                                  setEnableLoadBalancing(!isEnableLoadBalancing)
+                                  const newState = !isEnableLoadBalancing;
+                                  setEnableLoadBalancing(newState);
+                                  // 关闭负载均衡时清空扩展目标地址
+                                  if (!newState) {
+                                    setFormData((prev) => ({ ...prev, extendTargetAddresses: "" }));
+                                  }
                                 }}
                               >
                                 <FontAwesomeIcon
@@ -628,11 +676,17 @@ export default function SimpleCreateTunnelModal({
                       </div>
                       <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
                         <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>目标端口</label>
-                        <Input
+                        <NumberInput
                           placeholder="0-65535"
                           type="number"
-                          value={formData.targetPort}
-                          onValueChange={(v) => handleField("targetPort", v)}
+                          minValue={0}
+                          maxValue={65535}
+                          labelPlacement="outside-left"
+                          value={formData.targetPort ? Number(formData.targetPort) : undefined}
+                          onValueChange={(v) => handleField("targetPort", v ? String(v) : "")}
+                          formatOptions={{
+                            useGrouping: false,
+                          }}
                         />
                       </div>
 
@@ -802,18 +856,18 @@ export default function SimpleCreateTunnelModal({
                           >
 
                             {isShowClientPoolMin && (
-                                <>
-                                  {passwordInput}
-                                  <Input
-                                    label="连接池最小容量"
-                                    placeholder="64(默认值)"
-                                    type="number"
-                                    value={formData.min}
-                                    onValueChange={(v) => handleField("min", v)}
-                                  />
-                                  {proxyProtocolSelect}
-                                </>
-                              )}
+                              <>
+                                {passwordInput}
+                                <Input
+                                  label="连接池最小容量"
+                                  placeholder="64(默认值)"
+                                  type="number"
+                                  value={formData.min}
+                                  onValueChange={(v) => handleField("min", v ? String(v) : "")}
+                                />
+                                {proxyProtocolSelect}
+                              </>
+                            )}
                             {isClientType &&
                               formData.mode === 1 && (
                                 <>
@@ -828,7 +882,7 @@ export default function SimpleCreateTunnelModal({
                                   placeholder="1024(默认值)"
                                   type="number"
                                   value={formData.max}
-                                  onValueChange={(v) => handleField("max", v)}
+                                  onValueChange={(v) => handleField("max", v ? String(v) : "")}
                                 />
                                 {proxyProtocolSelect}
                               </>
@@ -855,18 +909,18 @@ export default function SimpleCreateTunnelModal({
                               type="number"
                               placeholder="100"
                               value={formData.rate}
-                              onValueChange={(v) => handleField("rate", v)}
+                              onValueChange={(v) => handleField("rate", v ? String(v) : "")}
                             />
                             <Input
                               label="最大连接数限制"
                               placeholder="100"
                               type="number"
                               value={formData.slot}
-                              onValueChange={(v) => handleField("slot", v)}
+                              onValueChange={(v) => handleField("slot", v ? String(v) : "")}
                             />
                           </div>
 
-                          {/* 负载均衡IP地址 */}
+                          {/* 扩展目标地址 */}
                           <div className="flex items-start gap-2">
                             {isEnableLoadBalancing && (
                               <Textarea
@@ -881,10 +935,10 @@ export default function SimpleCreateTunnelModal({
                                     </Tooltip>
                                   </div>
                                 }
-                                placeholder="逗号分隔如：192.168.1.1,192.168.1.2,192.168.1.3"
-                                minRows={3}
-                                value={formData.loadBalancingIPs}
-                                onValueChange={(v) => handleField("loadBalancingIPs", v)}
+                                placeholder="192.168.1.1&#10;192.168.1.2"
+                                minRows={2}
+                                value={formData.extendTargetAddresses}
+                                onValueChange={(v) => handleField("extendTargetAddresses", v)}
                                 className="flex-1"
                               />
                             )}
@@ -926,6 +980,19 @@ export default function SimpleCreateTunnelModal({
           </>
         )}
       </ModalContent>
+
+      {/* 重命名模态框 */}
+      {modalMode === "edit" && tunnelId && (
+        <RenameTunnelModal
+          isOpen={renameModalOpen}
+          tunnelId={String(tunnelId)}
+          currentName={formData.tunnelName}
+          onOpenChange={setRenameModalOpen}
+          onRenamed={(newName) => {
+            setFormData((prev) => ({ ...prev, tunnelName: newName }));
+          }}
+        />
+      )}
     </Modal>
   );
 }

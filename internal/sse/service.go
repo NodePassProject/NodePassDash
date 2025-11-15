@@ -280,15 +280,9 @@ func buildTunnel(payload SSEResp) *models.Tunnel {
 	tunnel.Restart = payload.Instance.Restart
 	tunnel.Name = *payload.Instance.Alias
 	tunnel.Status = models.TunnelStatus(payload.Instance.Status)
-	//tunnel.ProxyProtocol = payload.Instance.ProxyProtocol
-
-	// 转换实例标签为map格式并序列化为JSON
-	if len(payload.Instance.Tags) > 0 {
-		tagsStr, err := nodepass.ConvertInstanceTagsToTagsMap(payload.Instance.Tags)
-		if err == nil {
-			tunnel.Tags = tagsStr
-		}
-	}
+	tunnel.ProxyProtocol = payload.Instance.ProxyProtocol
+	tunnel.Tags = payload.Instance.Meta.Tags
+	tunnel.Peer = payload.Instance.Meta.Peer
 
 	if tunnel.Mode == nil {
 		tunnel.Mode = (*models.TunnelMode)(payload.Instance.Mode)
