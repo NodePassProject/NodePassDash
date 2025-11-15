@@ -154,51 +154,6 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
               </Card>
             </div>
 
-            {/* 新手模式 */}
-            <div className="group">
-              <Card className="shadow-sm border border-divider/30 hover:border-success/30 transition-all duration-300 hover:shadow-md bg-background/60 backdrop-blur-sm">
-                <CardHeader className="pb-3">
-                  <div className="flex items-center gap-3">
-                    <div className="p-2 rounded-lg bg-success/10 group-hover:bg-success/20 transition-colors">
-                      <Icon
-                        className="text-success"
-                        icon="lucide:graduation-cap"
-                        width={18}
-                      />
-                    </div>
-                    <div>
-                      <span className="font-semibold text-foreground">
-                        新手模式
-                      </span>
-                      <p className="text-xs text-default-500 mt-1">
-                        为初学者提供引导帮助
-                      </p>
-                    </div>
-                  </div>
-                </CardHeader>
-                <CardBody className="pt-0 pb-4">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex-1 min-w-0">
-                      <p className="text-sm text-default-700 mb-2 font-medium">
-                        启用新手引导和提示功能
-                      </p>
-                      <p className="text-xs text-default-500 leading-relaxed">
-                        适合初次使用系统的用户，提供详细的操作指引
-                      </p>
-                    </div>
-                    <Switch
-                      classNames={{
-                        wrapper: "group-data-[hover=true]:bg-success-100",
-                      }}
-                      color="success"
-                      isSelected={settings.isBeginnerMode}
-                      size="lg"
-                      onValueChange={toggleBeginnerMode}
-                    />
-                  </div>
-                </CardBody>
-              </Card>
-            </div>
 
             {/* 隐私模式 */}
             <div className="group">

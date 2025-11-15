@@ -6,7 +6,6 @@ import { useTheme } from "next-themes";
 // 设置类型定义
 interface Settings {
   theme: "light" | "dark" | "system";
-  isBeginnerMode: boolean;
   isPrivacyMode: boolean;
   isExperimentalMode: boolean;
   autoCheckUpdates: boolean;
@@ -19,7 +18,6 @@ interface Settings {
 // 默认设置
 const defaultSettings: Settings = {
   theme: "system",
-  isBeginnerMode: true,
   isPrivacyMode: true,
   isExperimentalMode: false,
   autoCheckUpdates: false,
@@ -33,7 +31,6 @@ const defaultSettings: Settings = {
 interface SettingsContextType {
   settings: Settings;
   updateTheme: (theme: "light" | "dark" | "system") => void;
-  toggleBeginnerMode: () => void;
   togglePrivacyMode: () => void;
   toggleExperimentalMode: () => void;
   updateSettings: (newSettings: Partial<Settings>) => void;
@@ -122,16 +119,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     setTheme(newTheme);
   };
 
-  // 切换新手模式
-  const toggleBeginnerMode = () => {
-    const newSettings = {
-      ...settings,
-      isBeginnerMode: !settings.isBeginnerMode,
-    };
-
-    setSettings(newSettings);
-    saveSettings(newSettings);
-  };
 
   // 切换隐私模式
   const togglePrivacyMode = () => {
@@ -206,7 +193,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   const contextValue: SettingsContextType = {
     settings,
     updateTheme,
-    toggleBeginnerMode,
     togglePrivacyMode,
     toggleExperimentalMode,
     updateSettings,
