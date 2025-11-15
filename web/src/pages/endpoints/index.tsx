@@ -162,6 +162,12 @@ export default function EndpointsPage() {
     return "card";
   });
 
+  // 表格排序状态 - 默认不排序
+  const [sortDescriptor, setSortDescriptor] = useState<{
+    column: string | React.Key;
+    direction: "ascending" | "descending";
+  } | null>(null);
+
   // 组件挂载和卸载管理
   useEffect(() => {
     isMountedRef.current = true;
@@ -233,6 +239,29 @@ export default function EndpointsPage() {
   const formatUrl = (url: string, apiPath: string) => {
     return formatUrlWithPrivacy(url, apiPath, settings.isPrivacyMode);
   };
+
+  // 获取排序后的端点列表 - 仅当有排序条件时才排序
+  const sortedEndpoints = sortDescriptor
+    ? endpoints.slice().sort((a, b) => {
+        const key = sortDescriptor.column as keyof FormattedEndpoint;
+        let aValue: any = a[key];
+        let bValue: any = b[key];
+
+        // 处理不同数据类型的比较
+        if (typeof aValue === "string") {
+          aValue = aValue.toLowerCase();
+          bValue = (bValue as string).toLowerCase();
+        }
+
+        if (aValue < bValue) {
+          return sortDescriptor.direction === "ascending" ? -1 : 1;
+        }
+        if (aValue > bValue) {
+          return sortDescriptor.direction === "ascending" ? 1 : -1;
+        }
+        return 0;
+      })
+    : endpoints;
 
   const handleAddEndpoint = async (data: EndpointFormData) => {
     try {
@@ -1289,16 +1318,28 @@ export default function EndpointsPage() {
         </div>
       ) : (
         /* 表格布局 */
-        <Table aria-label="API 主控列表" className="mt-4">
+        <Table
+          aria-label="API 主控列表"
+          className="mt-4"
+          sortDescriptor={sortDescriptor ?? undefined}
+          onSortChange={(descriptor) => {
+            if (descriptor.column) {
+              setSortDescriptor({
+                column: descriptor.column,
+                direction: descriptor.direction ?? "ascending",
+              });
+            }
+          }}
+        >
           <TableHeader>
             <TableColumn key="id">ID</TableColumn>
-            <TableColumn key="name" className="min-w-[140px]">
+            <TableColumn allowsSorting key="name" className="min-w-[140px]">
               名称
             </TableColumn>
             <TableColumn key="version" className="w-24">
               版本
             </TableColumn>
-            <TableColumn key="url" className="min-w-[200px]">
+            <TableColumn allowsSorting key="url" className="min-w-[200px]">
               URL
             </TableColumn>
             <TableColumn key="apikey" className="min-w-[220px]">
@@ -1331,7 +1372,7 @@ export default function EndpointsPage() {
               </>
             ) : (
               <>
-                {endpoints.map((ep) => {
+                {sortedEndpoints.map((ep) => {
                   const realTimeData = getEndpointDisplayData(ep);
 
                   return (
