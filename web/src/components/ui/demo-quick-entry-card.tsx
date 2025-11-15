@@ -172,11 +172,11 @@ export function DemoQuickEntryCard() {
                 {action.iconType === "fontawesome" ? (
                   <FontAwesomeIcon
                     className="!w-4 !h-4"
-                    icon={action.icon}
+                    icon={action.icon as any}
                     style={{ width: "16px", height: "16px" }}
                   />
                 ) : (
-                  <Icon height={16} icon={action.icon} width={16} />
+                  <Icon height={16} icon={action.icon as string} width={16} />
                 )}
               </div>
 

@@ -6,6 +6,9 @@ interface TrafficData {
   udpRx: number;
   udpTx: number;
   ping?: number | null;
+  pool?: number | null;
+  tcps?: number | null;
+  udps?: number | null;
 }
 
 interface TrafficStatsCardProps {

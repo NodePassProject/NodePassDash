@@ -423,7 +423,7 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                       <div className="flex flex-col gap-2">
                         <label className="text-sm font-medium text-default-700">开始日期</label>
                         <DatePicker
-                          value={startDate ? parseDate(startDate.split('T')[0]) : undefined}
+                          value={startDate ? (parseDate(startDate.split('T')[0]) as any) : undefined}
                           onChange={(date) => {
                             if (date) {
                               // 格式化为 YYYY-MM-DD 然后拼接时区时间
@@ -459,7 +459,7 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                           </Checkbox>
                         </div>
                         <DatePicker
-                          value={!isUnlimited && endDate ? parseDate(endDate.split('T')[0]) : undefined}
+                          value={!isUnlimited && endDate ? (parseDate(endDate.split('T')[0]) as any) : undefined}
                           onChange={(date) => {
                             if (date) {
                               // 格式化为 YYYY-MM-DD 然后拼接时区时间
@@ -474,7 +474,7 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                           showMonthAndYearPickers
                           variant="bordered"
                           isDisabled={isUnlimited}
-                          minValue={startDate ? parseDate(startDate.split('T')[0]) : undefined}
+                          minValue={startDate ? (parseDate(startDate.split('T')[0]) as any) : undefined}
                           granularity="day"
                         />
                       </div>

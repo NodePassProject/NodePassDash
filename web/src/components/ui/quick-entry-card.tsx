@@ -100,11 +100,11 @@ export function QuickEntryCard() {
                 {action.iconType === "fontawesome" ? (
                   <FontAwesomeIcon
                     className="!w-5 !h-5"
-                    icon={action.icon}
+                    icon={action.icon as any}
                     style={{ width: "20px", height: "20px" }}
                   />
                 ) : (
-                  <Icon height={20} icon={action.icon} width={20} />
+                  <Icon height={20} icon={action.icon as string} width={20} />
                 )}
               </div>
 

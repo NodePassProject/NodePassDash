@@ -65,10 +65,10 @@ export function SystemSettings() {
             defaultSelectedKeys={["zh-CN"]}
             label="界面语言"
           >
-            <SelectItem key="zh-CN" value="zh-CN">
+            <SelectItem key="zh-CN">
               简体中文
             </SelectItem>
-            <SelectItem key="en-US" value="en-US">
+            <SelectItem key="en-US">
               English
             </SelectItem>
           </Select>

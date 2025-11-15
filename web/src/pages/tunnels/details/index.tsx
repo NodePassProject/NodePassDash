@@ -3013,7 +3013,7 @@ export default function TunnelDetailPage() {
                 }}
                 isDisabled={isRealtimeLogging}
                 size="sm"
-                value={selectedLogDate ? parseDate(selectedLogDate) : null}
+                value={selectedLogDate ? (parseDate(selectedLogDate) as any) : null}
                 onChange={(date) => {
                   if (!isRealtimeLogging && date) {
                     const newDate = date.toString();
@@ -3137,8 +3137,8 @@ export default function TunnelDetailPage() {
           <CardBody>
             <FileLogViewer
               date={logDate}
-              endpointId={tunnelInfo?.endpoint?.id || ""}
-              instanceId={tunnelInfo?.instanceId || ""}
+              endpointId={String(tunnelInfo?.endpoint?.id || "")}
+              instanceId={String(tunnelInfo?.instanceId || "")}
               isRealtimeMode={isRealtimeLogging}
               triggerRefresh={logRefreshTrigger}
               onClearLogs={handleLogClear}

@@ -381,22 +381,28 @@ export default function SimpleCreateTunnelModal({
     }
   }, []);
 
-  // 缓存密码输入框渲染结果
-  const passwordInput = useMemo(() => {
-    // 尝试不同的匹配方式
-    const selectedEndpoint1 = endpoints.find(
+  // 提取通用的 endpoint 获取逻辑
+  const selectedEndpoint = useMemo(() => {
+    const found1 = endpoints.find(
       (ep) => ep.id === formData.apiEndpoint,
     );
-    const selectedEndpoint2 = endpoints.find(
+    const found2 = endpoints.find(
       (ep) => String(ep.id) === String(formData.apiEndpoint),
     );
-    const selectedEndpoint3 = endpoints.find(
+    const found3 = endpoints.find(
       (ep) => Number(ep.id) === Number(formData.apiEndpoint),
     );
+    return found2 || found1 || found3;
+  }, [endpoints, formData.apiEndpoint]);
 
-    // 使用最安全的匹配方式
-    const selectedEndpoint =
-      selectedEndpoint2 || selectedEndpoint1 || selectedEndpoint3;
+  // 缓存常用的条件判断
+  const isServerType = useMemo(() => formData.type === "server", [formData.type]);
+  const isClientType = useMemo(() => formData.type === "client", [formData.type]);
+  const isShowClientPoolMin = useMemo(() => isClientType && formData.mode !== 1, [isClientType, formData.mode]);
+  const isShowServerTLS = useMemo(() => isServerType && formData.tlsMode === "2", [isServerType, formData.tlsMode]);
+
+  // 缓存密码输入框渲染结果
+  const passwordInput = useMemo(() => {
     const hasVersion =
       selectedEndpoint &&
       selectedEndpoint.version &&
@@ -425,7 +431,7 @@ export default function SimpleCreateTunnelModal({
         onValueChange={(v) => handleField("password", v)}
       />
     );
-  }, [endpoints, formData.apiEndpoint, formData.password, isPasswordVisible, handleField]);
+  }, [selectedEndpoint, formData.password, isPasswordVisible, handleField]);
 
   // 缓存 Proxy Protocol 选择器渲染结果
   const proxyProtocolSelect = useMemo(() => {
@@ -525,9 +531,9 @@ export default function SimpleCreateTunnelModal({
                               handleField("mode", key as string)
                             }
                           >
-                            <Tab key="0" title="自动" disabled={formData.type === "client"} />
-                            <Tab key="1" title={formData.type === "server" ? "反向" : "单端"} />
-                            <Tab key="2" title={formData.type === "server" ? "正向" : "双端"} />
+                            <Tab key="0" title="自动" disabled={isClientType} />
+                            <Tab key="1" title={isServerType ? "反向" : "单端"} />
+                            <Tab key="2" title={isServerType ? "正向" : "双端"} />
                           </Tabs>
                         </div>
                         <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
@@ -568,7 +574,7 @@ export default function SimpleCreateTunnelModal({
                           value={formData.tunnelPort}
                           onValueChange={(v) => handleField("tunnelPort", v)}
                           endContent={
-                            formData.type === "server" ? (
+                            isServerType ? (
                               <Tooltip content="随机生成端口号">
                                 <button
                                   type="button"
@@ -631,7 +637,7 @@ export default function SimpleCreateTunnelModal({
                       </div>
 
                       {/* TLS 下拉 - server */}
-                      {formData.type === "server" && (
+                      {isServerType && (
                         <>
                           <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
                             <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>日志级别</label>
@@ -649,29 +655,9 @@ export default function SimpleCreateTunnelModal({
                               }}
                             >
                               <SelectItem key="inherit">
-                                {(() => {
-                                  // 使用相同的匹配逻辑
-                                  const selectedEndpoint1 = endpoints.find(
-                                    (ep) => ep.id === formData.apiEndpoint,
-                                  );
-                                  const selectedEndpoint2 = endpoints.find(
-                                    (ep) =>
-                                      String(ep.id) === String(formData.apiEndpoint),
-                                  );
-                                  const selectedEndpoint3 = endpoints.find(
-                                    (ep) =>
-                                      Number(ep.id) === Number(formData.apiEndpoint),
-                                  );
-                                  const selectedEndpoint =
-                                    selectedEndpoint2 ||
-                                    selectedEndpoint1 ||
-                                    selectedEndpoint3;
-                                  const masterLog = selectedEndpoint?.log;
-
-                                  return masterLog
-                                    ? `继承 (${masterLog.toUpperCase()})`
-                                    : "继承主控";
-                                })()}
+                                {selectedEndpoint?.log
+                                  ? `继承 (${selectedEndpoint.log.toUpperCase()})`
+                                  : "继承主控"}
                               </SelectItem>
                               <SelectItem key="debug">Debug</SelectItem>
                               <SelectItem key="info">Info</SelectItem>
@@ -698,25 +684,6 @@ export default function SimpleCreateTunnelModal({
                             >
                               <SelectItem key="inherit">
                                 {(() => {
-                                  // 使用相同的匹配逻辑
-                                  const selectedEndpoint1 = endpoints.find(
-                                    (ep) => ep.id === formData.apiEndpoint,
-                                  );
-                                  const selectedEndpoint2 = endpoints.find(
-                                    (ep) =>
-                                      String(ep.id) === String(formData.apiEndpoint),
-                                  );
-                                  const selectedEndpoint3 = endpoints.find(
-                                    (ep) =>
-                                      Number(ep.id) === Number(formData.apiEndpoint),
-                                  );
-                                  const selectedEndpoint =
-                                    selectedEndpoint2 ||
-                                    selectedEndpoint1 ||
-                                    selectedEndpoint3;
-                                  const masterTls = selectedEndpoint?.tls;
-
-                                  // TLS模式转换
                                   const getTLSModeText = (mode: string) => {
                                     switch (mode) {
                                       case "0":
@@ -729,7 +696,7 @@ export default function SimpleCreateTunnelModal({
                                         return mode;
                                     }
                                   };
-
+                                  const masterTls = selectedEndpoint?.tls;
                                   return masterTls
                                     ? `继承 (${getTLSModeText(masterTls)})`
                                     : "继承主控";
@@ -743,7 +710,7 @@ export default function SimpleCreateTunnelModal({
                         </>
                       )}
                       {/* 证书路径 - server & tls 2 */}
-                      {formData.type === "server" && formData.tlsMode === "2" && (
+                      {isShowServerTLS && (
                         <>
                           <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
                             <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>证书路径</label>
@@ -763,7 +730,7 @@ export default function SimpleCreateTunnelModal({
                       )}
                     </div>
                     {/* 日志级别 */}
-                    {formData.type === "client" && (
+                    {isClientType && (
                       <div className={`pt-2 flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
                         <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>日志级别</label>
                         <Select
@@ -780,29 +747,9 @@ export default function SimpleCreateTunnelModal({
                           }}
                         >
                           <SelectItem key="inherit">
-                            {(() => {
-                              // 使用相同的匹配逻辑
-                              const selectedEndpoint1 = endpoints.find(
-                                (ep) => ep.id === formData.apiEndpoint,
-                              );
-                              const selectedEndpoint2 = endpoints.find(
-                                (ep) =>
-                                  String(ep.id) === String(formData.apiEndpoint),
-                              );
-                              const selectedEndpoint3 = endpoints.find(
-                                (ep) =>
-                                  Number(ep.id) === Number(formData.apiEndpoint),
-                              );
-                              const selectedEndpoint =
-                                selectedEndpoint2 ||
-                                selectedEndpoint1 ||
-                                selectedEndpoint3;
-                              const masterLog = selectedEndpoint?.log;
-
-                              return masterLog
-                                ? `继承 (${masterLog.toUpperCase()})`
-                                : "继承主控";
-                            })()}
+                            {selectedEndpoint?.log
+                              ? `继承 (${selectedEndpoint.log.toUpperCase()})`
+                              : "继承主控"}
                           </SelectItem>
                           <SelectItem key="debug">Debug</SelectItem>
                           <SelectItem key="info">Info</SelectItem>
@@ -851,11 +798,10 @@ export default function SimpleCreateTunnelModal({
                         }}
                       >
                         <div className="space-y-2">
-                          <div className={`grid grid-cols-${((formData.type === "client" && formData.mode === 2) || formData.type === "server") ? 3 : 1} gap-2`}
+                          <div className={`grid grid-cols-${((isClientType && formData.mode === 2) || isServerType) ? 3 : 1} gap-2`}
                           >
 
-                            {formData.type === "client" &&
-                              formData.mode !== 1 && (
+                            {isShowClientPoolMin && (
                                 <>
                                   {passwordInput}
                                   <Input
@@ -868,13 +814,13 @@ export default function SimpleCreateTunnelModal({
                                   {proxyProtocolSelect}
                                 </>
                               )}
-                            {formData.type === "client" &&
+                            {isClientType &&
                               formData.mode === 1 && (
                                 <>
                                   {proxyProtocolSelect}
                                 </>
                               )}
-                            {formData.type === "server" && (
+                            {isServerType && (
                               <>
                                 {passwordInput}
                                 <Input

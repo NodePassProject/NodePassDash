@@ -1590,7 +1590,6 @@ export default function EndpointDetailPage() {
 
                   <Input
                     isRequired
-                    isRequired
                     label="主控名称"
                     placeholder="请输入主控名称"
                     value={configForm.name}

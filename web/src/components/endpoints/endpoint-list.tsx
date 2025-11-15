@@ -33,7 +33,9 @@ interface EndpointListProps {
   loading?: boolean;
 }
 
-const getStatusColor = (status: EndpointStatusType): string => {
+const getStatusColor = (
+  status: EndpointStatusType,
+): "default" | "primary" | "secondary" | "success" | "warning" | "danger" => {
   switch (status) {
     case "ONLINE":
       return "success";
