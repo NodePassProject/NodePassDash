@@ -5,10 +5,11 @@ export type CellValueProps = React.HTMLAttributes<HTMLDivElement> & {
   value: React.ReactNode;
   icon: React.ReactNode;
   onPress?: () => void;
+  isInteractive?: boolean;
 };
 
 const CellValue = React.forwardRef<HTMLDivElement, CellValueProps>(
-  ({ label, value, icon, children, onPress, ...props }, ref) => {
+  ({ label, value, icon, children, onPress, isInteractive, ...props }, ref) => {
     const isClickable = Boolean(onPress);
 
     return (
@@ -36,7 +37,7 @@ const CellValue = React.forwardRef<HTMLDivElement, CellValueProps>(
       >
         {/* Icon column */}
         <div
-          className="flex-shrink-0 flex items-center justify-center bg-default-100 rounded-md transition-all duration-200 group-hover:bg-default-200 group-hover:scale-105"
+          className="flex-shrink-0 flex items-center justify-center bg-default-100 rounded-md transition-all duration-200 group-hover:bg-default-200 group-hover:scale-105 relative"
           style={{
             width: "calc(1.25rem + 0.125rem + 1.25rem)",
             height: "calc(1.25rem + 0.125rem + 1.25rem)",
@@ -45,6 +46,11 @@ const CellValue = React.forwardRef<HTMLDivElement, CellValueProps>(
           <div className="transition-transform duration-200 group-hover:scale-110">
             {icon}
           </div>
+
+          {/* Interactive indicator dot */}
+          {isInteractive && (
+            <div className="absolute top-1 right-1 w-1 h-1 bg-white rounded-full shadow-sm" />
+          )}
         </div>
 
         {/* Content column */}

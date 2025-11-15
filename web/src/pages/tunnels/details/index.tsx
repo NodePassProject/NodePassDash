@@ -1998,6 +1998,7 @@ export default function TunnelDetailPage() {
                   onPress={() =>
                     handleRestartToggle(!tunnelInfo.restart)
                   }
+                  isInteractive={true}
                 />
                 {/* 仅服务端模式显示TLS设置 */}
                 {tunnelInfo.type === "server" && (
@@ -2251,6 +2252,7 @@ export default function TunnelDetailPage() {
                       : "未设置"
                   }
                   onPress={handleInstanceTagClick}
+                  isInteractive={true}
                 />
                 <CellValue
                   icon={
@@ -2264,6 +2266,7 @@ export default function TunnelDetailPage() {
                   label="测试网络"
                   value={"点击测试连通性"}
                   onPress={() => setTcpingModalOpen(true)}
+                  isInteractive={true}
                 />
               </div>
               {/* 分隔线和命令行信息 */}
