@@ -17,7 +17,7 @@ export const NetworkQualityCard = ({
 
   // 计算延迟质量等级 (越低越好)
   const getLatencyQuality = (latency: number) => {
-    if (latency === 0) return { level: "未知", percentage: 0 };
+    if (latency === 0) return { level: "", percentage: 0 };
     if (latency <= 50) return { level: "优秀", percentage: 90 };
     if (latency <= 100) return { level: "良好", percentage: 70 };
     if (latency <= 200) return { level: "一般", percentage: 50 };
@@ -84,7 +84,7 @@ export const NetworkQualityCard = ({
                 }}
               >
                 <div className="text-sm md:text-base font-bold mb-1 text-pink-700 dark:text-pink-300">
-                  {ping > 0 ? `${ping}ms` : "—"}
+                  {ping >= 0 ? `${ping}ms` : "—"}
                 </div>
                 <div className="text-xs font-medium opacity-90 text-pink-600 dark:text-pink-400">
                   延迟 {latencyQuality.level}

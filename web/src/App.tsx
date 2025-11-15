@@ -19,7 +19,6 @@ import EndpointDetailsPage from "./pages/endpoints/details/index";
 import EndpointSSEDebugPage from "./pages/endpoints/sse-debug";
 import ExamplesPage from "./pages/examples";
 import IconComparisonPage from "./pages/icon-comparison";
-import ComponentsTestPage from "./pages/components-test";
 
 function App() {
   return (
@@ -44,7 +43,6 @@ function App() {
         <Route element={<ExamplesPage />} path="/docs" />
         <Route element={<DebugPage />} path="/debug" />
         <Route element={<IconComparisonPage />} path="/icon-comparison" />
-        <Route element={<ComponentsTestPage />} path="/components-test" />
         <Route element={<DashboardPage />} path="/" />
       </Routes>
     </DefaultLayout>

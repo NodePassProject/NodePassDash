@@ -35,7 +35,6 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
   const {
     settings,
     updateTheme,
-    toggleBeginnerMode,
     togglePrivacyMode,
     toggleExperimentalMode,
     updateSettings,
