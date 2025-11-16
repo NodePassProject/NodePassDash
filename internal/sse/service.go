@@ -10,7 +10,6 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"sync"
 	"time"
 
@@ -609,49 +608,71 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 
 	// 根据 tunnel 类型设置对应的 InstanceId 和要更新的字段列表
 	var updateColumns []string
-	if tunnel.Type == models.TunnelModeServer {
-		service.ServerInstanceId = &instanceID
-		service.ServerEndpointId = &tunnel.EndpointID
 
-		// 填充 tunnelPort
-		if tunnel.TunnelPort != "" {
-			if port, err := strconv.ParseInt(tunnel.TunnelPort, 10, 64); err == nil {
-				service.TunnelPort = &port
-			}
+	switch *peer.Type {
+	case "0":
+		if tunnel.Type == models.TunnelModeServer {
+			// 抛错
+			log.Errorf("服务 SID=%s 的 Type 为 0，但 tunnel 类型为 %s，跳过处理", *peer.SID, tunnel.Type)
+			return
 		}
-
-		// 查询并填充 tunnelEndpointName
-		var endpoint models.Endpoint
-		if err := s.db.First(&endpoint, tunnel.EndpointID).Error; err == nil {
-			service.TunnelEndpointName = &endpoint.Name
-		}
-
-		// 填充 EntranceHost 和 EntrancePort（server 的 targetAddress 和 targetPort）
-		service.EntranceHost = &tunnel.TargetAddress
-		if port, err := strconv.ParseInt(tunnel.TargetPort, 10, 64); err == nil {
-			service.EntrancePort = &port
-		}
-
-		updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "tunnel_endpoint_name", "entrance_host", "entrance_port"}
-	} else if tunnel.Type == models.TunnelModeClient {
 		service.ClientInstanceId = &instanceID
 		service.ClientEndpointId = &tunnel.EndpointID
-
-		// 如果 mode=2，填充 ExitHost 和 ExitPort
-		if tunnel.Mode != nil && *tunnel.Mode == 2 {
-			service.ExitHost = &tunnel.TargetAddress
-			if port, err := strconv.ParseInt(tunnel.TargetPort, 10, 64); err == nil {
-				service.ExitPort = &port
+		service.ExitHost = &tunnel.TargetAddress
+		service.ExitPort = &tunnel.TargetPort
+		service.EntranceHost = &tunnel.TunnelAddress
+		service.EntrancePort = &tunnel.TunnelPort
+		updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "entrance_host", "entrance_port"}
+	case "1":
+		if tunnel.Type == models.TunnelModeServer {
+			service.ServerInstanceId = &instanceID
+			service.ServerEndpointId = &tunnel.EndpointID
+			service.EntranceHost = &tunnel.TargetAddress
+			service.EntrancePort = &tunnel.TargetPort
+			service.TunnelPort = &tunnel.TunnelPort
+			// 查询并填充 tunnelEndpointName
+			var endpoint models.Endpoint
+			if err := s.db.First(&endpoint, tunnel.EndpointID).Error; err == nil {
+				service.TunnelEndpointName = &endpoint.Name
+				if service.EntranceHost == nil || *service.EntranceHost == "" {
+					service.EntranceHost = &endpoint.IP
+				}
 			}
-			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port"}
-		} else {
-			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id"}
-		}
-	} else {
-		// 如果既不是 server 也不是 client，只更新 alias
-		updateColumns = []string{"alias"}
-	}
+			updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "tunnel_endpoint_name", "entrance_host", "entrance_port"}
 
+		} else {
+			service.ClientInstanceId = &instanceID
+			service.ClientEndpointId = &tunnel.EndpointID
+			service.ExitHost = &tunnel.TargetAddress
+			service.ExitPort = &tunnel.TargetPort
+			// service.TunnelPort = &tunnel.TunnelPort
+			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port"}
+		}
+	case "2":
+		if tunnel.Type == models.TunnelModeServer {
+			service.ServerInstanceId = &instanceID
+			service.ServerEndpointId = &tunnel.EndpointID
+			service.EntranceHost = &tunnel.TargetAddress
+			service.EntrancePort = &tunnel.TargetPort
+			service.TunnelPort = &tunnel.TunnelPort
+			// 查询并填充 tunnelEndpointName
+			var endpoint models.Endpoint
+			if err := s.db.First(&endpoint, tunnel.EndpointID).Error; err == nil {
+				service.TunnelEndpointName = &endpoint.Name
+				if service.EntranceHost == nil || *service.EntranceHost == "" {
+					service.EntranceHost = &endpoint.IP
+				}
+			}
+			updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "tunnel_endpoint_name", "entrance_host", "entrance_port"}
+		} else {
+			service.ClientInstanceId = &instanceID
+			service.ClientEndpointId = &tunnel.EndpointID
+			service.ExitHost = &tunnel.TargetAddress
+			service.ExitPort = &tunnel.TargetPort
+			// service.TunnelPort = &tunnel.TunnelPort
+			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port"}
+		}
+	}
 	// 使用 OnConflict 处理插入或更新
 	if err := s.db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{

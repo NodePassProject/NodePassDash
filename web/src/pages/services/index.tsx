@@ -2,6 +2,7 @@ import {
   Button,
   Card,
   CardBody,
+  CardFooter,
   CardHeader,
   Chip,
   Input,
@@ -10,6 +11,7 @@ import {
   DropdownTrigger,
   DropdownMenu,
   DropdownItem,
+  Tooltip,
 } from "@heroui/react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -25,6 +27,12 @@ import {
   faArrowRight,
   faExchangeAlt,
   faCubes,
+  faPlay,
+  faStop,
+  faRotateRight,
+  faTrash,
+  faEdit,
+  faUserSlash,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 
@@ -261,13 +269,14 @@ export default function ServicesPage() {
           {filteredServices.map((service) => (
             <Card
               key={`${service.sid}-${service.type}`}
-              className="hover:shadow-lg transition-shadow cursor-pointer"
-              isPressable
-              onPress={() => {
-                navigate(`/services/details?sid=${service.sid}&type=${service.type}`);
-              }}
+              className="hover:shadow-lg transition-shadow"
             >
-              <CardBody className="p-4">
+              <CardBody
+                className="p-4 cursor-pointer"
+                onClick={() => {
+                  navigate(`/services/details?sid=${service.sid}&type=${service.type}`);
+                }}
+              >
                 {/* 第一行：图标 + 类型名称（小字） */}
                 <div className="flex items-center gap-2 mb-2">
                   <div className="flex items-center justify-center w-6 h-6 rounded-full bg-default-100">
@@ -304,6 +313,127 @@ export default function ServicesPage() {
                   </div>
                 </div>
               </CardBody>
+
+              <CardFooter className="border-t border-divider p-2 flex justify-center gap-1">
+                {/* 停止/启动按钮 */}
+                <Tooltip content="启动">
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="light"
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      // TODO: 实现启动逻辑
+                      addToast({
+                        title: "启动服务",
+                        description: `服务 ${service.alias || service.sid} 启动功能待实现`,
+                        color: "primary",
+                      });
+                    }}
+                  >
+                    <FontAwesomeIcon icon={faPlay} className="text-success" />
+                  </Button>
+                </Tooltip>
+
+                <Tooltip content="停止">
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="light"
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      // TODO: 实现停止逻辑
+                      addToast({
+                        title: "停止服务",
+                        description: `服务 ${service.alias || service.sid} 停止功能待实现`,
+                        color: "warning",
+                      });
+                    }}
+                  >
+                    <FontAwesomeIcon icon={faStop} className="text-danger" />
+                  </Button>
+                </Tooltip>
+
+                {/* 重启按钮 */}
+                <Tooltip content="重启">
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="light"
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      // TODO: 实现重启逻辑
+                      addToast({
+                        title: "重启服务",
+                        description: `服务 ${service.alias || service.sid} 重启功能待实现`,
+                        color: "primary",
+                      });
+                    }}
+                  >
+                    <FontAwesomeIcon icon={faRotateRight} className="text-primary" />
+                  </Button>
+                </Tooltip>
+
+                {/* 解散按钮 */}
+                <Tooltip content="解散">
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="light"
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      // TODO: 实现解散逻辑
+                      addToast({
+                        title: "解散服务",
+                        description: `服务 ${service.alias || service.sid} 解散功能待实现`,
+                        color: "warning",
+                      });
+                    }}
+                  >
+                    <FontAwesomeIcon icon={faUserSlash} className="text-warning" />
+                  </Button>
+                </Tooltip>
+
+                {/* 删除按钮 */}
+                <Tooltip content="删除">
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="light"
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      // TODO: 实现删除逻辑
+                      addToast({
+                        title: "删除服务",
+                        description: `服务 ${service.alias || service.sid} 删除功能待实现`,
+                        color: "danger",
+                      });
+                    }}
+                  >
+                    <FontAwesomeIcon icon={faTrash} className="text-danger" />
+                  </Button>
+                </Tooltip>
+
+                {/* 重命名按钮 */}
+                <Tooltip content="重命名">
+                  <Button
+                    isIconOnly
+                    size="sm"
+                    variant="light"
+                    onPress={(e) => {
+                      e.stopPropagation();
+                      // TODO: 实现重命名逻辑
+                      addToast({
+                        title: "重命名服务",
+                        description: `服务 ${service.alias || service.sid} 重命名功能待实现`,
+                        color: "primary",
+                      });
+                    }}
+                  >
+                    <FontAwesomeIcon icon={faEdit} className="text-default-600" />
+                  </Button>
+                </Tooltip>
+              </CardFooter>
             </Card>
           ))}
         </div>

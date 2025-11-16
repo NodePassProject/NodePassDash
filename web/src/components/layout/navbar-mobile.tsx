@@ -16,6 +16,11 @@ const navigationItems = [
     icon: "solar:transmission-bold",
   },
   {
+    href: "/services",
+    label: "服务管理",
+    icon: "solar:widget-2-bold",
+  },
+  {
     href: "/endpoints",
     label: "主控管理",
     icon: "solar:server-2-bold",

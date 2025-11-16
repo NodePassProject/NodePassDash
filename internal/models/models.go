@@ -151,11 +151,11 @@ type Services struct {
 	ClientInstanceId   *string   `json:"clientInstanceId,omitempty" gorm:"type:text;column:client_instance_id"`
 	ServerEndpointId   *int64    `json:"serverEndpointId,omitempty" gorm:"type:int;column:server_endpoint_id"`
 	ClientEndpointId   *int64    `json:"clientEndpointId,omitempty" gorm:"type:int;column:server_endpoint_id"`
-	TunnelPort         *int64    `json:"tunnelPort,omitempty" gorm:"type:int;column:tunnel_port"`
+	TunnelPort         *string   `json:"tunnelPort,omitempty" gorm:"type:int;column:tunnel_port"`
 	TunnelEndpointName *string   `json:"tunnelEndpointName,omitempty" gorm:"type:text;column:tunnel_endpoint_name"`
-	EntrancePort       *int64    `json:"entrancePort,omitempty" gorm:"type:int;column:entrance_port"`
+	EntrancePort       *string   `json:"entrancePort,omitempty" gorm:"type:text;column:entrance_port"`
 	EntranceHost       *string   `json:"entranceHost,omitempty" gorm:"type:text;column:entrance_host"`
-	ExitPort           *int64    `json:"exitPort,omitempty" gorm:"type:int;column:exit_port"`
+	ExitPort           *string   `json:"exitPort,omitempty" gorm:"type:text;column:exit_port"`
 	ExitHost           *string   `json:"exitHost,omitempty" gorm:"type:text;column:exit_host"`
 	CreatedAt          time.Time `json:"createdAt" gorm:"autoCreateTime;column:created_at"`
 	UpdatedAt          time.Time `json:"updatedAt" gorm:"autoUpdateTime;column:updated_at"`

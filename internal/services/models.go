@@ -11,11 +11,11 @@ type Service struct {
 	ClientInstanceId   *string   `json:"clientInstanceId,omitempty"`
 	ServerEndpointId   *int64    `json:"serverEndpointId,omitempty"`
 	ClientEndpointId   *int64    `json:"clientEndpointId,omitempty"`
-	TunnelPort         *int64    `json:"tunnelPort,omitempty"`
+	TunnelPort         *string   `json:"tunnelPort,omitempty"`
 	TunnelEndpointName *string   `json:"tunnelEndpointName,omitempty"`
-	EntrancePort       *int64    `json:"entrancePort,omitempty"`
+	EntrancePort       *string   `json:"entrancePort,omitempty"`
 	EntranceHost       *string   `json:"entranceHost,omitempty"`
-	ExitPort           *int64    `json:"exitPort,omitempty"`
+	ExitPort           *string   `json:"exitPort,omitempty"`
 	ExitHost           *string   `json:"exitHost,omitempty"`
 	CreatedAt          time.Time `json:"createdAt,omitempty"`
 	UpdatedAt          time.Time `json:"updatedAt,omitempty"`
