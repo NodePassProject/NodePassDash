@@ -117,6 +117,7 @@ interface TunnelInfo {
   read?: string;
   restart: boolean;
   slot?: number | null;
+  quic?: boolean | null;
   targetPort: number;
   tlsMode: string;
   commandLine: string;
@@ -2411,6 +2412,22 @@ export default function TunnelDetailPage() {
                     })()
                   }
                 />
+                {tunnelInfo?.type === "server" && (
+                  <CellValue
+                    icon={
+                      <Icon
+                        className="text-default-600"
+                        height={18}
+                        icon="lucide:zap"
+                        width={18}
+                      />
+                    }
+                    label="启用 QUIC"
+                    value={
+                        tunnelInfo?.quic ? "启用" : "关闭"
+                    }
+                  />
+                )}
                 <CellValue
                   icon={
                     <Icon

@@ -196,151 +196,18 @@ func (h *TunnelHandler) HandleGetTunnels(c *gin.Context) {
 }
 
 // HandleCreateTunnel 创建新隧道
-func (h *TunnelHandler) HandleCreateTunnel(c *gin.Context) {
-
-	// 兼容前端将端口作为字符串提交的情况
-	var raw struct {
-		Name           string          `json:"name"`
-		EndpointID     int64           `json:"endpointId"`
-		Type           string          `json:"type"`
-		TunnelAddress  string          `json:"tunnelAddress"`
-		TunnelPort     json.RawMessage `json:"tunnelPort"`
-		TargetAddress  string          `json:"targetAddress"`
-		TargetPort     json.RawMessage `json:"targetPort"`
-		TLSMode        string          `json:"tlsMode"`
-		CertPath       string          `json:"certPath"`
-		KeyPath        string          `json:"keyPath"`
-		LogLevel       string          `json:"logLevel"`
-		Password       string          `json:"password"`
-		Min            *int            `json:"min,omitempty"`
-		Max            *int            `json:"max,omitempty"`
-		Slot           *int            `json:"slot,omitempty"`             // 新增：最大连接数限制
-		Mode           *int            `json:"mode,omitempty"`             // 新增：运行模式 (0, 1, 2)
-		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
-		Rate           *int            `json:"rate,omitempty"`             // 新增：带宽速率限制
-		ProxyProtocol  *bool           `json:"proxyProtocol,omitempty"`    // 新增：Proxy Protocol 支持
-		Tags           []string        `json:"tags,omitempty"`             // 新增：实例标签 (仅用于前端显示，不影响URL生成)
-		EnableSSEStore *bool           `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
-		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
-	}
-
-	if err := c.ShouldBindJSON(&raw); err != nil {
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
-			Success: false,
-			Error:   "无效的请求数据",
-		})
-		return
-	}
-
-	// 端口解析函数
-	parseIntField := func(j json.RawMessage) (int, error) {
-		if j == nil {
-			return 0, fmt.Errorf("字段为空")
-		}
-		var i int
-		if err := json.Unmarshal(j, &i); err == nil {
-			return i, nil
-		}
-		var s string
-		if err := json.Unmarshal(j, &s); err == nil {
-			return strconv.Atoi(s)
-		}
-		return 0, fmt.Errorf("无法解析为整数")
-	}
-
-	tunnelPort, err1 := parseIntField(raw.TunnelPort)
-	targetPort, err2 := parseIntField(raw.TargetPort)
-	if err1 != nil || err2 != nil {
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
-			Success: false,
-			Error:   "端口号格式错误，应为数字",
-		})
-		return
-	}
-
-	// min/max/slot 字段现在直接作为 *int 类型接收
-
-	// 处理新增字段的默认值
-	enableSSEStore := true
-	if raw.EnableSSEStore != nil {
-		enableSSEStore = *raw.EnableSSEStore
-	}
-
-	enableLogStore := true
-	if raw.EnableLogStore != nil {
-		enableLogStore = *raw.EnableLogStore
-	}
-
-	// 处理Mode字段的类型转换
-	var modePtr *tunnel.TunnelMode
-	if raw.Mode != nil {
-		modePtr = (*tunnel.TunnelMode)(raw.Mode)
-	}
-
-	req := tunnel.CreateTunnelRequest{
-		Name:           raw.Name,
-		EndpointID:     raw.EndpointID,
-		Type:           raw.Type,
-		TunnelAddress:  raw.TunnelAddress,
-		TunnelPort:     tunnelPort,
-		TargetAddress:  raw.TargetAddress,
-		TargetPort:     targetPort,
-		TLSMode:        tunnel.TLSMode(raw.TLSMode),
-		CertPath:       raw.CertPath,
-		KeyPath:        raw.KeyPath,
-		LogLevel:       tunnel.LogLevel(raw.LogLevel),
-		Password:       raw.Password,
-		Min:            raw.Min,
-		Max:            raw.Max,
-		Slot:           raw.Slot,          // 新增：最大连接数限制
-		Mode:           modePtr,           // 新增：运行模式
-		Read:           raw.Read,          // 新增：数据读取超时时间
-		Rate:           raw.Rate,          // 新增：带宽速率限制
-		ProxyProtocol:  raw.ProxyProtocol, // 新增：Proxy Protocol 支持
-		Tags:           raw.Tags,          // 新增：实例标签
-		EnableSSEStore: enableSSEStore,    // 新增：是否启用SSE存储
-		EnableLogStore: enableLogStore,    // 新增：是否启用日志存储
-	}
-
-	log.Infof("[Master-%v] 创建隧道请求: %v", req.EndpointID, req.Name)
-
-	// 使用直接URL模式创建隧道，超时时间为 3 秒
-	newTunnel, err := h.tunnelService.CreateTunnelAndWait(req, 3*time.Second)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
-			Success: false,
-			Error:   err.Error(),
-		})
-		return
-	}
-
-	// CreateTunnelAndWait 已经包含了设置别名的逻辑，这里不需要再调用
-
-	c.JSON(http.StatusOK, tunnel.TunnelResponse{
-		Success: true,
-		Message: "隧道创建成功",
-		Tunnel:  newTunnel,
-	})
-}
-
-// HandleCreateTunnel 创建新隧道
 func (h *TunnelHandler) HandleCreateTunnel1(c *gin.Context) {
-
-	// 兼容前端将端口作为字符串提交的情况
-	var raw models.Tunnel
-
-	if err := c.ShouldBindJSON(&raw); err != nil {
+	var req models.Tunnel
+	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   "无效的请求数据",
 		})
 		return
 	}
-
-	log.Infof("[Master-%v] 创建隧道请求: %v", raw.EndpointID, raw.Name)
-
+	log.Infof("[Master-%v] 创建隧道请求: %v", req.EndpointID, req.Name)
 	// 使用直接URL模式创建隧道，超时时间为 3 秒
-	newTunnel, err := h.tunnelService.NewCreateTunnelAndWait(raw, 3*time.Second)
+	newTunnel, err := h.tunnelService.NewCreateTunnelAndWait(req, 3*time.Second)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
@@ -348,9 +215,7 @@ func (h *TunnelHandler) HandleCreateTunnel1(c *gin.Context) {
 		})
 		return
 	}
-
 	// CreateTunnelAndWait 已经包含了设置别名的逻辑，这里不需要再调用
-
 	c.JSON(http.StatusOK, tunnel.TunnelResponse{
 		Success: true,
 		Message: "隧道创建成功",
@@ -449,42 +314,15 @@ func (h *TunnelHandler) HandleBatchCreateTunnels(c *gin.Context) {
 
 // HandleDeleteTunnel 删除隧道
 func (h *TunnelHandler) HandleDeleteTunnel(c *gin.Context) {
-	var req struct {
-		InstanceID string `json:"instanceId"`
-		Recycle    bool   `json:"recycle"`
-	}
-	_ = c.ShouldBindJSON(&req) // 即使失败也无妨，后续再判断
 
 	// 如果未提供 instanceId ，则尝试从路径参数中解析数据库 id
-	if req.InstanceID == "" {
-		idStr := c.Param("id")
-		if idStr != "" {
-			if tunnelID, err := strconv.ParseInt(idStr, 10, 64); err == nil {
-				if iid, e := h.tunnelService.GetInstanceIDByTunnelID(tunnelID); e == nil {
-					req.InstanceID = iid
-				} else {
-					c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
-						Success: false,
-						Error:   e.Error(),
-					})
-					return
-				}
-			}
-		}
-	}
-
-	if req.InstanceID == "" {
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
-			Success: false,
-			Error:   "缺少隧道实例ID",
-		})
-		return
-	}
+	idStr := c.Param("id")
+	tunnelID, _ := strconv.ParseInt(idStr, 10, 64)
 
 	// 在删除前先获取隧道数据库ID，用于清理分组关系和文件日志
-	var tunnelID int64
+	var instanceID string
 	var endpointID int64
-	if err := h.tunnelService.DB().QueryRow(`SELECT id, endpoint_id FROM tunnels WHERE instance_id = ?`, req.InstanceID).Scan(&tunnelID, &endpointID); err != nil {
+	if err := h.tunnelService.DB().QueryRow(`SELECT instance_id, endpoint_id FROM tunnels WHERE id = ?`, tunnelID).Scan(&instanceID, &endpointID); err != nil {
 	} else {
 		// 清理隧道分组关联
 		if _, err := h.tunnelService.DB().Exec("DELETE FROM tunnel_groups WHERE tunnel_id = ?", tunnelID); err != nil {
@@ -494,7 +332,7 @@ func (h *TunnelHandler) HandleDeleteTunnel(c *gin.Context) {
 		}
 	}
 
-	if err := h.tunnelService.DeleteTunnelAndWait(req.InstanceID, 3*time.Second, req.Recycle); err != nil {
+	if err := h.tunnelService.DeleteTunnelAndWait(instanceID, 3*time.Second, false); err != nil {
 		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   err.Error(),
@@ -504,10 +342,10 @@ func (h *TunnelHandler) HandleDeleteTunnel(c *gin.Context) {
 
 	// 如果不是移入回收站，则清理文件日志
 	if h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
-		if err := h.sseManager.GetFileLogger().ClearLogs(endpointID, req.InstanceID); err != nil {
-			log.Warnf("[API] 清理隧道文件日志失败: endpointID=%d, instanceID=%s, err=%v", endpointID, req.InstanceID, err)
+		if err := h.sseManager.GetFileLogger().ClearLogs(endpointID, instanceID); err != nil {
+			log.Warnf("[API] 清理隧道文件日志失败: endpointID=%d, instanceID=%s, err=%v", endpointID, instanceID, err)
 		} else {
-			log.Infof("[API] 已清理隧道文件日志: endpointID=%d, instanceID=%s", endpointID, req.InstanceID)
+			log.Infof("[API] 已清理隧道文件日志: endpointID=%d, instanceID=%s", endpointID, instanceID)
 		}
 	}
 
@@ -574,146 +412,6 @@ func (h *TunnelHandler) HandleControlTunnel(c *gin.Context) {
 		Success: true,
 		Message: "操作成功",
 	})
-}
-
-// HandleUpdateTunnel 更新隧道配置
-func (h *TunnelHandler) HandleUpdateTunnel(c *gin.Context) {
-	tunnelIDStr := c.Param("id")
-
-	tunnelID, err := strconv.ParseInt(tunnelIDStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
-			Success: false,
-			Error:   "无效的隧道ID",
-		})
-		return
-	}
-
-	// 尝试解析为创建/替换请求体（与创建接口保持一致）
-	var rawCreate struct {
-		Name           string          `json:"name"`
-		EndpointID     int64           `json:"endpointId"`
-		Type           string          `json:"type"`
-		TunnelAddress  string          `json:"tunnelAddress"`
-		TunnelPort     json.RawMessage `json:"tunnelPort"`
-		TargetAddress  string          `json:"targetAddress"`
-		TargetPort     json.RawMessage `json:"targetPort"`
-		TLSMode        string          `json:"tlsMode"`
-		CertPath       string          `json:"certPath"`
-		KeyPath        string          `json:"keyPath"`
-		LogLevel       string          `json:"logLevel"`
-		Password       string          `json:"password"`
-		Min            *int            `json:"min,omitempty"`
-		Max            *int            `json:"max,omitempty"`
-		Slot           *int            `json:"slot,omitempty"`             // 新增：最大连接数限制
-		Mode           *string         `json:"mode,omitempty"`             // 新增：运行模式
-		Read           *string         `json:"read,omitempty"`             // 新增：数据读取超时时间
-		Rate           *int            `json:"rate,omitempty"`             // 新增：带宽速率限制
-		EnableSSEStore *bool           `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
-		EnableLogStore *bool           `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
-	}
-
-	if err := c.ShouldBindJSON(&rawCreate); err != nil {
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
-			Success: false,
-			Error:   "无效的请求数据",
-		})
-		return
-	}
-
-	// 如果请求体包含 EndpointID 和 Type，则认定为"替换"逻辑，否则执行原 Update 逻辑
-	if rawCreate.EndpointID != 0 && rawCreate.Type != "" {
-		// 1. 获取旧 instanceId
-		instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: err.Error()})
-			return
-		}
-
-		// 2. 删除旧实例（回收站=true）
-		if err := h.tunnelService.DeleteTunnelAndWait(instanceID, 3*time.Second, true); err != nil {
-			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，遭遇无法删除旧实例: " + err.Error()})
-			return
-		}
-		log.Infof("[Master-%v] 编辑实例=>删除旧实例: %v", rawCreate.EndpointID, instanceID)
-
-		// 端口解析函数（复用逻辑）
-		parseIntFieldLocal := func(j json.RawMessage) (int, error) {
-			if j == nil {
-				return 0, fmt.Errorf("字段为空")
-			}
-			var i int
-			if err := json.Unmarshal(j, &i); err == nil {
-				return i, nil
-			}
-			var s string
-			if err := json.Unmarshal(j, &s); err == nil {
-				return strconv.Atoi(s)
-			}
-			return 0, fmt.Errorf("无法解析为整数")
-		}
-
-		tunnelPort, _ := parseIntFieldLocal(rawCreate.TunnelPort)
-		targetPort, _ := parseIntFieldLocal(rawCreate.TargetPort)
-		// min/max/slot 字段现在直接作为 *int 类型接收
-
-		// 处理新增字段的默认值
-		enableSSEStore := true
-		if rawCreate.EnableSSEStore != nil {
-			enableSSEStore = *rawCreate.EnableSSEStore
-		}
-
-		enableLogStore := true
-		if rawCreate.EnableLogStore != nil {
-			enableLogStore = *rawCreate.EnableLogStore
-		}
-
-		// 处理Mode字段的类型转换
-		var modePtr *tunnel.TunnelMode
-		if rawCreate.Mode != nil {
-			if modeInt, err := strconv.Atoi(*rawCreate.Mode); err == nil {
-				mode := tunnel.TunnelMode(modeInt)
-				modePtr = &mode
-			}
-		}
-
-		createReq := tunnel.CreateTunnelRequest{
-			Name:           rawCreate.Name,
-			EndpointID:     rawCreate.EndpointID,
-			Type:           rawCreate.Type,
-			TunnelAddress:  rawCreate.TunnelAddress,
-			TunnelPort:     tunnelPort,
-			TargetAddress:  rawCreate.TargetAddress,
-			TargetPort:     targetPort,
-			TLSMode:        tunnel.TLSMode(rawCreate.TLSMode),
-			CertPath:       rawCreate.CertPath,
-			KeyPath:        rawCreate.KeyPath,
-			LogLevel:       tunnel.LogLevel(rawCreate.LogLevel),
-			Password:       rawCreate.Password,
-			Min:            rawCreate.Min,
-			Max:            rawCreate.Max,
-			Slot:           rawCreate.Slot, // 新增：最大连接数限制
-			Mode:           modePtr,        // 新增：运行模式
-			Read:           rawCreate.Read, // 新增：数据读取超时时间
-			Rate:           rawCreate.Rate, // 新增：带宽速率限制
-			EnableSSEStore: enableSSEStore, // 新增：是否启用SSE存储
-			EnableLogStore: enableLogStore, // 新增：是否启用日志存储
-		}
-
-		// 使用直接URL模式创建新隧道，超时时间为 3 秒
-		newTunnel, err := h.tunnelService.CreateTunnelAndWait(createReq, 3*time.Second)
-		if err != nil {
-			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，无法创建新实例: " + err.Error()})
-			return
-		}
-		log.Infof("[Master-%v] 编辑实例=>创建新实例: %v", rawCreate.EndpointID, newTunnel.InstanceID)
-
-		c.JSON(http.StatusOK, tunnel.TunnelResponse{Success: true, Message: "编辑实例成功", Tunnel: newTunnel})
-		return
-	}
-
-	// -------- 原局部更新逻辑 ----------
-	c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "不支持的更新请求"})
 }
 
 // HandleGetTunnelLogs GET /api/tunnel-logs
@@ -1166,6 +864,12 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			}
 			return nil
 		}(),
+		"quic": func() interface{} {
+			if tunnel.Quic != nil {
+				return *tunnel.Quic
+			}
+			return nil
+		}(),
 		"targetPort":  targetPort,
 		"tlsMode":     tunnel.TLSMode,
 		"commandLine": tunnel.CommandLine,
@@ -1199,6 +903,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			"rate":          parsedConfig.Rate,
 			"slot":          parsedConfig.Slot,
 			"proxy":         parsedConfig.Proxy,
+			"quic":          parsedConfig.Quic,
 		},
 
 		// tags - GORM 自动反序列化为 *map[string]string
@@ -1249,105 +954,6 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, resp)
-}
-
-// HandleTunnelLogs 获取指定隧道日志 (GET /api/tunnels/{id}/logs)
-func (h *TunnelHandler) HandleTunnelLogs(c *gin.Context) {
-	idStr := c.Param("id")
-	if idStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少隧道ID"})
-		return
-	}
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "无效的隧道ID"})
-		return
-	}
-
-	db := h.tunnelService.DB()
-
-	// 查询隧道获得 endpointId 与 instanceId
-	var endpointID int64
-	var instanceID sql.NullString
-	if err := db.QueryRow(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`, id).Scan(&endpointID, &instanceID); err != nil {
-		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, gin.H{"error": "隧道不存在"})
-			return
-		}
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	if !instanceID.Valid || instanceID.String == "" {
-		c.JSON(http.StatusOK, gin.H{
-			"success": true,
-			"data": gin.H{
-				"logs":        []interface{}{},
-				"trafficData": []interface{}{},
-			},
-		})
-		return
-	}
-
-	// 获取日志
-	logRows, err := db.Query(`SELECT id, logs, tcp_rx, tcp_tx, udp_rx, udp_tx, created_at FROM endpoint_sse WHERE endpoint_id = ? AND instance_id = ? AND event_type = 'log' ORDER BY created_at DESC LIMIT 100`, endpointID, instanceID.String)
-	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-		return
-	}
-	defer logRows.Close()
-
-	logs := make([]map[string]interface{}, 0)
-	trafficTrend := make([]map[string]interface{}, 0)
-
-	// 使用 map 来存储每分钟的最新流量记录
-	minuteTrafficMap := make(map[string]map[string]interface{})
-
-	for logRows.Next() {
-		var id int64
-		var logsStr sql.NullString
-		var tcpRx, tcpTx, udpRx, udpTx sql.NullInt64
-		var createdAt time.Time
-		if err := logRows.Scan(&id, &logsStr, &tcpRx, &tcpTx, &udpRx, &udpTx, &createdAt); err == nil {
-			logs = append(logs, map[string]interface{}{
-				"id":        id,
-				"message":   processAnsiColors(ptrString(logsStr)),
-				"isHtml":    true,
-				"traffic":   map[string]int64{"tcpRx": tcpRx.Int64, "tcpTx": tcpTx.Int64, "udpRx": udpRx.Int64, "udpTx": udpTx.Int64},
-				"timestamp": createdAt,
-			})
-
-			// 格式化时间到分钟用于流量趋势去重
-			minuteKey := createdAt.Format("2006-01-02 15:04")
-			// 存储这一分钟的最新流量记录（由于是按时间降序，先出现的是最新的）
-			if _, exists := minuteTrafficMap[minuteKey]; !exists {
-				minuteTrafficMap[minuteKey] = map[string]interface{}{
-					"timestamp": minuteKey,
-					"tcpRx":     tcpRx.Int64,
-					"tcpTx":     tcpTx.Int64,
-					"udpRx":     udpRx.Int64,
-					"udpTx":     udpTx.Int64,
-				}
-			}
-		}
-	}
-
-	// 将去重后的流量数据转换为 slice，并按时间排序
-	for _, record := range minuteTrafficMap {
-		trafficTrend = append(trafficTrend, record)
-	}
-
-	// 按时间排序（升序）
-	sort.Slice(trafficTrend, func(i, j int) bool {
-		return trafficTrend[i]["timestamp"].(string) < trafficTrend[j]["timestamp"].(string)
-	})
-
-	c.JSON(http.StatusOK, map[string]interface{}{
-		"success": true,
-		"data": map[string]interface{}{
-			"logs":        logs,
-			"trafficData": trafficTrend,
-		},
-	})
 }
 
 // HandleTunnelFileLogs 获取指定隧道的文件日志 (GET /api/tunnels/{id}/file-logs?date=YYYY-MM-DD)
@@ -1508,14 +1114,6 @@ func processAnsiColors(text string) string {
 		text += strings.Repeat("</span>", openTags-closeTags)
 	}
 	return text
-}
-
-// ptrString 安全地从 sql.NullString 获取字符串
-func ptrString(ns sql.NullString) string {
-	if ns.Valid {
-		return ns.String
-	}
-	return ""
 }
 
 // HandleQuickCreateTunnel 根据 URL 快速创建隧道
@@ -3057,301 +2655,6 @@ func (h *TunnelHandler) HandleGetTunnelPoolTrend(c *gin.Context) {
 // 1. 不再删除后重建，而是构建命令行后调用 NodePass PUT /v1/instance/{id}
 // 2. 调用成功后等待 SSE 更新数据库中的 commandLine 字段；超时则直接更新本地数据库。
 // 3. 若远端返回 405 等错误，则回退到旧逻辑 HandleUpdateTunnel。
-func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
-	tunnelIDStr := c.Param("id")
-	tunnelID, err := strconv.ParseInt(tunnelIDStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "无效的隧道ID"})
-		return
-	}
-
-	// 解析请求体（与创建接口保持一致）
-	var raw struct {
-		Name           string   `json:"name"`
-		EndpointID     int64    `json:"endpointId"`
-		Type           string   `json:"type"`
-		TunnelAddress  string   `json:"tunnelAddress"`
-		TunnelPort     string   `json:"tunnelPort"`
-		TargetAddress  string   `json:"targetAddress"`
-		TargetPort     string   `json:"targetPort"`
-		TLSMode        string   `json:"tlsMode"`
-		CertPath       string   `json:"certPath"`
-		KeyPath        string   `json:"keyPath"`
-		LogLevel       string   `json:"logLevel"`
-		Password       string   `json:"password"`
-		Min            *int     `json:"min,omitempty"`
-		Max            *int     `json:"max,omitempty"`
-		Slot           *int     `json:"slot,omitempty"`             // 新增：最大连接数限制
-		Mode           *int     `json:"mode,omitempty"`             // 新增：运行模式
-		Read           *string  `json:"read,omitempty"`             // 新增：数据读取超时时间
-		Rate           *int     `json:"rate,omitempty"`             // 新增：带宽速率限制
-		ProxyProtocol  *bool    `json:"proxyProtocol,omitempty"`    // 新增：Proxy Protocol 支持
-		Tags           []string `json:"tags,omitempty"`             // 新增：实例标签 (仅用于前端显示，不影响URL生成)
-		EnableSSEStore *bool    `json:"enable_sse_store,omitempty"` // 新增：是否启用SSE存储
-		EnableLogStore *bool    `json:"enable_log_store,omitempty"` // 新增：是否启用日志存储
-		ResetTraffic   bool     `json:"resetTraffic"`               // 新增：是否重置流量统计
-	}
-	if err := c.ShouldBindJSON(&raw); err != nil {
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "无效的请求数据"})
-		return
-	}
-
-	// 直接解析端口字符串
-	tunnelPort, err1 := strconv.Atoi(raw.TunnelPort)
-	targetPort, err2 := strconv.Atoi(raw.TargetPort)
-	if err1 != nil || err2 != nil {
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "端口号格式错误，应为数字"})
-		return
-	}
-
-	// 构建命令行
-	var commandLine string
-	if raw.Password != "" {
-		commandLine = fmt.Sprintf("%s://%s@%s:%d/%s:%d", raw.Type, raw.Password, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort)
-	} else {
-		commandLine = fmt.Sprintf("%s://%s:%d/%s:%d", raw.Type, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort)
-	}
-
-	var queryParams []string
-	if raw.LogLevel != "" && raw.LogLevel != "inherit" {
-		queryParams = append(queryParams, fmt.Sprintf("log=%s", raw.LogLevel))
-	}
-	if raw.Type == "server" && raw.TLSMode != "" && raw.TLSMode != "inherit" {
-		var tlsNum string
-		switch raw.TLSMode {
-		case "0":
-			tlsNum = "0"
-		case "1":
-			tlsNum = "1"
-		case "2":
-			tlsNum = "2"
-		}
-		if tlsNum != "" {
-			queryParams = append(queryParams, fmt.Sprintf("tls=%s", tlsNum))
-		}
-		if raw.TLSMode == "2" && raw.CertPath != "" && raw.KeyPath != "" {
-			queryParams = append(queryParams, fmt.Sprintf("crt=%s", url.QueryEscape(raw.CertPath)), fmt.Sprintf("key=%s", url.QueryEscape(raw.KeyPath)))
-		}
-	}
-	// 处理通用参数
-	if raw.Min != nil {
-		queryParams = append(queryParams, fmt.Sprintf("min=%d", *raw.Min))
-	}
-	if raw.Max != nil {
-		queryParams = append(queryParams, fmt.Sprintf("max=%d", *raw.Max))
-	}
-	if raw.Slot != nil {
-		queryParams = append(queryParams, fmt.Sprintf("slot=%d", *raw.Slot))
-	}
-	if raw.Mode != nil {
-		queryParams = append(queryParams, fmt.Sprintf("mode=%d", *raw.Mode))
-	}
-	if raw.Read != nil && *raw.Read != "" {
-		queryParams = append(queryParams, fmt.Sprintf("read=%s", *raw.Read))
-	}
-	if raw.Rate != nil {
-		queryParams = append(queryParams, fmt.Sprintf("rate=%d", *raw.Rate))
-	}
-	if raw.ProxyProtocol != nil {
-		if *raw.ProxyProtocol {
-			queryParams = append(queryParams, "proxy=1")
-		} else {
-			queryParams = append(queryParams, "proxy=0")
-		}
-	}
-	if len(queryParams) > 0 {
-		commandLine += "?" + strings.Join(queryParams, "&")
-	}
-
-	// 获取实例ID
-	instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: err.Error()})
-		return
-	}
-
-	// 获取端点信息
-	var endpoint struct {
-		ID                   int64
-		URL, APIPath, APIKey string
-	}
-	if err := h.tunnelService.DB().QueryRow(`SELECT e.id, url, api_path, api_key FROM endpoints e JOIN tunnels t ON e.id = t.endpoint_id WHERE t.id = ?`, tunnelID).Scan(&endpoint.ID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
-		c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{Success: false, Error: "查询端点信息失败"})
-		return
-	}
-	// 新版本的隧道更新使用了PUT替代了原方案中删除隧道重新新建的逻辑
-	// 对于不更新隧道参数仅更新隧道名字，应当使用PATCH更新，使用PUT会导致CORE会返回409错误
-	var originalCommandLine string
-	if err := h.tunnelService.DB().QueryRow(
-		`SELECT command_line FROM tunnels WHERE instance_id = ?`, instanceID).Scan(&originalCommandLine); err != nil {
-		log.Errorf("[API] 查询现有command_line失败: %v", err)
-		c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{Success: false, Error: "查询现有隧道配置失败"})
-		return
-	}
-
-	// 规范化两个 commandLine 以便比较（参数顺序可能不同）
-	normalizedOriginal, err1 := normalizeCommandLine(originalCommandLine)
-	normalizedNew, err2 := normalizeCommandLine(commandLine)
-	if err1 != nil || err2 != nil {
-		log.Warnf("[API] 规范化 commandLine 失败，使用原始比较: err1=%v, err2=%v", err1, err2)
-		normalizedOriginal = originalCommandLine
-		normalizedNew = commandLine
-	}
-
-	if normalizedOriginal == normalizedNew {
-		log.Infof("[API] 隧道配置未发生变化，仅更新隧道名字")
-		if _, err := nodepass.RenameInstance(endpoint.ID, instanceID, raw.Name); err != nil {
-			log.Errorf("[API] RenameInstance 调用失败: %v", err)
-			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，更新隧道名字失败: " + err.Error()})
-			return
-		}
-	} else {
-		log.Infof("[API] 准备调用 UpdateInstance: instanceID=%s, commandLine=%s", instanceID, commandLine)
-		if _, err := nodepass.UpdateInstance(endpoint.ID, instanceID, commandLine); err != nil {
-			log.Errorf("[API] UpdateInstanceV1 调用失败: %v", err)
-			// 若远端返回 405，则回退旧逻辑（删除+重建）
-			if strings.Contains(err.Error(), "405") || strings.Contains(err.Error(), "404") {
-				log.Infof("[API] 检测到405/404错误，回退到旧逻辑")
-				// 删除旧实例
-				if delErr := h.tunnelService.DeleteTunnelAndWait(instanceID, 3*time.Second, true); delErr != nil {
-					c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，删除旧实例错误: " + delErr.Error()})
-					return
-				}
-
-				// 重新创建，直接使用指针类型
-				// 处理新增字段的默认值
-				enableSSEStore := true
-				if raw.EnableSSEStore != nil {
-					enableSSEStore = *raw.EnableSSEStore
-				}
-
-				enableLogStore := true
-				if raw.EnableLogStore != nil {
-					enableLogStore = *raw.EnableLogStore
-				}
-
-				// 处理Mode字段的类型转换
-				var modePtr *tunnel.TunnelMode
-				if raw.Mode != nil {
-					mode := tunnel.TunnelMode(*raw.Mode)
-					modePtr = &mode
-				}
-
-				createReq := tunnel.CreateTunnelRequest{
-					Name:           raw.Name,
-					EndpointID:     raw.EndpointID,
-					Type:           raw.Type,
-					TunnelAddress:  raw.TunnelAddress,
-					TunnelPort:     tunnelPort,
-					TargetAddress:  raw.TargetAddress,
-					TargetPort:     targetPort,
-					TLSMode:        tunnel.TLSMode(raw.TLSMode),
-					CertPath:       raw.CertPath,
-					KeyPath:        raw.KeyPath,
-					LogLevel:       tunnel.LogLevel(raw.LogLevel),
-					Password:       raw.Password,
-					ProxyProtocol:  raw.ProxyProtocol,
-					Min:            raw.Min,
-					Max:            raw.Max,
-					Slot:           raw.Slot,       // 新增：最大连接数限制
-					Mode:           modePtr,        // 新增：运行模式
-					Read:           raw.Read,       // 新增：数据读取超时时间
-					Rate:           raw.Rate,       // 新增：带宽速率限制
-					EnableSSEStore: enableSSEStore, // 新增：是否启用SSE存储
-					EnableLogStore: enableLogStore, // 新增：是否启用日志存储
-				}
-				newTunnel, crtErr := h.tunnelService.CreateTunnelAndWait(createReq, 3*time.Second)
-				if crtErr != nil {
-					c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，创建新实例错误: " + crtErr.Error()})
-					return
-				}
-				c.JSON(http.StatusOK, tunnel.TunnelResponse{Success: true, Message: "编辑实例成功(回退旧逻辑)", Tunnel: newTunnel})
-				return
-			}
-			// 其他错误
-			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: err.Error()})
-			return
-		}
-	}
-
-	// 调用成功后等待数据库同步
-	success := false
-	deadline := time.Now().Add(3 * time.Second)
-	for time.Now().Before(deadline) {
-		var dbCmd, dbStatus string
-		if scanErr := h.tunnelService.DB().QueryRow(`SELECT command_line, status FROM tunnels WHERE instance_id = ?`, instanceID).Scan(&dbCmd, &dbStatus); scanErr == nil {
-			if dbCmd == commandLine && dbStatus == "running" {
-				success = true
-				break
-			}
-		}
-		time.Sleep(200 * time.Millisecond)
-	}
-
-	if !success {
-		// 超时，直接更新本地数据库，处理min/max/slot字段
-		// 构建新字段的更新值
-		var modeVal interface{}
-		if raw.Mode != nil {
-			modeVal = *raw.Mode
-		} else {
-			modeVal = nil
-		}
-
-		var readVal interface{}
-		if raw.Read != nil {
-			readVal = *raw.Read
-		} else {
-			readVal = nil
-		}
-
-		var rateVal interface{}
-		if raw.Rate != nil {
-			rateVal = *raw.Rate
-		} else {
-			rateVal = nil
-		}
-
-		enableSSEStore := true
-		if raw.EnableSSEStore != nil {
-			enableSSEStore = *raw.EnableSSEStore
-		}
-
-		enableLogStore := true
-		if raw.EnableLogStore != nil {
-			enableLogStore = *raw.EnableLogStore
-		}
-
-		proxyProtocol := false
-		if raw.ProxyProtocol != nil {
-			proxyProtocol = *raw.ProxyProtocol
-		}
-
-		_, _ = h.tunnelService.DB().Exec(`UPDATE tunnels SET name = ?, type = ?, mode = ?, tunnel_address = ?, tunnel_port = ?, target_address = ?, target_port = ?, tls_mode = ?, cert_path = ?, key_path = ?, log_level = ?, command_line = ?, min = ?, max = ?, slot = ?, status = ?, updated_at = ?, read = ?, rate = ?, enable_sse_store = ?, enable_log_store = ?,proxy_protocol =? WHERE id = ?`,
-			raw.Name, raw.Type, modeVal, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort, raw.TLSMode, raw.CertPath, raw.KeyPath, raw.LogLevel, commandLine,
-			raw.Min, raw.Max, raw.Slot,
-			"running", time.Now(), readVal, rateVal, enableSSEStore, enableLogStore, proxyProtocol)
-	}
-
-	// 如果需要重置流量统计
-	if raw.ResetTraffic {
-		log.Infof("[API] 编辑实例后重置流量统计: tunnelID=%d", tunnelID)
-		if err := h.tunnelService.ResetTunnelTrafficByInstanceID(instanceID); err != nil {
-			log.Errorf("[API] 重置流量统计失败: %v", err)
-			// 不返回错误，因为主要操作已经成功，只是重置失败
-		} else {
-			log.Infof("[API] 流量统计重置成功: tunnelID=%d", tunnelID)
-		}
-	}
-
-	c.JSON(http.StatusOK, tunnel.TunnelResponse{Success: true, Message: "编辑实例成功"})
-}
-
-type UpdateTunnelReq struct {
-	models.Tunnel
-	ResetTraffic bool `json:"resetTraffic"`
-}
-
 func (h *TunnelHandler) HandleUpdateTunnelV3(c *gin.Context) {
 	tunnelIDStr := c.Param("id")
 	tunnelID, err := strconv.ParseInt(tunnelIDStr, 10, 64)
@@ -3361,7 +2664,10 @@ func (h *TunnelHandler) HandleUpdateTunnelV3(c *gin.Context) {
 	}
 
 	// 解析请求体（与创建接口保持一致）
-	var raw UpdateTunnelReq
+	var raw struct {
+		models.Tunnel
+		ResetTraffic bool `json:"resetTraffic"`
+	}
 	if err := c.ShouldBindJSON(&raw); err != nil {
 		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "无效的请求数据"})
 		return
@@ -3555,25 +2861,6 @@ func (h *TunnelHandler) HandleExportTunnelLogs(c *gin.Context) {
 	}
 
 	log.Infof("[API] 成功导出隧道 %s (ID: %d) 的日志文件，包含 %d 个.log文件和", tunnelName, tunnelID, logFileCount)
-}
-
-// getFieldValue 从map中安全获取字段值
-func getFieldValue(record map[string]interface{}, key string) interface{} {
-	if val, exists := record[key]; exists {
-		return val
-	}
-	return ""
-}
-
-// escapeCSVField 转义CSV字段中的特殊字符
-func escapeCSVField(field string) string {
-	// 如果字段包含逗号、引号或换行符，需要用引号包围并转义内部引号
-	if strings.Contains(field, ",") || strings.Contains(field, "\"") || strings.Contains(field, "\n") || strings.Contains(field, "\r") {
-		// 转义内部引号
-		escaped := strings.ReplaceAll(field, "\"", "\"\"")
-		return fmt.Sprintf("\"%s\"", escaped)
-	}
-	return field
 }
 
 // ========== Instance 相关处理函数 ==========

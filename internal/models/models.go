@@ -68,7 +68,8 @@ type Tunnel struct {
 	Rate                *int64       `json:"rate,omitempty" gorm:"type:int;column:rate"`
 	Read                *string      `json:"read,omitempty" gorm:"type:text;column:read"`
 
-	EnableLogStore bool `json:"enable_log_store,omitempty" gorm:"default:true;type:bool;column:enable_log_store"`
+	Quic           *bool `json:"quic,omitempty" gorm:"type:bool;column:quic"`
+	EnableLogStore bool  `json:"enable_log_store,omitempty" gorm:"default:true;type:bool;column:enable_log_store"`
 
 	// 网络流量统计
 	TCPRx int64 `json:"tcpRx" gorm:"default:0;column:tcp_rx"`

@@ -147,6 +147,7 @@ export default function SimpleCreateTunnelModal({
     proxyProtocol: "", // Proxy Protocol 支持：开启/关闭
     loadBalancingIPs: "", // 负载均衡IP地址，一行一个
     extendTargetAddresses: "", // 扩展目标地址，一行一个
+    quic: "", // QUIC 支持：启用/关闭
   });
 
   // 当打开时加载端点，并在 edit 时从API获取隧道详情
@@ -215,6 +216,12 @@ export default function SimpleCreateTunnelModal({
                 ? tunnel.extendTargetAddress.join("\n")
                 : tunnel.extendTargetAddress
               : "",
+            quic:
+              tunnel.quic != null
+                ? tunnel.quic
+                  ? "true"
+                  : "false"
+                : "",
           }));
 
           // 如果有扩展目标地址，自动展开可选配置
@@ -265,6 +272,7 @@ export default function SimpleCreateTunnelModal({
       loadBalancingIPs,
       listenType,
       extendTargetAddresses,
+      quic,
     } = formData;
 
     // 基本校验
@@ -364,6 +372,7 @@ export default function SimpleCreateTunnelModal({
               .map((addr) => addr.trim())
               .filter((addr) => addr.length > 0)
             : undefined,
+          quic: quic !== "" ? quic === "true" : undefined,
           resetTraffic: modalMode === "edit" ? resetChecked : undefined,
         }),
       });
@@ -943,6 +952,24 @@ export default function SimpleCreateTunnelModal({
                               />
                             )}
                           </div>
+
+                          {/* 启用 QUIC */}
+                          {formData.type=='server'&& <div>
+
+                            <Select
+                              label="启用 QUIC"
+                              selectedKeys={
+                                formData.quic ? [formData.quic] : ["false"]
+                              }
+                              onSelectionChange={(keys) => {
+                                const selectedKey = Array.from(keys)[0] as string;
+                                handleField("quic", selectedKey);
+                              }}
+                            >
+                              <SelectItem key="false">关闭</SelectItem>
+                              <SelectItem key="true">启用</SelectItem>
+                            </Select>
+                          </div>}
                         </div>
                       </motion.div>
                     )}

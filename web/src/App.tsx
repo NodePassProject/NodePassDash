@@ -19,6 +19,8 @@ import EndpointDetailsPage from "./pages/endpoints/details/index";
 import EndpointSSEDebugPage from "./pages/endpoints/sse-debug";
 import ExamplesPage from "./pages/examples";
 import IconComparisonPage from "./pages/icon-comparison";
+import ServicesPage from "./pages/services";
+import ServiceDetailsPage from "./pages/services/details";
 
 function App() {
   return (
@@ -33,6 +35,8 @@ function App() {
         <Route element={<TunnelDetailsPage />} path="/tunnels/details" />
         <Route element={<TemplatesPage />} path="/templates" />
         <Route element={<EndpointsPage />} path="/endpoints" />
+        <Route element={<ServicesPage />} path="/services" />
+        <Route element={<ServiceDetailsPage />} path="/services/details" />
         <Route element={<EndpointDetailsPage />} path="/endpoints/details" />
         <Route element={<EndpointSSEDebugPage />} path="/endpoints/sse-debug" />
         <Route element={<SettingsPage />} path="/settings" />

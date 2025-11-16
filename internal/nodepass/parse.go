@@ -31,6 +31,7 @@ type TunnelConfig struct {
 	Rate                  string
 	Slot                  string
 	Proxy                 string // proxy protocol 支持 (0|1)
+	Quic                  string // proxy protocol 支持 (0|1)
 }
 
 // ParseTunnelURL 解析隧道实例 URL 并返回 Tunnel 模型
@@ -227,6 +228,16 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 			case "noudp":
 				// UDP支持控制 (0=启用, 1=禁用)
 				noUDP = &val
+			case "quic":
+				// QUIC控制 (0=启用, 1=禁用)
+				switch val {
+				case "0":
+					enableQuic := false
+					tunnel.Quic = &enableQuic
+				case "1":
+					enableQuic := true
+					tunnel.Quic = &enableQuic
+				}
 			}
 		}
 	}
@@ -342,6 +353,10 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 			updates["extend_target_address"] = string(extendAddrJSON)
 		}
 	}
+	// 处理新字段
+	if tunnel.Quic != nil {
+		updates["quic"] = tunnel.Quic
+	}
 	return updates
 }
 
@@ -408,6 +423,7 @@ func ParseTunnelConfig(rawURL string) *TunnelConfig {
 	cfg.Rate = query.Get("rate")
 	cfg.Slot = query.Get("slot")
 	cfg.Proxy = query.Get("proxy")
+	cfg.Quic = query.Get("quic")
 	noTCP := query.Get("notcp")
 	noUDP := query.Get("noudp")
 
@@ -528,6 +544,9 @@ func (c *TunnelConfig) BuildTunnelConfigURL() string {
 
 	if c.Proxy != "" {
 		queryParams = append(queryParams, fmt.Sprintf("proxy=%s", c.Proxy))
+	}
+	if c.Quic != "" {
+		queryParams = append(queryParams, fmt.Sprintf("quic=%s", c.Quic))
 	}
 
 	// 根据listenType生成notcp和noudp参数
@@ -701,6 +720,13 @@ func BuildTunnelURLs(tunnel models.Tunnel) string {
 
 	if tunnel.Slot != nil {
 		queryParams = append(queryParams, fmt.Sprintf("slot=%d", *tunnel.Slot))
+	}
+	if tunnel.Quic != nil && protocol == "server" {
+		quicVal := "0"
+		if *tunnel.Quic {
+			quicVal = "1"
+		}
+		queryParams = append(queryParams, fmt.Sprintf("quic=%s", quicVal))
 	}
 
 	if tunnel.ProxyProtocol != nil {
