@@ -107,6 +107,12 @@ export default function EndpointsPage() {
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 检测是否是 beta 版本
+  const isBetaVersion = (ver?: string) => {
+    if (!ver) return false;
+    return /-b\d+/i.test(ver);
+  };
+
   // 组件挂载状态管理和定时器清理
   const isMountedRef = useRef(true);
   const timeoutRefs = useRef<NodeJS.Timeout[]>([]);
@@ -1233,7 +1239,12 @@ export default function EndpointsPage() {
                       </h2>
                     )}
                     {endpoint.name.length < 10 && endpoint.ver && (
-                      <Chip className="text-xs" size="sm" variant="flat">
+                      <Chip
+                        className="text-xs"
+                        size="sm"
+                        variant="flat"
+                        color={isBetaVersion(endpoint.ver) ? "primary" : undefined}
+                      >
                         {endpoint.ver}
                       </Chip>
                     )}
@@ -1248,6 +1259,7 @@ export default function EndpointsPage() {
                             className="text-xs cursor-pointer ml-1 align-middle"
                             size="sm"
                             variant="flat"
+                            color={isBetaVersion(endpoint.ver) ? "primary" : undefined}
                           >
                             {endpoint.ver}
                           </Chip>
@@ -1420,7 +1432,12 @@ export default function EndpointsPage() {
                         </div>
                       </TableCell>
                       <TableCell className="w-32">
-                        <Chip className="text-xs" size="sm" variant="flat">
+                        <Chip
+                          className="text-xs"
+                          size="sm"
+                          variant="flat"
+                          color={isBetaVersion(ep.ver) ? "primary" : undefined}
+                        >
                           {ep.ver ? ep.ver : "unknown"}
                         </Chip>
                       </TableCell>
