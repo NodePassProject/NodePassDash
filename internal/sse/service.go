@@ -622,7 +622,12 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 		service.ExitPort = &tunnel.TargetPort
 		service.EntranceHost = &tunnel.TunnelAddress
 		service.EntrancePort = &tunnel.TunnelPort
-		updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "entrance_host", "entrance_port"}
+
+		// type=0: 直接 TCP+UDP 相加（单端转发，只有 client 端）
+		service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
+		service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
+
+		updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "entrance_host", "entrance_port", "total_rx", "total_tx"}
 	case "1":
 		if tunnel.Type == models.TunnelModeServer {
 			service.ServerInstanceId = &instanceID
@@ -638,15 +643,36 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 					service.EntranceHost = &endpoint.IP
 				}
 			}
-			updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "tunnel_endpoint_name", "entrance_host", "entrance_port"}
+
+			// type=1 server端: 查询 client 端的流量数据，相加
+			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
+			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
+			// 查询 client 端流量
+			var clientTunnel models.Tunnel
+			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", *peer.SID, *peer.Type, models.TunnelModeClient).First(&clientTunnel).Error; err == nil {
+				service.TotalRx += clientTunnel.TCPRx + clientTunnel.UDPRx
+				service.TotalTx += clientTunnel.TCPTx + clientTunnel.UDPTx
+			}
+
+			updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "tunnel_endpoint_name", "entrance_host", "entrance_port", "total_rx", "total_tx"}
 
 		} else {
 			service.ClientInstanceId = &instanceID
 			service.ClientEndpointId = &tunnel.EndpointID
 			service.ExitHost = &tunnel.TargetAddress
 			service.ExitPort = &tunnel.TargetPort
-			// service.TunnelPort = &tunnel.TunnelPort
-			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port"}
+
+			// type=1 client端: 查询 server 端的流量数据，相加
+			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
+			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
+			// 查询 server 端流量
+			var serverTunnel models.Tunnel
+			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", *peer.SID, *peer.Type, models.TunnelModeServer).First(&serverTunnel).Error; err == nil {
+				service.TotalRx += serverTunnel.TCPRx + serverTunnel.UDPRx
+				service.TotalTx += serverTunnel.TCPTx + serverTunnel.UDPTx
+			}
+
+			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "total_rx", "total_tx"}
 		}
 	case "2":
 		if tunnel.Type == models.TunnelModeServer {
@@ -663,14 +689,35 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 					service.EntranceHost = &endpoint.IP
 				}
 			}
-			updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "tunnel_endpoint_name", "entrance_host", "entrance_port"}
+
+			// type=2 server端: 查询 client 端的流量数据，相加
+			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
+			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
+			// 查询 client 端流量
+			var clientTunnel models.Tunnel
+			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", *peer.SID, *peer.Type, models.TunnelModeClient).First(&clientTunnel).Error; err == nil {
+				service.TotalRx += clientTunnel.TCPRx + clientTunnel.UDPRx
+				service.TotalTx += clientTunnel.TCPTx + clientTunnel.UDPTx
+			}
+
+			updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "tunnel_endpoint_name", "entrance_host", "entrance_port", "total_rx", "total_tx"}
 		} else {
 			service.ClientInstanceId = &instanceID
 			service.ClientEndpointId = &tunnel.EndpointID
 			service.ExitHost = &tunnel.TargetAddress
 			service.ExitPort = &tunnel.TargetPort
-			// service.TunnelPort = &tunnel.TunnelPort
-			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port"}
+
+			// type=2 client端: 查询 server 端的流量数据，相加
+			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
+			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
+			// 查询 server 端流量
+			var serverTunnel models.Tunnel
+			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", *peer.SID, *peer.Type, models.TunnelModeServer).First(&serverTunnel).Error; err == nil {
+				service.TotalRx += serverTunnel.TCPRx + serverTunnel.UDPRx
+				service.TotalTx += serverTunnel.TCPTx + serverTunnel.UDPTx
+			}
+
+			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "total_rx", "total_tx"}
 		}
 	}
 	// 使用 OnConflict 处理插入或更新

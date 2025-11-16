@@ -17,6 +17,8 @@ type Service struct {
 	EntranceHost       *string   `json:"entranceHost,omitempty"`
 	ExitPort           *string   `json:"exitPort,omitempty"`
 	ExitHost           *string   `json:"exitHost,omitempty"`
+	TotalRx            int64     `json:"totalRx"`
+	TotalTx            int64     `json:"totalTx"`
 	CreatedAt          time.Time `json:"createdAt,omitempty"`
 	UpdatedAt          time.Time `json:"updatedAt,omitempty"`
 }

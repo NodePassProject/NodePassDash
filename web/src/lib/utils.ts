@@ -234,5 +234,19 @@ export function formatTime12(timestamp: number): string {
   return `${hours12}:${minutes.toString().padStart(2, "0")} ${ampm}`;
 }
 
+/**
+ * 格式化字节数为可读的字符串
+ * @param bytes 字节数
+ * @returns 格式化后的字符串 (如: "1.23 KB", "4.56 MB")
+ */
+export function formatBytes(bytes: number): string {
+  if (bytes === 0) return "0 B";
+  const k = 1024;
+  const sizes = ["B", "KB", "MB", "GB", "TB"];
+  const i = Math.floor(Math.log(bytes) / Math.log(k));
+
+  return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
+}
+
 // 重新导出隐私相关工具函数
 export { formatUrlWithPrivacy } from "./utils/privacy";

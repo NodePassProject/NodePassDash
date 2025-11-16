@@ -157,6 +157,8 @@ type Services struct {
 	EntranceHost       *string   `json:"entranceHost,omitempty" gorm:"type:text;column:entrance_host"`
 	ExitPort           *string   `json:"exitPort,omitempty" gorm:"type:text;column:exit_port"`
 	ExitHost           *string   `json:"exitHost,omitempty" gorm:"type:text;column:exit_host"`
+	TotalRx            int64     `json:"totalRx" gorm:"default:0;column:total_rx"`
+	TotalTx            int64     `json:"totalTx" gorm:"default:0;column:total_tx"`
 	CreatedAt          time.Time `json:"createdAt" gorm:"autoCreateTime;column:created_at"`
 	UpdatedAt          time.Time `json:"updatedAt" gorm:"autoUpdateTime;column:updated_at"`
 }
