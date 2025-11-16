@@ -167,6 +167,7 @@ func (h *DashboardHandler) HandleGetTunnelStats(c *gin.Context) {
 		Error          int64 `json:"error"`
 		Offline        int64 `json:"offline"`
 		TotalEndpoints int64 `json:"total_endpoints"`
+		TotalServices  int64 `json:"total_services"`
 	}
 
 	// 使用原生 SQL 查询统计数据
@@ -195,6 +196,16 @@ func (h *DashboardHandler) HandleGetTunnelStats(c *gin.Context) {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   "获取主控总数失败: " + err.Error(),
+		})
+		return
+	}
+
+	// 获取服务总数
+	err = h.dashboardService.DB().Raw("SELECT COUNT(*) FROM services").Scan(&stats.TotalServices).Error
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"error":   "获取服务总数失败: " + err.Error(),
 		})
 		return
 	}

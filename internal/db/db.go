@@ -14,10 +14,10 @@ import (
 	"sync"
 	"time"
 
+	_ "github.com/mattn/go-sqlite3"
 	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
-	_ "github.com/mattn/go-sqlite3"
 )
 
 var (
@@ -193,6 +193,9 @@ func QuickInitSchema(db *gorm.DB) error {
 		&models.TrafficHourlySummary{},
 		&models.DashboardTrafficSummary{},
 		&models.ServiceHistory{},
+
+		// 服务管理表
+		&models.Services{},
 	)
 }
 
@@ -220,6 +223,9 @@ func StandardMigrate(db *gorm.DB) error {
 		&models.TrafficHourlySummary{},
 		&models.DashboardTrafficSummary{},
 		&models.ServiceHistory{},
+
+		// 服务管理表
+		&models.Services{},
 	)
 }
 

@@ -1081,7 +1081,7 @@ export default function EndpointsPage() {
   };
 
   return (
-    <div className="max-w-7xl py-6 mx-auto space-y-6">
+    <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-2 md:gap-0">
         <div className="flex items-center gap-2 md:gap-4">
           <h1 className="text-2xl font-bold">主控管理</h1>
@@ -1291,7 +1291,6 @@ export default function EndpointsPage() {
                     "absolute bottom-0 h-[60px] overflow-visible bg-content1 px-6 duration-300 ease-in-out transition-all",
                     {
                       "h-full": isExpanded,
-                      "border-t-1 border-default-100": !isExpanded,
                     },
                   )}
                 >

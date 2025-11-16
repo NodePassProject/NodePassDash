@@ -53,9 +53,6 @@ import {
   faQuestionCircle,
   faTag,
   faTimes,
-  faExchangeAlt,
-  faArrowRight,
-  faShield,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 
@@ -67,9 +64,6 @@ import SimpleCreateTunnelModal from "@/components/tunnels/simple-create-tunnel-m
 import BatchCreateModal from "@/components/tunnels/batch-create-modal";
 import BatchUrlCreateTunnelModal from "@/components/tunnels/batch-url-create-tunnel-modal";
 import GroupManagementModal from "@/components/tunnels/group-management-modal";
-import ScenarioCreateModal, {
-  ScenarioType,
-} from "@/components/tunnels/scenario-create-modal";
 import RenameTunnelModal from "@/components/tunnels/rename-tunnel-modal";
 import { useSettings } from "@/components/providers/settings-provider";
 import { useIsMobile } from "@/lib/hooks/use-media-query";
@@ -819,12 +813,6 @@ export default function TunnelsPage() {
   const [groupManagementModalOpen, setGroupManagementModalOpen] =
     useState(false);
 
-  // 场景创建模态框状态
-  const [scenarioModalOpen, setScenarioModalOpen] = useState(false);
-  const [selectedScenarioType, setSelectedScenarioType] = useState<
-    ScenarioType | undefined
-  >();
-
   const showManualCopyModal = (text: string) => {
     setManualCopyText(text);
     setIsManualCopyOpen(true);
@@ -1330,7 +1318,7 @@ export default function TunnelsPage() {
 
   return (
     <>
-      <div className="max-w-7xl py-6 mx-auto">
+      <div className="max-w-7xl mx-auto">
         {/* 标题栏 */}
         <div className="flex items-center justify-between mb-4">
           {/* 移动端布局 */}
@@ -1451,52 +1439,6 @@ export default function TunnelsPage() {
               >
                 分组管理
               </Button>
-              <Dropdown placement="bottom-end">
-                <DropdownTrigger>
-                  <Button
-                    className="bg-linear-to-tr from-pink-500 to-yellow-500 text-white shadow-lg"
-                    color="secondary"
-                    startContent={<FontAwesomeIcon icon={faLayerGroup} />}
-                    variant="flat"
-                  >
-                    场景创建
-                  </Button>
-                </DropdownTrigger>
-                <DropdownMenu
-                  aria-label="场景创建选项"
-                  onAction={(key) => {
-                    const scenarioType = key as ScenarioType;
-
-                    setSelectedScenarioType(scenarioType);
-                    setScenarioModalOpen(true);
-                  }}
-                >
-                  <DropdownItem
-                    key="nat-penetration"
-                    startContent={
-                      <FontAwesomeIcon fixedWidth icon={faShield} />
-                    }
-                  >
-                    NAT穿透
-                  </DropdownItem>
-                  <DropdownItem
-                    key="single-forward"
-                    startContent={
-                      <FontAwesomeIcon fixedWidth icon={faArrowRight} />
-                    }
-                  >
-                    单端转发
-                  </DropdownItem>
-                  <DropdownItem
-                    key="tunnel-forward"
-                    startContent={
-                      <FontAwesomeIcon fixedWidth icon={faExchangeAlt} />
-                    }
-                  >
-                    隧道转发
-                  </DropdownItem>
-                </DropdownMenu>
-              </Dropdown>
               {/* 创建按钮组 */}
               <ButtonGroup>
                 <Button
@@ -2441,7 +2383,6 @@ export default function TunnelsPage() {
         onSaved={handleGroupSaved}
       />
 
-
       {/* Quick Edit Modal */}
       {editModalOpen && editTunnel && (
         <SimpleCreateTunnelModal
@@ -2455,18 +2396,6 @@ export default function TunnelsPage() {
           }}
         />
       )}
-
-      {/* 场景创建模态框 */}
-      <ScenarioCreateModal
-        isOpen={scenarioModalOpen}
-        scenarioType={selectedScenarioType}
-        onOpenChange={setScenarioModalOpen}
-        onSaved={() => {
-          setScenarioModalOpen(false);
-          setSelectedScenarioType(undefined);
-          fetchTunnels();
-        }}
-      />
     </>
   );
 }

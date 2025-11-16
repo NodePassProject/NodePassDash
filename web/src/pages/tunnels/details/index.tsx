@@ -2433,13 +2433,13 @@ export default function TunnelDetailPage() {
                     <Icon
                       className="text-default-600"
                       height={18}
-                      icon="lucide:paperclip"
+                      icon="solar:widget-2-bold"
                       width={18}
                     />
                   }
                   isInteractive={true}
                   onPress={() => {
-
+                      navigate(`/services/details?sid=${tunnelInfo.peer?.sid}&type=${tunnelInfo.peer?.type}`);
                   }}
                   label="绑定服务"
                   value={

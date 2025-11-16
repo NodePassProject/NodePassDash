@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"sync"
 	"time"
 
@@ -258,6 +259,9 @@ func (s *Service) handleInitialEvent(payload SSEResp) {
 		} else {
 			log.Infof("[Master-%d]最小化隧道记录 %s 初始化成功，包含流量信息", payload.EndpointID, payload.Instance.ID)
 			s.updateEndpointTunnelCount(payload.EndpointID)
+
+			// 处理服务记录
+			s.upsertService(payload.Instance.ID, tunnel)
 		}
 	}
 }
@@ -320,6 +324,9 @@ func (s *Service) handleCreateEvent(payload SSEResp) {
 	} else {
 		log.Infof("[Master-%d]隧道记录 %s 处理成功（创建或更新）", payload.EndpointID, payload.Instance.ID)
 		s.updateEndpointTunnelCount(payload.EndpointID)
+
+		// 处理服务记录
+		s.upsertService(payload.Instance.ID, tunnel)
 	}
 }
 
@@ -441,6 +448,9 @@ func (s *Service) updateTunnelRuntimeInfo(payload SSEResp) {
 	}
 
 	log.Debugf("[Master-%d]隧道 %s 运行时信息已更新", payload.EndpointID, payload.Instance.ID)
+
+	// 处理服务记录
+	s.upsertService(payload.Instance.ID, tunnel)
 }
 
 // fetchAndUpdateEndpointInfo 获取并更新端点系统信息
@@ -572,4 +582,86 @@ func (s *Service) setTunnelsOfflineForEndpoint(endpointID int64) error {
 // GetFileLogger 获取文件日志管理器
 func (s *Service) GetFileLogger() *log.FileLogger {
 	return s.fileLogger
+}
+
+// =============== 服务管理 ===============
+// upsertService 插入或更新服务记录
+func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
+	// 检查 peer 是否为 nil 或 SID 为空
+	if tunnel.Peer == nil || tunnel.Peer.SID == nil || *tunnel.Peer.SID == "" {
+		return
+	}
+
+	peer := tunnel.Peer
+
+	// 检查 Type 是否为空
+	if peer.Type == nil || *peer.Type == "" {
+		log.Warnf("服务 SID=%s 的 Type 为空，跳过处理", *peer.SID)
+		return
+	}
+
+	// 构建 service 对象
+	service := models.Services{
+		Sid:   *peer.SID,
+		Type:  *peer.Type,
+		Alias: peer.Alias,
+	}
+
+	// 根据 tunnel 类型设置对应的 InstanceId 和要更新的字段列表
+	var updateColumns []string
+	if tunnel.Type == models.TunnelModeServer {
+		service.ServerInstanceId = &instanceID
+		service.ServerEndpointId = &tunnel.EndpointID
+
+		// 填充 tunnelPort
+		if tunnel.TunnelPort != "" {
+			if port, err := strconv.ParseInt(tunnel.TunnelPort, 10, 64); err == nil {
+				service.TunnelPort = &port
+			}
+		}
+
+		// 查询并填充 tunnelEndpointName
+		var endpoint models.Endpoint
+		if err := s.db.First(&endpoint, tunnel.EndpointID).Error; err == nil {
+			service.TunnelEndpointName = &endpoint.Name
+		}
+
+		// 填充 EntranceHost 和 EntrancePort（server 的 targetAddress 和 targetPort）
+		service.EntranceHost = &tunnel.TargetAddress
+		if port, err := strconv.ParseInt(tunnel.TargetPort, 10, 64); err == nil {
+			service.EntrancePort = &port
+		}
+
+		updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "tunnel_endpoint_name", "entrance_host", "entrance_port"}
+	} else if tunnel.Type == models.TunnelModeClient {
+		service.ClientInstanceId = &instanceID
+		service.ClientEndpointId = &tunnel.EndpointID
+
+		// 如果 mode=2，填充 ExitHost 和 ExitPort
+		if tunnel.Mode != nil && *tunnel.Mode == 2 {
+			service.ExitHost = &tunnel.TargetAddress
+			if port, err := strconv.ParseInt(tunnel.TargetPort, 10, 64); err == nil {
+				service.ExitPort = &port
+			}
+			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port"}
+		} else {
+			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id"}
+		}
+	} else {
+		// 如果既不是 server 也不是 client，只更新 alias
+		updateColumns = []string{"alias"}
+	}
+
+	// 使用 OnConflict 处理插入或更新
+	if err := s.db.Clauses(clause.OnConflict{
+		Columns: []clause.Column{
+			{Name: "sid"},
+			{Name: "type"},
+		},
+		DoUpdates: clause.AssignmentColumns(updateColumns),
+	}).Create(&service).Error; err != nil {
+		log.Errorf("处理服务记录失败 (SID=%s, Type=%s): %v", *peer.SID, *peer.Type, err)
+	} else {
+		// log.Infof("处理服务记录成功 (SID=%s, Type=%s, InstanceID=%s)", *peer.SID, *peer.Type, instanceID)
+	}
 }

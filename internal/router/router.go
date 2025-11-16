@@ -5,9 +5,10 @@ import (
 	"NodePassDash/internal/auth"
 	"NodePassDash/internal/dashboard"
 	"NodePassDash/internal/endpoint"
-	"NodePassDash/internal/metrics"
-	"NodePassDash/internal/sse"
 	"NodePassDash/internal/group"
+	"NodePassDash/internal/metrics"
+	"NodePassDash/internal/services"
+	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
 	"NodePassDash/internal/websocket"
 	"fmt"
@@ -50,6 +51,7 @@ func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseMana
 		endpointService := endpoint.NewService(db)
 		tunnelService := tunnel.NewService(db)
 		groupService := group.NewService(db)
+		servicesService := services.NewService(db)
 		dashboardService := dashboard.NewService(db)
 
 		// 创建 Metrics 系统相关的处理器
@@ -65,6 +67,7 @@ func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseMana
 		api.SetupDashboardRoutes(apiGroup, dashboardService)
 		api.SetupDataRoutes(apiGroup, db, sseManager, endpointService, tunnelService)
 		api.SetupGroupRoutes(apiGroup, groupService)
+		api.SetupServicesRoutes(apiGroup, servicesService)
 		api.SetupVersionRoutes(apiGroup, version)
 		api.SetupDebugRoutes(apiGroup)
 	}
@@ -74,22 +77,22 @@ func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseMana
 func docsProxyHandler(c *gin.Context) {
 	// 获取路径参数
 	path := c.Param("path")
-	
+
 	// 构建目标 URL
 	targetURL := fmt.Sprintf("https://raw.githubusercontent.com%s", path)
-	
+
 	// 创建 HTTP 客户端
 	client := &http.Client{
 		Timeout: 30 * time.Second,
 	}
-	
+
 	// 创建请求
 	req, err := http.NewRequest(c.Request.Method, targetURL, c.Request.Body)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建请求失败"})
 		return
 	}
-	
+
 	// 复制请求头（排除某些不需要的头）
 	for name, values := range c.Request.Header {
 		if !shouldSkipHeader(name) {
@@ -98,7 +101,7 @@ func docsProxyHandler(c *gin.Context) {
 			}
 		}
 	}
-	
+
 	// 发送请求
 	resp, err := client.Do(req)
 	if err != nil {
@@ -106,7 +109,7 @@ func docsProxyHandler(c *gin.Context) {
 		return
 	}
 	defer resp.Body.Close()
-	
+
 	// 复制响应头
 	for name, values := range resp.Header {
 		if !shouldSkipHeader(name) {
@@ -115,10 +118,10 @@ func docsProxyHandler(c *gin.Context) {
 			}
 		}
 	}
-	
+
 	// 设置状态码
 	c.Status(resp.StatusCode)
-	
+
 	// 复制响应体
 	_, err = io.Copy(c.Writer, resp.Body)
 	if err != nil {
@@ -139,7 +142,7 @@ func shouldSkipHeader(name string) bool {
 		"Transfer-Encoding",
 		"Upgrade",
 	}
-	
+
 	for _, skip := range skipHeaders {
 		if strings.EqualFold(name, skip) {
 			return true

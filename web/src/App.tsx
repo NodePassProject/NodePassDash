@@ -40,10 +40,7 @@ function App() {
         <Route element={<EndpointDetailsPage />} path="/endpoints/details" />
         <Route element={<EndpointSSEDebugPage />} path="/endpoints/sse-debug" />
         <Route element={<SettingsPage />} path="/settings" />
-        <Route
-          element={<VersionHistoryPage />}
-          path="/settings/version-history"
-        />
+        <Route element={<VersionHistoryPage />} path="/settings/version-history"/>
         <Route element={<ExamplesPage />} path="/docs" />
         <Route element={<DebugPage />} path="/debug" />
         <Route element={<IconComparisonPage />} path="/icon-comparison" />

@@ -143,6 +143,29 @@ type TunnelRecycle struct {
 	DeletedAt     time.Time  `json:"deletedAt" gorm:"autoCreateTime;column:deleted_at"`
 }
 
+type Services struct {
+	Sid                string    `json:"sid" gorm:"type:text;primaryKey;column:sid"`
+	Type               string    `json:"type" gorm:"type:text;primaryKey;column:type"`
+	Alias              *string   `json:"alias,omitempty" gorm:"type:text;column:alias"`
+	ServerInstanceId   *string   `json:"serverInstanceId,omitempty" gorm:"type:text;column:server_instance_id"`
+	ClientInstanceId   *string   `json:"clientInstanceId,omitempty" gorm:"type:text;column:client_instance_id"`
+	ServerEndpointId   *int64    `json:"serverEndpointId,omitempty" gorm:"type:int;column:server_endpoint_id"`
+	ClientEndpointId   *int64    `json:"clientEndpointId,omitempty" gorm:"type:int;column:server_endpoint_id"`
+	TunnelPort         *int64    `json:"tunnelPort,omitempty" gorm:"type:int;column:tunnel_port"`
+	TunnelEndpointName *string   `json:"tunnelEndpointName,omitempty" gorm:"type:text;column:tunnel_endpoint_name"`
+	EntrancePort       *int64    `json:"entrancePort,omitempty" gorm:"type:int;column:entrance_port"`
+	EntranceHost       *string   `json:"entranceHost,omitempty" gorm:"type:text;column:entrance_host"`
+	ExitPort           *int64    `json:"exitPort,omitempty" gorm:"type:int;column:exit_port"`
+	ExitHost           *string   `json:"exitHost,omitempty" gorm:"type:text;column:exit_host"`
+	CreatedAt          time.Time `json:"createdAt" gorm:"autoCreateTime;column:created_at"`
+	UpdatedAt          time.Time `json:"updatedAt" gorm:"autoUpdateTime;column:updated_at"`
+}
+
+// TableName 设置表名
+func (Services) TableName() string {
+	return "services"
+}
+
 // TableName 设置表名
 func (TunnelRecycle) TableName() string {
 	return "tunnel_recycle"

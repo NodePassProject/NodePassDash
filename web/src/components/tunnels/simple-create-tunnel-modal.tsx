@@ -955,7 +955,6 @@ export default function SimpleCreateTunnelModal({
 
                           {/* 启用 QUIC */}
                           {formData.type=='server'&& <div>
-
                             <Select
                               label="启用 QUIC"
                               selectedKeys={

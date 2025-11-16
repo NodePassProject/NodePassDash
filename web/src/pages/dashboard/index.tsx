@@ -50,6 +50,7 @@ interface TunnelStats {
   error: number;
   offline: number;
   total_endpoints: number;
+  total_services: number;
 }
 
 // 操作日志类型
@@ -106,6 +107,7 @@ export default function DashboardPage() {
     error: 0,
     offline: 0,
     total_endpoints: 0,
+    total_services: 0,
   });
   const [operationLogs, setOperationLogs] = useState<OperationLog[]>([]);
   const [trafficTrend, setTrafficTrend] = useState<TrafficTrendData[]>([]);
@@ -182,6 +184,7 @@ export default function DashboardPage() {
         error: 0,
         offline: 0,
         total_endpoints: 0,
+        total_services: 0,
       });
       setOperationLogs([]);
       setTrafficTrend([]);
@@ -640,6 +643,12 @@ export default function DashboardPage() {
               {loading ? "--" : tunnelStats.total_endpoints}
             </div>
             <div className="text-xs md:text-sm text-default-500">主控数</div>
+          </div>
+          <div className="text-center">
+            <div className="text-xl md:text-2xl font-bold text-success">
+              {loading ? "--" : tunnelStats.total_services || 0}
+            </div>
+            <div className="text-xs md:text-sm text-default-500">服务数</div>
           </div>
         </div>
       </div>
