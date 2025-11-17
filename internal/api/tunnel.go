@@ -453,10 +453,12 @@ func (h *TunnelHandler) HandlePatchTunnels(c *gin.Context) {
 		InstanceID string `json:"instanceId"`
 		// 用于重命名
 		ID int64 `json:"id"`
-		// 操作类型：start | stop | restart | rename
+		// 操作类型：start | stop | restart | rename | updateSort
 		Action string `json:"action"`
 		// 当 action 为 rename 时的新名称
 		Name string `json:"name"`
+		// 当 action 为 updateSort 时的新权重值
+		Sorts *int `json:"sorts"`
 	}
 
 	if err := c.ShouldBindJSON(&raw); err != nil {
@@ -556,10 +558,32 @@ func (h *TunnelHandler) HandlePatchTunnels(c *gin.Context) {
 			Message: "隧道重命名成功",
 		})
 
+	case "updateSort":
+		if raw.ID == 0 {
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
+				Success: false,
+				Error:   "更新权重操作需提供有效的 id",
+			})
+			return
+		}
+
+		if err := h.tunnelService.UpdateTunnelSort(raw.ID, raw.Sorts); err != nil {
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
+				Success: false,
+				Error:   err.Error(),
+			})
+			return
+		}
+
+		c.JSON(http.StatusOK, tunnel.TunnelResponse{
+			Success: true,
+			Message: "隧道权重更新成功",
+		})
+
 	default:
 		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
-			Error:   "无效的操作类型，支持: start, stop, restart, reset, rename",
+			Error:   "无效的操作类型，支持: start, stop, restart, reset, rename, updateSort",
 		})
 	}
 }
@@ -3221,13 +3245,11 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 
 // HandleUpdateTunnelsSorts 批量更新隧道排序 (POST /api/tunnels/sorts)
 func (h *TunnelHandler) HandleUpdateTunnelsSorts(c *gin.Context) {
-	var req tunnel.UpdateTunnelsSortsRequest
-	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误: " + err.Error()})
-		return
-	}
-
-	if err := h.tunnelService.UpdateTunnelsSorts(&req); err != nil {
+	idStr := c.Param("id")
+	id, _ := strconv.ParseInt(idStr, 10, 64)
+	sortsStr := c.Param("sorts")
+	sorts, _ := strconv.ParseInt(sortsStr, 10, 64)
+	if err := h.tunnelService.UpdateTunnelsSorts(id, sorts); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新排序失败: " + err.Error()})
 		return
 	}

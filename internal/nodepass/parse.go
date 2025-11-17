@@ -307,7 +307,6 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 		"proxy_protocol":  tunnel.ProxyProtocol,
 		"config_line":     tunnel.ConfigLine,
 		"listen_type":     tunnel.ListenType,
-		"sorts":           tunnel.Sorts,
 	}
 
 	if tunnel.CertPath != nil {

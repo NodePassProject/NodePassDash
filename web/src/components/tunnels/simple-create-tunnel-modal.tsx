@@ -36,6 +36,7 @@ import { motion, AnimatePresence } from "framer-motion";
 
 import { buildApiUrl } from "@/lib/utils";
 import RenameTunnelModal from "./rename-tunnel-modal";
+import UpdateSortModal from "./update-sort-modal";
 
 interface EndpointSimple {
   id: string;
@@ -123,6 +124,8 @@ export default function SimpleCreateTunnelModal({
   const [isEnableLoadBalancing, setEnableLoadBalancing] = useState(false);
   // 重命名modal状态
   const [renameModalOpen, setRenameModalOpen] = useState(false);
+  // 修改权重modal状态
+  const [updateSortModalOpen, setUpdateSortModalOpen] = useState(false);
 
   // 表单数据
   const [formData, setFormData] = useState({
@@ -500,6 +503,34 @@ export default function SimpleCreateTunnelModal({
       </Select>
     );
   }, [formData.proxyProtocol, handleField]);
+
+  // 缓存权重字段渲染结果
+  const sortInput = useMemo(() => {
+    return (
+      <Input
+        readOnly={modalMode === "edit"}
+        label="权重(越大越前)"
+        placeholder="0"
+        type="number"
+        value={formData.sorts}
+        onValueChange={(v) => handleField("sorts", v ? String(v) : "")}
+        endContent={
+          modalMode === "edit" && (
+            <button
+              className="focus:outline-none"
+              type="button"
+              onClick={() => setUpdateSortModalOpen(true)}
+            >
+              <FontAwesomeIcon
+                className="text-sm text-default-400 pointer-events-none"
+                icon={faPen}
+              />
+            </button>
+          )
+        }
+      />
+    );
+  }, [modalMode, formData.sorts, handleField]);
 
   return (
     <Modal
@@ -886,32 +917,20 @@ export default function SimpleCreateTunnelModal({
                                   onValueChange={(v) => handleField("min", v ? String(v) : "")}
                                 />
                                 {proxyProtocolSelect}
-                                 <Input
-                                    label="权重(越大越前)"
-                                    placeholder="0"
-                                    type="number"
-                                    value={formData.sorts}
-                                    onValueChange={(v) => handleField("sorts", v ? String(v) : "")}
-                                  />
-                                  <Input
-                                    label="Dial"
-                                    placeholder="出站源IP地址"
-                                    value={formData.dial}
-                                    onValueChange={(v) => handleField("dial", v ? String(v) : "")}
-                                  />
+                                {sortInput}
+                                <Input
+                                  label="Dial"
+                                  placeholder="出站源IP地址"
+                                  value={formData.dial}
+                                  onValueChange={(v) => handleField("dial", v ? String(v) : "")}
+                                />
                               </>
                             )}
                             {isClientType &&
                               formData.mode === 1 && (
                                 <>
                                   {proxyProtocolSelect}
-                                  <Input
-                                    label="权重(越大越前)"
-                                    placeholder="0"
-                                    type="number"
-                                    value={formData.sorts}
-                                    onValueChange={(v) => handleField("sorts", v ? String(v) : "")}
-                                  />
+                                  {sortInput}
                                   <Input
                                     label="Dial"
                                     placeholder="出站源IP地址"
@@ -981,13 +1000,7 @@ export default function SimpleCreateTunnelModal({
                                   <SelectItem key="false">关闭</SelectItem>
                                   <SelectItem key="true">启用</SelectItem>
                                 </Select>
-                                <Input
-                                  label="权重(越大越前)"
-                                  placeholder="0"
-                                  type="number"
-                                  value={formData.sorts}
-                                  onValueChange={(v) => handleField("sorts", v ? String(v) : "")}
-                                />
+                                {sortInput}
                                 <Input
                                   label="Dial"
                                   placeholder="出站源IP地址"
@@ -1069,6 +1082,19 @@ export default function SimpleCreateTunnelModal({
           onOpenChange={setRenameModalOpen}
           onRenamed={(newName) => {
             setFormData((prev) => ({ ...prev, tunnelName: newName }));
+          }}
+        />
+      )}
+
+      {/* 修改权重模态框 */}
+      {modalMode === "edit" && tunnelId && (
+        <UpdateSortModal
+          isOpen={updateSortModalOpen}
+          tunnelId={String(realTunnelId)}
+          currentSort={formData.sorts || "0"}
+          onOpenChange={setUpdateSortModalOpen}
+          onUpdated={(newSort) => {
+            setFormData((prev) => ({ ...prev, sorts: newSort }));
           }}
         />
       )}

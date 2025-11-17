@@ -1306,6 +1306,7 @@ func (s *Service) NewCreateTunnelAndWait(req Tunnel, timeout time.Duration) (*Tu
 		updateFields := map[string]interface{}{
 			"name":       req.Name,
 			"updated_at": now,
+			"sorts":      req.Sorts,
 		}
 
 		err = s.db.Model(&models.Tunnel{}).Where("id = ?", tunnelID).Updates(updateFields).Error
@@ -1564,6 +1565,42 @@ func (s *Service) RenameTunnel(id int64, newName string) error {
 		CreatedAt:  time.Now(),
 	}
 	s.db.Create(&operationLog)
+
+	return nil
+}
+
+// UpdateTunnelSort 更新隧道权重
+func (s *Service) UpdateTunnelSort(id int64, sorts *int) error {
+	log.Infof("[API] 更新隧道权重: ID=%d, Sorts=%v", id, sorts)
+
+	// 获取隧道信息确认存在
+	var tunnel models.Tunnel
+	if err := s.db.Where("id = ?", id).First(&tunnel).Error; err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return errors.New("隧道不存在")
+		}
+		return err
+	}
+
+	// 处理sorts值，如果为nil则设置为0
+	sortValue := 0
+	if sorts != nil {
+		sortValue = *sorts
+	}
+
+	// 更新本地数据库的sorts字段
+	result := s.db.Model(&models.Tunnel{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"sorts":      sortValue,
+		"updated_at": time.Now(),
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("隧道不存在")
+	}
+
+	log.Infof("[API] 隧道权重更新成功: ID=%d, Sorts=%d", id, sortValue)
 
 	return nil
 }
@@ -2770,55 +2807,24 @@ func (s *Service) getEndpointWithGroup(endpointID int) (struct {
 	return endpoint, nil
 }
 
-// UpdateTunnelsSorts 批量更新隧道排序（优化版：使用 CASE WHEN 单条 SQL）
-func (s *Service) UpdateTunnelsSorts(req *UpdateTunnelsSortsRequest) error {
-	if len(req.Tunnels) == 0 {
-		return nil
+// UpdateTunnelsSorts 更新单个隧道排序
+func (s *Service) UpdateTunnelsSorts(id, sorts int64) error {
+	log.Infof("[API] 更新隧道排序: ID=%d, Sorts=%d", id, sorts)
+
+	// 更新本地数据库的sorts字段
+	result := s.db.Model(&models.Tunnel{}).Where("id = ?", id).Updates(map[string]interface{}{
+		"sorts":      sorts,
+		"updated_at": time.Now(),
+	})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		return errors.New("隧道不存在")
 	}
 
-	// 开启事务
-	tx := s.db.Begin()
-	if tx.Error != nil {
-		return fmt.Errorf("开启事务失败: %w", tx.Error)
-	}
-	defer func() {
-		if r := recover(); r != nil {
-			tx.Rollback()
-		}
-	}()
+	log.Infof("[API] 隧道排序更新成功: ID=%d, Sorts=%d", id, sorts)
 
-	// 构建批量更新 SQL（使用 CASE WHEN）
-	// UPDATE tunnels SET sorts = CASE id
-	//   WHEN 1 THEN 10
-	//   WHEN 2 THEN 9
-	//   ELSE sorts
-	// END
-	// WHERE id IN (1, 2, ...)
-
-	var caseSQL string
-	var ids []int64
-	var args []interface{}
-
-	for _, item := range req.Tunnels {
-		caseSQL += " WHEN ? THEN ?"
-		args = append(args, item.ID, item.Sorts)
-		ids = append(ids, item.ID)
-	}
-
-	sql := fmt.Sprintf("UPDATE tunnels SET sorts = CASE id %s ELSE sorts END WHERE id IN (?)", caseSQL)
-
-	// 执行批量更新
-	if err := tx.Exec(sql, append(args, ids)...).Error; err != nil {
-		tx.Rollback()
-		return fmt.Errorf("批量更新隧道排序失败: %w", err)
-	}
-
-	// 提交事务
-	if err := tx.Commit().Error; err != nil {
-		return fmt.Errorf("提交事务失败: %w", err)
-	}
-
-	log.Infof("[Tunnel] 批量更新 %d 个隧道的排序成功", len(req.Tunnels))
 	return nil
 }
 
