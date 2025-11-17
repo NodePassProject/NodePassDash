@@ -622,6 +622,15 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 		service.ExitPort = &tunnel.TargetPort
 		service.EntranceHost = &tunnel.TunnelAddress
 		service.EntrancePort = &tunnel.TunnelPort
+		if service.EntranceHost == nil || *service.EntranceHost == "" {
+			var endpoint models.Endpoint
+			if err := s.db.First(&endpoint, tunnel.EndpointID).Error; err == nil {
+				service.TunnelEndpointName = &endpoint.Name
+				if service.EntranceHost == nil || *service.EntranceHost == "" {
+					service.EntranceHost = &endpoint.IP
+				}
+			}
+		}
 
 		// type=0: 直接 TCP+UDP 相加（单端转发，只有 client 端）
 		service.TotalRx = tunnel.TCPRx + tunnel.UDPRx

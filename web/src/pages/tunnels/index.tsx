@@ -2098,7 +2098,7 @@ export default function TunnelsPage() {
                                 }
                                 variant="light"
                                 onClick={() =>
-                                  navigate(`/tunnels/details?id=${tunnel.id}`)
+                                  navigate(`/tunnels/details?id=${tunnel.instanceId}`)
                                 }
                               />
                             </Tooltip>
@@ -2388,7 +2388,7 @@ export default function TunnelsPage() {
         <SimpleCreateTunnelModal
           isOpen={editModalOpen}
           mode="edit"
-          tunnelId={editTunnel.id}
+          instanceId={editTunnel.instanceId}
           onOpenChange={(open) => setEditModalOpen(open)}
           onSaved={() => {
             setEditModalOpen(false);

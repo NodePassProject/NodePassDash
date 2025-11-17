@@ -46,6 +46,7 @@ import ScenarioCreateModal, {
   ScenarioType,
 } from "@/components/tunnels/scenario-create-modal";
 import AssembleServiceModal from "@/components/services/assemble-service-modal";
+import RenameServiceModal from "@/components/services/rename-service-modal";
 
 // 定义服务类型
 interface Service {
@@ -82,6 +83,10 @@ export default function ServicesPage() {
 
   // 组装服务模态框状态
   const [assembleModalOpen, setAssembleModalOpen] = useState(false);
+
+  // 重命名模态框状态
+  const [renameModalOpen, setRenameModalOpen] = useState(false);
+  const [renameService, setRenameService] = useState<Service | null>(null);
 
   // 确认对话框状态
   const [confirmModalOpen, setConfirmModalOpen] = useState(false);
@@ -134,8 +139,8 @@ export default function ServicesPage() {
     try {
       const endpoint =
         type === "dissolve"
-          ? `/api/services/${service.sid}/${service.type}/dissolve`
-          : `/api/services/${service.sid}/${service.type}`;
+          ? `/api/services/${service.sid}/dissolve`
+          : `/api/services/${service.sid}`;
       const method = type === "dissolve" ? "POST" : "DELETE";
 
       const response = await fetch(buildApiUrl(endpoint), {
@@ -175,7 +180,7 @@ export default function ServicesPage() {
   ) => {
     try {
       const response = await fetch(
-        buildApiUrl(`/api/services/${service.sid}/${service.type}/${action}`),
+        buildApiUrl(`/api/services/${service.sid}/${action}`),
         {
           method: "POST",
         },
@@ -208,53 +213,17 @@ export default function ServicesPage() {
     }
   };
 
-  // 处理重命名服务
-  const handleRenameService = async (service: Service) => {
-    const newName = prompt("请输入新名称:", service.alias || service.sid);
-    if (!newName || newName.trim() === "") {
-      return;
-    }
-
-    try {
-      const response = await fetch(
-        buildApiUrl(`/api/services/${service.sid}/${service.type}/rename`),
-        {
-          method: "PUT",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({ name: newName.trim() }),
-        },
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || "重命名失败");
-      }
-
-      addToast({
-        title: "重命名成功",
-        description: `服务已重命名为 ${newName.trim()}`,
-        color: "success",
-      });
-
-      // 刷新服务列表
-      fetchServices();
-    } catch (error) {
-      console.error("重命名失败:", error);
-      addToast({
-        title: "重命名失败",
-        description: error instanceof Error ? error.message : "未知错误",
-        color: "danger",
-      });
-    }
+  // 打开重命名模态框
+  const handleOpenRenameModal = (service: Service) => {
+    setRenameService(service);
+    setRenameModalOpen(true);
   };
 
   // 处理同步服务
   const handleSyncService = async (service: Service) => {
     try {
       const response = await fetch(
-        buildApiUrl(`/api/services/${service.sid}/${service.type}/sync`),
+        buildApiUrl(`/api/services/${service.sid}/sync`),
         {
           method: "POST",
         },
@@ -346,7 +315,7 @@ export default function ServicesPage() {
     if (!host) return "[::]";
 
     // 如果隐私模式关闭，显示完整地址
-    if (!settings.isPrivacyMode) {
+    if (!settings.settings.isPrivacyMode) {
       return host;
     }
 
@@ -468,7 +437,7 @@ export default function ServicesPage() {
             <Card key={index} className="relative">
               <CardBody className="p-4">
                 <div className="flex gap-3 mb-3">
-                  <Skeleton className="flex-shrink-0 w-9 h-16 rounded-md" />
+                  <Skeleton className="flex-shrink-0 w-9 h-9 rounded-md" />
                   <div className="flex flex-col justify-center gap-2 flex-1">
                     <Skeleton className="h-4 w-3/4 rounded" />
                     <Skeleton className="h-3 w-1/2 rounded" />
@@ -509,9 +478,6 @@ export default function ServicesPage() {
                       isIconOnly
                       size="sm"
                       variant="light"
-                      onPress={(e) => {
-                        e.stopPropagation();
-                      }}
                     >
                       <FontAwesomeIcon icon={faEllipsisVertical} />
                     </Button>
@@ -535,7 +501,7 @@ export default function ServicesPage() {
                       if (actionKey === "start" || actionKey === "stop" || actionKey === "restart") {
                         handleServiceAction(actionKey, service);
                       } else if (actionKey === "rename") {
-                        handleRenameService(service);
+                        handleOpenRenameModal(service);
                       } else if (actionKey === "sync") {
                         handleSyncService(service);
                       }
@@ -602,7 +568,7 @@ export default function ServicesPage() {
               <CardBody
                 className="p-4 cursor-pointer"
                 onClick={() => {
-                  navigate(`/services/details?sid=${service.sid}&type=${service.type}`);
+                  navigate(`/services/details?sid=${service.sid}`);
                 }}
               >
                 {/* 标题：左侧图标 + 右侧两行文字 */}
@@ -644,7 +610,7 @@ export default function ServicesPage() {
               </CardBody>
 
               {/* 流量信息 */}
-              <CardFooter className="border-t border-divider px-3 py-3">
+              <CardFooter className="border-t border-divider px-2 py-2">
                 <div className="flex items-center w-full text-xs">
                   <div className="flex-1 flex items-center justify-center gap-1">
                     <span className="font-mono text-xs">↑</span>
@@ -652,7 +618,7 @@ export default function ServicesPage() {
                       {formatBytes(service.totalTx || 0)}
                     </span>
                   </div>
-                  <div className="h-4 w-px bg-divider" />
+                  <div className="h-5 w-px bg-divider" />
                   <div className="flex-1 flex items-center justify-center gap-1">
                     <span className="font-mono text-xs">↓</span>
                     <span className="font-medium text-default-700">
@@ -684,6 +650,18 @@ export default function ServicesPage() {
         onOpenChange={setAssembleModalOpen}
         onSaved={() => {
           setAssembleModalOpen(false);
+          fetchServices();
+        }}
+      />
+
+      {/* 重命名服务模态框 */}
+      <RenameServiceModal
+        isOpen={renameModalOpen}
+        service={renameService}
+        onOpenChange={setRenameModalOpen}
+        onRenamed={() => {
+          setRenameModalOpen(false);
+          setRenameService(null);
           fetchServices();
         }}
       />

@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/google/uuid"
 	"gorm.io/gorm"
 )
 
@@ -38,39 +39,6 @@ func NewTunnelHandler(tunnelService *tunnel.Service, sseManager *sse.Manager) *T
 		tunnelService: tunnelService,
 		sseManager:    sseManager,
 	}
-}
-
-// normalizeCommandLine 规范化 commandLine，将 URL 参数按字母顺序排序
-// 这样可以确保参数顺序不同但内容相同的 URL 能够正确比较
-func normalizeCommandLine(commandLine string) (string, error) {
-	// 查找 ? 的位置
-	idx := strings.Index(commandLine, "?")
-	if idx == -1 {
-		// 没有查询参数，直接返回
-		return commandLine, nil
-	}
-
-	// 分离基础部分和查询参数部分
-	base := commandLine[:idx]
-	queryStr := commandLine[idx+1:]
-
-	// 解析查询参数
-	values, err := url.ParseQuery(queryStr)
-	if err != nil {
-		return "", fmt.Errorf("解析查询参数失败: %w", err)
-	}
-
-	// 使用 Encode() 方法重建查询参数
-	// Encode() 会自动：
-	// 1. 按字母顺序排序键
-	// 2. 正确处理 URL 编码
-	// 3. 正确处理裸键和多值参数
-	encoded := values.Encode()
-	if encoded == "" {
-		return base, nil
-	}
-
-	return base + "?" + encoded, nil
 }
 
 // setupTunnelRoutes 设置隧道相关路由
@@ -707,22 +675,17 @@ func (h *TunnelHandler) HandleSetTunnelRestart(c *gin.Context) {
 
 // HandleGetTunnelDetails 获取隧道详细信息 (GET /api/tunnels/{id}/details)
 func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
-	idStr := c.Param("id")
-	if idStr == "" {
-		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "缺少隧道ID"})
-		return
-	}
-	id, err := strconv.ParseInt(idStr, 10, 64)
-	if err != nil {
-		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "无效的隧道ID"})
+	instanceId := c.Param("id")
+	if instanceId == "" {
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "缺少实例ID"})
 		return
 	}
 
 	db := h.tunnelService.GormDB()
 
-	// 使用 GORM 查询隧道及关联的端点信息，自动处理 serializer:json
+	// 使用 GORM 根据 instanceId 查询隧道及关联的端点信息
 	var tunnel models.Tunnel
-	if err := db.Preload("Endpoint").First(&tunnel, id).Error; err != nil {
+	if err := db.Preload("Endpoint").Where("instance_id = ?", instanceId).First(&tunnel).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
 			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "隧道不存在"})
 			return
@@ -793,16 +756,10 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		}
 	}
 
-	// 处理 InstanceID 字段
-	instanceID := ""
-	if tunnel.InstanceID != nil {
-		instanceID = *tunnel.InstanceID
-	}
-
 	// 组装扁平化响应结构
 	resp := map[string]interface{}{
 		"id":            tunnel.ID,
-		"instanceId":    instanceID,
+		"instanceId":    tunnel.InstanceID,
 		"name":          tunnel.Name,
 		"type":          tunnel.Type,
 		"status":        statusType, // 简化为字符串
@@ -1345,8 +1302,40 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 			return
 		}
 
-		// 获取创建的隧道ID
+		// 获取创建的隧道ID和instanceID
 		tunnelID, _ := h.getTunnelIDByName(tunnelName)
+
+		// 生成服务ID并更新peer信息
+		if tunnelID > 0 {
+			// 获取隧道的instanceID
+			instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
+			if err == nil {
+				// 生成UUID作为sid
+				sid := uuid.New().String()
+
+				// 构建peer对象
+				peer := &models.Peer{
+					SID: &sid,
+					Type: func() *string {
+						t := "0" // single对应type=0
+						return &t
+					}(),
+				}
+
+				// 如果TunnelName有值，设置alias
+				if req.TunnelName != "" {
+					peer.Alias = &req.TunnelName
+				}
+
+				// 调用UpdateInstancePeers更新peer信息
+				_, err := nodepass.UpdateInstancePeers(req.Inbounds.MasterID, instanceID, peer)
+				if err != nil {
+					log.Warnf("[API] 更新隧道peer信息失败，但不影响创建: %v", err)
+				} else {
+					log.Infof("[API] 成功更新隧道peer信息: sid=%s, type=0, alias=%s", sid, req.TunnelName)
+				}
+			}
+		}
 		// if err == nil {
 		// 	groupName := endpointName
 		// 	if err := h.createTunnelGroup(groupName, "single", "单端转发分组", []int64{tunnelID}); err != nil {
@@ -1514,13 +1503,58 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		log.Infof("[API] 步骤2完成: client端隧道创建成功")
 		log.Infof("[API] 双端隧道创建完成")
 
-		// 获取创建的隧道ID并自动创建分组
+		// 生成服务ID（双端模式共用一个sid）
+		sid := uuid.New().String()
+
+		// 获取创建的隧道ID并更新peer信息
 		var tunnelIDs []int64
 		if serverTunnelID, err := h.getTunnelIDByName(serverTunnelName); err == nil {
 			tunnelIDs = append(tunnelIDs, serverTunnelID)
+
+			// 更新server端隧道的peer信息
+			if instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(serverTunnelID); err == nil {
+				peer := &models.Peer{
+					SID: &sid,
+					Type: func() *string {
+						t := "2" // bothway对应type=2
+						return &t
+					}(),
+				}
+				if req.TunnelName != "" {
+					peer.Alias = &req.TunnelName
+				}
+
+				_, err := nodepass.UpdateInstancePeers(serverConfig.MasterID, instanceID, peer)
+				if err != nil {
+					log.Warnf("[API] 更新server端隧道peer信息失败: %v", err)
+				} else {
+					log.Infof("[API] 成功更新server端隧道peer信息: sid=%s, type=2", sid)
+				}
+			}
 		}
 		if clientTunnelID, err := h.getTunnelIDByName(clientTunnelName); err == nil {
 			tunnelIDs = append(tunnelIDs, clientTunnelID)
+
+			// 更新client端隧道的peer信息
+			if instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(clientTunnelID); err == nil {
+				peer := &models.Peer{
+					SID: &sid,
+					Type: func() *string {
+						t := "2" // bothway对应type=2
+						return &t
+					}(),
+				}
+				if req.TunnelName != "" {
+					peer.Alias = &req.TunnelName
+				}
+
+				_, err := nodepass.UpdateInstancePeers(clientConfig.MasterID, instanceID, peer)
+				if err != nil {
+					log.Warnf("[API] 更新client端隧道peer信息失败: %v", err)
+				} else {
+					log.Infof("[API] 成功更新client端隧道peer信息: sid=%s, type=2", sid)
+				}
+			}
 		}
 
 		// if len(tunnelIDs) > 0 {
@@ -1690,13 +1724,58 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		log.Infof("[API] 步骤2完成: client端隧道创建成功")
 		log.Infof("[API] 内网穿透隧道创建完成")
 
-		// 获取创建的隧道ID并自动创建分组
+		// 生成服务ID（内网穿透模式共用一个sid）
+		sid := uuid.New().String()
+
+		// 获取创建的隧道ID并更新peer信息
 		var tunnelIDs []int64
 		if serverTunnelID, err := h.getTunnelIDByName(serverTunnelName); err == nil {
 			tunnelIDs = append(tunnelIDs, serverTunnelID)
+
+			// 更新server端隧道的peer信息
+			if instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(serverTunnelID); err == nil {
+				peer := &models.Peer{
+					SID: &sid,
+					Type: func() *string {
+						t := "1" // intranet对应type=1
+						return &t
+					}(),
+				}
+				if req.TunnelName != "" {
+					peer.Alias = &req.TunnelName
+				}
+
+				_, err := nodepass.UpdateInstancePeers(serverConfig.MasterID, instanceID, peer)
+				if err != nil {
+					log.Warnf("[API] 更新server端隧道peer信息失败: %v", err)
+				} else {
+					log.Infof("[API] 成功更新server端隧道peer信息: sid=%s, type=1", sid)
+				}
+			}
 		}
 		if clientTunnelID, err := h.getTunnelIDByName(clientTunnelName); err == nil {
 			tunnelIDs = append(tunnelIDs, clientTunnelID)
+
+			// 更新client端隧道的peer信息
+			if instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(clientTunnelID); err == nil {
+				peer := &models.Peer{
+					SID: &sid,
+					Type: func() *string {
+						t := "1" // intranet对应type=1
+						return &t
+					}(),
+				}
+				if req.TunnelName != "" {
+					peer.Alias = &req.TunnelName
+				}
+
+				_, err := nodepass.UpdateInstancePeers(clientConfig.MasterID, instanceID, peer)
+				if err != nil {
+					log.Warnf("[API] 更新client端隧道peer信息失败: %v", err)
+				} else {
+					log.Infof("[API] 成功更新client端隧道peer信息: sid=%s, type=1", sid)
+				}
+			}
 		}
 
 		// if len(tunnelIDs) > 0 {

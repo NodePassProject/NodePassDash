@@ -1,82 +1,47 @@
 package services
 
 import (
+	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
+	"NodePassDash/internal/sse"
+	"NodePassDash/internal/tunnel"
+	"encoding/json"
 	"fmt"
+	"time"
 
 	"gorm.io/gorm"
 )
 
 type ServiceImpl struct {
-	db *gorm.DB
+	db            *gorm.DB
+	tunnelService *tunnel.Service
+	sseManager    *sse.Manager
 }
 
-func NewService(db *gorm.DB) *ServiceImpl {
-	return &ServiceImpl{db: db}
+func NewService(db *gorm.DB, tunnelService *tunnel.Service, sseManager *sse.Manager) *ServiceImpl {
+	return &ServiceImpl{
+		db:            db,
+		tunnelService: tunnelService,
+		sseManager:    sseManager,
+	}
 }
 
 // GetServices 获取所有服务
-func (s *ServiceImpl) GetServices() ([]*Service, error) {
-	var modelServices []models.Services
-	err := s.db.Order("sid, type").Find(&modelServices).Error
-	if err != nil {
-		return nil, err
-	}
-
-	var services []*Service
-	for _, modelService := range modelServices {
-		services = append(services, &Service{
-			Sid:                modelService.Sid,
-			Type:               modelService.Type,
-			Alias:              modelService.Alias,
-			ServerInstanceId:   modelService.ServerInstanceId,
-			ClientInstanceId:   modelService.ClientInstanceId,
-			ServerEndpointId:   modelService.ServerEndpointId,
-			ClientEndpointId:   modelService.ClientEndpointId,
-			TunnelPort:         modelService.TunnelPort,
-			TunnelEndpointName: modelService.TunnelEndpointName,
-			EntrancePort:       modelService.EntrancePort,
-			EntranceHost:       modelService.EntranceHost,
-			ExitPort:           modelService.ExitPort,
-			ExitHost:           modelService.ExitHost,
-			TotalRx:            modelService.TotalRx,
-			TotalTx:            modelService.TotalTx,
-			CreatedAt:          modelService.CreatedAt,
-			UpdatedAt:          modelService.UpdatedAt,
-		})
-	}
-
-	return services, nil
+func (s *ServiceImpl) GetServices() ([]*models.Services, error) {
+	var services []*models.Services
+	err := s.db.Order("sorts").Find(&services).Error
+	return services, err
 }
 
 // GetServiceByID 根据 SID 和 Type 获取单个服务
-func (s *ServiceImpl) GetServiceByID(sid, serviceType string) (*Service, error) {
-	var modelService models.Services
-	err := s.db.Where("sid = ? AND type = ?", sid, serviceType).First(&modelService).Error
+func (s *ServiceImpl) GetServiceByID(sid string) (*models.Services, error) {
+	var service models.Services
+	err := s.db.Where("sid = ?", sid).First(&service).Error
 	if err != nil {
 		return nil, err
 	}
-
-	return &Service{
-		Sid:                modelService.Sid,
-		Type:               modelService.Type,
-		Alias:              modelService.Alias,
-		ServerInstanceId:   modelService.ServerInstanceId,
-		ClientInstanceId:   modelService.ClientInstanceId,
-		ServerEndpointId:   modelService.ServerEndpointId,
-		ClientEndpointId:   modelService.ClientEndpointId,
-		TunnelPort:         modelService.TunnelPort,
-		TunnelEndpointName: modelService.TunnelEndpointName,
-		EntrancePort:       modelService.EntrancePort,
-		EntranceHost:       modelService.EntranceHost,
-		ExitPort:           modelService.ExitPort,
-		ExitHost:           modelService.ExitHost,
-		TotalRx:            modelService.TotalRx,
-		TotalTx:            modelService.TotalTx,
-		CreatedAt:          modelService.CreatedAt,
-		UpdatedAt:          modelService.UpdatedAt,
-	}, nil
+	return &service, nil
 }
 
 // GetAvailableInstances 获取可用实例（没有peer或peer.sid的实例）
@@ -98,7 +63,6 @@ func (s *ServiceImpl) GetAvailableInstances() ([]*AvailableInstance, error) {
 		if tunnel.InstanceID == nil {
 			continue
 		}
-
 		instances = append(instances, &AvailableInstance{
 			InstanceId:    *tunnel.InstanceID,
 			EndpointId:    tunnel.EndpointID,
@@ -174,8 +138,8 @@ func (s *ServiceImpl) AssembleService(req *AssembleServiceRequest) error {
 }
 
 // StartService 启动服务（启动 client 和 server 实例）
-func (s *ServiceImpl) StartService(sid, serviceType string) error {
-	service, err := s.GetServiceByID(sid, serviceType)
+func (s *ServiceImpl) StartService(sid string) error {
+	service, err := s.GetServiceByID(sid)
 	if err != nil {
 		return fmt.Errorf("获取服务失败: %w", err)
 	}
@@ -198,8 +162,8 @@ func (s *ServiceImpl) StartService(sid, serviceType string) error {
 }
 
 // StopService 停止服务（停止 client 和 server 实例）
-func (s *ServiceImpl) StopService(sid, serviceType string) error {
-	service, err := s.GetServiceByID(sid, serviceType)
+func (s *ServiceImpl) StopService(sid string) error {
+	service, err := s.GetServiceByID(sid)
 	if err != nil {
 		return fmt.Errorf("获取服务失败: %w", err)
 	}
@@ -222,8 +186,8 @@ func (s *ServiceImpl) StopService(sid, serviceType string) error {
 }
 
 // RestartService 重启服务（重启 client 和 server 实例）
-func (s *ServiceImpl) RestartService(sid, serviceType string) error {
-	service, err := s.GetServiceByID(sid, serviceType)
+func (s *ServiceImpl) RestartService(sid string) error {
+	service, err := s.GetServiceByID(sid)
 	if err != nil {
 		return fmt.Errorf("获取服务失败: %w", err)
 	}
@@ -246,38 +210,73 @@ func (s *ServiceImpl) RestartService(sid, serviceType string) error {
 }
 
 // DeleteService 删除服务（先删除实例再删除服务记录）
-func (s *ServiceImpl) DeleteService(sid, serviceType string) error {
-	service, err := s.GetServiceByID(sid, serviceType)
+func (s *ServiceImpl) DeleteService(sid string) error {
+	service, err := s.GetServiceByID(sid)
 	if err != nil {
 		return fmt.Errorf("获取服务失败: %w", err)
 	}
 
 	// 删除客户端实例
 	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
-		if err := nodepass.DeleteInstance(*service.ClientEndpointId, *service.ClientInstanceId); err != nil {
-			return fmt.Errorf("删除客户端实例失败: %w", err)
+		// 在删除前先获取隧道数据库ID，用于清理分组关系和文件日志
+		var clientTunnelID int64
+		if err := s.db.Raw(`SELECT id FROM tunnels WHERE instance_id = ?`, *service.ClientInstanceId).Scan(&clientTunnelID).Error; err == nil && clientTunnelID > 0 {
+			// 清理隧道分组关联
+			if err := s.db.Exec("DELETE FROM tunnel_groups WHERE tunnel_id = ?", clientTunnelID).Error; err != nil {
+				// 只记录警告，不影响删除流程
+			}
 		}
 
-		// 从数据库中删除客户端隧道记录
-		if err := s.db.Where("instance_id = ?", *service.ClientInstanceId).Delete(&models.Tunnel{}).Error; err != nil {
-			return fmt.Errorf("删除客户端隧道记录失败: %w", err)
+		// 使用 DeleteTunnelAndWait 代替直接调用 nodepass.DeleteInstance
+		// 这样可以等待SSE推送自动更新数据库，如果超时则强制删除
+		if err := s.tunnelService.DeleteTunnelAndWait(*service.ClientInstanceId, 3*time.Second, false); err != nil {
+			// 兼容处理：如果隧道已经不存在（可能已从实例管理删除），不应报错
+			if err.Error() == "隧道不存在" {
+				log.Warnf("[Service] 客户端实例不存在，可能已被删除: instanceID=%s, endpointID=%d", *service.ClientInstanceId, *service.ClientEndpointId)
+			} else {
+				return fmt.Errorf("删除客户端实例失败: %w", err)
+			}
+		}
+
+		// 清理文件日志（即使隧道记录不存在，文件日志可能还在）
+		if s.sseManager != nil && s.sseManager.GetFileLogger() != nil && service.ClientEndpointId != nil {
+			if err := s.sseManager.GetFileLogger().ClearLogs(*service.ClientEndpointId, *service.ClientInstanceId); err != nil {
+				// 只记录警告，不影响删除流程
+			}
 		}
 	}
 
 	// 删除服务端实例（如果存在）
 	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
-		if err := nodepass.DeleteInstance(*service.ServerEndpointId, *service.ServerInstanceId); err != nil {
-			return fmt.Errorf("删除服务端实例失败: %w", err)
+		// 在删除前先获取隧道数据库ID，用于清理分组关系和文件日志
+		var serverTunnelID int64
+		if err := s.db.Raw(`SELECT id FROM tunnels WHERE instance_id = ?`, *service.ServerInstanceId).Scan(&serverTunnelID).Error; err == nil && serverTunnelID > 0 {
+			// 清理隧道分组关联
+			if err := s.db.Exec("DELETE FROM tunnel_groups WHERE tunnel_id = ?", serverTunnelID).Error; err != nil {
+				// 只记录警告，不影响删除流程
+			}
 		}
 
-		// 从数据库中删除服务端隧道记录
-		if err := s.db.Where("instance_id = ?", *service.ServerInstanceId).Delete(&models.Tunnel{}).Error; err != nil {
-			return fmt.Errorf("删除服务端隧道记录失败: %w", err)
+		// 使用 DeleteTunnelAndWait 代替直接调用 nodepass.DeleteInstance
+		if err := s.tunnelService.DeleteTunnelAndWait(*service.ServerInstanceId, 3*time.Second, false); err != nil {
+			// 兼容处理：如果隧道已经不存在（可能已从实例管理删除），不应报错
+			if err.Error() == "隧道不存在" {
+				log.Warnf("[Service] 服务端实例不存在，可能已被删除: instanceID=%s, endpointID=%d", *service.ServerInstanceId, *service.ServerEndpointId)
+			} else {
+				return fmt.Errorf("删除服务端实例失败: %w", err)
+			}
+		}
+
+		// 清理文件日志（即使隧道记录不存在，文件日志可能还在）
+		if s.sseManager != nil && s.sseManager.GetFileLogger() != nil && service.ServerEndpointId != nil {
+			if err := s.sseManager.GetFileLogger().ClearLogs(*service.ServerEndpointId, *service.ServerInstanceId); err != nil {
+				// 只记录警告，不影响删除流程
+			}
 		}
 	}
 
 	// 删除服务记录
-	if err := s.db.Where("sid = ? AND type = ?", sid, serviceType).Delete(&models.Services{}).Error; err != nil {
+	if err := s.db.Where("sid = ?", sid).Delete(&models.Services{}).Error; err != nil {
 		return fmt.Errorf("删除服务记录失败: %w", err)
 	}
 
@@ -285,16 +284,16 @@ func (s *ServiceImpl) DeleteService(sid, serviceType string) error {
 }
 
 // RenameService 重命名服务（修改 client 和 server 的 peer.alias）
-func (s *ServiceImpl) RenameService(sid, serviceType, newName string) error {
-	service, err := s.GetServiceByID(sid, serviceType)
+func (s *ServiceImpl) RenameService(sid, newName string) error {
+	service, err := s.GetServiceByID(sid)
 	if err != nil {
 		return fmt.Errorf("获取服务失败: %w", err)
 	}
 
 	// 创建只包含 alias 的 peer 对象（保持其他字段不变）
 	peer := &models.Peer{
-		SID:   &sid,
-		Type:  &serviceType,
+		SID:   &service.Sid,
+		Type:  &service.Type,
 		Alias: &newName,
 	}
 
@@ -305,11 +304,15 @@ func (s *ServiceImpl) RenameService(sid, serviceType, newName string) error {
 		}
 
 		// 更新数据库中客户端隧道的 peer 字段
-		if err := s.db.Model(&models.Tunnel{}).
-			Where("instance_id = ?", *service.ClientInstanceId).
-			Update("peer", peer).Error; err != nil {
-			return fmt.Errorf("更新客户端隧道peer字段失败: %w", err)
+		// 使用 Updates 而不是 Update，以正确触发 JSON 序列化
+		if peerJSON, err := json.Marshal(peer); err == nil {
+			if err := s.db.Model(&models.Tunnel{}).
+				Where("instance_id = ?", *service.ClientInstanceId).
+				Updates(map[string]interface{}{"peer": string(peerJSON)}).Error; err != nil {
+				return fmt.Errorf("更新客户端隧道peer字段失败: %w", err)
+			}
 		}
+
 	}
 
 	// 更新服务端实例的 peer.alias（如果存在）
@@ -319,16 +322,18 @@ func (s *ServiceImpl) RenameService(sid, serviceType, newName string) error {
 		}
 
 		// 更新数据库中服务端隧道的 peer 字段
-		if err := s.db.Model(&models.Tunnel{}).
-			Where("instance_id = ?", *service.ServerInstanceId).
-			Update("peer", peer).Error; err != nil {
-			return fmt.Errorf("更新服务端隧道peer字段失败: %w", err)
+		if peerJSON, err := json.Marshal(peer); err == nil {
+			if err := s.db.Model(&models.Tunnel{}).
+				Where("instance_id = ?", *service.ServerInstanceId).
+				Updates(map[string]interface{}{"peer": string(peerJSON)}).Error; err != nil {
+				return fmt.Errorf("更新服务端隧道peer字段失败: %w", err)
+			}
 		}
 	}
 
 	// 更新服务记录中的别名
 	if err := s.db.Model(&models.Services{}).
-		Where("sid = ? AND type = ?", sid, serviceType).
+		Where("sid = ? ", sid).
 		Update("alias", newName).Error; err != nil {
 		return fmt.Errorf("更新服务别名失败: %w", err)
 	}
@@ -337,17 +342,18 @@ func (s *ServiceImpl) RenameService(sid, serviceType, newName string) error {
 }
 
 // DissolveService 解散服务（清空 peer 信息，删除服务但不删除实例）
-func (s *ServiceImpl) DissolveService(sid, serviceType string) error {
-	service, err := s.GetServiceByID(sid, serviceType)
+func (s *ServiceImpl) DissolveService(sid string) error {
+	service, err := s.GetServiceByID(sid)
 	if err != nil {
 		return fmt.Errorf("获取服务失败: %w", err)
 	}
 
 	// 清空 peer 信息（设置为空对象）
+	empty := ""
 	emptyPeer := &models.Peer{
-		SID:   nil,
-		Type:  nil,
-		Alias: nil,
+		SID:   &empty,
+		Type:  &empty,
+		Alias: &empty,
 	}
 
 	// 清空客户端实例的 peer 信息
@@ -357,10 +363,13 @@ func (s *ServiceImpl) DissolveService(sid, serviceType string) error {
 		}
 
 		// 清空数据库中客户端隧道的 peer 字段
-		if err := s.db.Model(&models.Tunnel{}).
-			Where("instance_id = ?", *service.ClientInstanceId).
-			Update("peer", nil).Error; err != nil {
-			return fmt.Errorf("清空客户端隧道peer字段失败: %w", err)
+		// 使用 Updates 而不是 Update，以正确触发 JSON 序列化
+		if peerJSON, err := json.Marshal(emptyPeer); err == nil {
+			if err := s.db.Model(&models.Tunnel{}).
+				Where("instance_id = ?", *service.ClientInstanceId).
+				Updates(map[string]interface{}{"peer": string(peerJSON)}).Error; err != nil {
+				return fmt.Errorf("清空客户端隧道peer字段失败: %w", err)
+			}
 		}
 	}
 
@@ -371,15 +380,18 @@ func (s *ServiceImpl) DissolveService(sid, serviceType string) error {
 		}
 
 		// 清空数据库中服务端隧道的 peer 字段
-		if err := s.db.Model(&models.Tunnel{}).
-			Where("instance_id = ?", *service.ServerInstanceId).
-			Update("peer", nil).Error; err != nil {
-			return fmt.Errorf("清空服务端隧道peer字段失败: %w", err)
+		// 使用 Updates 而不是 Update，以正确触发 JSON 序列化
+		if peerJSON, err := json.Marshal(emptyPeer); err == nil {
+			if err := s.db.Model(&models.Tunnel{}).
+				Where("instance_id = ?", *service.ServerInstanceId).
+				Updates(map[string]interface{}{"peer": string(peerJSON)}).Error; err != nil {
+				return fmt.Errorf("清空服务端隧道peer字段失败: %w", err)
+			}
 		}
 	}
 
 	// 删除服务记录（但不删除实例）
-	if err := s.db.Where("sid = ? AND type = ?", sid, serviceType).Delete(&models.Services{}).Error; err != nil {
+	if err := s.db.Where("sid = ?", sid).Delete(&models.Services{}).Error; err != nil {
 		return fmt.Errorf("删除服务记录失败: %w", err)
 	}
 
@@ -387,19 +399,19 @@ func (s *ServiceImpl) DissolveService(sid, serviceType string) error {
 }
 
 // SyncService 同步服务（更新服务的流量统计等信息）
-func (s *ServiceImpl) SyncService(sid, serviceType string) error {
+func (s *ServiceImpl) SyncService(sid string) error {
 	// 获取服务信息
-	service, err := s.GetServiceByID(sid, serviceType)
+	service, err := s.GetServiceByID(sid)
 	if err != nil {
 		return fmt.Errorf("获取服务失败: %w", err)
 	}
 
 	// 根据 service.Type 查询并更新服务信息
-	switch serviceType {
+	switch service.Type {
 	case "0":
 		// type=0: 单端转发，只有 client 端
 		if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
-			if err := s.syncServiceFromTunnel(sid, serviceType, *service.ClientInstanceId, *service.ClientEndpointId); err != nil {
+			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ClientInstanceId, *service.ClientEndpointId); err != nil {
 				return fmt.Errorf("同步客户端实例失败: %w", err)
 			}
 		}
@@ -407,13 +419,13 @@ func (s *ServiceImpl) SyncService(sid, serviceType string) error {
 		// type=1/2: NAT穿透/隧道转发，有 client 和 server 两端
 		// 同步 client 端
 		if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
-			if err := s.syncServiceFromTunnel(sid, serviceType, *service.ClientInstanceId, *service.ClientEndpointId); err != nil {
+			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ClientInstanceId, *service.ClientEndpointId); err != nil {
 				return fmt.Errorf("同步客户端实例失败: %w", err)
 			}
 		}
 		// 同步 server 端
 		if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
-			if err := s.syncServiceFromTunnel(sid, serviceType, *service.ServerInstanceId, *service.ServerEndpointId); err != nil {
+			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ServerInstanceId, *service.ServerEndpointId); err != nil {
 				return fmt.Errorf("同步服务端实例失败: %w", err)
 			}
 		}

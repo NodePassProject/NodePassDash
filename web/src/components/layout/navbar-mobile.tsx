@@ -11,14 +11,14 @@ const navigationItems = [
     icon: "solar:chart-2-bold",
   },
   {
-    href: "/tunnels",
-    label: "实例管理",
-    icon: "solar:transmission-bold",
-  },
-  {
     href: "/services",
     label: "服务管理",
     icon: "solar:widget-2-bold",
+  },
+  {
+    href: "/tunnels",
+    label: "实例管理",
+    icon: "solar:transmission-bold",
   },
   {
     href: "/endpoints",

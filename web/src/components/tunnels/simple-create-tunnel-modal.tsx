@@ -52,7 +52,7 @@ interface SimpleCreateTunnelModalProps {
   onOpenChange: (open: boolean) => void;
   onSaved?: () => void;
   mode?: "create" | "edit";
-  tunnelId?: string | number; // 编辑模式时传入隧道ID
+  instanceId?: string; // 编辑模式时传入隧道ID
 }
 
 // 版本比较函数
@@ -92,7 +92,7 @@ export default function SimpleCreateTunnelModal({
   onOpenChange,
   onSaved,
   mode: modalMode = "create",
-  tunnelId,
+  instanceId: tunnelId,
 }: SimpleCreateTunnelModalProps) {
   // 响应式标签位置配置
   const [isMobile, setIsMobile] = useState(false);
@@ -114,6 +114,8 @@ export default function SimpleCreateTunnelModal({
   const [submitting, setSubmitting] = useState(false);
   const [isPasswordVisible, setIsPasswordVisible] = useState(false);
 
+  // 新增：保存隧道真实ID（从details接口获取，用于编辑时的API调用）
+  const [realTunnelId, setRealTunnelId] = useState<string>("");
   // 新增：重置流量checkbox，仅编辑模式下显示
   const [resetChecked, setResetChecked] = useState(false);
   // 可选配置展开状态
@@ -176,6 +178,11 @@ export default function SimpleCreateTunnelModal({
           }
 
           const tunnel = await tunnelRes.json();
+
+          // 保存真实的隧道ID（用于编辑提交）
+          if (tunnel.id) {
+            setRealTunnelId(String(tunnel.id));
+          }
 
           // 检查是否有扩展目标地址
           const hasExtendTargetAddress = tunnel.extendTargetAddress &&
@@ -329,7 +336,7 @@ export default function SimpleCreateTunnelModal({
       setSubmitting(true);
       const url =
         modalMode === "edit"
-          ? buildApiUrl(`/api/tunnels/${tunnelId}`)
+          ? buildApiUrl(`/api/tunnels/${realTunnelId}`)
           : buildApiUrl("/api/tunnels");
       const method = modalMode === "edit" ? "PUT" : "POST";
       const res = await fetch(url, {

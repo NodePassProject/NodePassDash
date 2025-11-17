@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => ({
   server: {
     proxy: {
       "/api": {
-        target: process.env.VITE_API_BASE || "http://192.168.31.51:3000",
+        target: process.env.VITE_API_BASE || "http://localhost:3000",
         changeOrigin: true,
         secure: false,
         ws: true, // 启用 WebSocket 代理

@@ -51,7 +51,7 @@ func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseMana
 		endpointService := endpoint.NewService(db)
 		tunnelService := tunnel.NewService(db)
 		groupService := group.NewService(db)
-		servicesService := services.NewService(db)
+		servicesService := services.NewService(db, tunnelService, sseManager)
 		dashboardService := dashboard.NewService(db)
 
 		// 创建 Metrics 系统相关的处理器

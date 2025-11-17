@@ -21,6 +21,7 @@ import ExamplesPage from "./pages/examples";
 import IconComparisonPage from "./pages/icon-comparison";
 import ServicesPage from "./pages/services";
 import ServiceDetailsPage from "./pages/services/details";
+import ServiceSSEPage from "./pages/services/sse";
 
 function App() {
   return (
@@ -37,6 +38,7 @@ function App() {
         <Route element={<EndpointsPage />} path="/endpoints" />
         <Route element={<ServicesPage />} path="/services" />
         <Route element={<ServiceDetailsPage />} path="/services/details" />
+        <Route element={<ServiceSSEPage />} path="/services/sse" />
         <Route element={<EndpointDetailsPage />} path="/endpoints/details" />
         <Route element={<EndpointSSEDebugPage />} path="/endpoints/sse-debug" />
         <Route element={<SettingsPage />} path="/settings" />

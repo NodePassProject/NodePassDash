@@ -150,7 +150,7 @@ type Services struct {
 	ServerInstanceId   *string   `json:"serverInstanceId,omitempty" gorm:"type:text;column:server_instance_id"`
 	ClientInstanceId   *string   `json:"clientInstanceId,omitempty" gorm:"type:text;column:client_instance_id"`
 	ServerEndpointId   *int64    `json:"serverEndpointId,omitempty" gorm:"type:int;column:server_endpoint_id"`
-	ClientEndpointId   *int64    `json:"clientEndpointId,omitempty" gorm:"type:int;column:server_endpoint_id"`
+	ClientEndpointId   *int64    `json:"clientEndpointId,omitempty" gorm:"type:int;column:client_endpoint_id"`
 	TunnelPort         *string   `json:"tunnelPort,omitempty" gorm:"type:int;column:tunnel_port"`
 	TunnelEndpointName *string   `json:"tunnelEndpointName,omitempty" gorm:"type:text;column:tunnel_endpoint_name"`
 	EntrancePort       *string   `json:"entrancePort,omitempty" gorm:"type:text;column:entrance_port"`
@@ -161,6 +161,7 @@ type Services struct {
 	TotalTx            int64     `json:"totalTx" gorm:"default:0;column:total_tx"`
 	CreatedAt          time.Time `json:"createdAt" gorm:"autoCreateTime;column:created_at"`
 	UpdatedAt          time.Time `json:"updatedAt" gorm:"autoUpdateTime;column:updated_at"`
+	Sorts              int64     `json:"sorts" gorm:"type:int;column:sorts"`
 }
 
 // TableName 设置表名

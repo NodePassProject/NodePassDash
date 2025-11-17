@@ -1,35 +1,16 @@
 package services
 
-import "time"
-
-// Service 服务响应模型
-type Service struct {
-	Sid                string    `json:"sid"`
-	Type               string    `json:"type"`
-	Alias              *string   `json:"alias,omitempty"`
-	ServerInstanceId   *string   `json:"serverInstanceId,omitempty"`
-	ClientInstanceId   *string   `json:"clientInstanceId,omitempty"`
-	ServerEndpointId   *int64    `json:"serverEndpointId,omitempty"`
-	ClientEndpointId   *int64    `json:"clientEndpointId,omitempty"`
-	TunnelPort         *string   `json:"tunnelPort,omitempty"`
-	TunnelEndpointName *string   `json:"tunnelEndpointName,omitempty"`
-	EntrancePort       *string   `json:"entrancePort,omitempty"`
-	EntranceHost       *string   `json:"entranceHost,omitempty"`
-	ExitPort           *string   `json:"exitPort,omitempty"`
-	ExitHost           *string   `json:"exitHost,omitempty"`
-	TotalRx            int64     `json:"totalRx"`
-	TotalTx            int64     `json:"totalTx"`
-	CreatedAt          time.Time `json:"createdAt,omitempty"`
-	UpdatedAt          time.Time `json:"updatedAt,omitempty"`
-}
+import (
+	"NodePassDash/internal/models"
+)
 
 // ServiceResponse API响应
 type ServiceResponse struct {
-	Success  bool       `json:"success"`
-	Message  string     `json:"message,omitempty"`
-	Error    string     `json:"error,omitempty"`
-	Service  *Service   `json:"service,omitempty"`
-	Services []*Service `json:"services,omitempty"`
+	Success  bool               `json:"success"`
+	Message  string             `json:"message,omitempty"`
+	Error    string             `json:"error,omitempty"`
+	Service  *models.Services   `json:"service,omitempty"`
+	Services []*models.Services `json:"services,omitempty"`
 }
 
 // AvailableInstance 可用实例（没有peer或peer.sid的实例）

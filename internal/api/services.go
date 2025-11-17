@@ -24,18 +24,18 @@ func SetupServicesRoutes(rg *gin.RouterGroup, servicesService *services.ServiceI
 
 	// 服务相关路由
 	rg.GET("/services", servicesHandler.GetServices)
-	rg.GET("/services/:sid/:type", servicesHandler.GetServiceByID)
+	rg.GET("/services/:sid", servicesHandler.GetServiceByID)
 	rg.GET("/services/available-instances", servicesHandler.GetAvailableInstances)
 	rg.POST("/services/assemble", servicesHandler.AssembleService)
 
 	// 服务操作路由
-	rg.POST("/services/:sid/:type/start", servicesHandler.StartService)
-	rg.POST("/services/:sid/:type/stop", servicesHandler.StopService)
-	rg.POST("/services/:sid/:type/restart", servicesHandler.RestartService)
-	rg.DELETE("/services/:sid/:type", servicesHandler.DeleteService)
-	rg.PUT("/services/:sid/:type/rename", servicesHandler.RenameService)
-	rg.POST("/services/:sid/:type/dissolve", servicesHandler.DissolveService)
-	rg.POST("/services/:sid/:type/sync", servicesHandler.SyncService)
+	rg.POST("/services/:sid/start", servicesHandler.StartService)
+	rg.POST("/services/:sid/stop", servicesHandler.StopService)
+	rg.POST("/services/:sid/restart", servicesHandler.RestartService)
+	rg.DELETE("/services/:sid", servicesHandler.DeleteService)
+	rg.PUT("/services/:sid/rename", servicesHandler.RenameService)
+	rg.POST("/services/:sid/dissolve", servicesHandler.DissolveService)
+	rg.POST("/services/:sid/sync", servicesHandler.SyncService)
 }
 
 // GetServices 获取所有服务
@@ -57,9 +57,8 @@ func (h *ServicesHandler) GetServices(c *gin.Context) {
 // GetServiceByID 根据 SID 和 Type 获取单个服务
 func (h *ServicesHandler) GetServiceByID(c *gin.Context) {
 	sid := c.Param("sid")
-	serviceType := c.Param("type")
 
-	service, err := h.servicesService.GetServiceByID(sid, serviceType)
+	service, err := h.servicesService.GetServiceByID(sid)
 	if err != nil {
 		c.JSON(http.StatusNotFound, gin.H{"error": "服务不存在"})
 		return
@@ -111,9 +110,8 @@ func (h *ServicesHandler) AssembleService(c *gin.Context) {
 // StartService 启动服务
 func (h *ServicesHandler) StartService(c *gin.Context) {
 	sid := c.Param("sid")
-	serviceType := c.Param("type")
 
-	if err := h.servicesService.StartService(sid, serviceType); err != nil {
+	if err := h.servicesService.StartService(sid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "启动服务失败: " + err.Error()})
 		return
 	}
@@ -127,9 +125,8 @@ func (h *ServicesHandler) StartService(c *gin.Context) {
 // StopService 停止服务
 func (h *ServicesHandler) StopService(c *gin.Context) {
 	sid := c.Param("sid")
-	serviceType := c.Param("type")
 
-	if err := h.servicesService.StopService(sid, serviceType); err != nil {
+	if err := h.servicesService.StopService(sid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "停止服务失败: " + err.Error()})
 		return
 	}
@@ -143,9 +140,8 @@ func (h *ServicesHandler) StopService(c *gin.Context) {
 // RestartService 重启服务
 func (h *ServicesHandler) RestartService(c *gin.Context) {
 	sid := c.Param("sid")
-	serviceType := c.Param("type")
 
-	if err := h.servicesService.RestartService(sid, serviceType); err != nil {
+	if err := h.servicesService.RestartService(sid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "重启服务失败: " + err.Error()})
 		return
 	}
@@ -159,9 +155,8 @@ func (h *ServicesHandler) RestartService(c *gin.Context) {
 // DeleteService 删除服务
 func (h *ServicesHandler) DeleteService(c *gin.Context) {
 	sid := c.Param("sid")
-	serviceType := c.Param("type")
 
-	if err := h.servicesService.DeleteService(sid, serviceType); err != nil {
+	if err := h.servicesService.DeleteService(sid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除服务失败: " + err.Error()})
 		return
 	}
@@ -175,18 +170,15 @@ func (h *ServicesHandler) DeleteService(c *gin.Context) {
 // RenameService 重命名服务
 func (h *ServicesHandler) RenameService(c *gin.Context) {
 	sid := c.Param("sid")
-	serviceType := c.Param("type")
-
 	var req struct {
 		Name string `json:"name" binding:"required"`
 	}
-
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误: " + err.Error()})
 		return
 	}
 
-	if err := h.servicesService.RenameService(sid, serviceType, req.Name); err != nil {
+	if err := h.servicesService.RenameService(sid, req.Name); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "重命名服务失败: " + err.Error()})
 		return
 	}
@@ -200,9 +192,8 @@ func (h *ServicesHandler) RenameService(c *gin.Context) {
 // DissolveService 解散服务
 func (h *ServicesHandler) DissolveService(c *gin.Context) {
 	sid := c.Param("sid")
-	serviceType := c.Param("type")
 
-	if err := h.servicesService.DissolveService(sid, serviceType); err != nil {
+	if err := h.servicesService.DissolveService(sid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "解散服务失败: " + err.Error()})
 		return
 	}
@@ -216,9 +207,8 @@ func (h *ServicesHandler) DissolveService(c *gin.Context) {
 // SyncService 同步服务
 func (h *ServicesHandler) SyncService(c *gin.Context) {
 	sid := c.Param("sid")
-	serviceType := c.Param("type")
 
-	if err := h.servicesService.SyncService(sid, serviceType); err != nil {
+	if err := h.servicesService.SyncService(sid); err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "同步服务失败: " + err.Error()})
 		return
 	}
