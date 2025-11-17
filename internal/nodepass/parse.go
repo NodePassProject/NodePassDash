@@ -32,6 +32,7 @@ type TunnelConfig struct {
 	Slot                  string
 	Proxy                 string // proxy protocol 支持 (0|1)
 	Quic                  string // proxy protocol 支持 (0|1)
+	Dial                  string // proxy protocol 支持 (0|1)
 }
 
 // ParseTunnelURL 解析隧道实例 URL 并返回 Tunnel 模型
@@ -228,6 +229,9 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 			case "noudp":
 				// UDP支持控制 (0=启用, 1=禁用)
 				noUDP = &val
+			case "diap":
+				// UDP支持控制 (0=启用, 1=禁用)
+				tunnel.Dial = &val
 			case "quic":
 				// QUIC控制 (0=启用, 1=禁用)
 				switch val {
@@ -303,6 +307,7 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 		"proxy_protocol":  tunnel.ProxyProtocol,
 		"config_line":     tunnel.ConfigLine,
 		"listen_type":     tunnel.ListenType,
+		"sorts":           tunnel.Sorts,
 	}
 
 	if tunnel.CertPath != nil {
@@ -347,6 +352,9 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 	}
 	if tunnel.ConfigLine != nil {
 		updates["config_line"] = tunnel.ConfigLine
+	}
+	if tunnel.Dial != nil {
+		updates["dial"] = tunnel.Dial
 	}
 	if tunnel.ExtendTargetAddress != nil {
 		if extendAddrJSON, err := json.Marshal(tunnel.ExtendTargetAddress); err == nil {
@@ -424,6 +432,7 @@ func ParseTunnelConfig(rawURL string) *TunnelConfig {
 	cfg.Slot = query.Get("slot")
 	cfg.Proxy = query.Get("proxy")
 	cfg.Quic = query.Get("quic")
+	cfg.Dial = query.Get("dial")
 	noTCP := query.Get("notcp")
 	noUDP := query.Get("noudp")
 
@@ -547,6 +556,9 @@ func (c *TunnelConfig) BuildTunnelConfigURL() string {
 	}
 	if c.Quic != "" {
 		queryParams = append(queryParams, fmt.Sprintf("quic=%s", c.Quic))
+	}
+	if c.Dial != "" {
+		queryParams = append(queryParams, fmt.Sprintf("dial=%s", c.Dial))
 	}
 
 	// 根据listenType生成notcp和noudp参数
@@ -720,6 +732,9 @@ func BuildTunnelURLs(tunnel models.Tunnel) string {
 
 	if tunnel.Slot != nil {
 		queryParams = append(queryParams, fmt.Sprintf("slot=%d", *tunnel.Slot))
+	}
+	if tunnel.Dial != nil {
+		queryParams = append(queryParams, fmt.Sprintf("dial=%s", *tunnel.Dial))
 	}
 	if tunnel.Quic != nil && protocol == "server" {
 		quicVal := "0"

@@ -226,3 +226,14 @@ type TunnelResponse struct {
 	Tunnel    interface{} `json:"tunnel,omitempty"`
 	TunnelIDs []int64     `json:"tunnel_ids,omitempty"` // 创建的隧道ID列表
 }
+
+// TunnelSortItem 隧道排序项
+type TunnelSortItem struct {
+	ID    int64 `json:"id" binding:"required"`
+	Sorts int64 `json:"sorts" binding:"required"`
+}
+
+// UpdateTunnelsSortsRequest 更新隧道排序请求
+type UpdateTunnelsSortsRequest struct {
+	Tunnels []TunnelSortItem `json:"tunnels" binding:"required,min=1"`
+}

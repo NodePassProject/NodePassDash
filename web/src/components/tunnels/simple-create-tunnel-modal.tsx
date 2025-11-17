@@ -150,6 +150,8 @@ export default function SimpleCreateTunnelModal({
     loadBalancingIPs: "", // 负载均衡IP地址，一行一个
     extendTargetAddresses: "", // 扩展目标地址，一行一个
     quic: "", // QUIC 支持：启用/关闭
+    dial: "",// Dial
+    sorts: "",
   });
 
   // 当打开时加载端点，并在 edit 时从API获取隧道详情
@@ -216,6 +218,8 @@ export default function SimpleCreateTunnelModal({
                   : "false"
                 : "",
             loadBalancingIPs: tunnel.loadBalancingIPs || "",
+            sorts: tunnel.sorts || "",
+            dial: tunnel.dial || "",
             // 扩展目标地址和监听类型
             listenType: tunnel.listenType || "ALL",
             extendTargetAddresses: tunnel.extendTargetAddress
@@ -868,7 +872,7 @@ export default function SimpleCreateTunnelModal({
                         }}
                       >
                         <div className="space-y-2">
-                          <div className={`grid grid-cols-${((isClientType && formData.mode === 2) || isServerType) ? 3 : 1} gap-2`}
+                          <div className={`grid grid-cols-${((isClientType && formData.mode === 2) || isServerType) ? 3 : 3} gap-2`}
                           >
 
                             {isShowClientPoolMin && (
@@ -882,12 +886,38 @@ export default function SimpleCreateTunnelModal({
                                   onValueChange={(v) => handleField("min", v ? String(v) : "")}
                                 />
                                 {proxyProtocolSelect}
+                                 <Input
+                                    label="权重(越大越前)"
+                                    placeholder="0"
+                                    type="number"
+                                    value={formData.sorts}
+                                    onValueChange={(v) => handleField("sorts", v ? String(v) : "")}
+                                  />
+                                  <Input
+                                    label="Dial"
+                                    placeholder="出站源IP地址"
+                                    value={formData.dial}
+                                    onValueChange={(v) => handleField("dial", v ? String(v) : "")}
+                                  />
                               </>
                             )}
                             {isClientType &&
                               formData.mode === 1 && (
                                 <>
                                   {proxyProtocolSelect}
+                                  <Input
+                                    label="权重(越大越前)"
+                                    placeholder="0"
+                                    type="number"
+                                    value={formData.sorts}
+                                    onValueChange={(v) => handleField("sorts", v ? String(v) : "")}
+                                  />
+                                  <Input
+                                    label="Dial"
+                                    placeholder="出站源IP地址"
+                                    value={formData.dial}
+                                    onValueChange={(v) => handleField("dial", v ? String(v) : "")}
+                                  />
                                 </>
                               )}
                             {isServerType && (
@@ -901,6 +931,7 @@ export default function SimpleCreateTunnelModal({
                                   onValueChange={(v) => handleField("max", v ? String(v) : "")}
                                 />
                                 {proxyProtocolSelect}
+
                               </>
                             )}
                           </div>
@@ -934,7 +965,39 @@ export default function SimpleCreateTunnelModal({
                               value={formData.slot}
                               onValueChange={(v) => handleField("slot", v ? String(v) : "")}
                             />
+                            {/* 启用 QUIC */}
+                            {formData.type == 'server' &&
+                              <>
+                                <Select
+                                  label="启用 QUIC"
+                                  selectedKeys={
+                                    formData.quic ? [formData.quic] : ["false"]
+                                  }
+                                  onSelectionChange={(keys) => {
+                                    const selectedKey = Array.from(keys)[0] as string;
+                                    handleField("quic", selectedKey);
+                                  }}
+                                >
+                                  <SelectItem key="false">关闭</SelectItem>
+                                  <SelectItem key="true">启用</SelectItem>
+                                </Select>
+                                <Input
+                                  label="权重(越大越前)"
+                                  placeholder="0"
+                                  type="number"
+                                  value={formData.sorts}
+                                  onValueChange={(v) => handleField("sorts", v ? String(v) : "")}
+                                />
+                                <Input
+                                  label="Dial"
+                                  placeholder="出站源IP地址"
+                                  value={formData.dial}
+                                  onValueChange={(v) => handleField("dial", v ? String(v) : "")}
+                                />
+                              </>
+                            }
                           </div>
+
 
                           {/* 扩展目标地址 */}
                           <div className="flex items-start gap-2">
@@ -959,23 +1022,6 @@ export default function SimpleCreateTunnelModal({
                               />
                             )}
                           </div>
-
-                          {/* 启用 QUIC */}
-                          {formData.type=='server'&& <div>
-                            <Select
-                              label="启用 QUIC"
-                              selectedKeys={
-                                formData.quic ? [formData.quic] : ["false"]
-                              }
-                              onSelectionChange={(keys) => {
-                                const selectedKey = Array.from(keys)[0] as string;
-                                handleField("quic", selectedKey);
-                              }}
-                            >
-                              <SelectItem key="false">关闭</SelectItem>
-                              <SelectItem key="true">启用</SelectItem>
-                            </Select>
-                          </div>}
                         </div>
                       </motion.div>
                     )}

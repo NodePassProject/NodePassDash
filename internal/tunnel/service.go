@@ -56,7 +56,7 @@ func (s *Service) GetTunnels() ([]TunnelWithStats, error) {
 			COALESCE(e.ver, '') as version
 		FROM tunnels t
 		LEFT JOIN endpoints e ON t.endpoint_id = e.id
-		ORDER BY t.created_at DESC
+		ORDER BY t.sorts DESC, t.id DESC
 	`
 
 	rows, err := sqlDB.Query(query)
@@ -214,6 +214,10 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 		var tunnelID int64
 
 		if err == gorm.ErrRecordNotFound {
+			// 查询当前最大 sorts 值并 +1（自动设置排序）
+			var maxSorts int64
+			tx.Model(&models.Tunnel{}).Select("COALESCE(MAX(sorts), -1)").Scan(&maxSorts)
+
 			// 创建新记录
 			newTunnel := models.Tunnel{
 				InstanceID:    &response.ID,
@@ -229,9 +233,12 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 				CommandLine:   commandLine,
 				Restart:       &req.Restart,
 				Status:        models.TunnelStatusRunning,
+				Sorts:         maxSorts + 1,
 				CreatedAt:     now,
 				UpdatedAt:     now,
 			}
+
+			log.Infof("[API] 新隧道自动设置 sorts=%d", newTunnel.Sorts)
 
 			// 处理可选字段
 			if req.CertPath != "" {
@@ -2431,24 +2438,24 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 	if params.SortBy != "" {
 		switch params.SortBy {
 		case "name":
-			orderClause = fmt.Sprintf(" ORDER BY t.name %s", params.SortOrder)
+			orderClause = fmt.Sprintf(" ORDER BY t.name %s, t.sorts DESC, t.id DESC", params.SortOrder)
 		case "created_at":
-			orderClause = fmt.Sprintf(" ORDER BY t.created_at %s", params.SortOrder)
+			orderClause = fmt.Sprintf(" ORDER BY t.created_at %s, t.sorts DESC, t.id DESC", params.SortOrder)
 		case "status":
-			orderClause = fmt.Sprintf(" ORDER BY t.status %s", params.SortOrder)
+			orderClause = fmt.Sprintf(" ORDER BY t.status %s, t.sorts DESC, t.id DESC", params.SortOrder)
 		case "tunnelAddress":
-			orderClause = fmt.Sprintf(" ORDER BY t.tunnel_address %s, t.tunnel_port %s", params.SortOrder, params.SortOrder)
+			orderClause = fmt.Sprintf(" ORDER BY t.tunnel_address %s, t.tunnel_port %s, t.sorts DESC, t.id DESC", params.SortOrder, params.SortOrder)
 		case "targetAddress":
-			orderClause = fmt.Sprintf(" ORDER BY t.target_address %s, t.target_port %s", params.SortOrder, params.SortOrder)
+			orderClause = fmt.Sprintf(" ORDER BY t.target_address %s, t.target_port %s, t.sorts DESC, t.id DESC", params.SortOrder, params.SortOrder)
 		case "type":
-			orderClause = fmt.Sprintf(" ORDER BY t.type %s", params.SortOrder)
+			orderClause = fmt.Sprintf(" ORDER BY t.type %s, t.sorts DESC, t.id DESC", params.SortOrder)
 		case "updated_at":
-			orderClause = fmt.Sprintf(" ORDER BY t.updated_at %s", params.SortOrder)
+			orderClause = fmt.Sprintf(" ORDER BY t.updated_at %s, t.sorts DESC, t.id DESC", params.SortOrder)
 		default:
-			orderClause = " ORDER BY t.created_at DESC"
+			orderClause = " ORDER BY t.sorts DESC, t.id DESC"
 		}
 	} else {
-		orderClause = " ORDER BY t.created_at DESC"
+		orderClause = " ORDER BY t.sorts DESC, t.id DESC"
 	}
 
 	// 构建分页
@@ -2761,6 +2768,58 @@ func (s *Service) getEndpointWithGroup(endpointID int) (struct {
 	}
 
 	return endpoint, nil
+}
+
+// UpdateTunnelsSorts 批量更新隧道排序（优化版：使用 CASE WHEN 单条 SQL）
+func (s *Service) UpdateTunnelsSorts(req *UpdateTunnelsSortsRequest) error {
+	if len(req.Tunnels) == 0 {
+		return nil
+	}
+
+	// 开启事务
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return fmt.Errorf("开启事务失败: %w", tx.Error)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 构建批量更新 SQL（使用 CASE WHEN）
+	// UPDATE tunnels SET sorts = CASE id
+	//   WHEN 1 THEN 10
+	//   WHEN 2 THEN 9
+	//   ELSE sorts
+	// END
+	// WHERE id IN (1, 2, ...)
+
+	var caseSQL string
+	var ids []int64
+	var args []interface{}
+
+	for _, item := range req.Tunnels {
+		caseSQL += " WHEN ? THEN ?"
+		args = append(args, item.ID, item.Sorts)
+		ids = append(ids, item.ID)
+	}
+
+	sql := fmt.Sprintf("UPDATE tunnels SET sorts = CASE id %s ELSE sorts END WHERE id IN (?)", caseSQL)
+
+	// 执行批量更新
+	if err := tx.Exec(sql, append(args, ids)...).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("批量更新隧道排序失败: %w", err)
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	log.Infof("[Tunnel] 批量更新 %d 个隧道的排序成功", len(req.Tunnels))
+	return nil
 }
 
 // getTunnelsByIDs 根据ID列表获取隧道信息

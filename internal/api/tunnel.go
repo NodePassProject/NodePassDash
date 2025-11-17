@@ -62,6 +62,7 @@ func SetupTunnelRoutes(rg *gin.RouterGroup, tunnelService *tunnel.Service, sseMa
 	rg.POST("/tunnels/create_by_url", tunnelHandler.HandleQuickCreateTunnel)
 	rg.POST("/tunnels/quick-batch", tunnelHandler.HandleQuickBatchCreateTunnel)
 	rg.POST("/tunnels/template", tunnelHandler.HandleTemplateCreate)
+	rg.POST("/tunnels/sorts", tunnelHandler.HandleUpdateTunnelsSorts)
 	rg.PATCH("/tunnels", tunnelHandler.HandlePatchTunnels)
 	rg.PATCH("/tunnels/:id", tunnelHandler.HandlePatchTunnels)
 	rg.PATCH("/tunnels/:id/attributes", tunnelHandler.HandlePatchTunnelAttributes)
@@ -831,6 +832,8 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		"tlsMode":     tunnel.TLSMode,
 		"commandLine": tunnel.CommandLine,
 		"configLine":  tunnel.ConfigLine,
+		"sorts":       tunnel.Sorts,
+		"dial":        tunnel.Dial,
 
 		// endpoint 改为对象形式
 		"endpoint": map[string]interface{}{
@@ -3214,4 +3217,20 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 		"message": "实例标签更新成功",
 		"data":    result,
 	})
+}
+
+// HandleUpdateTunnelsSorts 批量更新隧道排序 (POST /api/tunnels/sorts)
+func (h *TunnelHandler) HandleUpdateTunnelsSorts(c *gin.Context) {
+	var req tunnel.UpdateTunnelsSortsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误: " + err.Error()})
+		return
+	}
+
+	if err := h.tunnelService.UpdateTunnelsSorts(&req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新排序失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "排序已保存"})
 }

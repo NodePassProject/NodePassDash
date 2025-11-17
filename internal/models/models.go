@@ -97,8 +97,12 @@ type Tunnel struct {
 	Tags *map[string]string `json:"tags,omitempty" gorm:"type:text;serializer:json;column:tags"`
 
 	// 配置行 (存储Config字段内容)
-	ConfigLine    *string   `json:"configLine,omitempty" gorm:"type:text;column:config_line"`
-	Peer          *Peer     `json:"peer,omitempty" gorm:"type:text;serializer:json;column:peer"`
+	ConfigLine *string `json:"configLine,omitempty" gorm:"type:text;column:config_line"`
+	Peer       *Peer   `json:"peer,omitempty" gorm:"type:text;serializer:json;column:peer"`
+	Dial       *string `json:"dial,omitempty" gorm:"type:text;column:dial"` //出站源IP地址
+
+	Sorts int64 `json:"sorts" gorm:"type:int;column:sorts;default:0"`
+
 	CreatedAt     time.Time `json:"createdAt" gorm:"autoCreateTime;index;column:created_at"`
 	UpdatedAt     time.Time `json:"updatedAt" gorm:"autoUpdateTime;column:updated_at"`
 	LastEventTime NullTime  `json:"lastEventTime,omitempty" gorm:"column:last_event_time;type:datetime"`
