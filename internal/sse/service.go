@@ -729,6 +729,18 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "total_rx", "total_tx"}
 		}
 	}
+	// 检查服务是否已存在，如果不存在则自动设置 sorts
+	var existingService models.Services
+	isNewService := s.db.Where("sid = ? AND type = ?", *peer.SID, *peer.Type).First(&existingService).Error != nil
+
+	if isNewService {
+		// 新服务：查询当前最大 sorts 值并 +1
+		var maxSorts int64
+		s.db.Model(&models.Services{}).Select("COALESCE(MAX(sorts), -1)").Scan(&maxSorts)
+		service.Sorts = maxSorts + 1
+		log.Infof("新服务 SID=%s, Type=%s, 自动设置 sorts=%d", *peer.SID, *peer.Type, service.Sorts)
+	}
+
 	// 使用 OnConflict 处理插入或更新
 	if err := s.db.Clauses(clause.OnConflict{
 		Columns: []clause.Column{

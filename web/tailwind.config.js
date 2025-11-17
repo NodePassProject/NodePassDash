@@ -14,6 +14,29 @@ module.exports = {
       fontFamily: {
         mono: ["var(--font-inter)"],
       },
+      // 添加 3D 变换支持
+      perspective: {
+        '1000': '1000px',
+        '2000': '2000px',
+      },
+      // 添加背景模糊支持
+      backdropBlur: {
+        xs: '2px',
+      },
+      // 添加背景饱和度支持
+      backdropSaturate: {
+        150: '1.5',
+      },
+      // 添加自定义动画
+      keyframes: {
+        'float': {
+          '0%, 100%': { transform: 'translateY(0px)' },
+          '50%': { transform: 'translateY(-10px)' },
+        },
+      },
+      animation: {
+        'float': 'float 3s ease-in-out infinite',
+      },
     },
   },
   darkMode: "class",

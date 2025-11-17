@@ -27,10 +27,10 @@ func NewService(db *gorm.DB, tunnelService *tunnel.Service, sseManager *sse.Mana
 	}
 }
 
-// GetServices 获取所有服务
+// GetServices 获取所有服务（按 sorts 降序排序，更大的值排在前面）
 func (s *ServiceImpl) GetServices() ([]*models.Services, error) {
 	var services []*models.Services
-	err := s.db.Order("sorts").Find(&services).Error
+	err := s.db.Order("sorts DESC").Find(&services).Error
 	return services, err
 }
 
@@ -579,5 +579,57 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 		return fmt.Errorf("更新服务记录失败: %w", err)
 	}
 
+	return nil
+}
+
+// UpdateServicesSorts 批量更新服务排序（优化版：使用 CASE WHEN 单条 SQL）
+func (s *ServiceImpl) UpdateServicesSorts(req *UpdateServicesSortsRequest) error {
+	if len(req.Services) == 0 {
+		return nil
+	}
+
+	// 开启事务
+	tx := s.db.Begin()
+	if tx.Error != nil {
+		return fmt.Errorf("开启事务失败: %w", tx.Error)
+	}
+	defer func() {
+		if r := recover(); r != nil {
+			tx.Rollback()
+		}
+	}()
+
+	// 构建批量更新 SQL（使用 CASE WHEN）
+	// UPDATE services SET sorts = CASE sid
+	//   WHEN 'service-1' THEN 0
+	//   WHEN 'service-2' THEN 1
+	//   ELSE sorts
+	// END
+	// WHERE sid IN ('service-1', 'service-2', ...)
+
+	var caseSQL string
+	var sids []string
+	var args []interface{}
+
+	for _, item := range req.Services {
+		caseSQL += " WHEN ? THEN ?"
+		args = append(args, item.Sid, item.Sorts)
+		sids = append(sids, item.Sid)
+	}
+
+	sql := fmt.Sprintf("UPDATE services SET sorts = CASE sid %s ELSE sorts END WHERE sid IN (?)", caseSQL)
+
+	// 执行批量更新
+	if err := tx.Exec(sql, append(args, sids)...).Error; err != nil {
+		tx.Rollback()
+		return fmt.Errorf("批量更新服务排序失败: %w", err)
+	}
+
+	// 提交事务
+	if err := tx.Commit().Error; err != nil {
+		return fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	log.Infof("[Service] 批量更新 %d 个服务的排序成功", len(req.Services))
 	return nil
 }

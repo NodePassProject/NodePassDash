@@ -2,9 +2,7 @@ import {
   Button,
   Card,
   CardBody,
-  CardFooter,
   Input,
-  Spinner,
   Skeleton,
   Dropdown,
   DropdownTrigger,
@@ -16,6 +14,7 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
+  CardFooter 
 } from "@heroui/react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -37,6 +36,7 @@ import {
   faUserSlash,
   faEllipsisVertical,
   faSync,
+  faGripVertical,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 
@@ -47,9 +47,26 @@ import ScenarioCreateModal, {
 } from "@/components/tunnels/scenario-create-modal";
 import AssembleServiceModal from "@/components/services/assemble-service-modal";
 import RenameServiceModal from "@/components/services/rename-service-modal";
+import { GlassmorphismCard } from "@/components/services/service-card-variants";
+import { SortableServiceCard } from "@/components/services/sortable-service-card";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  rectSortingStrategy,
+} from "@dnd-kit/sortable";
 
 // 定义服务类型
-interface Service {
+export interface Service {
   sid: string;
   type: string;
   alias?: string;
@@ -65,6 +82,7 @@ interface Service {
   exitHost?: string;
   totalRx: number;
   totalTx: number;
+  sorts?: number; // 排序字段
 }
 
 export default function ServicesPage() {
@@ -74,6 +92,21 @@ export default function ServicesPage() {
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
   const [searchQuery, setSearchQuery] = useState("");
+
+  // 拖拽相关状态
+  const [isSorting, setIsSorting] = useState(false);
+
+  // 拖拽传感器配置
+  const sensors = useSensors(
+    useSensor(PointerSensor, {
+      activationConstraint: {
+        distance: 8, // 移动8px后才激活拖拽
+      },
+    }),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   // 场景创建模态框状态
   const [scenarioModalOpen, setScenarioModalOpen] = useState(false);
@@ -111,7 +144,13 @@ export default function ServicesPage() {
 
       const data = await response.json();
 
-      setServices(data.services || []);
+      // 按 sorts 字段降序排序（更大的值排在前面）
+      // 后端已经排序，这里双重保险
+      const sortedServices = (data.services || []).sort(
+        (a: Service, b: Service) => (b.sorts || 0) - (a.sorts || 0)
+      );
+
+      setServices(sortedServices);
     } catch (error) {
       console.error("获取服务列表失败:", error);
       addToast({
@@ -129,6 +168,67 @@ export default function ServicesPage() {
   useEffect(() => {
     fetchServices();
   }, [fetchServices]);
+
+  // 处理拖拽结束
+  const handleDragEnd = async (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (!over || active.id === over.id) {
+      return;
+    }
+
+    setIsSorting(true);
+
+    const oldIndex = services.findIndex((s) => s.sid === active.id);
+    const newIndex = services.findIndex((s) => s.sid === over.id);
+
+    // 更新本地顺序
+    const newServices = arrayMove(services, oldIndex, newIndex);
+
+    // 更新 sorts 字段（降序：第一个位置的 sorts 值最大）
+    const updatedServices = newServices.map((service, index) => ({
+      ...service,
+      sorts: newServices.length - 1 - index,
+    }));
+
+    setServices(updatedServices);
+
+    // 保存到后端
+    try {
+      const response = await fetch(buildApiUrl("/api/services/sorts"), {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          services: updatedServices.map((s) => ({
+            sid: s.sid,
+            sorts: s.sorts,
+          })),
+        }),
+      });
+
+      if (!response.ok) {
+        throw new Error("保存排序失败");
+      }
+
+      addToast({
+        title: "排序已保存",
+        color: "success",
+      });
+    } catch (error) {
+      console.error("保存排序失败:", error);
+      addToast({
+        title: "保存排序失败",
+        description: error instanceof Error ? error.message : "未知错误",
+        color: "danger",
+      });
+      // 失败时恢复原顺序
+      fetchServices();
+    } finally {
+      setIsSorting(false);
+    }
+  };
 
   // 处理确认操作
   const handleConfirmedAction = async () => {
@@ -265,6 +365,9 @@ export default function ServicesPage() {
         (service.alias && service.alias.toLowerCase().includes(query)),
     );
   }, [services, searchQuery]);
+
+  // 是否启用拖拽（仅在无搜索时启用）
+  const isDragEnabled = !searchQuery && !isSorting;
 
   // 根据 type 获取模式文案
   const getTypeLabel = (type: string) => {
@@ -417,15 +520,29 @@ export default function ServicesPage() {
       {/* 搜索栏 */}
       <Card>
         <CardBody>
-          <Input
-            isClearable
-            placeholder="搜索服务 SID、类型或别名..."
-            size="sm"
-            startContent={<FontAwesomeIcon icon={faSearch} />}
-            value={searchQuery}
-            onClear={() => setSearchQuery("")}
-            onValueChange={setSearchQuery}
-          />
+          <div className="flex flex-col gap-2">
+            <Input
+              isClearable
+              placeholder="搜索服务 SID、类型或别名..."
+              size="sm"
+              startContent={<FontAwesomeIcon icon={faSearch} />}
+              value={searchQuery}
+              onClear={() => setSearchQuery("")}
+              onValueChange={setSearchQuery}
+            />
+            {!searchQuery && !loading && filteredServices.length > 0 && (
+              <div className="flex items-center gap-2 text-xs text-default-500">
+                <FontAwesomeIcon icon={faGripVertical} className="text-default-400" />
+                <span>拖拽卡片可以调整显示顺序</span>
+              </div>
+            )}
+            {searchQuery && (
+              <div className="flex items-center gap-2 text-xs text-warning">
+                <FontAwesomeIcon icon={faSearch} className="text-warning" />
+                <span>搜索模式下拖拽排序已禁用</span>
+              </div>
+            )}
+          </div>
         </CardBody>
       </Card>
 
@@ -464,172 +581,70 @@ export default function ServicesPage() {
           </CardBody>
         </Card>
       ) : (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
-          {filteredServices.map((service) => (
-            <Card
-              key={`${service.sid}-${service.type}`}
-              className="hover:shadow-lg transition-shadow relative"
-            >
-              {/* 右上角操作菜单 */}
-              <div className="absolute top-2 right-2 z-10">
-                <Dropdown placement="bottom-end">
-                  <DropdownTrigger>
-                    <Button
-                      isIconOnly
-                      size="sm"
-                      variant="light"
-                    >
-                      <FontAwesomeIcon icon={faEllipsisVertical} />
-                    </Button>
-                  </DropdownTrigger>
-                  <DropdownMenu
-                    aria-label="服务操作"
-                    onAction={(key) => {
-                      const actionKey = key as string;
+        <DndContext
+          sensors={sensors}
+          collisionDetection={closestCenter}
+          onDragEnd={handleDragEnd}
+        >
+          <SortableContext
+            items={filteredServices.map((s) => s.sid)}
+            strategy={rectSortingStrategy}
+          >
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-3">
+              {filteredServices.map((service) => {
+                const handleAction = (key: React.Key) => {
+                  const actionKey = key as string;
 
-                      // 需要二次确认的操作
-                      if (actionKey === "dissolve" || actionKey === "delete") {
-                        setConfirmAction({
-                          type: actionKey,
-                          service,
-                        });
-                        setConfirmModalOpen(true);
-                        return;
-                      }
+                  // 需要二次确认的操作
+                  if (actionKey === "dissolve" || actionKey === "delete") {
+                    setConfirmAction({
+                      type: actionKey,
+                      service,
+                    });
+                    setConfirmModalOpen(true);
+                    return;
+                  }
 
-                      // 其他操作直接执行
-                      if (actionKey === "start" || actionKey === "stop" || actionKey === "restart") {
-                        handleServiceAction(actionKey, service);
-                      } else if (actionKey === "rename") {
-                        handleOpenRenameModal(service);
-                      } else if (actionKey === "sync") {
-                        handleSyncService(service);
-                      }
-                    }}
-                  >
-                    <DropdownSection showDivider title="实例操作">
-                      <DropdownItem
-                        key="start"
-                        className="text-success"
-                        startContent={<FontAwesomeIcon fixedWidth icon={faPlay} />}
-                      >
-                        启动
-                      </DropdownItem>
-                      <DropdownItem
-                        key="stop"
-                        className="text-warning"
-                        startContent={<FontAwesomeIcon fixedWidth icon={faStop} />}
-                      >
-                        停止
-                      </DropdownItem>
-                      <DropdownItem
-                        key="restart"
-                        className="text-primary"
-                        startContent={<FontAwesomeIcon fixedWidth icon={faRotateRight} />}
-                      >
-                        重启
-                      </DropdownItem>
-                      <DropdownItem
-                        key="delete"
-                        className="text-danger"
-                        color="danger"
-                        startContent={<FontAwesomeIcon fixedWidth icon={faTrash} />}
-                      >
-                        删除
-                      </DropdownItem>
-                    </DropdownSection>
-                    <DropdownSection  title="服务操作">
-                      <DropdownItem
-                        key="sync"
-                        className="text-primary"
-                        startContent={<FontAwesomeIcon fixedWidth icon={faSync} />}
-                      >
-                        同步
-                      </DropdownItem>
-                      <DropdownItem
-                        key="rename"
-                        startContent={<FontAwesomeIcon fixedWidth icon={faEdit} />}
-                      >
-                        重命名
-                      </DropdownItem>
-                      <DropdownItem
-                        key="dissolve"
-                        className="text-danger"
-                        color="warning"
-                        startContent={<FontAwesomeIcon fixedWidth icon={faUserSlash} />}
-                      >
-                        解散
-                      </DropdownItem>
-                    </DropdownSection>
-                  </DropdownMenu>
-                </Dropdown>
-              </div>
+                  // 其他操作直接执行
+                  if (actionKey === "start" || actionKey === "stop" || actionKey === "restart") {
+                    handleServiceAction(actionKey, service);
+                  } else if (actionKey === "rename") {
+                    handleOpenRenameModal(service);
+                  } else if (actionKey === "sync") {
+                    handleSyncService(service);
+                  }
+                };
 
-              <CardBody
-                className="p-4 cursor-pointer"
-                onClick={() => {
-                  navigate(`/services/details?sid=${service.sid}`);
-                }}
-              >
-                {/* 标题：左侧图标 + 右侧两行文字 */}
-                <div className="flex gap-3 mb-3 pr-8">
-                  {/* 左侧图标 */}
-                  <div className="flex-shrink-0 flex items-center justify-center w-9 self-stretch rounded-md bg-default-100">
-                    <FontAwesomeIcon
-                      className="text-default-600 text-sm"
-                      icon={getTypeIcon(service.type)}
+                // 如果启用拖拽，使用 SortableServiceCard；否则使用普通卡片
+                if (isDragEnabled) {
+                  return (
+                    <SortableServiceCard
+                      key={service.sid}
+                      service={service}
+                      formatHost={formatHost}
+                      getTypeLabel={getTypeLabel}
+                      getTypeIcon={getTypeIcon}
+                      onNavigate={() => navigate(`/services/details?sid=${service.sid}`)}
+                      onAction={handleAction}
                     />
-                  </div>
-
-                  {/* 右侧两行文字 */}
-                  <div className="flex flex-col justify-center min-w-0 flex-1">
-                    <h3 className="font-medium text-sm truncate" title={service.alias || service.sid}>
-                      {service.alias || service.sid}
-                    </h3>
-                    <span className="text-[11px] text-default-500">
-                      {getTypeLabel(service.type)}
-                    </span>
-                  </div>
-                </div>
-
-                {/* 入口和出口信息 */}
-                <div className="w-full space-y-1 text-xs">
-                  <div className="flex items-center gap-1">
-                    <span className="text-default-500">入口：</span>
-                    <span className="text-default-700 font-mono">
-                      {formatHost(service.entranceHost)}:{service.entrancePort}
-                    </span>
-                  </div>
-                  <div className="flex items-center gap-1">
-                    <span className="text-default-500">出口：</span>
-                    <span className="text-default-700 font-mono">
-                      {formatHost(service.exitHost)}:{service.exitPort}
-                    </span>
-                  </div>
-                </div>
-              </CardBody>
-
-              {/* 流量信息 */}
-              <CardFooter className="border-t border-divider px-2 py-2">
-                <div className="flex items-center w-full text-xs">
-                  <div className="flex-1 flex items-center justify-center gap-1">
-                    <span className="font-mono text-xs">↑</span>
-                    <span className="font-medium text-default-700">
-                      {formatBytes(service.totalTx || 0)}
-                    </span>
-                  </div>
-                  <div className="h-5 w-px bg-divider" />
-                  <div className="flex-1 flex items-center justify-center gap-1">
-                    <span className="font-mono text-xs">↓</span>
-                    <span className="font-medium text-default-700">
-                      {formatBytes(service.totalRx || 0)}
-                    </span>
-                  </div>
-                </div>
-              </CardFooter>
-            </Card>
-          ))}
-        </div>
+                  );
+                } else {
+                  return (
+                    <GlassmorphismCard
+                      key={service.sid}
+                      service={service}
+                      formatHost={formatHost}
+                      getTypeLabel={getTypeLabel}
+                      getTypeIcon={getTypeIcon}
+                      onNavigate={() => navigate(`/services/details?sid=${service.sid}`)}
+                      onAction={handleAction}
+                    />
+                  );
+                }
+              })}
+            </div>
+          </SortableContext>
+        </DndContext>
       )}
 
       {/* 场景创建模态框 */}

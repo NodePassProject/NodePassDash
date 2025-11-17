@@ -27,6 +27,7 @@ func SetupServicesRoutes(rg *gin.RouterGroup, servicesService *services.ServiceI
 	rg.GET("/services/:sid", servicesHandler.GetServiceByID)
 	rg.GET("/services/available-instances", servicesHandler.GetAvailableInstances)
 	rg.POST("/services/assemble", servicesHandler.AssembleService)
+	rg.POST("/services/sorts", servicesHandler.UpdateServicesSorts)
 
 	// 服务操作路由
 	rg.POST("/services/:sid/start", servicesHandler.StartService)
@@ -216,5 +217,24 @@ func (h *ServicesHandler) SyncService(c *gin.Context) {
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
 		"message": "同步服务成功",
+	})
+}
+
+// UpdateServicesSorts 批量更新服务排序
+func (h *ServicesHandler) UpdateServicesSorts(c *gin.Context) {
+	var req services.UpdateServicesSortsRequest
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误: " + err.Error()})
+		return
+	}
+
+	if err := h.servicesService.UpdateServicesSorts(&req); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新排序失败: " + err.Error()})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "排序已保存",
 	})
 }

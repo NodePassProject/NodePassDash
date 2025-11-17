@@ -41,3 +41,14 @@ type AssembleServiceRequest struct {
 	ClientInstanceId string  `json:"clientInstanceId" binding:"required"`
 	ServerInstanceId *string `json:"serverInstanceId,omitempty"`
 }
+
+// ServiceSortItem 服务排序项
+type ServiceSortItem struct {
+	Sid   string `json:"sid" binding:"required"`
+	Sorts int64  `json:"sorts" binding:"required"`
+}
+
+// UpdateServicesSortsRequest 更新服务排序请求
+type UpdateServicesSortsRequest struct {
+	Services []ServiceSortItem `json:"services" binding:"required,min=1"`
+}
