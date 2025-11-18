@@ -348,6 +348,15 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 		if peerJSON, err := json.Marshal(tunnel.Peer); err == nil {
 			updates["peer"] = string(peerJSON)
 		}
+		// 同步更新 service_sid 字段，用于快速查询和排序
+		if tunnel.Peer.SID != nil && *tunnel.Peer.SID != "" {
+			updates["service_sid"] = *tunnel.Peer.SID
+		} else {
+			updates["service_sid"] = nil
+		}
+	} else {
+		// peer 为 nil 时，清空 service_sid
+		updates["service_sid"] = nil
 	}
 	if tunnel.ConfigLine != nil {
 		updates["config_line"] = tunnel.ConfigLine

@@ -109,11 +109,12 @@ func (s *ServiceImpl) AssembleService(req *AssembleServiceRequest) error {
 		return fmt.Errorf("更新客户端实例peer信息失败: %w", err)
 	}
 
-	// 更新数据库中客户端隧道的 peer 字段
+	// 更新数据库中客户端隧道的 peer 字段和 service_sid
 	clientTunnel.Peer = peer
+	clientTunnel.ServiceSID = &req.Sid
 	if err := s.db.Model(&models.Tunnel{}).
 		Where("instance_id = ?", req.ClientInstanceId).
-		Select("peer").
+		Select("peer", "service_sid").
 		Updates(&clientTunnel).Error; err != nil {
 		return fmt.Errorf("更新客户端隧道peer字段失败: %w", err)
 	}
@@ -124,11 +125,12 @@ func (s *ServiceImpl) AssembleService(req *AssembleServiceRequest) error {
 			return fmt.Errorf("更新服务端实例peer信息失败: %w", err)
 		}
 
-		// 更新数据库中服务端隧道的 peer 字段
+		// 更新数据库中服务端隧道的 peer 字段和 service_sid
 		serverTunnel.Peer = peer
+		serverTunnel.ServiceSID = &req.Sid
 		if err := s.db.Model(&models.Tunnel{}).
 			Where("instance_id = ?", *req.ServerInstanceId).
-			Select("peer").
+			Select("peer", "service_sid").
 			Updates(serverTunnel).Error; err != nil {
 			return fmt.Errorf("更新服务端隧道peer字段失败: %w", err)
 		}
@@ -303,12 +305,19 @@ func (s *ServiceImpl) RenameService(sid, newName string) error {
 			return fmt.Errorf("更新客户端实例peer信息失败: %w", err)
 		}
 
-		// 更新数据库中客户端隧道的 peer 字段
+		// 更新数据库中客户端隧道的 peer 字段和 service_sid
 		// 使用 Updates 而不是 Update，以正确触发 JSON 序列化
 		if peerJSON, err := json.Marshal(peer); err == nil {
+			updates := map[string]interface{}{
+				"peer": string(peerJSON),
+			}
+			// 同步更新 service_sid
+			if peer.SID != nil {
+				updates["service_sid"] = *peer.SID
+			}
 			if err := s.db.Model(&models.Tunnel{}).
 				Where("instance_id = ?", *service.ClientInstanceId).
-				Updates(map[string]interface{}{"peer": string(peerJSON)}).Error; err != nil {
+				Updates(updates).Error; err != nil {
 				return fmt.Errorf("更新客户端隧道peer字段失败: %w", err)
 			}
 		}
@@ -321,11 +330,18 @@ func (s *ServiceImpl) RenameService(sid, newName string) error {
 			return fmt.Errorf("更新服务端实例peer信息失败: %w", err)
 		}
 
-		// 更新数据库中服务端隧道的 peer 字段
+		// 更新数据库中服务端隧道的 peer 字段和 service_sid
 		if peerJSON, err := json.Marshal(peer); err == nil {
+			updates := map[string]interface{}{
+				"peer": string(peerJSON),
+			}
+			// 同步更新 service_sid
+			if peer.SID != nil {
+				updates["service_sid"] = *peer.SID
+			}
 			if err := s.db.Model(&models.Tunnel{}).
 				Where("instance_id = ?", *service.ServerInstanceId).
-				Updates(map[string]interface{}{"peer": string(peerJSON)}).Error; err != nil {
+				Updates(updates).Error; err != nil {
 				return fmt.Errorf("更新服务端隧道peer字段失败: %w", err)
 			}
 		}
@@ -362,12 +378,15 @@ func (s *ServiceImpl) DissolveService(sid string) error {
 			return fmt.Errorf("清空客户端实例peer信息失败: %w", err)
 		}
 
-		// 清空数据库中客户端隧道的 peer 字段
+		// 清空数据库中客户端隧道的 peer 字段和 service_sid
 		// 使用 Updates 而不是 Update，以正确触发 JSON 序列化
 		if peerJSON, err := json.Marshal(emptyPeer); err == nil {
 			if err := s.db.Model(&models.Tunnel{}).
 				Where("instance_id = ?", *service.ClientInstanceId).
-				Updates(map[string]interface{}{"peer": string(peerJSON)}).Error; err != nil {
+				Updates(map[string]interface{}{
+					"peer":        string(peerJSON),
+					"service_sid": nil, // 清空 service_sid
+				}).Error; err != nil {
 				return fmt.Errorf("清空客户端隧道peer字段失败: %w", err)
 			}
 		}
@@ -379,12 +398,15 @@ func (s *ServiceImpl) DissolveService(sid string) error {
 			return fmt.Errorf("清空服务端实例peer信息失败: %w", err)
 		}
 
-		// 清空数据库中服务端隧道的 peer 字段
+		// 清空数据库中服务端隧道的 peer 字段和 service_sid
 		// 使用 Updates 而不是 Update，以正确触发 JSON 序列化
 		if peerJSON, err := json.Marshal(emptyPeer); err == nil {
 			if err := s.db.Model(&models.Tunnel{}).
 				Where("instance_id = ?", *service.ServerInstanceId).
-				Updates(map[string]interface{}{"peer": string(peerJSON)}).Error; err != nil {
+				Updates(map[string]interface{}{
+					"peer":        string(peerJSON),
+					"service_sid": nil, // 清空 service_sid
+				}).Error; err != nil {
 				return fmt.Errorf("清空服务端隧道peer字段失败: %w", err)
 			}
 		}

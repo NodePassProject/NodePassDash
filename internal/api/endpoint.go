@@ -1080,6 +1080,11 @@ func buildTunnelFromInstance(endpointID int64, inst nodepass.InstanceResult) *mo
 	tunnel.Tags = inst.Meta.Tags
 	tunnel.Peer = inst.Meta.Peer
 
+	// 同步设置 service_sid 字段
+	if tunnel.Peer != nil && tunnel.Peer.SID != nil {
+		tunnel.ServiceSID = tunnel.Peer.SID
+	}
+
 	if tunnel.Mode == nil {
 		tunnel.Mode = (*models.TunnelMode)(inst.Mode)
 	}

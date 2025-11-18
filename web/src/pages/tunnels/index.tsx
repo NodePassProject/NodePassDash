@@ -198,12 +198,13 @@ export default function TunnelsPage() {
 
   // 排序选项配置
   const sortOptions = [
-    { key: "sorts", label: "权重" },
     { key: "id", label: "ID" },
+    { key: "sorts", label: "权重" },
     { key: "type", label: "类型" },
     { key: "name", label: "名称" },
-    { key: "endpoint", label: "主控" },
+    { key: "endpoint_id", label: "主控" },
     { key: "status", label: "状态" },
+    { key: "services", label: "服务" },
   ];
 
   // 排序处理函数

@@ -287,6 +287,11 @@ func buildTunnel(payload SSEResp) *models.Tunnel {
 	tunnel.Tags = payload.Instance.Meta.Tags
 	tunnel.Peer = payload.Instance.Meta.Peer
 
+	// 同步设置 service_sid 字段
+	if tunnel.Peer != nil && tunnel.Peer.SID != nil && *tunnel.Peer.SID != "" {
+		tunnel.ServiceSID = tunnel.Peer.SID
+	}
+
 	if tunnel.Mode == nil {
 		tunnel.Mode = (*models.TunnelMode)(payload.Instance.Mode)
 	}
@@ -317,6 +322,7 @@ func (s *Service) handleCreateEvent(payload SSEResp) {
 			"tunnel_address", "tunnel_port", "target_address", "target_port",
 			"tls_mode", "log_level", "command_line", "password", "cert_path", "key_path",
 			"min", "max", "mode", "read", "rate", "restart", "last_event_time", "updated_at",
+			"peer", "service_sid", // 添加 peer 和 service_sid 字段同步
 		}),
 	}).Create(&tunnel).Error; err != nil {
 		log.Errorf("[Master-%d]创建/更新隧道记录 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)

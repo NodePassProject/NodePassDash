@@ -103,6 +103,9 @@ type Tunnel struct {
 
 	Sorts int64 `json:"sorts" gorm:"type:int;column:sorts;default:0"`
 
+	// Service关联ID - 用于快速查询和排序，避免解析peer JSON字段
+	ServiceSID *string `json:"serviceSid,omitempty" gorm:"type:text;index;column:service_sid"`
+
 	CreatedAt     time.Time `json:"createdAt" gorm:"autoCreateTime;index;column:created_at"`
 	UpdatedAt     time.Time `json:"updatedAt" gorm:"autoUpdateTime;column:updated_at"`
 	LastEventTime NullTime  `json:"lastEventTime,omitempty" gorm:"column:last_event_time;type:datetime"`

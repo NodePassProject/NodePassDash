@@ -2472,28 +2472,37 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 
 	// 构建排序
 	var orderClause string
+	needServicesJoin := params.SortBy == "services"
+
+	if needServicesJoin {
+		// 修改baseQuery以包含LEFT JOIN services表
+		baseQuery = `FROM tunnels t
+			LEFT JOIN services s ON t.service_sid = s.sid`
+	}
+
 	if params.SortBy != "" {
 		switch params.SortBy {
-		case "sorts":
-			orderClause = fmt.Sprintf(" ORDER BY t.sorts %s, t.id DESC", params.SortOrder)
 		case "id":
 			orderClause = fmt.Sprintf(" ORDER BY t.id %s", params.SortOrder)
+		case "sorts":
+			orderClause = fmt.Sprintf(" ORDER BY t.sorts %s, t.id DESC", params.SortOrder)
 		case "name":
-			orderClause = fmt.Sprintf(" ORDER BY t.name %s, t.sorts DESC, t.id DESC", params.SortOrder)
-		case "created_at":
-			orderClause = fmt.Sprintf(" ORDER BY t.created_at %s, t.sorts DESC, t.id DESC", params.SortOrder)
+			orderClause = fmt.Sprintf(" ORDER BY t.name %s,  t.id DESC", params.SortOrder)
 		case "status":
-			orderClause = fmt.Sprintf(" ORDER BY t.status %s, t.sorts DESC, t.id DESC", params.SortOrder)
-		case "tunnelAddress":
-			orderClause = fmt.Sprintf(" ORDER BY t.tunnel_address %s, t.tunnel_port %s, t.sorts DESC, t.id DESC", params.SortOrder, params.SortOrder)
-		case "targetAddress":
-			orderClause = fmt.Sprintf(" ORDER BY t.target_address %s, t.target_port %s, t.sorts DESC, t.id DESC", params.SortOrder, params.SortOrder)
+			orderClause = fmt.Sprintf(" ORDER BY t.status %s, t.id DESC", params.SortOrder)
 		case "type":
-			orderClause = fmt.Sprintf(" ORDER BY t.type %s, t.sorts DESC, t.id DESC", params.SortOrder)
-		case "endpoint":
-			orderClause = fmt.Sprintf(" ORDER BY e.name %s, t.sorts DESC, t.id DESC", params.SortOrder)
-		case "updated_at":
-			orderClause = fmt.Sprintf(" ORDER BY t.updated_at %s, t.sorts DESC, t.id DESC", params.SortOrder)
+			orderClause = fmt.Sprintf(" ORDER BY t.type %s,  t.id DESC", params.SortOrder)
+		case "endpoint_id":
+			orderClause = fmt.Sprintf(" ORDER BY t.endpoint_id %s, t.id DESC", params.SortOrder)
+		case "services":
+			// 按关联的服务的sorts字段排序
+			// NULL值（没有关联服务的tunnel）排在最后
+			// SQLite不支持NULLS LAST，使用CASE实现
+			if params.SortOrder == "ASC" {
+				orderClause = " ORDER BY CASE WHEN s.sorts IS NULL THEN 1 ELSE 0 END, s.sorts ASC"
+			} else {
+				orderClause = " ORDER BY CASE WHEN s.sorts IS NULL THEN 1 ELSE 0 END, s.sorts DESC"
+			}
 		default:
 			orderClause = " ORDER BY t.sorts DESC, t.id DESC"
 		}
@@ -2515,6 +2524,8 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 			t.tcp_rx + t.udp_rx as total_rx,
 			t.tcp_tx + t.udp_tx as total_tx
 	`
+
+	// todo
 
 	// 执行主查询
 	query := selectFields + baseQuery + whereClause + orderClause + limitClause
@@ -2853,6 +2864,44 @@ func (s *Service) getTunnelsByIDs(tunnelIDs []int) ([]models.Tunnel, error) {
 	}
 
 	return tunnels, nil
+}
+
+// MigrateServiceSID 数据迁移：从 peer JSON 字段提取 sid 并填充到 service_sid 字段
+// 这是一个一次性迁移函数，用于填充新添加的 service_sid 字段
+func (s *Service) MigrateServiceSID() (int64, error) {
+	log.Infof("[Migration] 开始迁移 service_sid 字段...")
+
+	var tunnels []models.Tunnel
+	// 只查询有 peer 数据的隧道
+	err := s.db.Where("peer IS NOT NULL AND peer != ''").Find(&tunnels).Error
+	if err != nil {
+		return 0, fmt.Errorf("查询隧道失败: %v", err)
+	}
+
+	log.Infof("[Migration] 找到 %d 条需要迁移的隧道记录", len(tunnels))
+
+	var updatedCount int64
+	for _, tunnel := range tunnels {
+		// 如果 peer 存在且有 SID，则更新 service_sid
+		if tunnel.Peer != nil && tunnel.Peer.SID != nil && *tunnel.Peer.SID != "" {
+			result := s.db.Model(&models.Tunnel{}).
+				Where("id = ?", tunnel.ID).
+				Update("service_sid", *tunnel.Peer.SID)
+
+			if result.Error != nil {
+				log.Warnf("[Migration] 更新隧道 %d 的 service_sid 失败: %v", tunnel.ID, result.Error)
+				continue
+			}
+
+			if result.RowsAffected > 0 {
+				updatedCount++
+				log.Debugf("[Migration] 隧道 %d: service_sid = %s", tunnel.ID, *tunnel.Peer.SID)
+			}
+		}
+	}
+
+	log.Infof("[Migration] service_sid 迁移完成，成功更新 %d 条记录", updatedCount)
+	return updatedCount, nil
 }
 
 // QuickCreateTunnelDirectURL 根据完整 URL 快速创建隧道实例，直接传递URL给NodePass API
