@@ -229,7 +229,7 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 			case "noudp":
 				// UDP支持控制 (0=启用, 1=禁用)
 				noUDP = &val
-			case "diap":
+			case "dial":
 				// UDP支持控制 (0=启用, 1=禁用)
 				tunnel.Dial = &val
 			case "quic":

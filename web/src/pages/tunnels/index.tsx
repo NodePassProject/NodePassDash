@@ -32,6 +32,7 @@ import {
   Divider,
 } from "@heroui/react";
 import { Selection } from "@react-types/shared";
+import { Icon } from "@iconify/react";
 import React, { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -48,11 +49,16 @@ import {
   faCopy,
   faHammer,
   faSearch,
+  faCalendarTimes,
   faChevronDown,
   faDownload,
   faQuestionCircle,
   faTag,
   faTimes,
+  faArrowUp,
+  faSort,
+  faArrowDown,
+  faUndo,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 
@@ -184,11 +190,21 @@ export default function TunnelsPage() {
     new Set<string>(),
   );
 
-  // 排序状态
+  // 排序状态 - 默认不选中（后端默认按权重降序）
   const [sortDescriptor, setSortDescriptor] = useState<SortDescriptor>({
     column: undefined,
-    direction: "ascending",
+    direction: "descending",
   } as unknown as SortDescriptor);
+
+  // 排序选项配置
+  const sortOptions = [
+    { key: "sorts", label: "权重" },
+    { key: "id", label: "ID" },
+    { key: "type", label: "类型" },
+    { key: "name", label: "名称" },
+    { key: "endpoint", label: "主控" },
+    { key: "status", label: "状态" },
+  ];
 
   // 排序处理函数
   const handleSortChange = (descriptor: SortDescriptor) => {
@@ -1661,11 +1677,107 @@ export default function TunnelsPage() {
               <div className="flex items-center h-8">
                 <Divider className="h-5" orientation="vertical" />
               </div>
-              <div className="flex items-center h-8">
+              {/* <div className="flex items-center h-8">
                 <span className="text-sm text-default-600 whitespace-nowrap">
                   已选择 {selectedCount} 个
                 </span>
-              </div>
+              </div> */}
+              {/* 排序选择器 */}
+              <Dropdown placement="bottom-end">
+                <DropdownTrigger>
+                  <Button
+                    variant={sortDescriptor?.column ? "flat" : "flat"}
+                    color="default"
+                    size="sm"
+                    startContent={
+                      sortDescriptor?.column ? (
+                        <FontAwesomeIcon
+                          icon={sortDescriptor.direction === 'ascending' ? faArrowUp : faArrowDown}
+                          className="text-white"
+                        />
+                      ) : (
+                         <FontAwesomeIcon
+                          icon={faSort}
+                          className="text-white"
+                        />
+                        // <Icon className="text-default-400" icon="solar:sort-linear" width={16} />
+                      )
+                    }
+                    isDisabled={loading}
+                  >
+                    {sortDescriptor?.column
+                      ? sortOptions.find(opt => opt.key === sortDescriptor.column)?.label || '排序'
+                      : '排序'
+                    }
+                  </Button>
+                </DropdownTrigger>
+                <DropdownMenu
+                  aria-label="排序选项"
+                  onAction={(key) => {
+                    const column = key as string;
+                    // 如果当前已经是这个字段排序，则切换方向；否则默认降序
+                    const newDirection =
+                      sortDescriptor?.column === column
+                        ? (sortDescriptor.direction === 'descending' ? 'ascending' : 'descending')
+                        : 'descending';
+                    setSortDescriptor({ column, direction: newDirection });
+                  }}
+                >
+                  {sortOptions.map((option) => {
+                    const isCurrentSort = sortDescriptor?.column === option.key;
+
+                    return (
+                      <DropdownItem
+                        key={option.key}
+                        startContent={
+                          isCurrentSort ? (
+                            <FontAwesomeIcon
+                              icon={sortDescriptor?.direction === 'ascending' ? faArrowUp : faArrowDown}
+                              className="text-primary w-3"
+                            />
+                          ) : (
+                            <span className="w-3" />
+                          )
+                        }
+                        className={isCurrentSort ? "text-primary" : ""}
+                      >
+                        {option.label}
+                      </DropdownItem>
+                    );
+                  })}
+                </DropdownMenu>
+              </Dropdown>
+              {/* 重置按钮 */}
+              <Button
+                variant="flat"
+                size="sm"
+                startContent={<FontAwesomeIcon icon={faCalendarTimes} />
+                }
+                onPress={() => {
+                  setFilterValue("");
+                  setStatusFilter("all");
+                  setEndpointFilter("all");
+                  setSortDescriptor({
+                    column: undefined,
+                    direction: "descending",
+                  } as unknown as SortDescriptor);
+                  setPage(1);
+                }}
+                isDisabled={loading}
+                aria-label="重置筛选条件"
+              >
+                重置
+              </Button>
+              {/* 刷新按钮 */}
+              <Button
+                size="sm"
+                variant="flat"
+                onClick={fetchTunnels}
+                // isLoading={loading}
+                startContent={<FontAwesomeIcon icon={faRotateRight} />}
+              >
+                刷新
+              </Button>
               {selectedCount > 0 && (
                 <>
                   <Dropdown placement="bottom-end">
@@ -1730,8 +1842,10 @@ export default function TunnelsPage() {
               )}
             </div>
 
-            {/* 右侧：每页显示和刷新按钮 */}
+            {/* 右侧：排序、每页显示和刷新按钮 */}
             <div className="flex items-center gap-3">
+
+
               {/* 每页显示数量选择器 */}
               <div className="flex items-center gap-2">
                 <Select
@@ -1768,17 +1882,6 @@ export default function TunnelsPage() {
                   </SelectItem>
                 </Select>
               </div>
-
-              {/* 刷新按钮 */}
-              <Button
-                size="sm"
-                variant="flat"
-                onClick={fetchTunnels}
-                // isLoading={loading}
-                startContent={<FontAwesomeIcon icon={faRotateRight} />}
-              >
-                刷新
-              </Button>
             </div>
           </div>
         </div>

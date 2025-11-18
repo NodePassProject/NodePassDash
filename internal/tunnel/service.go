@@ -2474,6 +2474,10 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 	var orderClause string
 	if params.SortBy != "" {
 		switch params.SortBy {
+		case "sorts":
+			orderClause = fmt.Sprintf(" ORDER BY t.sorts %s, t.id DESC", params.SortOrder)
+		case "id":
+			orderClause = fmt.Sprintf(" ORDER BY t.id %s", params.SortOrder)
 		case "name":
 			orderClause = fmt.Sprintf(" ORDER BY t.name %s, t.sorts DESC, t.id DESC", params.SortOrder)
 		case "created_at":
@@ -2486,6 +2490,8 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 			orderClause = fmt.Sprintf(" ORDER BY t.target_address %s, t.target_port %s, t.sorts DESC, t.id DESC", params.SortOrder, params.SortOrder)
 		case "type":
 			orderClause = fmt.Sprintf(" ORDER BY t.type %s, t.sorts DESC, t.id DESC", params.SortOrder)
+		case "endpoint":
+			orderClause = fmt.Sprintf(" ORDER BY e.name %s, t.sorts DESC, t.id DESC", params.SortOrder)
 		case "updated_at":
 			orderClause = fmt.Sprintf(" ORDER BY t.updated_at %s, t.sorts DESC, t.id DESC", params.SortOrder)
 		default:

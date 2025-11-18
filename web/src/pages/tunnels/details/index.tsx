@@ -119,6 +119,7 @@ interface TunnelInfo {
   restart: boolean;
   slot?: number | null;
   quic?: boolean | null;
+  dial?: string | null;
   targetPort: number;
   tlsMode: string;
   commandLine: string;
@@ -376,7 +377,7 @@ export default function TunnelDetailPage() {
 
   // 重命名模态控制
   const [isRenameModalOpen, setIsRenameModalOpen] = React.useState(false);
-  const [showConfigLine, setShowConfigLine] = React.useState(false);
+  const [showConfigLine, setShowConfigLine] = React.useState(true);
   // 实例标签模态控制
   const [isInstanceTagModalOpen, setIsInstanceTagModalOpen] =
     React.useState(false);
@@ -2292,10 +2293,26 @@ export default function TunnelDetailPage() {
                     }
                     label="启用 QUIC"
                     value={
-                        tunnelInfo?.quic ? "启用" : "关闭"
+                      tunnelInfo?.quic ? "启用" : "关闭"
                     }
                   />
                 )}
+                <CellValue
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={20}
+                      icon="oui:ip"
+                      width={20}
+                    />
+                  }
+                  label="出站源IP"
+                  value={
+                    <span className="font-mono text-sm">
+                      {tunnelInfo.dial ? tunnelInfo.dial : "-"}
+                    </span>
+                  }
+                />
                 <CellValue
                   icon={
                     <Icon
@@ -2307,7 +2324,7 @@ export default function TunnelDetailPage() {
                   }
                   isInteractive={true}
                   onPress={() => {
-                      navigate(`/services/details?sid=${tunnelInfo.peer?.sid}&type=${tunnelInfo.peer?.type}`);
+                    navigate(`/services/details?sid=${tunnelInfo.peer?.sid}&type=${tunnelInfo.peer?.type}`);
                   }}
                   label="绑定服务"
                   value={

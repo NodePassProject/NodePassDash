@@ -287,6 +287,8 @@ export default function SimpleCreateTunnelModal({
       listenType,
       extendTargetAddresses,
       quic,
+      dial,
+      sorts,
     } = formData;
 
     // 基本校验
@@ -387,6 +389,8 @@ export default function SimpleCreateTunnelModal({
               .filter((addr) => addr.length > 0)
             : undefined,
           quic: quic !== "" ? quic === "true" : undefined,
+          dial: dial || undefined,
+          sorts: sorts !== "" ? parseInt(sorts) : undefined,
           resetTraffic: modalMode === "edit" ? resetChecked : undefined,
         }),
       });
@@ -421,7 +425,7 @@ export default function SimpleCreateTunnelModal({
       setIsPasswordVisible(false);
     } else if (field === "type") {
       // 切换类型时自动设置默认模式
-      const defaultMode = value === "server" ? 0 : 1;
+      const defaultMode = value === "server" ? 0 : 2;
 
       setFormData((prev) => ({ ...prev, [field]: value, mode: defaultMode }));
     } else if (field === "mode") {
@@ -821,12 +825,14 @@ export default function SimpleCreateTunnelModal({
                             <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>证书路径</label>
                             <Input
                               value={formData.certPath}
+                              placeholder="/path/to/cert.pem"
                               onValueChange={(v) => handleField("certPath", v)}
                             />
                           </div>
                           <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
                             <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>密钥路径</label>
                             <Input
+                              placeholder="/path/to/cert.key"
                               value={formData.keyPath}
                               onValueChange={(v) => handleField("keyPath", v)}
                             />
@@ -903,9 +909,7 @@ export default function SimpleCreateTunnelModal({
                         }}
                       >
                         <div className="space-y-2">
-                          <div className={`grid grid-cols-${((isClientType && formData.mode === 2) || isServerType) ? 3 : 3} gap-2`}
-                          >
-
+                          <div className={`grid grid-cols-3 gap-2`}>
                             {isShowClientPoolMin && (
                               <>
                                 {passwordInput}
@@ -916,29 +920,8 @@ export default function SimpleCreateTunnelModal({
                                   value={formData.min}
                                   onValueChange={(v) => handleField("min", v ? String(v) : "")}
                                 />
-                                {proxyProtocolSelect}
-                                {sortInput}
-                                <Input
-                                  label="Dial"
-                                  placeholder="出站源IP地址"
-                                  value={formData.dial}
-                                  onValueChange={(v) => handleField("dial", v ? String(v) : "")}
-                                />
                               </>
                             )}
-                            {isClientType &&
-                              formData.mode === 1 && (
-                                <>
-                                  {proxyProtocolSelect}
-                                  {sortInput}
-                                  <Input
-                                    label="Dial"
-                                    placeholder="出站源IP地址"
-                                    value={formData.dial}
-                                    onValueChange={(v) => handleField("dial", v ? String(v) : "")}
-                                  />
-                                </>
-                              )}
                             {isServerType && (
                               <>
                                 {passwordInput}
@@ -949,14 +932,9 @@ export default function SimpleCreateTunnelModal({
                                   value={formData.max}
                                   onValueChange={(v) => handleField("max", v ? String(v) : "")}
                                 />
-                                {proxyProtocolSelect}
-
                               </>
                             )}
-                          </div>
 
-                          {/* 数据读取超时、速率限制和最大连接数限制 */}
-                          <div className="grid grid-cols-3 gap-2">
                             <Input
                               label="数据读取超时"
                               placeholder="1h0m0s"
@@ -984,6 +962,7 @@ export default function SimpleCreateTunnelModal({
                               value={formData.slot}
                               onValueChange={(v) => handleField("slot", v ? String(v) : "")}
                             />
+                            {proxyProtocolSelect}
                             {/* 启用 QUIC */}
                             {formData.type == 'server' &&
                               <>
@@ -1000,15 +979,20 @@ export default function SimpleCreateTunnelModal({
                                   <SelectItem key="false">关闭</SelectItem>
                                   <SelectItem key="true">启用</SelectItem>
                                 </Select>
-                                {sortInput}
-                                <Input
-                                  label="Dial"
-                                  placeholder="出站源IP地址"
-                                  value={formData.dial}
-                                  onValueChange={(v) => handleField("dial", v ? String(v) : "")}
-                                />
                               </>
                             }
+                            {sortInput}
+                            <Input
+                              label="出站源IP"
+                              placeholder="auto"
+                              value={formData.dial}
+                              onValueChange={(v) => handleField("dial", v ? String(v) : "")}
+                            />
+                          </div>
+
+                          {/* 数据读取超时、速率限制和最大连接数限制 */}
+                          <div className="grid grid-cols-3 gap-2">
+
                           </div>
 
 
@@ -1042,7 +1026,7 @@ export default function SimpleCreateTunnelModal({
                 </>
               )}
             </ModalBody>
-            <ModalFooter className="flex items-center justify-between">
+            <ModalFooter className="flex items-center justify-between pt-0">
               <div className="flex items-center gap-2">
                 {/* 重置流量checkbox，仅编辑模式下显示 */}
                 {modalMode === "edit" && (
