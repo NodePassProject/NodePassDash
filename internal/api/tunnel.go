@@ -1283,7 +1283,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 			listenAddr = fmt.Sprintf(":%d", req.ListenPort)
 		}
 
-		tunnelURL := fmt.Sprintf("client://%s/%s:%d?log=%s",
+		tunnelURL := fmt.Sprintf("client://%s/%s:%d?log=%s&mode=1",
 			listenAddr,
 			req.Inbounds.TargetHost,
 			req.Inbounds.TargetPort,
@@ -1341,12 +1341,6 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 				}
 			}
 		}
-		// if err == nil {
-		// 	groupName := endpointName
-		// 	if err := h.createTunnelGroup(groupName, "single", "单端转发分组", []int64{tunnelID}); err != nil {
-		// 		log.Warnf("[API] 自动创建分组失败: %v", err)
-		// 	}
-		// }
 
 		c.JSON(http.StatusOK, tunnel.TunnelResponse{
 			Success:   true,
@@ -1461,7 +1455,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		}
 
 		// 双端转发：client端连接到server的IP:listen_port，转发到inbounds的target
-		clientURL := fmt.Sprintf("client://%s:%d/%s:%d?log=%s",
+		clientURL := fmt.Sprintf("client://%s:%d/%s:%d?log=%s&mode=2",
 			serverIP,
 			req.ListenPort,
 			clientConfig.TargetHost,
@@ -1682,7 +1676,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		}
 
 		// 内网穿透：client端连接到server的IP:listen_port，转发到最终目标
-		clientURL := fmt.Sprintf("client://%s:%d/%s:%d?log=%s",
+		clientURL := fmt.Sprintf("client://%s:%d/%s:%d?log=%s&mode=2",
 			serverIP,
 			req.ListenPort,
 			clientConfig.TargetHost,
