@@ -802,26 +802,37 @@ func (s *Service) GetTunnelNameByID(id int64) (string, error) {
 // DeleteTunnelAndWait 触发远端删除后等待数据库记录被移除
 // 该方法不会主动删除本地记录，而是假设有其它进程 (如 SSE 监听) 负责删除
 // timeout 为等待的最长时长
-func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, recycle bool) error {
+func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, id *int64) error {
 	log.Infof("[API] 删除隧道: %v", instanceID)
 
 	// 使用GORM获取隧道和端点信息
 	var tunnelWithEndpoint models.Tunnel
-	err := s.db.Preload("Endpoint").Where("instance_id = ?", instanceID).First(&tunnelWithEndpoint).Error
-	if err != nil {
-		if err == gorm.ErrRecordNotFound {
-			return errors.New("隧道不存在")
-		}
-		return err
-	}
-
-	// 调用 NodePass API 删除实例
-	if err := nodepass.DeleteInstance(tunnelWithEndpoint.Endpoint.ID, instanceID); err != nil {
-		// 如果收到401或404错误，说明NodePass核心已经没有这个实例了，按删除成功处理
-		if strings.Contains(err.Error(), "NodePass API 返回错误: 401") || strings.Contains(err.Error(), "NodePass API 返回错误: 404") {
-			log.Warnf("[API] NodePass API 返回401/404错误，实例 %s 可能已不存在，继续删除本地记录", instanceID)
-		} else {
+	if id != nil {
+		err := s.db.Preload("Endpoint").Where("id = ?", id).First(&tunnelWithEndpoint).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return errors.New("隧道不存在")
+			}
 			return err
+		}
+	} else {
+		err := s.db.Preload("Endpoint").Where("instance_id = ?", instanceID).First(&tunnelWithEndpoint).Error
+		if err != nil {
+			if err == gorm.ErrRecordNotFound {
+				return errors.New("隧道不存在")
+			}
+			return err
+		}
+	}
+	if instanceID != "" {
+		// 调用 NodePass API 删除实例
+		if err := nodepass.DeleteInstance(tunnelWithEndpoint.Endpoint.ID, instanceID); err != nil {
+			// 如果收到401或404错误，说明NodePass核心已经没有这个实例了，按删除成功处理
+			if strings.Contains(err.Error(), "NodePass API 返回错误: 401") || strings.Contains(err.Error(), "NodePass API 返回错误: 404") {
+				log.Warnf("[API] NodePass API 返回401/404错误，实例 %s 可能已不存在，继续删除本地记录", instanceID)
+			} else {
+				return err
+			}
 		}
 	}
 
@@ -858,8 +869,93 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 		return nil
 	}
 
-	if !recycle {
-		s.db.Where("instance_id = ?", instanceID).Delete(&models.EndpointSSE{})
+	// 异步更新端点隧道计数（避免死锁）
+	go func(endpointID int64) {
+		time.Sleep(50 * time.Millisecond)
+		s.updateEndpointTunnelCount(endpointID)
+	}(tunnelWithEndpoint.EndpointID)
+
+	// 写入操作日志
+	timeoutMessage := "远端删除超时，本地强制删除"
+	operationLog := models.TunnelOperationLog{
+		TunnelID:   &tunnelWithEndpoint.ID,
+		TunnelName: tunnelWithEndpoint.Name,
+		Action:     models.OperationActionDelete,
+		Status:     "success",
+		Message:    &timeoutMessage,
+		CreatedAt:  time.Now(),
+	}
+	s.db.Create(&operationLog)
+
+	return nil
+}
+
+// DeleteTunnelAndWait 触发远端删除后等待数据库记录被移除
+// 该方法不会主动删除本地记录，而是假设有其它进程 (如 SSE 监听) 负责删除
+// timeout 为等待的最长时长
+func (s *Service) DeleteTunnelIdAndWait(timeout time.Duration, id *int64) error {
+	log.Infof("[API] 删除隧道: %v", id)
+
+	// 使用GORM获取隧道和端点信息
+	var tunnelWithEndpoint models.Tunnel
+	err := s.db.Preload("Endpoint").Where("id = ?", id).First(&tunnelWithEndpoint).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return errors.New("隧道不存在")
+		}
+		return err
+	}
+
+	// 清理隧道分组关联
+	if _, err := s.DB().Exec("DELETE FROM tunnel_groups WHERE tunnel_id = ?", tunnelWithEndpoint.ID); err != nil {
+		log.Warnf("[API] 删除隧道分组关联失败: tunnelID=%d, err=%v", tunnelWithEndpoint.ID, err)
+	} else {
+		log.Infof("[API] 已删除隧道分组关联: tunnelID=%d", tunnelWithEndpoint.ID)
+	}
+
+	if tunnelWithEndpoint.InstanceID != nil {
+		// 调用 NodePass API 删除实例
+		if err := nodepass.DeleteInstance(tunnelWithEndpoint.Endpoint.ID, *tunnelWithEndpoint.InstanceID); err != nil {
+			// 如果收到401或404错误，说明NodePass核心已经没有这个实例了，按删除成功处理
+			if strings.Contains(err.Error(), "NodePass API 返回错误: 401") || strings.Contains(err.Error(), "NodePass API 返回错误: 404") {
+				log.Warnf("[API] NodePass API 返回401/404错误，实例 %s 可能已不存在，继续删除本地记录", *tunnelWithEndpoint.InstanceID)
+			} else {
+				return err
+			}
+		}
+	}
+
+	// 轮询等待数据库记录被删除
+	deadline := time.Now().Add(timeout)
+	for time.Now().Before(deadline) {
+		var count int64
+		if err := s.db.Model(&models.Tunnel{}).Where("id = ?", tunnelWithEndpoint.ID).Count(&count).Error; err != nil {
+			return err
+		}
+		if count == 0 {
+			return nil // 删除完成
+		}
+		time.Sleep(200 * time.Millisecond)
+	}
+
+	// 超时仍未删除，执行本地强制删除并刷新计数
+	log.Warnf("[API] 等待删除超时，执行本地删除: %v", tunnelWithEndpoint.ID)
+
+	// 先删除相关的操作日志记录，避免外键约束错误
+	if err := s.db.Where("tunnel_id = ?", tunnelWithEndpoint.ID).Delete(&models.TunnelOperationLog{}).Error; err != nil {
+		log.Warnf("[API] 删除隧道操作日志失败: tunnelID=%d, err=%v", tunnelWithEndpoint.ID, err)
+	}
+
+	// 删除隧道记录
+	result := s.db.Where("id = ?", tunnelWithEndpoint.ID).Delete(&models.Tunnel{})
+	if result.Error != nil {
+		return result.Error
+	}
+	if result.RowsAffected == 0 {
+		// 如果删除影响行数为0，说明隧道可能已经被SSE推送先删除了
+		// 这种情况算作删除成功，不返回错误
+		log.Infof("[API] 隧道 %s 可能已被SSE推送先删除，算作删除成功", *tunnelWithEndpoint.InstanceID)
+		return nil
 	}
 
 	// 异步更新端点隧道计数（避免死锁）

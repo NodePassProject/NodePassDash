@@ -231,7 +231,7 @@ func (s *ServiceImpl) DeleteService(sid string) error {
 
 		// 使用 DeleteTunnelAndWait 代替直接调用 nodepass.DeleteInstance
 		// 这样可以等待SSE推送自动更新数据库，如果超时则强制删除
-		if err := s.tunnelService.DeleteTunnelAndWait(*service.ClientInstanceId, 3*time.Second, false); err != nil {
+		if err := s.tunnelService.DeleteTunnelIdAndWait(3*time.Second, &clientTunnelID); err != nil {
 			// 兼容处理：如果隧道已经不存在（可能已从实例管理删除），不应报错
 			if err.Error() == "隧道不存在" {
 				log.Warnf("[Service] 客户端实例不存在，可能已被删除: instanceID=%s, endpointID=%d", *service.ClientInstanceId, *service.ClientEndpointId)
@@ -260,7 +260,7 @@ func (s *ServiceImpl) DeleteService(sid string) error {
 		}
 
 		// 使用 DeleteTunnelAndWait 代替直接调用 nodepass.DeleteInstance
-		if err := s.tunnelService.DeleteTunnelAndWait(*service.ServerInstanceId, 3*time.Second, false); err != nil {
+		if err := s.tunnelService.DeleteTunnelIdAndWait(3*time.Second, &serverTunnelID); err != nil {
 			// 兼容处理：如果隧道已经不存在（可能已从实例管理删除），不应报错
 			if err.Error() == "隧道不存在" {
 				log.Warnf("[Service] 服务端实例不存在，可能已被删除: instanceID=%s, endpointID=%d", *service.ServerInstanceId, *service.ServerEndpointId)

@@ -155,6 +155,7 @@ export default function SimpleCreateTunnelModal({
     quic: "", // QUIC 支持：启用/关闭
     dial: "",// Dial
     sorts: "",
+    dns: "",
   });
 
   // 当打开时加载端点，并在 edit 时从API获取隧道详情
@@ -223,6 +224,7 @@ export default function SimpleCreateTunnelModal({
             loadBalancingIPs: tunnel.loadBalancingIPs || "",
             sorts: tunnel.sorts || "",
             dial: tunnel.dial || "",
+            dns: tunnel.dns || "",
             // 扩展目标地址和监听类型
             listenType: tunnel.listenType || "ALL",
             extendTargetAddresses: tunnel.extendTargetAddress
@@ -289,6 +291,7 @@ export default function SimpleCreateTunnelModal({
       quic,
       dial,
       sorts,
+      dns,
     } = formData;
 
     // 基本校验
@@ -392,6 +395,7 @@ export default function SimpleCreateTunnelModal({
           dial: dial || undefined,
           sorts: sorts !== "" ? parseInt(sorts) : undefined,
           resetTraffic: modalMode === "edit" ? resetChecked : undefined,
+          dns: dns || undefined,
         }),
       });
       const data = await res.json();
@@ -988,11 +992,24 @@ export default function SimpleCreateTunnelModal({
                               value={formData.dial}
                               onValueChange={(v) => handleField("dial", v ? String(v) : "")}
                             />
+                            {isShowClientPoolMin &&
+                              <Input
+                                label="DNS"
+                                placeholder="eg: 1.1.1.1"
+                                value={formData.dns}
+                                onValueChange={(v) => handleField("dns", v ? String(v) : "")}
+                              />}
                           </div>
 
                           {/* 数据读取超时、速率限制和最大连接数限制 */}
-                          <div className="grid grid-cols-3 gap-2">
-
+                          <div className="grid grid-cols-1 gap-2">
+                            {!isShowClientPoolMin &&
+                              <Input
+                                label="DNS"
+                                placeholder="eg: 1.1.1.1"
+                                value={formData.dns}
+                                onValueChange={(v) => handleField("dns", v ? String(v) : "")}
+                              />}
                           </div>
 
 

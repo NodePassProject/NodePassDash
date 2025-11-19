@@ -288,34 +288,12 @@ func (h *TunnelHandler) HandleDeleteTunnel(c *gin.Context) {
 	idStr := c.Param("id")
 	tunnelID, _ := strconv.ParseInt(idStr, 10, 64)
 
-	// 在删除前先获取隧道数据库ID，用于清理分组关系和文件日志
-	var instanceID string
-	var endpointID int64
-	if err := h.tunnelService.DB().QueryRow(`SELECT instance_id, endpoint_id FROM tunnels WHERE id = ?`, tunnelID).Scan(&instanceID, &endpointID); err != nil {
-	} else {
-		// 清理隧道分组关联
-		if _, err := h.tunnelService.DB().Exec("DELETE FROM tunnel_groups WHERE tunnel_id = ?", tunnelID); err != nil {
-			log.Warnf("[API] 删除隧道分组关联失败: tunnelID=%d, err=%v", tunnelID, err)
-		} else {
-			log.Infof("[API] 已删除隧道分组关联: tunnelID=%d", tunnelID)
-		}
-	}
-
-	if err := h.tunnelService.DeleteTunnelAndWait(instanceID, 3*time.Second, false); err != nil {
+	if err := h.tunnelService.DeleteTunnelIdAndWait(3*time.Second, &tunnelID); err != nil {
 		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
 			Success: false,
 			Error:   err.Error(),
 		})
 		return
-	}
-
-	// 如果不是移入回收站，则清理文件日志
-	if h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
-		if err := h.sseManager.GetFileLogger().ClearLogs(endpointID, instanceID); err != nil {
-			log.Warnf("[API] 清理隧道文件日志失败: endpointID=%d, instanceID=%s, err=%v", endpointID, instanceID, err)
-		} else {
-			log.Infof("[API] 已清理隧道文件日志: endpointID=%d, instanceID=%s", endpointID, instanceID)
-		}
 	}
 
 	c.JSON(http.StatusOK, tunnel.TunnelResponse{
@@ -858,7 +836,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		"configLine":  tunnel.ConfigLine,
 		"sorts":       tunnel.Sorts,
 		"dial":        tunnel.Dial,
-
+		"dns":         tunnel.Dns,
 		// endpoint 改为对象形式
 		"endpoint": map[string]interface{}{
 			"name":    endpointName,
@@ -1835,8 +1813,6 @@ func (h *TunnelHandler) HandleBatchDeleteTunnels(c *gin.Context) {
 		IDs []int64 `json:"ids"`
 		// 根据实例 ID 删除，可选
 		InstanceIDs []string `json:"instanceIds"`
-		// 是否移入回收站
-		Recycle bool `json:"recycle"`
 	}
 
 	type itemResult struct {
@@ -1890,18 +1866,12 @@ func (h *TunnelHandler) HandleBatchDeleteTunnels(c *gin.Context) {
 	// 如果不是移入回收站，预先获取隧道ID和端点ID用于清理分组关系和文件日志
 	var instanceEndpointMap = make(map[string]int64)
 	var instanceTunnelMap = make(map[string]int64)
-	if !req.Recycle {
-		for _, iid := range req.InstanceIDs {
-			var tunnelID, endpointID int64
-			if err := h.tunnelService.DB().QueryRow(`SELECT id, endpoint_id FROM tunnels WHERE instance_id = ?`, iid).Scan(&tunnelID, &endpointID); err == nil {
-				instanceTunnelMap[iid] = tunnelID
-				instanceEndpointMap[iid] = endpointID
-			} else {
-				// 尝试从EndpointSSE表获取
-				if err := h.tunnelService.DB().QueryRow(`SELECT DISTINCT endpoint_id FROM endpoint_sse WHERE instance_id = ? LIMIT 1`, iid).Scan(&endpointID); err == nil {
-					instanceEndpointMap[iid] = endpointID
-				}
-			}
+	for _, iid := range req.InstanceIDs {
+		var tunnelID, endpointID int64
+		if err := h.tunnelService.DB().QueryRow(`SELECT id, endpoint_id FROM tunnels WHERE instance_id = ?`, iid).Scan(&tunnelID, &endpointID); err == nil {
+			instanceTunnelMap[iid] = tunnelID
+			instanceEndpointMap[iid] = endpointID
+		} else {
 		}
 	}
 
@@ -1910,12 +1880,7 @@ func (h *TunnelHandler) HandleBatchDeleteTunnels(c *gin.Context) {
 	for _, iid := range req.InstanceIDs {
 		r := itemResult{InstanceID: iid}
 
-		// 如果不是移入回收站，先解绑分组关系
-		if !req.Recycle {
-			// 清理标签关联等其他操作可以在这里进行
-		}
-
-		if err := h.tunnelService.DeleteTunnelAndWait(iid, 3*time.Second, req.Recycle); err != nil {
+		if err := h.tunnelService.DeleteTunnelAndWait(iid, 3*time.Second, nil); err != nil {
 			r.Success = false
 			r.Error = err.Error()
 			resp.FailCount++
@@ -1923,15 +1888,12 @@ func (h *TunnelHandler) HandleBatchDeleteTunnels(c *gin.Context) {
 			r.Success = true
 			resp.Deleted++
 
-			// 如果不是移入回收站，清理文件日志
-			if !req.Recycle {
-				if endpointID, exists := instanceEndpointMap[iid]; exists {
-					if h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
-						if err := h.sseManager.GetFileLogger().ClearLogs(endpointID, iid); err != nil {
-							log.Warnf("[API] 批量删除-清理隧道文件日志失败: endpointID=%d, instanceID=%s, err=%v", endpointID, iid, err)
-						} else {
-							log.Infof("[API] 批量删除-已清理隧道文件日志: endpointID=%d, instanceID=%s", endpointID, iid)
-						}
+			if endpointID, exists := instanceEndpointMap[iid]; exists {
+				if h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
+					if err := h.sseManager.GetFileLogger().ClearLogs(endpointID, iid); err != nil {
+						log.Warnf("[API] 批量删除-清理隧道文件日志失败: endpointID=%d, instanceID=%s, err=%v", endpointID, iid, err)
+					} else {
+						log.Infof("[API] 批量删除-已清理隧道文件日志: endpointID=%d, instanceID=%s", endpointID, iid)
 					}
 				}
 			}

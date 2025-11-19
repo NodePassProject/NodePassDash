@@ -33,6 +33,7 @@ type TunnelConfig struct {
 	Proxy                 string // proxy protocol 支持 (0|1)
 	Quic                  string // proxy protocol 支持 (0|1)
 	Dial                  string // proxy protocol 支持 (0|1)
+	Dns                   string // proxy protocol 支持 (0|1)
 }
 
 // ParseTunnelURL 解析隧道实例 URL 并返回 Tunnel 模型
@@ -232,6 +233,9 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 			case "dial":
 				// UDP支持控制 (0=启用, 1=禁用)
 				tunnel.Dial = &val
+			case "dns":
+				// UDP支持控制 (0=启用, 1=禁用)
+				tunnel.Dns = &val
 			case "quic":
 				// QUIC控制 (0=启用, 1=禁用)
 				switch val {
@@ -373,6 +377,9 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 	if tunnel.Quic != nil {
 		updates["quic"] = tunnel.Quic
 	}
+	if tunnel.Dns != nil {
+		updates["dns"] = tunnel.Dns
+	}
 	return updates
 }
 
@@ -443,6 +450,7 @@ func ParseTunnelConfig(rawURL string) *TunnelConfig {
 	cfg.Dial = query.Get("dial")
 	noTCP := query.Get("notcp")
 	noUDP := query.Get("noudp")
+	cfg.Dns = query.Get("dns")
 
 	// 根据notcp和noudp参数的组合来设置listenType
 	if noTCP != "" || noUDP != "" {
@@ -567,6 +575,9 @@ func (c *TunnelConfig) BuildTunnelConfigURL() string {
 	}
 	if c.Dial != "" {
 		queryParams = append(queryParams, fmt.Sprintf("dial=%s", c.Dial))
+	}
+	if c.Dns != "" {
+		queryParams = append(queryParams, fmt.Sprintf("dns=%s", c.Dns))
 	}
 
 	// 根据listenType生成notcp和noudp参数
@@ -743,6 +754,9 @@ func BuildTunnelURLs(tunnel models.Tunnel) string {
 	}
 	if tunnel.Dial != nil {
 		queryParams = append(queryParams, fmt.Sprintf("dial=%s", *tunnel.Dial))
+	}
+	if tunnel.Dns != nil {
+		queryParams = append(queryParams, fmt.Sprintf("dns=%s", *tunnel.Dns))
 	}
 	if tunnel.Quic != nil && protocol == "server" {
 		quicVal := "0"

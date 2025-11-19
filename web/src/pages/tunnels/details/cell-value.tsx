@@ -49,7 +49,7 @@ const CellValue = React.forwardRef<HTMLDivElement, CellValueProps>(
 
           {/* Interactive indicator dot */}
           {isInteractive && (
-            <div className="absolute top-1 right-1 w-1 h-1 bg-white rounded-full shadow-sm" />
+            <div className="absolute top-1 right-1 w-1 h-1 bg-[#52525A] dark:bg-white rounded-full shadow-sm" />
           )}
         </div>
 

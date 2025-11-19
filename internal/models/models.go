@@ -68,8 +68,7 @@ type Tunnel struct {
 	Rate                *int64       `json:"rate,omitempty" gorm:"type:int;column:rate"`
 	Read                *string      `json:"read,omitempty" gorm:"type:text;column:read"`
 
-	Quic           *bool `json:"quic,omitempty" gorm:"type:bool;column:quic"`
-	EnableLogStore bool  `json:"enable_log_store,omitempty" gorm:"default:true;type:bool;column:enable_log_store"`
+	EnableLogStore bool `json:"enable_log_store,omitempty" gorm:"default:true;type:bool;column:enable_log_store"`
 
 	// 网络流量统计
 	TCPRx int64 `json:"tcpRx" gorm:"default:0;column:tcp_rx"`
@@ -100,6 +99,8 @@ type Tunnel struct {
 	ConfigLine *string `json:"configLine,omitempty" gorm:"type:text;column:config_line"`
 	Peer       *Peer   `json:"peer,omitempty" gorm:"type:text;serializer:json;column:peer"`
 	Dial       *string `json:"dial,omitempty" gorm:"type:text;column:dial"` //出站源IP地址
+	Quic       *bool   `json:"quic,omitempty" gorm:"type:bool;column:quic"`
+	Dns        *string `json:"dns,omitempty" gorm:"type:text;column:dns"`
 
 	Sorts int64 `json:"sorts" gorm:"type:int;column:sorts;default:0"`
 
