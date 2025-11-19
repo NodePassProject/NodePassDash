@@ -2,7 +2,7 @@
   <img src="docs/nodepassdash-logo.svg" alt="NodePassDash" height="80">
 </div>
 
-![Version](https://img.shields.io/badge/version-3.2.0--beta5-blue.svg)
+![Version](https://img.shields.io/badge/version-3.2.0--beta6-blue.svg)
 ![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)
 
 NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + React + Vite、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
@@ -167,6 +167,16 @@ docker run -d \
 - 🐛 问题报告: [GitHub Issues](https://github.com/NodePassProject/NodePassDash/issues)
 - 💬 社区讨论: [Telegram 群组](https://t.me/NodePassGroup)
 - 📢 频道: [Telegram 频道](https://t.me/NodePassChannel)
+
+## 🤝 Sponsors
+
+<table>
+  <tr>
+    <td width="240" align="center">
+      <a href="https://vps.town"><img src="https://cdn.yobc.de/assets/vpstown.png"></a>
+    </td>
+  </tr>
+</table>
 
 ---
 

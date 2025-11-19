@@ -8,6 +8,7 @@ import (
 	"NodePassDash/internal/tunnel"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"gorm.io/gorm"
@@ -375,19 +376,29 @@ func (s *ServiceImpl) DissolveService(sid string) error {
 	// 清空客户端实例的 peer 信息
 	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
 		if _, err := nodepass.UpdateInstancePeers(*service.ClientEndpointId, *service.ClientInstanceId, emptyPeer); err != nil {
-			return fmt.Errorf("清空客户端实例peer信息失败: %w", err)
+			// 如果是404错误，说明实例已被删除，忽略该错误
+			if !strings.Contains(err.Error(), "404") {
+				return fmt.Errorf("清空客户端实例peer信息失败: %w", err)
+			}
+			log.Warnf("[Service] 客户端实例不存在，可能已被删除: instanceID=%s, endpointID=%d", *service.ClientInstanceId, *service.ClientEndpointId)
 		}
 
 		// 清空数据库中客户端隧道的 peer 字段和 service_sid
 		// 使用 Updates 而不是 Update，以正确触发 JSON 序列化
+		// 如果隧道记录不存在（可能已被删除），Updates 不会报错，只是不更新任何记录
 		if peerJSON, err := json.Marshal(emptyPeer); err == nil {
-			if err := s.db.Model(&models.Tunnel{}).
+			result := s.db.Model(&models.Tunnel{}).
 				Where("instance_id = ?", *service.ClientInstanceId).
 				Updates(map[string]interface{}{
 					"peer":        string(peerJSON),
 					"service_sid": nil, // 清空 service_sid
-				}).Error; err != nil {
-				return fmt.Errorf("清空客户端隧道peer字段失败: %w", err)
+				})
+			if result.Error != nil {
+				return fmt.Errorf("清空客户端隧道peer字段失败: %w", result.Error)
+			}
+			// 如果没有更新任何记录，说明隧道可能已被删除，记录警告但不报错
+			if result.RowsAffected == 0 {
+				log.Warnf("[Service] 客户端隧道记录不存在，可能已被删除: instanceID=%s", *service.ClientInstanceId)
 			}
 		}
 	}
@@ -395,19 +406,29 @@ func (s *ServiceImpl) DissolveService(sid string) error {
 	// 清空服务端实例的 peer 信息（如果存在）
 	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
 		if _, err := nodepass.UpdateInstancePeers(*service.ServerEndpointId, *service.ServerInstanceId, emptyPeer); err != nil {
-			return fmt.Errorf("清空服务端实例peer信息失败: %w", err)
+			// 如果是404错误，说明实例已被删除，忽略该错误
+			if !strings.Contains(err.Error(), "404") {
+				return fmt.Errorf("清空服务端实例peer信息失败: %w", err)
+			}
+			log.Warnf("[Service] 服务端实例不存在，可能已被删除: instanceID=%s, endpointID=%d", *service.ServerInstanceId, *service.ServerEndpointId)
 		}
 
 		// 清空数据库中服务端隧道的 peer 字段和 service_sid
 		// 使用 Updates 而不是 Update，以正确触发 JSON 序列化
+		// 如果隧道记录不存在（可能已被删除），Updates 不会报错，只是不更新任何记录
 		if peerJSON, err := json.Marshal(emptyPeer); err == nil {
-			if err := s.db.Model(&models.Tunnel{}).
+			result := s.db.Model(&models.Tunnel{}).
 				Where("instance_id = ?", *service.ServerInstanceId).
 				Updates(map[string]interface{}{
 					"peer":        string(peerJSON),
 					"service_sid": nil, // 清空 service_sid
-				}).Error; err != nil {
-				return fmt.Errorf("清空服务端隧道peer字段失败: %w", err)
+				})
+			if result.Error != nil {
+				return fmt.Errorf("清空服务端隧道peer字段失败: %w", result.Error)
+			}
+			// 如果没有更新任何记录，说明隧道可能已被删除，记录警告但不报错
+			if result.RowsAffected == 0 {
+				log.Warnf("[Service] 服务端隧道记录不存在，可能已被删除: instanceID=%s", *service.ServerInstanceId)
 			}
 		}
 	}

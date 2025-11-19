@@ -470,7 +470,7 @@ export default function ServicesPage() {
                 startContent={<FontAwesomeIcon icon={faLayerGroup} />}
                 variant="flat"
               >
-                场景创建
+                服务创建
               </Button>
             </DropdownTrigger>
             <DropdownMenu
