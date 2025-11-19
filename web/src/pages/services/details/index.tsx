@@ -784,7 +784,7 @@ export default function ServiceDetailsPage() {
                 {/* 左侧栏 - 3列 - 使用 sticky 让左侧卡片在滚动时固定 */}
                 <div className="col-span-12 lg:col-span-3 flex flex-col gap-4 md:gap-6 lg:sticky lg:top-4">
                   {/* 服务信息 */}
-                  <Card className="p-2  h-[330px]">
+                  <Card className="p-2  h-[332px]">
                     <CardHeader className="flex items-center justify-between pb-0">
                       <div className="flex items-center gap-2">
                         <h3 className="text-lg font-semibold">服务信息</h3>
@@ -840,7 +840,28 @@ export default function ServiceDetailsPage() {
                         {service.clientInstanceId && (
                           <div>
                             <p className="text-xs text-default-500 mb-1">Client 实例</p>
-                            <p className="font-mono text-sm">{service.clientInstanceId}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-mono text-sm">{service.clientInstanceId}</p>
+                              {clientTunnel && (
+                                <Chip
+                                  color={
+                                    clientTunnel.status === "success"
+                                      ? "success"
+                                      : clientTunnel.status === "warning"
+                                        ? "warning"
+                                        : "danger"
+                                  }
+                                  size="sm"
+                                  variant="dot"
+                                >
+                                  {clientTunnel.status === "success"
+                                    ? "运行中"
+                                    : clientTunnel.status === "warning"
+                                      ? "警告"
+                                      : "已停止"}
+                                </Chip>
+                              )}
+                            </div>
                           </div>
                         )}
 
@@ -848,7 +869,28 @@ export default function ServiceDetailsPage() {
                         {service.serverInstanceId && (
                           <div>
                             <p className="text-xs text-default-500 mb-1">Server 实例</p>
-                            <p className="font-mono text-sm">{service.serverInstanceId}</p>
+                            <div className="flex items-center gap-2">
+                              <p className="font-mono text-sm">{service.serverInstanceId}</p>
+                              {serverTunnel && (
+                                <Chip
+                                  color={
+                                    serverTunnel.status === "success"
+                                      ? "success"
+                                      : serverTunnel.status === "warning"
+                                        ? "warning"
+                                        : "danger"
+                                  }
+                                  size="sm"
+                                  variant="dot"
+                                >
+                                  {serverTunnel.status === "success"
+                                    ? "运行中"
+                                    : serverTunnel.status === "warning"
+                                      ? "警告"
+                                      : "已停止"}
+                                </Chip>
+                              )}
+                            </div>
                           </div>
                         )}
                       </div>
@@ -968,9 +1010,9 @@ export default function ServiceDetailsPage() {
                             return (
                               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
                                 {/* TCP 流量 (发送 / 接收) */}
-                                <Card className="rounded-lg bg-gradient-to-tr from-blue-500/10 to-transparent border-none shadow-sm">
+                                <Card className="rounded-lg bg-gradient-to-tr from-blue-500/20 dark:from-blue-500/30 to-transparent border-none shadow-sm h-[148px]">
                                   <CardBody className="p-4">
-                                    <p className="text-sm font-medium text-blue-400 mb-2">
+                                    <p className="text-sm font-medium text-blue-500 dark:text-blue-400 mb-2">
                                       TCP 流量 (发送 / 接收)
                                     </p>
                                     <div className="flex items-baseline gap-4">
@@ -987,9 +1029,9 @@ export default function ServiceDetailsPage() {
                                 </Card>
 
                                 {/* UDP 流量 (发送 / 接收) */}
-                                <Card className="rounded-lg bg-gradient-to-tr from-purple-500/10 to-transparent border-none shadow-sm">
+                                <Card className="rounded-lg bg-gradient-to-tr from-purple-500/20 dark:from-purple-500/30 to-transparent border-none shadow-sm h-[148px]">
                                   <CardBody className="p-4">
-                                    <p className="text-sm font-medium text-purple-400 mb-2">
+                                    <p className="text-sm font-medium text-purple-500 dark:text-purple-400 mb-2">
                                       UDP 流量 (发送 / 接收)
                                     </p>
                                     <div className="flex items-baseline gap-4">
@@ -1006,10 +1048,10 @@ export default function ServiceDetailsPage() {
                                 </Card>
 
                                 {/* 端内延迟 */}
-                                <Card className="rounded-lg bg-gradient-to-tr from-red-500/10 to-transparent border-none shadow-sm">
+                                <Card className="rounded-lg bg-gradient-to-tr from-red-500/20 dark:from-red-500/30 to-transparent border-none shadow-sm h-[148px]">
                                   <CardBody className="p-4">
-                                    <p className="text-sm font-medium text-red-400 mb-2">端内延迟</p>
-                                    <p className="text-3xl font-bold text-red-400">
+                                    <p className="text-sm font-medium text-red-500 dark:text-red-400 mb-2">端内延迟</p>
+                                    <p className="text-3xl font-bold text-red-500 dark:text-red-400">
                                       {ping !== null && ping !== undefined ? ping : 0}{" "}
                                       <span className="text-base font-medium">ms</span>
                                     </p>
@@ -1017,13 +1059,13 @@ export default function ServiceDetailsPage() {
                                 </Card>
 
                                 {/* 连接数 (TCP/UDP) */}
-                                <Card className="rounded-lg bg-gradient-to-tr from-green-500/10 to-transparent border-none shadow-sm">
+                                <Card className="rounded-lg bg-gradient-to-tr from-green-500/20 dark:from-green-500/30 to-transparent border-none shadow-sm h-[148px]">
                                   <CardBody className="p-4">
-                                    <p className="text-sm font-medium text-green-400 mb-2">
+                                    <p className="text-sm font-medium text-green-500 dark:text-green-400 mb-2">
                                       连接数 (TCP/UDP)
                                     </p>
                                     <div className="flex items-baseline gap-4">
-                                      <p className="text-3xl font-bold text-green-400">
+                                      <p className="text-3xl font-bold text-green-500 dark:text-green-400">
                                         {tcps !== null && tcps !== undefined ? tcps : 0}
                                       </p>
                                       <p className="text-3xl font-bold text-green-400">
