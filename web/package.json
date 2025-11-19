@@ -1,7 +1,7 @@
 {
   "name": "NodePassDash",
   "private": true,
-  "version": "3.2.0-beta6",
+  "version": "3.2.0-beta7",
   "type": "module",
   "scripts": {
     "dev": "vite",
