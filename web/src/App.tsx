@@ -22,6 +22,8 @@ import IconComparisonPage from "./pages/icon-comparison";
 import ServicesPage from "./pages/services";
 import ServiceDetailsPage from "./pages/services/details";
 import ServiceSSEPage from "./pages/services/sse";
+import ServicesDemoPage from "./pages/services/demo";
+import ServicesDetailsDemoPage from "./pages/services/demo/details";
 
 function App() {
   return (
@@ -37,6 +39,8 @@ function App() {
         <Route element={<TemplatesPage />} path="/templates" />
         <Route element={<EndpointsPage />} path="/endpoints" />
         <Route element={<ServicesPage />} path="/services" />
+        <Route element={<ServicesDemoPage />} path="/services/demo" />
+        <Route element={<ServicesDetailsDemoPage />} path="/services/demo/details" />
         <Route element={<ServiceDetailsPage />} path="/services/details" />
         <Route element={<ServiceSSEPage />} path="/services/sse" />
         <Route element={<EndpointDetailsPage />} path="/endpoints/details" />

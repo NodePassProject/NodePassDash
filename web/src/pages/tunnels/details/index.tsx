@@ -2333,23 +2333,23 @@ export default function TunnelDetailPage() {
                         const peer = tunnelInfo.peer;
                         const displayText = peer?.alias || peer?.sid || "未知服务";
                         return (
-                          <Tooltip
-                            content={
-                              <div className="space-y-1 max-h-48 overflow-y-auto">
+                          <div className="overflow-hidden">
+                            <Tooltip
+                              content={<div className="space-y-1 max-h-48 overflow-y-auto">
                                 <div className="font-mono text-xs break-all">
                                   sid: {peer?.sid}
                                 </div>
                                 <div className="font-mono text-xs break-all">
                                   type: {peer?.type}
                                 </div>
-                              </div>
-                            }
-                            placement="right"
-                          >
-                            <span>
-                              {displayText}
-                            </span>
-                          </Tooltip>
+                              </div>}
+                              placement="top"
+                            >
+                              <span className="font-mono text-sm truncate block">
+                                {displayText}
+                              </span>
+                            </Tooltip>
+                          </div>
                         );
                       })()
                       : "-"

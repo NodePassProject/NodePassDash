@@ -42,6 +42,7 @@
     "react-markdown": "^10.1.0",
     "react-router-dom": "6.23.0",
     "recharts": "^2.15.4",
+    "swiper": "^12.0.3",
     "tailwind-merge": "^3.3.0",
     "tailwind-variants": "2.0.1",
     "zod": "^3.22.0"

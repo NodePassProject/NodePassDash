@@ -85,7 +85,7 @@ export interface Service {
   sorts?: number; // 排序字段
 }
 
-export default function ServicesPage() {
+export default function ServicesDemoPage() {
   const navigate = useNavigate();
   const settings = useSettings();
   const [services, setServices] = useState<Service[]>([]);
@@ -450,7 +450,8 @@ export default function ServicesPage() {
       {/* 页面标题和操作栏 */}
       <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center">
         <div>
-          <h1 className="text-2xl font-bold">服务管理</h1>
+          <h1 className="text-2xl font-bold">服务管理 (HeroUI 风格 Demo)</h1>
+          <p className="text-sm text-default-500 mt-1">全新设计 - 使用 HeroUI 原生组件和颜色系统</p>
         </div>
         <div className="flex gap-2">
           <Button

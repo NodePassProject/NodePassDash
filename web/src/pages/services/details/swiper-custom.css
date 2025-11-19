@@ -1,0 +1,48 @@
+/* Swiper 自定义样式 - Services Details 页面 */
+
+/* 分页器容器 */
+.swiper-pagination {
+  position: relative !important;
+  margin-top: 1rem !important;
+  bottom: 0 !important;
+}
+
+/* 分页器圆点 */
+.swiper-pagination-bullet {
+  width: 8px;
+  height: 8px;
+  background: hsl(var(--heroui-default-300));
+  opacity: 0.5;
+  transition: all 0.3s ease;
+}
+
+/* 分页器圆点 - 激活状态 */
+.swiper-pagination-bullet-active {
+  width: 24px;
+  border-radius: 4px;
+  background: hsl(var(--heroui-primary));
+  opacity: 1;
+}
+
+/* 分页器圆点 - hover 状态 */
+.swiper-pagination-bullet:hover {
+  opacity: 0.8;
+  transform: scale(1.2);
+}
+
+/* 动态分页器 */
+.swiper-pagination-bullet-active-main {
+  background: hsl(var(--heroui-primary));
+}
+
+/* 移动端优化 - 增大点击区域 */
+@media (max-width: 768px) {
+  .swiper-pagination-bullet {
+    width: 10px;
+    height: 10px;
+  }
+
+  .swiper-pagination-bullet-active {
+    width: 28px;
+  }
+}

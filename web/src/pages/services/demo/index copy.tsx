@@ -47,8 +47,8 @@ import ScenarioCreateModal, {
 } from "@/components/tunnels/scenario-create-modal";
 import AssembleServiceModal from "@/components/services/assemble-service-modal";
 import RenameServiceModal from "@/components/services/rename-service-modal";
-import { HeroUIServiceCard } from "@/components/services/heroui-service-card";
-import { SortableHeroUIServiceCard } from "@/components/services/sortable-heroui-service-card";
+import { GlassmorphismCard } from "@/components/services/service-card-variants";
+import { SortableServiceCard } from "@/components/services/sortable-service-card";
 import {
   DndContext,
   closestCenter,
@@ -399,8 +399,8 @@ export default function ServicesPage() {
     }
   };
 
-  // 根据类型获取颜色 (HeroUI 原生颜色)
-  const getTypeColor = (type: string): "primary" | "success" | "secondary" | "default" => {
+  // 根据类型获取颜色
+  const getTypeColor = (type: string) => {
     switch (type) {
       case "0":
         return "primary";
@@ -615,29 +615,27 @@ export default function ServicesPage() {
                   }
                 };
 
-                // 如果启用拖拽，使用 SortableHeroUIServiceCard；否则使用普通卡片
+                // 如果启用拖拽，使用 SortableServiceCard；否则使用普通卡片
                 if (isDragEnabled) {
                   return (
-                    <SortableHeroUIServiceCard
+                    <SortableServiceCard
                       key={service.sid}
                       service={service}
                       formatHost={formatHost}
                       getTypeLabel={getTypeLabel}
                       getTypeIcon={getTypeIcon}
-                      getTypeColor={getTypeColor}
                       onNavigate={() => navigate(`/services/details?sid=${service.sid}`)}
                       onAction={handleAction}
                     />
                   );
                 } else {
                   return (
-                    <HeroUIServiceCard
+                    <GlassmorphismCard
                       key={service.sid}
                       service={service}
                       formatHost={formatHost}
                       getTypeLabel={getTypeLabel}
                       getTypeIcon={getTypeIcon}
-                      getTypeColor={getTypeColor}
                       onNavigate={() => navigate(`/services/details?sid=${service.sid}`)}
                       onAction={handleAction}
                     />
