@@ -244,14 +244,14 @@ export default function ScenarioCreateModal({
           tls: parseInt(formData.doubleTlsType),
           tunnel_name: formData.tunnelName,
           inbounds: {
-            target_host: "",
-            target_port: parseInt(formData.relayListenPort2),
+            target_host: "127.0.0.1",
+            target_port: parseInt(formData.targetServicePort2),
             master_id: getEndpointIdByName(formData.targetServerEndpoint2),
             type: "client",
           },
           outbounds: {
             target_host: "",
-            target_port: parseInt(formData.targetServicePort2),
+            target_port: parseInt(formData.relayListenPort2),
             master_id: getEndpointIdByName(formData.relayServerEndpoint2),
             type: "server",
           },
