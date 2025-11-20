@@ -2,7 +2,7 @@
   <img src="docs/nodepassdash-logo.svg" alt="NodePassDash" height="80">
 </div>
 
-![Version](https://img.shields.io/badge/version-3.2.0--beta8-blue.svg)
+![Version](https://img.shields.io/badge/version-3.2.0--beta9-blue.svg)
 ![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)
 
 NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + React + Vite、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
