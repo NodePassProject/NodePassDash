@@ -197,7 +197,7 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 			updates["url"] = req.URL
 			// 如果URL更新了，同时更新IP字段
 			if extractedIP := extractIPFromURL(req.URL); extractedIP != "" {
-				updates["ip"] = extractedIP
+				updates["hostname"] = extractedIP
 			}
 		}
 		if req.APIPath != "" {
@@ -251,7 +251,7 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 			updates["url"] = req.URL
 			// 更新IP字段
 			if extractedIP := extractIPFromURL(req.URL); extractedIP != "" {
-				updates["ip"] = extractedIP
+				updates["hostname"] = extractedIP
 			}
 			needUpdateCache = true
 		}

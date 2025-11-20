@@ -726,70 +726,93 @@ export default function EndpointDetailPage() {
       return;
     }
 
-    try {
-      // 如果有URL或密钥变更，需要先断开连接
-      if (hasUrlChange || hasApiKeyChange) {
+    // 立即关闭模态窗
+    onEditConfigOpenChange();
+
+    // 显示开始处理的 toast
+    addToast({
+      title: "开始更新配置",
+      description: "正在处理配置更新...",
+      color: "primary",
+    });
+
+    // 在后台异步处理更新流程
+    (async () => {
+      try {
+        // 如果有URL或密钥变更，需要先断开连接
+        if (hasUrlChange || hasApiKeyChange) {
+          addToast({
+            title: "断开连接中",
+            description: "正在断开当前连接...",
+            color: "primary",
+          });
+
+          // 1. 先断开连接
+          await handleDisconnect();
+        }
+
+        // 构建请求数据
+        const updateData: any = {
+          id: Number(endpointId),
+          action: "updateConfig",
+          name: configForm.name.trim(),
+          url: configForm.url.trim(),
+        };
+
+        // 只有当填写了新密钥时才传送
+        if (hasApiKeyChange) {
+          updateData.apiKey = configForm.apiKey.trim();
+        }
+
         addToast({
-          title: "开始更新配置",
-          description: "正在断开当前连接...",
+          title: "更新配置中",
+          description: "正在提交配置更新...",
           color: "primary",
         });
 
-        // 1. 先断开连接
-        await handleDisconnect();
+        const response = await fetch(buildApiUrl("/api/endpoints"), {
+          method: "PATCH",
+          headers: {
+            "Content-Type": "application/json",
+          },
+          body: JSON.stringify(updateData),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+
+          throw new Error(errorData.error || "配置更新失败");
+        }
+
+        addToast({
+          title: "配置更新成功",
+          description: "配置已更新，正在刷新数据...",
+          color: "success",
+        });
+
+        // 刷新端点详情
+        await fetchEndpointDetail();
+
+        // 如果有URL或密钥变更，延迟重新连接
+        if (hasUrlChange || hasApiKeyChange) {
+          addToast({
+            title: "重新连接中",
+            description: "正在尝试重新连接...",
+            color: "primary",
+          });
+
+          setTimeout(async () => {
+            await handleConnect();
+          }, 1500);
+        }
+      } catch (error) {
+        addToast({
+          title: "配置更新失败",
+          description: error instanceof Error ? error.message : "更新失败",
+          color: "danger",
+        });
       }
-
-      // 构建请求数据
-      const updateData: any = {
-        id: Number(endpointId),
-        action: "updateConfig",
-        name: configForm.name.trim(),
-        url: configForm.url.trim(),
-      };
-
-      // 只有当填写了新密钥时才传送
-      if (hasApiKeyChange) {
-        updateData.apiKey = configForm.apiKey.trim();
-      }
-
-      const response = await fetch(buildApiUrl("/api/endpoints"), {
-        method: "PATCH",
-        headers: {
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(updateData),
-      });
-
-      if (!response.ok) {
-        const errorData = await response.json();
-
-        throw new Error(errorData.error || "配置更新失败");
-      }
-
-      addToast({
-        title: "配置更新成功",
-        description: "配置已更新，正在重新连接...",
-        color: "success",
-      });
-
-      onEditConfigOpenChange();
-
-      // 刷新端点详情
-      await fetchEndpointDetail();
-
-      // 如果有URL或密钥变更，延迟重新连接
-      if (hasUrlChange || hasApiKeyChange) {
-        setTimeout(async () => {
-          await handleConnect();
-        }, 1500);
-      }
-    } catch (error) {
-      addToast({
-        title: "配置更新失败",
-        description: error instanceof Error ? error.message : "更新失败",
-        color: "danger",
-      });
-    }
+    })();
   };
 
   // 刷新所有数据
