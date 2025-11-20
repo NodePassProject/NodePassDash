@@ -8,12 +8,20 @@ import {
   Button,
   Spinner,
   Chip,
-  RadioGroup,
-  Radio,
+  Listbox,
+  ListboxItem,
+  Alert,
   cn,
 } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faGlobe, faRefresh } from "@fortawesome/free-solid-svg-icons";
+import {
+  faGlobe,
+  faRefresh,
+  faArrowRight,
+  faArrowLeft,
+  faSignInAlt,
+  faSignOutAlt,
+} from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 
 interface TcpingTestModalProps {
@@ -68,10 +76,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
 }) => {
   const [tcpingTarget, setTcpingTarget] = React.useState("");
   const [tcpingLoading, setTcpingLoading] = React.useState(false);
-  const [tcpingSelectedAddress, setTcpingSelectedAddress] = React.useState<string | null>(null);
   const [tcpingResult, setTcpingResult] = React.useState<TcpingResult | null>(null);
-  // 测试类型：只有 "entry" | "exit" 两种
-  const [testType, setTestType] = React.useState<"entry" | "exit">("exit");
 
   // 执行TCPing测试的函数
   const performTcpingTest = React.useCallback(
@@ -113,48 +118,6 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
     [],
   );
 
-  // TCPing诊断测试处理函数（用户点击按钮时调用）
-  const handleTcpingTest = async () => {
-    if (tcpingLoading) return;
-
-    // 如果没有选择地址，返回
-    if (!tcpingSelectedAddress) {
-      addToast({
-        title: "请选择目标地址",
-        description: "请先选择一个目标地址后再进行测试",
-        color: "warning",
-      });
-      return;
-    }
-
-    // 根据测试类型选择 instanceId
-    let useInstanceId = "";
-
-    if (serviceType === "0") {
-      // type=0: 只使用 client
-      useInstanceId = clientInstanceId || "";
-    } else {
-      // type=1,2: 根据测试类型选择
-      if (testType === "exit") {
-        useInstanceId = clientInstanceId || "";
-      } else if (testType === "entry") {
-        useInstanceId = serverInstanceId || "";
-      }
-    }
-
-    if (!useInstanceId) {
-      addToast({
-        title: "实例ID不存在",
-        description: "无法找到对应的实例ID",
-        color: "danger",
-      });
-      return;
-    }
-
-    // 使用选中的地址进行测试
-    performTcpingTest(tcpingSelectedAddress, useInstanceId);
-  };
-
   // 判断延迟是否优秀的函数
   const getLatencyQuality = (latency: number) => {
     if (latency < 50) return { text: "优秀", color: "success" };
@@ -164,57 +127,67 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
     return { text: "较差", color: "danger" };
   };
 
-  // 根据测试类型获取地址选项列表
-  const getAddressOptions = React.useMemo(() => {
-    const addresses: Array<{ value: string; label: string; description: string }> = [];
+  // 获取所有地址选项列表（包含入口和出口）
+  const getAllAddressOptions = React.useMemo(() => {
+    const addresses: Array<{
+      key: string;
+      type: "entry" | "exit";
+      label: string;
+      address: string;
+      instanceId: string;
+    }> = [];
 
-    if (testType === "entry") {
-      // 入口测试
-      let entryAddr = "";
-      let entryPort = 0;
+    // 添加入口地址
+    let entryAddr = "";
+    let entryPort = 0;
+    let entryInstanceId = "";
 
-      if (serviceType === "0") {
-        // type=0: 使用 client 的 tunnelAddress，如果为空则使用 client 的 endpoint.host
-        entryAddr = clientTunnelAddress || serverEndpointHost || "";
-        entryPort = clientListenPort || 0;
-      } else {
-        // type=1,2: 使用 server 的 tunnelAddress，如果为空则使用 server 的 endpoint.host
-        entryAddr = serverTunnelAddress || serverEndpointHost || "";
-        entryPort = serverListenPort || 0;
-      }
+    if (serviceType === "0") {
+      // type=0: 使用 client 的 tunnelAddress，如果为空则使用 client 的 endpoint.host
+      entryAddr = clientTunnelAddress || serverEndpointHost || "";
+      entryPort = clientListenPort || 0;
+      entryInstanceId = clientInstanceId || "";
+    } else {
+      // type=1,2: 使用 server 的 tunnelAddress，如果为空则使用 server 的 endpoint.host
+      entryAddr = serverTunnelAddress || serverEndpointHost || "";
+      entryPort = serverListenPort || 0;
+      entryInstanceId = serverInstanceId || "";
+    }
 
-      const fullAddr = `${entryAddr}:${entryPort}`;
+    const entryFullAddr = `${entryAddr}:${entryPort}`;
+    addresses.push({
+      key: "entry",
+      type: "entry",
+      label: "入口地址",
+      address: entryFullAddr,
+      instanceId: entryInstanceId,
+    });
 
-      addresses.push({
-        value: fullAddr,
-        label: fullAddr,
-        description: "入口地址",
-      });
-    } else if (testType === "exit") {
-      // 出口测试：使用 clientTargetAddress 和可能的 extendTargetAddress
-      const mainAddr = `${clientTargetAddress}:${clientTargetPort}`;
+    // 添加出口地址（主目标地址）
+    const mainAddr = `${clientTargetAddress}:${clientTargetPort}`;
+    addresses.push({
+      key: "exit-main",
+      type: "exit",
+      label: "出口地址",
+      address: mainAddr,
+      instanceId: clientInstanceId || "",
+    });
 
-      addresses.push({
-        value: mainAddr,
-        label: mainAddr,
-        description: "主目标地址",
-      });
-
-      // 如果有扩展目标地址，添加到列表
-      if (extendTargetAddress && extendTargetAddress.length > 0) {
-        extendTargetAddress.forEach((addr, index) => {
-          addresses.push({
-            value: addr,
-            label: typeof addr === "string" ? addr : JSON.stringify(addr),
-            description: `扩展地址 #${index + 1}`,
-          });
+    // 添加扩展目标地址
+    if (extendTargetAddress && extendTargetAddress.length > 0) {
+      extendTargetAddress.forEach((addr, index) => {
+        addresses.push({
+          key: `exit-${index}`,
+          type: "exit",
+          label: `出口地址 ${index + 1}`,
+          address: typeof addr === "string" ? addr : JSON.stringify(addr),
+          instanceId: clientInstanceId || "",
         });
-      }
+      });
     }
 
     return addresses;
   }, [
-    testType,
     serviceType,
     clientTunnelAddress,
     clientListenPort,
@@ -224,27 +197,15 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
     clientTargetAddress,
     clientTargetPort,
     extendTargetAddress,
+    clientInstanceId,
+    serverInstanceId,
   ]);
-
-  // 当模态框打开或测试类型改变时，更新选中的地址
-  React.useEffect(() => {
-    if (isOpen && !tcpingLoading && !tcpingResult) {
-      const addressOptions = getAddressOptions;
-
-      if (addressOptions.length > 0) {
-        // 默认选择第一个地址
-        setTcpingSelectedAddress(addressOptions[0].value);
-      }
-    }
-  }, [isOpen, tcpingLoading, tcpingResult, testType, getAddressOptions]);
 
   // 处理模态框关闭
   const handleClose = () => {
     setTcpingTarget("");
     setTcpingResult(null);
     setTcpingLoading(false);
-    setTcpingSelectedAddress(null);
-    setTestType("exit"); // 重置为默认出口
     onClose();
   };
 
@@ -264,7 +225,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
       <ModalContent className="min-h-[400px]">
         {(onClose) => (
           <>
-            <ModalHeader className="flex flex-col gap-1 ">
+            <ModalHeader className="flex flex-col gap-1 pb-0">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-primary" icon={faGlobe} />
                 网络诊断测试
@@ -287,7 +248,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
             ) : tcpingResult ? (
               <>
                 {/* 结果显示状态 */}
-                <ModalBody className="px-8">
+                <ModalBody className="px-8 pt-8">
                   {/* 顶部信息：两列布局 */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-2">
                     {/* 左列 */}
@@ -414,7 +375,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                 </ModalBody>
 
                 {/* 结果显示时的Footer */}
-                <ModalFooter className="bg-default-50 dark:bg-default-100/5 border-t border-default-200">
+                <ModalFooter className="pt-0">
                   <Button variant="flat" onPress={handleClose}>
                     关闭
                   </Button>
@@ -425,7 +386,6 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                     }
                     onPress={() => {
                       setTcpingResult(null);
-                      handleTcpingTest();
                     }}
                   >
                     重新测试
@@ -435,143 +395,69 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
             ) : (
               // 地址选择状态
               <>
-                <ModalBody className="py-0">
-                  <div className="space-y-6">
-                    {/* 测试类型选择 */}
-                    <div className="space-y-4">
-                      <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 border border-blue-200 dark:border-blue-900">
-                        <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                          ℹ️ {serviceType === "0" ? "单端转发模式" : serviceType === "1" ? "NAT穿透模式" : "隧道转发模式"}
-                        </p>
-                        <p className="text-xs text-blue-800 dark:text-blue-200">
-                          请选择测试入口还是出口连通性
-                        </p>
-                      </div>
+                <ModalBody className="p-6">
+                  <div className="space-y-4">
+                    {/* 提示信息 */}
+                    <Alert
+                      color="secondary"
+                      description="点击任意地址开始测试连通性"
+                      title={serviceType === "0" ? "单端转发模式" : serviceType === "1" ? "NAT穿透模式" : "隧道转发模式"}
+                      variant="faded"
+                    />
 
-                      <div className="border border-default-200 p-4 rounded-lg">
-                        <p className="text-sm font-medium mb-3">测试类型</p>
-                        <RadioGroup
-                          value={testType}
-                          onValueChange={(value) => {
-                            setTestType(value as "entry" | "exit");
-                            setTcpingResult(null); // 清除之前的测试结果
-                          }}
-                        >
-                          <Radio
+                    {/* 地址列表 */}
+                    <div className="border border-default-200 rounded-lg overflow-hidden">
+                      <Listbox
+                        aria-label="选择测试地址"
+                        classNames={{
+                          base: "max-w-full",
+                          list: "max-h-[400px] overflow-auto",
+                        }}
+                        onAction={(key) => {
+                          const option = getAllAddressOptions.find((opt) => opt.key === key);
+                          if (option) {
+                            performTcpingTest(option.address, option.instanceId);
+                          }
+                        }}
+                      >
+                        {getAllAddressOptions.map((option) => (
+                          <ListboxItem
+                            key={option.key}
                             classNames={{
-                              base: cn(
-                                "inline-flex max-w-md w-full bg-content1 m-0 mb-2",
-                                "hover:bg-content2 items-center justify-start",
-                                "cursor-pointer rounded-lg gap-2 p-4 border-2 border-transparent",
-                                "data-[selected=true]:border-primary",
-                              ),
+                              base: "py-3 px-4 hover:bg-default-100 cursor-pointer transition-colors",
                             }}
-                            value="entry"
-                          >
-                            <div className="flex flex-col gap-1">
-                              <span className="text-sm font-semibold">测试入口</span>
-                              <span className="text-xs text-default-500">
-                                {serviceType === "0" ? "Client 端测试监听地址" : "Server 端测试隧道入口"}
-                              </span>
-                              <span className="text-xs text-default-400 font-mono">
-                                {serviceType === "0"
-                                  ? `${clientTunnelAddress || serverEndpointHost}:${clientListenPort || 0}`
-                                  : `${serverTunnelAddress || serverEndpointHost || ""}:${serverListenPort || 0}`
-                                }
-                              </span>
-                            </div>
-                          </Radio>
-                          <Radio
-                            classNames={{
-                              base: cn(
-                                "inline-flex max-w-md w-full bg-content1 m-0",
-                                "hover:bg-content2 items-center justify-start",
-                                "cursor-pointer rounded-lg gap-2 p-4 border-2 border-transparent",
-                                "data-[selected=true]:border-primary",
-                              ),
-                            }}
-                            value="exit"
-                          >
-                            <div className="flex flex-col gap-1">
-                              <span className="text-sm font-semibold">测试出口</span>
-                              <span className="text-xs text-default-500">
-                                Client 端测试目标地址
-                              </span>
-                              <span className="text-xs text-default-400 font-mono">
-                                {clientTargetAddress || ""}:{clientTargetPort || 0}
-                                {extendTargetAddress && extendTargetAddress.length > 0 && ` (+${extendTargetAddress.length})`}
-                              </span>
-                            </div>
-                          </Radio>
-                        </RadioGroup>
-                      </div>
-                    </div>
-
-                    {/* 地址选择区域 - 始终显示 */}
-                    {getAddressOptions.length > 0 && (
-                      <div className="space-y-4">
-                        {/* 如果有多个地址，显示提示 */}
-                        {testType === "exit" && getAddressOptions.length > 1 && (
-                          <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 border border-blue-200 dark:border-blue-900">
-                            <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                              ℹ️ 检测到多个目标地址
-                            </p>
-                            <p className="text-xs text-blue-800 dark:text-blue-200">
-                              此服务配置了负载均衡，请选择要测试的目标地址
-                            </p>
-                          </div>
-                        )}
-
-                        <div className="border border-default-200 p-4 rounded-lg">
-                          <p className="text-sm font-medium mb-3">
-                            {getAddressOptions.length > 1 ? "选择目标地址" : "目标地址"}
-                          </p>
-                          <RadioGroup
-                            value={tcpingSelectedAddress || ""}
-                            onValueChange={setTcpingSelectedAddress}
-                          >
-                            {getAddressOptions.map((option) => (
-                              <Radio
-                                key={option.value}
-                                classNames={{
-                                  base: cn(
-                                    "inline-flex max-w-md w-full bg-content1 m-0 mb-2 last:mb-0",
-                                    "hover:bg-content2 items-center justify-start",
-                                    "cursor-pointer rounded-lg gap-2 p-4 border-2 border-transparent",
-                                    "data-[selected=true]:border-primary",
-                                  ),
-                                }}
-                                value={option.value}
+                            showDivider={option.type === "entry"}
+                            startContent={
+                              <div
+                                className={`flex items-center justify-center w-10 h-10 rounded-lg ${option.type === "entry"
+                                    ? "bg-success/10 text-success"
+                                    : "bg-primary/10 text-primary"
+                                  }`}
                               >
-                                <div className="flex flex-col gap-1">
-                                  <span className="font-mono text-sm">{option.label}</span>
-                                  <span className="text-xs text-default-400">{option.description}</span>
-                                </div>
-                              </Radio>
-                            ))}
-                          </RadioGroup>
-                        </div>
-                      </div>
-                    )}
+                                <FontAwesomeIcon
+                                  icon={option.type === "entry" ? faSignInAlt : faSignOutAlt}
+                                  className="text-lg"
+                                />
+                              </div>
+                            }
+                            textValue={option.label}
+                          >
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm font-medium">{option.label}</span>
+                              <span className="text-xs font-mono text-default-500">
+                                {option.address}
+                              </span>
+                            </div>
+                          </ListboxItem>
+                        ))}
+                      </Listbox>
+                    </div>
                   </div>
                 </ModalBody>
                 {/* 地址选择时的Footer */}
-                <ModalFooter>
-                  <Button
-                    color="default"
-                    variant="light"
-                    onPress={handleClose}
-                  >
+                <ModalFooter className="pt-0">
+                  <Button color="default" variant="flat" onPress={handleClose}>
                     关闭
-                  </Button>
-                  <Button
-                    color="primary"
-                    isDisabled={!tcpingSelectedAddress}
-                    onPress={() => {
-                      handleTcpingTest();
-                    }}
-                  >
-                    开始测试
                   </Button>
                 </ModalFooter>
               </>
