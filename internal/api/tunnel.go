@@ -1383,20 +1383,20 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 
 		// 获取endpoint信息
 		var serverEndpoint, clientEndpoint struct {
-			ID      int64
-			URL     string
-			IP      string
-			APIPath string
-			APIKey  string
-			Name    string
+			ID       int64
+			URL      string
+			Hostname string
+			APIPath  string
+			APIKey   string
+			Name     string
 		}
 
 		db := h.tunnelService.DB()
 		// 获取server endpoint信息
 		err := db.QueryRow(
-			"SELECT id, url, ip, api_path, api_key, name FROM endpoints WHERE id = ?",
+			"SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?",
 			serverConfig.MasterID,
-		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.IP, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
+		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.Hostname, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
@@ -1414,9 +1414,9 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 
 		// 获取client endpoint信息
 		err = db.QueryRow(
-			"SELECT id, url, ip, api_path, api_key, name FROM endpoints WHERE id = ?",
+			"SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?",
 			clientConfig.MasterID,
-		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.IP, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
+		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.Hostname, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
@@ -1433,7 +1433,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		}
 
 		// 使用数据库中存储的server端IP
-		serverIP := serverEndpoint.IP
+		serverIP := serverEndpoint.Hostname
 		if serverIP == "" {
 			// 如果数据库中没有IP，降级到从URL提取
 			serverIP = strings.TrimPrefix(serverEndpoint.URL, "http://")
@@ -1615,7 +1615,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		db := h.tunnelService.DB()
 		// 获取server endpoint信息
 		err := db.QueryRow(
-			"SELECT id, url, ip, api_path, api_key, name FROM endpoints WHERE id = ?",
+			"SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?",
 			serverConfig.MasterID,
 		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.IP, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
 		if err != nil {
@@ -1635,7 +1635,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 
 		// 获取client endpoint信息
 		err = db.QueryRow(
-			"SELECT id, url, ip, api_path, api_key, name FROM endpoints WHERE id = ?",
+			"SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?",
 			clientConfig.MasterID,
 		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.IP, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
 		if err != nil {
