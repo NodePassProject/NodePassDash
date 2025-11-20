@@ -3141,6 +3141,217 @@ func (h *TunnelHandler) HandleUpdateTunnelV2(c *gin.Context) {
 		return
 	}
 
+	// 检测端点是否变化
+	currentEndpointID, err := h.tunnelService.GetEndpointIDByTunnelID(tunnelID)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{Success: false, Error: "查询隧道端点失败: " + err.Error()})
+		return
+	}
+
+	endpointChanged := raw.EndpointID != currentEndpointID
+
+	if endpointChanged {
+		log.Infof("[API] 检测到端点变更: %d -> %d, 将执行删除重建", currentEndpointID, raw.EndpointID)
+
+		// 获取实例ID
+		instanceID, err := h.tunnelService.GetInstanceIDByTunnelID(tunnelID)
+		if err != nil {
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: err.Error()})
+			return
+		}
+
+		// 1. 删除旧端点上的实例
+		if delErr := h.tunnelService.DeleteTunnelAndWait(instanceID, 3*time.Second, false); delErr != nil {
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "删除旧实例失败: " + delErr.Error()})
+			return
+		}
+
+		// 2. 在新端点上创建实例
+		// 处理新增字段的默认值
+		enableSSEStore := true
+		if raw.EnableSSEStore != nil {
+			enableSSEStore = *raw.EnableSSEStore
+		}
+
+		enableLogStore := true
+		if raw.EnableLogStore != nil {
+			enableLogStore = *raw.EnableLogStore
+		}
+
+		// 处理Mode字段的类型转换
+		var modePtr *tunnel.TunnelMode
+		if raw.Mode != nil {
+			mode := tunnel.TunnelMode(*raw.Mode)
+			modePtr = &mode
+		}
+
+		createReq := tunnel.CreateTunnelRequest{
+			Name:           raw.Name,
+			EndpointID:     raw.EndpointID, // 使用新的端点ID
+			Type:           raw.Type,
+			TunnelAddress:  raw.TunnelAddress,
+			TunnelPort:     tunnelPort,
+			TargetAddress:  raw.TargetAddress,
+			TargetPort:     targetPort,
+			TLSMode:        tunnel.TLSMode(raw.TLSMode),
+			CertPath:       raw.CertPath,
+			KeyPath:        raw.KeyPath,
+			LogLevel:       tunnel.LogLevel(raw.LogLevel),
+			Password:       raw.Password,
+			ProxyProtocol:  raw.ProxyProtocol,
+			Min:            raw.Min,
+			Max:            raw.Max,
+			Slot:           raw.Slot,
+			Mode:           modePtr,
+			Read:           raw.Read,
+			Rate:           raw.Rate,
+			EnableSSEStore: enableSSEStore,
+			EnableLogStore: enableLogStore,
+		}
+
+		newTunnel, crtErr := h.tunnelService.CreateTunnelAndWait(createReq, 3*time.Second)
+		if crtErr != nil {
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "在新端点创建实例失败: " + crtErr.Error()})
+			return
+		}
+
+		// 3. 更新数据库中的隧道记录，关联到新实例并更新所有配置
+		// 构建新的 command_line
+		var commandLine string
+		if raw.Password != "" {
+			commandLine = fmt.Sprintf("%s://%s@%s:%d/%s:%d", raw.Type, raw.Password, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort)
+		} else {
+			commandLine = fmt.Sprintf("%s://%s:%d/%s:%d", raw.Type, raw.TunnelAddress, tunnelPort, raw.TargetAddress, targetPort)
+		}
+
+		var queryParams []string
+		if raw.LogLevel != "" && raw.LogLevel != "inherit" {
+			queryParams = append(queryParams, fmt.Sprintf("log=%s", raw.LogLevel))
+		}
+		if raw.Type == "server" && raw.TLSMode != "" && raw.TLSMode != "inherit" {
+			var tlsNum string
+			switch raw.TLSMode {
+			case "0":
+				tlsNum = "0"
+			case "1":
+				tlsNum = "1"
+			case "2":
+				tlsNum = "2"
+			}
+			if tlsNum != "" {
+				queryParams = append(queryParams, fmt.Sprintf("tls=%s", tlsNum))
+			}
+			if raw.TLSMode == "2" && raw.CertPath != "" && raw.KeyPath != "" {
+				queryParams = append(queryParams, fmt.Sprintf("crt=%s", url.QueryEscape(raw.CertPath)), fmt.Sprintf("key=%s", url.QueryEscape(raw.KeyPath)))
+			}
+		}
+		if raw.Min != nil {
+			queryParams = append(queryParams, fmt.Sprintf("min=%d", *raw.Min))
+		}
+		if raw.Max != nil {
+			queryParams = append(queryParams, fmt.Sprintf("max=%d", *raw.Max))
+		}
+		if raw.Slot != nil {
+			queryParams = append(queryParams, fmt.Sprintf("slot=%d", *raw.Slot))
+		}
+		if raw.Mode != nil {
+			queryParams = append(queryParams, fmt.Sprintf("mode=%d", *raw.Mode))
+		}
+		if raw.Read != nil && *raw.Read != "" {
+			queryParams = append(queryParams, fmt.Sprintf("read=%s", *raw.Read))
+		}
+		if raw.Rate != nil {
+			queryParams = append(queryParams, fmt.Sprintf("rate=%d", *raw.Rate))
+		}
+		if raw.ProxyProtocol != nil {
+			if *raw.ProxyProtocol {
+				queryParams = append(queryParams, "proxy=1")
+			} else {
+				queryParams = append(queryParams, "proxy=0")
+			}
+		}
+		if len(queryParams) > 0 {
+			commandLine += "?" + strings.Join(queryParams, "&")
+		}
+
+		// 更新数据库记录，包含所有配置字段
+		_, _ = h.tunnelService.DB().Exec(`UPDATE tunnels SET 
+			name = ?, 
+			endpoint_id = ?, 
+			instance_id = ?, 
+			type = ?,
+			tunnel_address = ?,
+			tunnel_port = ?,
+			target_address = ?,
+			target_port = ?,
+			tls_mode = ?,
+			cert_path = ?,
+			key_path = ?,
+			log_level = ?,
+			password = ?,
+			command_line = ?,
+			min = ?,
+			max = ?,
+			slot = ?,
+			mode = ?,
+			read = ?,
+			rate = ?,
+			proxy_protocol = ?,
+			enable_sse_store = ?,
+			enable_log_store = ?,
+			updated_at = ? 
+			WHERE id = ?`,
+			raw.Name,
+			raw.EndpointID,
+			*newTunnel.InstanceID,
+			raw.Type,
+			raw.TunnelAddress,
+			tunnelPort,
+			raw.TargetAddress,
+			targetPort,
+			raw.TLSMode,
+			raw.CertPath,
+			raw.KeyPath,
+			raw.LogLevel,
+			raw.Password,
+			commandLine,
+			raw.Min,
+			raw.Max,
+			raw.Slot,
+			raw.Mode,
+			raw.Read,
+			raw.Rate,
+			raw.ProxyProtocol,
+			enableSSEStore,
+			enableLogStore,
+			time.Now(),
+			tunnelID,
+		)
+
+		// 4. 删除新创建的重复记录(CreateTunnelAndWait会创建新记录)
+		_, _ = h.tunnelService.DB().Exec(`DELETE FROM tunnels WHERE id = ?`, newTunnel.ID)
+
+		// 5. 更新端点隧道计数
+		go func() {
+			time.Sleep(100 * time.Millisecond)
+			h.tunnelService.UpdateEndpointTunnelCount(currentEndpointID)
+			h.tunnelService.UpdateEndpointTunnelCount(raw.EndpointID)
+		}()
+
+		// 6. 如果需要重置流量统计
+		if raw.ResetTraffic {
+			log.Infof("[API] 端点变更后重置流量统计: tunnelID=%d", tunnelID)
+			if err := h.tunnelService.ResetTunnelTrafficByInstanceID(*newTunnel.InstanceID); err != nil {
+				log.Errorf("[API] 重置流量统计失败: %v", err)
+			}
+		}
+
+		c.JSON(http.StatusOK, tunnel.TunnelResponse{Success: true, Message: "编辑实例成功(已更换主控)"})
+		return
+	}
+
+	// 如果端点未变化，继续使用原有的更新逻辑...
+
 	// 构建命令行
 	var commandLine string
 	if raw.Password != "" {

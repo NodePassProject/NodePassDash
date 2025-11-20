@@ -870,6 +870,11 @@ func (s *Service) GetTunnelNameByID(id int64) (string, error) {
 	return tunnel.Name, nil
 }
 
+// UpdateEndpointTunnelCount 更新端点的隧道计数（公开方法）
+func (s *Service) UpdateEndpointTunnelCount(endpointID int64) {
+	s.updateEndpointTunnelCount(endpointID)
+}
+
 // DeleteTunnelAndWait 触发远端删除后等待数据库记录被移除
 // 该方法不会主动删除本地记录，而是假设有其它进程 (如 SSE 监听) 负责删除
 // timeout 为等待的最长时长

@@ -294,7 +294,7 @@ export default function SimpleCreateTunnelModal({
           min: type === "client" && min !== "" ? parseInt(min) : undefined,
           max:
             (type === "client" && max !== "") ||
-            (type === "server" && max !== "")
+              (type === "server" && max !== "")
               ? parseInt(max)
               : undefined,
           slot: slot !== "" ? parseInt(slot) : undefined,
@@ -439,7 +439,6 @@ export default function SimpleCreateTunnelModal({
                   {/* 主控 & 实例模式 */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
                     <Select
-                      isDisabled={modalMode === "edit"}
                       label="选择主控"
                       selectedKeys={[formData.apiEndpoint]}
                       onSelectionChange={(keys) =>
@@ -459,12 +458,31 @@ export default function SimpleCreateTunnelModal({
                       onSelectionChange={(keys) =>
                         handleField("type", Array.from(keys)[0] as string)
                       }
-                      // isDisabled={modalMode==='edit'}
+                    // isDisabled={modalMode==='edit'}
                     >
                       <SelectItem key="server">服务端</SelectItem>
                       <SelectItem key="client">客户端</SelectItem>
                     </Select>
                   </div>
+
+                  {/* 主控变更警告 */}
+                  {modalMode === "edit" &&
+                    editData?.endpointId &&
+                    formData.apiEndpoint !== String(editData.endpointId) && (
+                      <div className="flex items-start gap-2 p-3 bg-warning-50 dark:bg-warning-900/20 border border-warning-200 dark:border-warning-800 rounded-lg">
+                        <span className="text-warning-600 dark:text-warning-400 text-sm">
+                          ⚠️
+                        </span>
+                        <div className="flex-1">
+                          <p className="text-warning-700 dark:text-warning-300 text-sm font-medium">
+                            更改主控将重建实例
+                          </p>
+                          <p className="text-warning-600 dark:text-warning-400 text-xs mt-1">
+                            实例将在旧主控上删除并在新主控上重新创建，可能导致短暂的服务中断
+                          </p>
+                        </div>
+                      </div>
+                    )}
 
                   {/* 实例名称 & 模式选择 */}
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
