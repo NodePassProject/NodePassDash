@@ -120,11 +120,11 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
 
   // 判断延迟是否优秀的函数
   const getLatencyQuality = (latency: number) => {
-    if (latency < 50) return { text: "优秀", color: "success" };
-    if (latency < 100) return { text: "良好", color: "primary" };
-    if (latency < 200) return { text: "一般", color: "warning" };
+    if (latency < 50) return { text: "优秀", color: "success" } as const;
+    if (latency < 100) return { text: "良好", color: "primary" } as const;
+    if (latency < 200) return { text: "一般", color: "warning" } as const;
 
-    return { text: "较差", color: "danger" };
+    return { text: "较差", color: "danger" } as const;
   };
 
   // 获取所有地址选项列表（包含入口和出口）
@@ -292,9 +292,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                         <p className="text-sm font-medium text-default-500">网络质量</p>
                         <Chip
                           className="text-xs uppercase tracking-wider"
-                          color={
-                            getLatencyQuality(tcpingResult.avgLatency).color
-                          }
+                          color={getLatencyQuality(tcpingResult.avgLatency).color}
                           variant="flat"
                         >
                           {tcpingResult.avgLatency ? getLatencyQuality(tcpingResult.avgLatency).text : "-"}
@@ -413,6 +411,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                           base: "max-w-full",
                           list: "max-h-[400px] overflow-auto",
                         }}
+                        disabledKeys={["entry"]}
                         onAction={(key) => {
                           const option = getAllAddressOptions.find((opt) => opt.key === key);
                           if (option) {
@@ -430,8 +429,8 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                             startContent={
                               <div
                                 className={`flex items-center justify-center w-10 h-10 rounded-lg ${option.type === "entry"
-                                    ? "bg-success/10 text-success"
-                                    : "bg-primary/10 text-primary"
+                                  ? "bg-success/10 text-success"
+                                  : "bg-primary/10 text-primary"
                                   }`}
                               >
                                 <FontAwesomeIcon
