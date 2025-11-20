@@ -8,9 +8,8 @@ import {
   ModalHeader,
   Tabs,
   Tab,
-  Select,
-  SelectItem,
-  Spinner,
+  Autocomplete,
+  AutocompleteItem,
 } from "@heroui/react";
 import { useEffect, useState, useCallback } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -305,23 +304,20 @@ export default function AssembleServiceModal({
               {/* 选择服务端实例（仅当type!=0时显示） */}
               {serviceType !== "0" && (
                 <div className="space-y-2">
-                  <Select
+                  <Autocomplete
                     label="服务端实例"
                     isLoading={loading}
-                    placeholder="请选择服务端实例"
-                    selectedKeys={
-                      selectedServerInstance ? [selectedServerInstance] : []
-                    }
-                    onSelectionChange={(keys) => {
-                      const selected = Array.from(keys)[0] as string;
-
-                      setSelectedServerInstance(selected);
+                    placeholder="请选择或搜索服务端实例"
+                    selectedKey={selectedServerInstance}
+                    onSelectionChange={(key) => {
+                      setSelectedServerInstance(key as string);
                     }}
+                    allowsCustomValue={false}
                   >
                     {serverInstances.map((instance) => (
-                      <SelectItem
+                      <AutocompleteItem
                         key={instance.instanceId}
-                        textValue={instance.name}
+                        textValue={`${instance.name} ${instance.endpointName} ${instance.tunnelAddress}:${instance.tunnelPort}`}
                       >
                         <div className="flex flex-col">
                           <span className="font-medium">{instance.name}</span>
@@ -330,30 +326,27 @@ export default function AssembleServiceModal({
                             {instance.tunnelPort}
                           </span>
                         </div>
-                      </SelectItem>
+                      </AutocompleteItem>
                     ))}
-                  </Select>
+                  </Autocomplete>
                 </div>
               )}
               {/* 选择客户端实例 */}
               <div className="space-y-2">
-                <Select
+                <Autocomplete
                   label="客户端实例"
                   isLoading={loading}
-                  placeholder="请选择客户端实例"
-                  selectedKeys={
-                    selectedClientInstance ? [selectedClientInstance] : []
-                  }
-                  onSelectionChange={(keys) => {
-                    const selected = Array.from(keys)[0] as string;
-
-                    setSelectedClientInstance(selected);
+                  placeholder="请选择或搜索客户端实例"
+                  selectedKey={selectedClientInstance}
+                  onSelectionChange={(key) => {
+                    setSelectedClientInstance(key as string);
                   }}
+                  allowsCustomValue={false}
                 >
                   {clientInstances.map((instance) => (
-                    <SelectItem
+                    <AutocompleteItem
                       key={instance.instanceId}
-                      textValue={instance.name}
+                      textValue={`${instance.name} ${instance.endpointName} ${instance.tunnelAddress}:${instance.tunnelPort}`}
                     >
                       <div className="flex flex-col">
                         <span className="font-medium">{instance.name}</span>
@@ -362,9 +355,9 @@ export default function AssembleServiceModal({
                           {instance.tunnelPort}
                         </span>
                       </div>
-                    </SelectItem>
+                    </AutocompleteItem>
                   ))}
-                </Select>
+                </Autocomplete>
               </div>
             </ModalBody>
             <ModalFooter>
