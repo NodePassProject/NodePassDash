@@ -530,7 +530,7 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 			if err := s.db.First(&endpoint, endpointID).Error; err == nil {
 				service.TunnelEndpointName = &endpoint.Name
 				if service.EntranceHost == nil || *service.EntranceHost == "" {
-					service.EntranceHost = &endpoint.IP
+					service.EntranceHost = &endpoint.Hostname
 				}
 			}
 
@@ -578,7 +578,7 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 			if err := s.db.First(&endpoint, endpointID).Error; err == nil {
 				service.TunnelEndpointName = &endpoint.Name
 				if service.EntranceHost == nil || *service.EntranceHost == "" {
-					service.EntranceHost = &endpoint.IP
+					service.EntranceHost = &endpoint.Hostname
 				}
 			}
 

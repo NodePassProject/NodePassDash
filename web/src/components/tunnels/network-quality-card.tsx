@@ -27,12 +27,11 @@ export const NetworkQualityCard = ({
 
   // 计算连接池质量等级 (适中最好)
   const getPoolQuality = (poolCount: number) => {
-    if (poolCount === 0) return { level: "空闲", percentage: 50 };
-    if (poolCount <= 10) return { level: "轻负载", percentage: 80 };
+    if (poolCount === 0) return { level: "无空闲", percentage: 50 };
+    if (poolCount <= 10) return { level: "重负载", percentage: 80 };
     if (poolCount <= 50) return { level: "中负载", percentage: 90 };
-    if (poolCount <= 100) return { level: "重负载", percentage: 70 };
-
-    return { level: "超负载", percentage: 40 };
+    if (poolCount <= 100) return { level: "轻负载", percentage: 70 };
+    return { level: "空负载", percentage: 40 };
   };
 
   const latencyQuality = getLatencyQuality(ping);

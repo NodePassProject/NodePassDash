@@ -963,7 +963,6 @@ export default function EndpointDetailPage() {
         endpointId={endpointId ? parseInt(endpointId) : null}
         endpointOS={endpointDetail?.os || null}
         endpointVersion={endpointDetail?.ver || null}
-        isExperimentalMode={true}
       />
 
       {/* 统计信息卡片 */}

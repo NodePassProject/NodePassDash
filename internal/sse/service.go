@@ -633,7 +633,7 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 			if err := s.db.First(&endpoint, tunnel.EndpointID).Error; err == nil {
 				service.TunnelEndpointName = &endpoint.Name
 				if service.EntranceHost == nil || *service.EntranceHost == "" {
-					service.EntranceHost = &endpoint.IP
+					service.EntranceHost = &endpoint.Hostname
 				}
 			}
 		}
@@ -655,7 +655,7 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 			if err := s.db.First(&endpoint, tunnel.EndpointID).Error; err == nil {
 				service.TunnelEndpointName = &endpoint.Name
 				if service.EntranceHost == nil || *service.EntranceHost == "" {
-					service.EntranceHost = &endpoint.IP
+					service.EntranceHost = &endpoint.Hostname
 				}
 			}
 
@@ -701,7 +701,7 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 			if err := s.db.First(&endpoint, tunnel.EndpointID).Error; err == nil {
 				service.TunnelEndpointName = &endpoint.Name
 				if service.EntranceHost == nil || *service.EntranceHost == "" {
-					service.EntranceHost = &endpoint.IP
+					service.EntranceHost = &endpoint.Hostname
 				}
 			}
 

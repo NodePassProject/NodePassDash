@@ -866,6 +866,9 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			"slot":          parsedConfig.Slot,
 			"proxy":         parsedConfig.Proxy,
 			"quic":          parsedConfig.Quic,
+			"dns":           parsedConfig.Dns,
+			"dial":          parsedConfig.Dial,
+			"listenType":    parsedConfig.ListenType,
 		},
 
 		// tags - GORM 自动反序列化为 *map[string]string

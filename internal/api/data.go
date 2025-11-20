@@ -10,7 +10,6 @@ import (
 	"NodePassDash/internal/tunnel"
 	"encoding/json"
 	"fmt"
-	"net"
 	"net/http"
 	"net/url"
 	"strings"
@@ -37,7 +36,7 @@ func NewDataHandler(db *gorm.DB, mgr *sse.Manager, endpointService *endpoint.Ser
 	}
 }
 
-// extractIPFromURL 从URL中提取IP地址（IPv4或IPv6）
+// extractIPFromURL 从URL中提取hostname（可以是IP地址或域名）
 func extractIPFromURL(urlStr string) string {
 	// 尝试解析URL
 	parsedURL, err := url.Parse(urlStr)
@@ -52,16 +51,11 @@ func extractIPFromURL(urlStr string) string {
 		return ""
 	}
 
-	// 检查是否为有效的IP地址
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.String()
-	}
-
-	// 如果不是IP地址，返回空字符串
-	return ""
+	// 返回hostname（可以是IP或域名）
+	return host
 }
 
-// extractIPFromString 从字符串中手动提取IP地址（备用方法）
+// extractIPFromString 从字符串中手动提取host部分（备用方法）
 func extractIPFromString(input string) string {
 	// 去除协议部分
 	if idx := strings.Index(input, "://"); idx != -1 {
@@ -78,30 +72,17 @@ func extractIPFromString(input string) string {
 		input = input[:slashIdx]
 	}
 
-	// 处理IPv6地址（方括号包围的地址）
-	if strings.HasPrefix(input, "[") {
-		if end := strings.Index(input, "]"); end != -1 {
-			// 提取方括号内的IPv6地址
-			ipv6Addr := input[1:end]
-			// 检查是否为有效的IPv6地址
-			if ip := net.ParseIP(ipv6Addr); ip != nil {
-				return ip.String()
-			}
-		}
-		return ""
+	// 去除查询参数
+	if queryIdx := strings.Index(input, "?"); queryIdx != -1 {
+		input = input[:queryIdx]
 	}
 
-	// 去除端口部分（IPv4）
+	// 去除端口部分
 	if colonIdx := strings.Index(input, ":"); colonIdx != -1 {
 		input = input[:colonIdx]
 	}
 
-	// 检查是否为有效的IP地址
-	if ip := net.ParseIP(input); ip != nil {
-		return ip.String()
-	}
-
-	return ""
+	return input
 }
 
 func SetupDataRoutes(rg *gin.RouterGroup, db *gorm.DB, sseManager *sse.Manager, endpointService *endpoint.Service, tunnelService *tunnel.Service) {
@@ -169,11 +150,6 @@ func (h *DataHandler) HandleExport(c *gin.Context) {
 			URL:     ep.URL,
 			APIPath: ep.APIPath,
 			APIKey:  ep.APIKey,
-		}
-
-		// 设置颜色（如果有）
-		if ep.Color != nil {
-			exportEp.Color = *ep.Color
 		}
 
 		exportEndpoints = append(exportEndpoints, exportEp)
@@ -281,7 +257,7 @@ func (h *DataHandler) handleImportV1(c *gin.Context, baseData struct {
 			newEndpoint := models.Endpoint{
 				Name:      ep.Name,
 				URL:       ep.URL,
-				IP:        extractedIP, // 填充提取的IP地址
+				Hostname:  extractedIP, // 填充提取的IP地址
 				APIPath:   ep.APIPath,
 				APIKey:    ep.APIKey,
 				Status:    status,
@@ -487,17 +463,13 @@ func (h *DataHandler) handleImportV2(c *gin.Context, baseData struct {
 			newEndpoint := models.Endpoint{
 				Name:      ep.Name,
 				URL:       ep.URL,
-				IP:        extractedIP, // 填充提取的IP地址
+				Hostname:  extractedIP, // 填充提取的IP地址
 				APIPath:   ep.APIPath,
 				APIKey:    ep.APIKey,
 				Status:    models.EndpointStatusOffline,
 				LastCheck: time.Now(), // 添加 LastCheck 默认值
 				CreatedAt: time.Now(),
 				UpdatedAt: time.Now(),
-			}
-
-			if ep.Color != "" {
-				newEndpoint.Color = &ep.Color
 			}
 
 			if err := tx.Create(&newEndpoint).Error; err != nil {

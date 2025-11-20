@@ -653,14 +653,12 @@ const MemoryChart = ({
 
 interface SystemStatsChartsProps {
   endpointId?: number | null;
-  isExperimentalMode?: boolean;
   endpointOS?: string | null; // 主控操作系统
   endpointVersion?: string | null; // 主控版本
 }
 
 export default function SystemStatsCharts({
   endpointId,
-  isExperimentalMode = true,
   endpointOS,
   endpointVersion,
 }: SystemStatsChartsProps) {
@@ -707,7 +705,6 @@ export default function SystemStatsCharts({
 
   // 检查是否满足启动条件：实验模式 + 有端点ID + 操作系统是Linux + 版本>=1.6.0
   const shouldConnect =
-    isExperimentalMode &&
     endpointId &&
     endpointOS?.toLowerCase() === "linux" &&
     endpointVersion &&
@@ -1040,7 +1037,6 @@ export default function SystemStatsCharts({
   useEffect(() => {
     console.log("[SystemStatsCharts] 组件状态:", {
       endpointId,
-      isExperimentalMode,
       endpointOS,
       endpointVersion,
       shouldConnect,
@@ -1062,7 +1058,6 @@ export default function SystemStatsCharts({
     });
   }, [
     endpointId,
-    isExperimentalMode,
     endpointOS,
     endpointVersion,
     shouldConnect,
@@ -1078,7 +1073,7 @@ export default function SystemStatsCharts({
   // 如果不满足启动条件，显示提示信息
   if (!shouldConnect) {
     // 在实验模式下显示为什么不能连接的原因
-    if (isExperimentalMode && endpointId) {
+    if ( endpointId) {
       const reasons = [];
 
       if (endpointOS?.toLowerCase() !== "linux") {

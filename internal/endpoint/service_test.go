@@ -99,21 +99,6 @@ func TestExtractIPFromString(t *testing.T) {
 			expected: "192.168.1.100",
 		},
 		{
-			name:     "IPv6地址",
-			input:    "[2001:db8::1]",
-			expected: "2001:db8::1",
-		},
-		{
-			name:     "IPv6地址带端口",
-			input:    "[2a0f:85c1:861:2180::1]:41231",
-			expected: "2a0f:85c1:861:2180::1",
-		},
-		{
-			name:     "IPv6地址带端口",
-			input:    "[::1]:8080",
-			expected: "::1",
-		},
-		{
 			name:     "带协议的IPv4",
 			input:    "http://192.168.1.100",
 			expected: "192.168.1.100",
@@ -154,9 +139,9 @@ func TestExtractIPFromString(t *testing.T) {
 			expected: "adasdasd",
 		},
 		{
-			name:     "无效IPv6格式但带端口",
-			input:    "[invalid-ipv6]:8080",
-			expected: "invalid-ipv6",
+			name:     "域名带端口",
+			input:    "xx.xx:8080",
+			expected: "xx.xx",
 		},
 	}
 

@@ -5,7 +5,6 @@ import (
 	"NodePassDash/internal/nodepass"
 	"errors"
 	"fmt"
-	"net"
 	"net/url"
 	"strings"
 	"time"
@@ -65,15 +64,15 @@ func extractIPFromURL(urlStr string) string {
 	}
 
 	// 检查是否为有效的IP地址
-	if ip := net.ParseIP(host); ip != nil {
-		return ip.String()
-	}
+	//if ip := net.ParseIP(host); ip != nil {
+	//	return ip.String()
+	//}
 
 	// 如果不是IP地址，返回空字符串
-	return ""
+	return host
 }
 
-// extractIPFromString 从字符串中手动提取IP地址（备用方法）
+// extractIPFromString 从字符串中手动提取host部分（备用方法）
 func extractIPFromString(input string) string {
 	// 去除协议部分
 	if idx := strings.Index(input, "://"); idx != -1 {
@@ -90,39 +89,17 @@ func extractIPFromString(input string) string {
 		input = input[:slashIdx]
 	}
 
-	// 处理IPv6地址（方括号包围的地址）
-	if strings.HasPrefix(input, "[") {
-		if end := strings.Index(input, "]"); end != -1 {
-			// 提取方括号内的IPv6地址
-			ipv6Addr := input[1:end]
-			// 检查是否为有效的IPv6地址
-			if ip := net.ParseIP(ipv6Addr); ip != nil {
-				return ip.String()
-			}
-			// 如果不是有效IPv6，返回方括号内的内容
-			return ipv6Addr
-		}
-		return ""
+	// 去除查询参数
+	if queryIdx := strings.Index(input, "?"); queryIdx != -1 {
+		input = input[:queryIdx]
 	}
 
-	// 处理IPv4地址或带端口的地址
+	// 去除端口部分
 	if colonIdx := strings.Index(input, ":"); colonIdx != -1 {
-		// 提取冒号前的部分
-		hostPart := input[:colonIdx]
-		// 检查是否为有效的IP地址
-		if ip := net.ParseIP(hostPart); ip != nil {
-			return ip.String()
-		}
-		// 如果不是有效IP，返回端口前的信息
-		return hostPart
-	} else {
-		// 没有冒号，整个字符串可能是IP地址
-		if ip := net.ParseIP(input); ip != nil {
-			return ip.String()
-		}
-		// 如果不是有效IP，返回整个字符串
-		return input
+		input = input[:colonIdx]
 	}
+
+	return input
 }
 
 // CreateEndpoint 创建新端点
@@ -151,11 +128,10 @@ func (s *Service) CreateEndpoint(req CreateEndpointRequest) (*Endpoint, error) {
 	endpoint := &models.Endpoint{
 		Name:      req.Name,
 		URL:       req.URL,
-		IP:        extractedIP, // 填充提取的IP地址
+		Hostname:  extractedIP, // 填充提取的IP地址
 		APIPath:   req.APIPath,
 		APIKey:    req.APIKey,
 		Status:    StatusOffline,
-		Color:     &req.Color,
 		LastCheck: time.Now(),
 	}
 

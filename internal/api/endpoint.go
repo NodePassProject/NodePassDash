@@ -1185,11 +1185,16 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 		return nil
 	})
 
-	// 如果事务成功，异步更新隧道计数
+	// 如果事务成功，异步更新隧道计数和主控信息
 	if err == nil {
 		go func(id int64) {
 			time.Sleep(50 * time.Millisecond)
+
+			// 更新隧道计数
 			updateEndpointTunnelCount(id)
+
+			// 获取并更新主控信息
+			h.fetchAndUpdateEndpointInfo(id)
 		}(endpointID)
 	}
 
@@ -1649,6 +1654,49 @@ func updateEndpointTunnelCount(endpointID int64) {
 		log.Errorf("[API]更新端点 %d 隧道计数失败: %v", endpointID, err)
 	} else {
 		log.Debugf("[API]端点 %d 隧道计数已更新", endpointID)
+	}
+}
+
+// fetchAndUpdateEndpointInfo 获取并更新端点系统信息和hostname
+func (h *EndpointHandler) fetchAndUpdateEndpointInfo(endpointID int64) {
+	// 首先获取端点信息以获取URL用于提取hostname
+	var endpoint models.Endpoint
+	if err := h.endpointService.DB().First(&endpoint, endpointID).Error; err != nil {
+		log.Warnf("[Master-%d] 获取端点信息失败: %v", endpointID, err)
+		return
+	}
+
+	// 从URL中提取hostname并更新
+	hostname := extractIPFromURL(endpoint.URL)
+	if hostname != "" {
+		updates := map[string]interface{}{
+			"hostname":   hostname,
+			"updated_at": time.Now(),
+		}
+		if err := h.endpointService.DB().Model(&models.Endpoint{}).Where("id = ?", endpointID).Updates(updates).Error; err != nil {
+			log.Errorf("[Master-%d] 更新hostname失败: %v", endpointID, err)
+		} else {
+			log.Debugf("[Master-%d] Hostname已更新: %s", endpointID, hostname)
+		}
+	}
+
+	// 尝试获取系统信息 (处理低版本API不存在的情况)
+	info, err := nodepass.GetInfo(endpointID)
+	if err != nil {
+		log.Warnf("[Master-%d] 获取系统信息失败: %v", endpointID, err)
+		// 不返回错误，继续处理
+		return
+	}
+
+	// 如果成功获取到信息，更新数据库
+	if info != nil {
+		if updateErr := h.endpointService.UpdateEndpointInfo(endpointID, *info); updateErr != nil {
+			log.Errorf("[Master-%d] 更新系统信息失败: %v", endpointID, updateErr)
+		} else {
+			// 在日志中显示uptime信息
+			uptimeMsg := fmt.Sprintf("%d秒", info.Uptime)
+			log.Infof("[Master-%d] 系统信息已更新: OS=%s, Arch=%s, Ver=%s, Uptime=%s", endpointID, info.OS, info.Arch, info.Ver, uptimeMsg)
+		}
 	}
 }
 

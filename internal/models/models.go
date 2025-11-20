@@ -9,11 +9,10 @@ type Endpoint struct {
 	ID          int64          `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
 	Name        string         `json:"name" gorm:"type:text;uniqueIndex;not null;column:name"`
 	URL         string         `json:"url" gorm:"type:text;uniqueIndex;not null;column:url"`
-	IP          string         `json:"ip" gorm:"type:text;column:ip"`
+	Hostname    string         `json:"hostname" gorm:"type:text;column:hostname"`
 	APIPath     string         `json:"apiPath" gorm:"type:text;not null;column:api_path"`
 	APIKey      string         `json:"apiKey" gorm:"type:text;not null;column:api_key"`
 	Status      EndpointStatus `json:"status" gorm:"type:text;default:'OFFLINE';column:status"`
-	Color       *string        `json:"color,omitempty" gorm:"type:text;default:'default';column:color"`
 	OS          *string        `json:"os,omitempty" gorm:"type:text;column:os"`
 	Arch        *string        `json:"arch,omitempty" gorm:"type:text;column:arch"`
 	Ver         *string        `json:"ver,omitempty" gorm:"type:text;column:ver"`

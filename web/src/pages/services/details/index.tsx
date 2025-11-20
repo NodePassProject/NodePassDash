@@ -36,6 +36,8 @@ import {
   faTrash,
   faStop,
   faBug,
+  faGlobe,
+  faPaperPlane,
   faRecycle,
   faSync,
   faExpand,
@@ -794,16 +796,11 @@ export default function ServiceDetailsPage() {
                       <div className="space-y-5">
                         {/* 服务 SID */}
                         <div>
-                          <p className="text-xs text-default-500 mb-1">服务 SID</p>
-                          <div className="flex items-center gap-2">
-                            <Tooltip content={service.sid} placement="top">
-                              <p className="font-mono text-sm break-all flex-1">
-                                {service.sid}
-                              </p>
-                            </Tooltip>
+                          <div className="flex items-center gap-1 mb-1">
+                            <p className="text-xs text-default-500">服务 SID</p>
                             <Button
                               isIconOnly
-                              className="h-6 w-6 min-w-0"
+                              className="h-4 w-4 min-w-0"
                               size="sm"
                               variant="light"
                               onPress={() => {
@@ -816,22 +813,38 @@ export default function ServiceDetailsPage() {
                               }}
                             >
                               <Icon
-                                className="text-default-600"
-                                height={14}
+                                className="text-default-400 hover:text-default-600"
+                                height={12}
                                 icon="lucide:copy"
-                                width={14}
+                                width={12}
                               />
                             </Button>
                           </div>
+                          <p className="font-mono text-sm break-all">
+                            {service.sid}
+                          </p>
                         </div>
 
                         {/* 服务别名 */}
                         <div>
-                          <p className="text-xs text-default-500 mb-1">服务别名</p>
-                          <p
-                            className="font-medium cursor-pointer hover:text-primary"
-                            onClick={() => setRenameModalOpen(true)}
-                          >
+                          <div className="flex items-center gap-1 mb-1">
+                            <p className="text-xs text-default-500">服务别名</p>
+                            <Button
+                              isIconOnly
+                              className="h-4 w-4 min-w-0"
+                              size="sm"
+                              variant="light"
+                              onPress={() => setRenameModalOpen(true)}
+                            >
+                              <Icon
+                                className="text-default-400 hover:text-primary"
+                                height={12}
+                                icon="lucide:pencil"
+                                width={12}
+                              />
+                            </Button>
+                          </div>
+                          <p className="font-medium">
                             {service.alias || "-"}
                           </p>
                         </div>
@@ -839,27 +852,43 @@ export default function ServiceDetailsPage() {
                         {/* Client 实例 */}
                         {service.clientInstanceId && (
                           <div>
-                            <p className="text-xs text-default-500 mb-1">Client 实例</p>
+                            <div className="flex items-center gap-1 mb-1">
+                              <p className="text-xs text-default-500">Client 实例</p>
+                              <Button
+                                isIconOnly
+                                className="h-4 w-4 min-w-0"
+                                size="sm"
+                                variant="light"
+                                onPress={() => navigate(`/tunnels/details?id=${service.clientInstanceId}`)}
+                              >
+                                <Icon
+                                  className="text-default-400 hover:text-primary"
+                                  height={12}
+                                  icon="lucide:external-link"
+                                  width={12}
+                                />
+                              </Button>
+                            </div>
                             <div className="flex items-center gap-2">
                               <p className="font-mono text-sm">{service.clientInstanceId}</p>
                               {clientTunnel && (
-                                <Chip
-                                  color={
-                                    clientTunnel.status === "success"
-                                      ? "success"
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-default-100">
+                                  <span
+                                    className={`w-2 h-2 rounded-full ${clientTunnel.status === "success"
+                                      ? "bg-success animate-pulse"
                                       : clientTunnel.status === "warning"
-                                        ? "warning"
-                                        : "danger"
-                                  }
-                                  size="sm"
-                                  variant="dot"
-                                >
-                                  {clientTunnel.status === "success"
-                                    ? "运行中"
-                                    : clientTunnel.status === "warning"
-                                      ? "警告"
-                                      : "已停止"}
-                                </Chip>
+                                        ? "bg-warning"
+                                        : "bg-danger"
+                                      }`}
+                                  />
+                                  <span className="text-xs font-medium text-default-700">
+                                    {clientTunnel.status === "success"
+                                      ? "运行中"
+                                      : clientTunnel.status === "warning"
+                                        ? "警告"
+                                        : "已停止"}
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </div>
@@ -868,27 +897,43 @@ export default function ServiceDetailsPage() {
                         {/* Server 实例 */}
                         {service.serverInstanceId && (
                           <div>
-                            <p className="text-xs text-default-500 mb-1">Server 实例</p>
+                            <div className="flex items-center gap-1 mb-1">
+                              <p className="text-xs text-default-500">Server 实例</p>
+                              <Button
+                                isIconOnly
+                                className="h-4 w-4 min-w-0"
+                                size="sm"
+                                variant="light"
+                                onPress={() => navigate(`/tunnels/details?id=${service.serverInstanceId}`)}
+                              >
+                                <Icon
+                                  className="text-default-400 hover:text-primary"
+                                  height={12}
+                                  icon="lucide:external-link"
+                                  width={12}
+                                />
+                              </Button>
+                            </div>
                             <div className="flex items-center gap-2">
                               <p className="font-mono text-sm">{service.serverInstanceId}</p>
                               {serverTunnel && (
-                                <Chip
-                                  color={
-                                    serverTunnel.status === "success"
-                                      ? "success"
+                                <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-default-100">
+                                  <span
+                                    className={`w-2 h-2 rounded-full ${serverTunnel.status === "success"
+                                      ? "bg-success animate-pulse"
                                       : serverTunnel.status === "warning"
-                                        ? "warning"
-                                        : "danger"
-                                  }
-                                  size="sm"
-                                  variant="dot"
-                                >
-                                  {serverTunnel.status === "success"
-                                    ? "运行中"
-                                    : serverTunnel.status === "warning"
-                                      ? "警告"
-                                      : "已停止"}
-                                </Chip>
+                                        ? "bg-warning"
+                                        : "bg-danger"
+                                      }`}
+                                  />
+                                  <span className="text-xs font-medium text-default-700">
+                                    {serverTunnel.status === "success"
+                                      ? "运行中"
+                                      : serverTunnel.status === "warning"
+                                        ? "警告"
+                                        : "已停止"}
+                                  </span>
+                                </div>
                               )}
                             </div>
                           </div>
@@ -946,8 +991,8 @@ export default function ServiceDetailsPage() {
                           variant="flat"
                           onPress={() => setTcpingModalOpen(true)}
                         >
-                          <FontAwesomeIcon icon={faBug} />
-                          <span>调试</span>
+                          <FontAwesomeIcon icon={faGlobe} />
+                          <span>测试</span>
                         </Button>
 
                         {/* 同步 */}
@@ -1376,19 +1421,19 @@ export default function ServiceDetailsPage() {
                             width={20}
                           />
                           <h3 className="text-lg font-semibold">Client 实例</h3>
-                          <Chip
-                            color={
-                              clientTunnel.status === "success"
-                                ? "success"
+                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-default-100">
+                            <span
+                              className={`w-2 h-2 rounded-full ${clientTunnel.status === "success"
+                                ? "bg-success animate-pulse"
                                 : clientTunnel.status === "warning"
-                                  ? "warning"
-                                  : "danger"
-                            }
-                            size="sm"
-                            variant="dot"
-                          >
-                            {getStatusText(clientTunnel.status)}
-                          </Chip>
+                                  ? "bg-warning"
+                                  : "bg-danger"
+                                }`}
+                            />
+                            <span className="text-xs font-medium text-default-700">
+                              {getStatusText(clientTunnel.status)}
+                            </span>
+                          </div>
                         </div>
                         <Button
                           isIconOnly
@@ -1446,7 +1491,7 @@ export default function ServiceDetailsPage() {
                   )}
 
                   {/* Server 实例卡片 (仅在 type !== "0" 时显示) */}
-                  { serverTunnel && (
+                  {serverTunnel && (
                     <Card className="border border-default-100/60 hover:shadow-lg transition-shadow">
                       <CardHeader className="flex items-center justify-between pb-2 pt-4 pl-4 pr-4">
                         <div className="flex items-center gap-2">
@@ -1456,19 +1501,19 @@ export default function ServiceDetailsPage() {
                             width={20}
                           />
                           <h3 className="text-lg font-semibold">Server 实例</h3>
-                          <Chip
-                            color={
-                              serverTunnel.status === "success"
-                                ? "success"
+                          <div className="flex items-center gap-1.5 px-2 py-1 rounded-full bg-default-100">
+                            <span
+                              className={`w-2 h-2 rounded-full ${serverTunnel.status === "success"
+                                ? "bg-success animate-pulse"
                                 : serverTunnel.status === "warning"
-                                  ? "warning"
-                                  : "danger"
-                            }
-                            size="sm"
-                            variant="dot"
-                          >
-                            {getStatusText(serverTunnel.status)}
-                          </Chip>
+                                  ? "bg-warning"
+                                  : "bg-danger"
+                                }`}
+                            />
+                            <span className="text-xs font-medium text-default-700">
+                              {getStatusText(serverTunnel.status)}
+                            </span>
+                          </div>
                         </div>
                         <Button
                           isIconOnly
@@ -1487,7 +1532,7 @@ export default function ServiceDetailsPage() {
                           <span className="text-sm text-default-500">实例 ID</span>
                           <Tooltip content={serverTunnel.instanceId}>
                             <span className="font-mono text-sm">
-                              {serverTunnel.instanceId} 
+                              {serverTunnel.instanceId}
                             </span>
                           </Tooltip>
                         </div>
@@ -1546,7 +1591,7 @@ export default function ServiceDetailsPage() {
                       onPress={() => navigate(`/services/sse?sid=${service.sid}`)}
                     >
                       <div className="flex items-center gap-2 text-sm font-semibold">
-                        <Icon className="text-base" icon="lucide:mouse-pointer" />
+                        <FontAwesomeIcon icon={faBug} />
                         SSE 调试
                       </div>
                       <p className="text-xs text-default-500">实时事件追踪与诊断</p>
@@ -1559,7 +1604,7 @@ export default function ServiceDetailsPage() {
                       onPress={() => setTcpingModalOpen(true)}
                     >
                       <div className="flex items-center gap-2 text-sm font-semibold">
-                        <FontAwesomeIcon icon={faBug} />
+                        <FontAwesomeIcon icon={faGlobe} />
                         网络测试
                       </div>
                       <p className="text-xs text-default-500">
