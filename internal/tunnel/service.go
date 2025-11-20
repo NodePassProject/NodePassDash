@@ -1184,7 +1184,7 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 			tunnel.Max = &maxVal
 		}
 
-		log.Infof("[API] 隧道创建成功（等待模式）: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, tunnel.InstanceID)
+		log.Infof("[API] 隧道创建成功（等待模式）: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, *tunnel.InstanceID)
 		return tunnel, nil
 	}
 
