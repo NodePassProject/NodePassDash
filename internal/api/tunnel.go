@@ -711,6 +711,10 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 	if tunnel.Endpoint.Ver != nil {
 		endpointVersion = *tunnel.Endpoint.Ver
 	}
+	endpointHost := ""
+	if tunnel.Endpoint.Hostname != "" {
+		endpointHost = tunnel.Endpoint.Hostname
+	}
 
 	// 提取密码、证书路径等可空字段
 	password := ""
@@ -844,6 +848,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			"version": endpointVersion,
 			"tls":     endpointTLS,
 			"log":     endpointLog,
+			"host":    endpointHost,
 		},
 
 		// config 字段：使用解析后的配置

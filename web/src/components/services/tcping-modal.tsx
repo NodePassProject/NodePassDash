@@ -13,7 +13,7 @@ import {
   cn,
 } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import { faBug } from "@fortawesome/free-solid-svg-icons";
+import { faGlobe, faRefresh } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 
 interface TcpingTestModalProps {
@@ -28,9 +28,12 @@ interface TcpingTestModalProps {
   clientTargetPort?: number;
   // Server 端数据（type=1,2 时使用）
   serverInstanceId?: string;
+  serverTunnelAddress?: string; // 新增：server 的隧道地址
+  serverEndpointHost?: string; // 新增：server 的 endpoint host
+  serverListenPort?: number; // 新增：server 的监听端口
   serverTargetAddress?: string;
   serverTargetPort?: number;
-  extendTargetAddress?: string[];
+  extendTargetAddress?: string[]; // 扩展目标地址（负载均衡）
 }
 
 interface TcpingResult {
@@ -56,6 +59,9 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
   clientTargetAddress,
   clientTargetPort,
   serverInstanceId,
+  serverTunnelAddress,
+  serverEndpointHost,
+  serverListenPort,
   serverTargetAddress,
   serverTargetPort,
   extendTargetAddress = [],
@@ -64,9 +70,8 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
   const [tcpingLoading, setTcpingLoading] = React.useState(false);
   const [tcpingSelectedAddress, setTcpingSelectedAddress] = React.useState<string | null>(null);
   const [tcpingResult, setTcpingResult] = React.useState<TcpingResult | null>(null);
-  // type=0: "entry" | "exit"
-  // type=1,2: "latency" | "entry" | "exit"
-  const [testType, setTestType] = React.useState<"latency" | "entry" | "exit">("exit");
+  // 测试类型：只有 "entry" | "exit" 两种
+  const [testType, setTestType] = React.useState<"entry" | "exit">("exit");
 
   // 执行TCPing测试的函数
   const performTcpingTest = React.useCallback(
@@ -130,7 +135,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
       useInstanceId = clientInstanceId || "";
     } else {
       // type=1,2: 根据测试类型选择
-      if (testType === "latency" || testType === "exit") {
+      if (testType === "exit") {
         useInstanceId = clientInstanceId || "";
       } else if (testType === "entry") {
         useInstanceId = serverInstanceId || "";
@@ -159,37 +164,79 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
     return { text: "较差", color: "danger" };
   };
 
-  // 获取当前测试地址
-  const getCurrentTestAddress = React.useMemo(() => {
-    if (serviceType === "0") {
-      // type=0: entry 或 exit
-      if (testType === "entry") {
-        return `${clientTunnelAddress}:${clientListenPort}`;
+  // 根据测试类型获取地址选项列表
+  const getAddressOptions = React.useMemo(() => {
+    const addresses: Array<{ value: string; label: string; description: string }> = [];
+
+    if (testType === "entry") {
+      // 入口测试
+      let entryAddr = "";
+      let entryPort = 0;
+
+      if (serviceType === "0") {
+        // type=0: 使用 client 的 tunnelAddress，如果为空则使用 client 的 endpoint.host
+        entryAddr = clientTunnelAddress || serverEndpointHost || "";
+        entryPort = clientListenPort || 0;
       } else {
-        return `${clientTargetAddress}:${clientTargetPort}`;
+        // type=1,2: 使用 server 的 tunnelAddress，如果为空则使用 server 的 endpoint.host
+        entryAddr = serverTunnelAddress || serverEndpointHost || "";
+        entryPort = serverListenPort || 0;
       }
-    } else {
-      // type=1,2: latency, entry 或 exit
-      if (testType === "latency") {
-        // 测试端内延迟：client 测 client的隧道地址
-        return `${clientTunnelAddress}:${clientListenPort}`;
-      } else if (testType === "entry") {
-        // 测试入口：server 测 server的目标地址
-        return `${serverTargetAddress}:${serverTargetPort}`;
-      } else {
-        // 测试出口：client 测 client的目标地址
-        return `${clientTargetAddress}:${clientTargetPort}`;
+
+      const fullAddr = `${entryAddr}:${entryPort}`;
+
+      addresses.push({
+        value: fullAddr,
+        label: fullAddr,
+        description: "入口地址",
+      });
+    } else if (testType === "exit") {
+      // 出口测试：使用 clientTargetAddress 和可能的 extendTargetAddress
+      const mainAddr = `${clientTargetAddress}:${clientTargetPort}`;
+
+      addresses.push({
+        value: mainAddr,
+        label: mainAddr,
+        description: "主目标地址",
+      });
+
+      // 如果有扩展目标地址，添加到列表
+      if (extendTargetAddress && extendTargetAddress.length > 0) {
+        extendTargetAddress.forEach((addr, index) => {
+          addresses.push({
+            value: addr,
+            label: typeof addr === "string" ? addr : JSON.stringify(addr),
+            description: `扩展地址 #${index + 1}`,
+          });
+        });
       }
     }
-  }, [serviceType, testType, clientTunnelAddress, clientListenPort, clientTargetAddress, clientTargetPort, serverTargetAddress, serverTargetPort]);
+
+    return addresses;
+  }, [
+    testType,
+    serviceType,
+    clientTunnelAddress,
+    clientListenPort,
+    serverTunnelAddress,
+    serverEndpointHost,
+    serverListenPort,
+    clientTargetAddress,
+    clientTargetPort,
+    extendTargetAddress,
+  ]);
 
   // 当模态框打开或测试类型改变时，更新选中的地址
   React.useEffect(() => {
     if (isOpen && !tcpingLoading && !tcpingResult) {
-      // 设置当前测试地址
-      setTcpingSelectedAddress(getCurrentTestAddress);
+      const addressOptions = getAddressOptions;
+
+      if (addressOptions.length > 0) {
+        // 默认选择第一个地址
+        setTcpingSelectedAddress(addressOptions[0].value);
+      }
     }
-  }, [isOpen, tcpingLoading, tcpingResult, getCurrentTestAddress]);
+  }, [isOpen, tcpingLoading, tcpingResult, testType, getAddressOptions]);
 
   // 处理模态框关闭
   const handleClose = () => {
@@ -207,7 +254,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
       isDismissable={!tcpingLoading && !!tcpingResult}
       isOpen={isOpen}
       placement="center"
-      size="lg"
+      size="2xl"
       onOpenChange={(open) => {
         if (!open) {
           handleClose();
@@ -219,7 +266,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
           <>
             <ModalHeader className="flex flex-col gap-1 ">
               <div className="flex items-center gap-2">
-                <FontAwesomeIcon className="text-primary" icon={faBug} />
+                <FontAwesomeIcon className="text-primary" icon={faGlobe} />
                 网络诊断测试
               </div>
             </ModalHeader>
@@ -240,186 +287,148 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
             ) : tcpingResult ? (
               <>
                 {/* 结果显示状态 */}
-                <ModalBody className="py-0">
-                  <div className="space-y-6">
-                    {/* 测试结果卡片 */}
-                    <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 rounded-lg p-6 border border-default-200">
-                      <div className="flex items-center gap-3 mb-4">
-                        <div
-                          className={`w-3 h-3 rounded-full ${tcpingResult.connected ? "bg-success animate-pulse" : "bg-danger"}`}
-                        />
-                        <h3 className="text-lg font-semibold">测试结果</h3>
+                <ModalBody className="px-8">
+                  {/* 顶部信息：两列布局 */}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-8 mb-2">
+                    {/* 左列 */}
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-default-500">目标地址</p>
+                        <p className="text-sm font-semibold font-mono">{tcpingResult.target}</p>
                       </div>
-
-                      {/* 目标地址 */}
-                      <div className="grid grid-cols-2 gap-4 mb-4">
-                        <div>
-                          <p className="text-xs text-default-500 mb-1">
-                            目标地址
-                          </p>
-                          <p className="font-mono text-sm text-primary">
-                            {tcpingResult.target}
-                          </p>
-                        </div>
-                        <div>
-                          <p className="text-xs text-default-500 mb-1">
-                            连接状态
-                          </p>
-                          <Chip
-                            className="text-xs"
-                            color={
-                              tcpingResult.connected ? "success" : "danger"
-                            }
-                            variant="flat"
-                          >
-                            {tcpingResult.connected
-                              ? "✓ 连接成功"
-                              : "✗ 连接失败"}
-                          </Chip>
-                        </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-default-500">连接状态</p>
+                        <Chip
+                          className="text-xs uppercase tracking-wider"
+                          color={
+                            tcpingResult.connected ? "success" : "danger"
+                          }
+                          variant="flat"
+                        >
+                          {tcpingResult.connected
+                            ? "✓ 连接成功"
+                            : "✗ 连接失败"}
+                        </Chip>
                       </div>
+                    </div>
 
-                      {/* 始终显示统计信息，无论成功还是失败 */}
-                      <div className="space-y-4">
-                        {/* 丢包率和网络质量评估 */}
-                        <div className="grid grid-cols-2 gap-4">
-                          <div>
-                            <p className="text-xs text-default-500 mb-1">
-                              丢包率
-                            </p>
-                            <div className="flex items-center gap-2">
-                              <span
-                                className={`text-lg font-bold ${(tcpingResult.packetLoss || 0) === 0 ? "text-success" : (tcpingResult.packetLoss || 0) < 20 ? "text-warning" : "text-danger"}`}
-                              >
-                                {tcpingResult.packetLoss?.toFixed(1) || "0.0"}
-                              </span>
-                              <span className="text-sm text-default-600">
-                                %
-                              </span>
-                            </div>
-                          </div>
-                          {tcpingResult.avgLatency && (
-                            <div>
-                              <p className="text-xs text-default-500 mb-1">
-                                网络质量
-                              </p>
-                              <Chip
-                                className="text-xs"
-                                color={
-                                  getLatencyQuality(tcpingResult.avgLatency)
-                                    .color as any
-                                }
-                                variant="flat"
-                              >
-                                {
-                                  getLatencyQuality(tcpingResult.avgLatency)
-                                    .text
-                                }
-                              </Chip>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* 延迟统计 - 始终显示，空值显示为 - */}
-                        <div className="grid grid-cols-3 gap-4">
-                          <div>
-                            <p className="text-xs text-default-500 mb-1">
-                              最快响应
-                            </p>
-                            <div className="flex items-center gap-1">
-                              <span className="text-sm font-bold text-success">
-                                {tcpingResult.minLatency
-                                  ? tcpingResult.minLatency
-                                  : "-"}
-                              </span>
-                              {tcpingResult.minLatency && (
-                                <span className="text-xs text-default-600">
-                                  ms
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-xs text-default-500 mb-1">
-                              平均响应
-                            </p>
-                            <div className="flex items-center gap-1">
-                              <span className="text-sm font-bold text-primary">
-                                {tcpingResult.avgLatency
-                                  ? tcpingResult.avgLatency.toFixed(1)
-                                  : "-"}
-                              </span>
-                              {tcpingResult.avgLatency && (
-                                <span className="text-xs text-default-600">
-                                  ms
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                          <div>
-                            <p className="text-xs text-default-500 mb-1">
-                              最慢响应
-                            </p>
-                            <div className="flex items-center gap-1">
-                              <span className="text-sm font-bold text-warning">
-                                {tcpingResult.maxLatency
-                                  ? tcpingResult.maxLatency
-                                  : "-"}
-                              </span>
-                              {tcpingResult.maxLatency && (
-                                <span className="text-xs text-default-600">
-                                  ms
-                                </span>
-                              )}
-                            </div>
-                          </div>
-                        </div>
-
-                        {/* 延迟质量指示器 */}
-                        {tcpingResult.avgLatency && (
-                          <div className="mt-4">
-                            <div className="flex justify-between text-xs text-default-500 mb-2">
-                              <span>0ms</span>
-                              <span>50ms</span>
-                              <span>100ms</span>
-                              <span>200ms+</span>
-                            </div>
-                            <div className="h-2 bg-gradient-to-r from-green-200 via-yellow-200 to-red-200 rounded-full relative">
-                              {/* 位置标记 - 使用圆形标记 */}
-                              <div
-                                className="absolute -top-1 w-4 h-4 bg-white rounded-full border-2 border-primary shadow-lg flex items-center justify-center"
-                                style={{
-                                  left: `${Math.min((tcpingResult.avgLatency / 200) * 100, 100)}%`,
-                                  transform: "translateX(-50%)",
-                                }}
-                              >
-                                <div className="w-1.5 h-1.5 bg-primary rounded-full" />
-                              </div>
-                            </div>
-                          </div>
-                        )}
+                    {/* 右列 */}
+                    <div className="space-y-4 ">
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-default-500">丢包率</p>
+                        <p
+                          className={`text-sm font-semibold ${(tcpingResult.packetLoss || 0) === 0
+                            ? "text-success"
+                            : (tcpingResult.packetLoss || 0) < 20
+                              ? "text-warning"
+                              : "text-danger"
+                            }`}
+                        >
+                          {tcpingResult.packetLoss?.toFixed(1) || "0.0"}%
+                        </p>
+                      </div>
+                      <div className="flex items-center justify-between">
+                        <p className="text-sm font-medium text-default-500">网络质量</p>
+                        <Chip
+                          className="text-xs uppercase tracking-wider"
+                          color={
+                            getLatencyQuality(tcpingResult.avgLatency).color
+                          }
+                          variant="flat"
+                        >
+                          {tcpingResult.avgLatency ? getLatencyQuality(tcpingResult.avgLatency).text : "-"}
+                        </Chip>
                       </div>
                     </div>
                   </div>
+
+                  {/* Response Time Analysis 卡片 */}
+                  <div className="bg-default-100 dark:bg-default-50/5 border border-default-200 rounded-lg p-6 mb-4">
+                    <h3 className="text-base font-semibold mb-6">响应时间分析</h3>
+
+                    {/* 三列延迟统计 */}
+                    <div className="grid grid-cols-3 gap-6 mb-6">
+                      <div className="text-center">
+                        <p className="text-sm text-default-500 mb-1">最快响应</p>
+                        <p className="text-2xl font-bold text-success">
+                          {tcpingResult.minLatency || 0}{" "}
+                          <span className="text-base font-medium text-default-500 ml-0.5">ms</span>
+                        </p>
+                      </div>
+                      <div className="text-center border-x border-default-200">
+                        <p className="text-sm text-default-500 mb-1">平均响应</p>
+                        <p className="text-2xl font-bold text-primary">
+                          {tcpingResult.avgLatency?.toFixed(1) || 0}{" "}
+                          <span className="text-base font-medium text-default-500 ml-0.5">ms</span>
+                        </p>
+                      </div>
+                      <div className="text-center">
+                        <p className="text-sm text-default-500 mb-1">最慢响应</p>
+                        <p className="text-2xl font-bold text-warning">
+                          {tcpingResult.maxLatency || 0}{" "}
+                          <span className="text-base font-medium text-default-500 ml-0.5">ms</span>
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 延迟质量指示器 */}
+                    {tcpingResult.avgLatency !== undefined && (
+                      <div className="relative pt-2">
+                        {/* 渐变进度条 */}
+                        <div className="relative h-2 w-full rounded-full bg-default-200 overflow-hidden">
+                          <div
+                            className="absolute h-full bg-gradient-to-r from-success via-warning to-danger"
+                            style={{ width: "100%" }}
+                          />
+                        </div>
+
+                        {/* 位置标记 */}
+                        <div
+                          className="absolute -top-1 transform -translate-x-1/2"
+                          style={{
+                            left: `${Math.min((tcpingResult.avgLatency / 200) * 100, 100)}%`,
+                          }}
+                        >
+                          <div className="relative flex flex-col items-center">
+                            {/* 数值标签 */}
+                            <div className="absolute -top-8 bg-default-900 dark:bg-default-100 text-default-100 dark:text-default-900 text-xs font-semibold px-2 py-1 rounded whitespace-nowrap">
+                              {tcpingResult.avgLatency.toFixed(1)} ms
+                            </div>
+                            {/* 小三角 */}
+                            <div className="w-2 h-2 -mt-1.5 bg-default-900 dark:bg-default-100 rotate-45 transform" />
+                            {/* 圆形标记 */}
+                            <div className="w-4 h-4 rounded-full bg-white dark:bg-default-900 border-2 border-primary shadow-lg" />
+                          </div>
+                        </div>
+
+                        {/* 刻度标签 */}
+                        <div className="flex justify-between text-xs text-default-500 mt-3 px-1">
+                          <span>0ms</span>
+                          <span>50ms</span>
+                          <span>100ms</span>
+                          <span>200ms+</span>
+                        </div>
+                      </div>
+                    )}
+                  </div>
                 </ModalBody>
+
                 {/* 结果显示时的Footer */}
-                <ModalFooter>
+                <ModalFooter className="bg-default-50 dark:bg-default-100/5 border-t border-default-200">
+                  <Button variant="flat" onPress={handleClose}>
+                    关闭
+                  </Button>
                   <Button
-                    className="flex-1"
                     color="primary"
+                    startContent={
+                      <FontAwesomeIcon icon={faRefresh} className="text-base" />
+                    }
                     onPress={() => {
                       setTcpingResult(null);
                       handleTcpingTest();
                     }}
                   >
                     重新测试
-                  </Button>
-                  <Button
-                    className="flex-1"
-                    variant="flat"
-                    onPress={handleClose}
-                  >
-                    关闭
                   </Button>
                 </ModalFooter>
               </>
@@ -428,156 +437,118 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
               <>
                 <ModalBody className="py-0">
                   <div className="space-y-6">
-                    {/* type=0 时显示入口/出口选择 */}
-                    {serviceType === "0" && (
-                      <div className="space-y-4">
-                        <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 border border-blue-200 dark:border-blue-900">
-                          <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                            ℹ️ 单端转发模式
-                          </p>
-                          <p className="text-xs text-blue-800 dark:text-blue-200">
-                            请选择测试入口（监听地址）还是出口（目标地址）
-                          </p>
-                        </div>
-
-                        <div className="border border-default-200 p-4 rounded-lg">
-                          <p className="text-sm font-medium mb-3">测试方向</p>
-                          <RadioGroup
-                            value={testType}
-                            onValueChange={(value) => {
-                              setTestType(value as "entry" | "exit");
-                            }}
-                          >
-                            <Radio
-                              classNames={{
-                                base: cn(
-                                  "inline-flex max-w-md w-full bg-content1 m-0 mb-2",
-                                  "hover:bg-content2 items-center justify-start",
-                                  "cursor-pointer rounded-lg gap-2 p-4 border-2 border-transparent",
-                                  "data-[selected=true]:border-primary",
-                                ),
-                              }}
-                              value="entry"
-                            >
-                              <div className="flex flex-col gap-1">
-                                <span className="text-sm font-semibold">测试入口</span>
-                                <span className="text-xs text-default-500">
-                                  Client 端测试监听地址
-                                </span>
-                                <span className="text-xs text-default-400 font-mono">
-                                  {clientTunnelAddress}:{clientListenPort}
-                                </span>
-                              </div>
-                            </Radio>
-                            <Radio
-                              classNames={{
-                                base: cn(
-                                  "inline-flex max-w-md w-full bg-content1 m-0",
-                                  "hover:bg-content2 items-center justify-start",
-                                  "cursor-pointer rounded-lg gap-2 p-4 border-2 border-transparent",
-                                  "data-[selected=true]:border-primary",
-                                ),
-                              }}
-                              value="exit"
-                            >
-                              <div className="flex flex-col gap-1">
-                                <span className="text-sm font-semibold">测试出口</span>
-                                <span className="text-xs text-default-500">
-                                  Client 端测试目标地址
-                                </span>
-                                <span className="text-xs text-default-400 font-mono">
-                                  {clientTargetAddress}:{clientTargetPort}
-                                </span>
-                              </div>
-                            </Radio>
-                          </RadioGroup>
-                        </div>
+                    {/* 测试类型选择 */}
+                    <div className="space-y-4">
+                      <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 border border-blue-200 dark:border-blue-900">
+                        <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                          ℹ️ {serviceType === "0" ? "单端转发模式" : serviceType === "1" ? "NAT穿透模式" : "隧道转发模式"}
+                        </p>
+                        <p className="text-xs text-blue-800 dark:text-blue-200">
+                          请选择测试入口还是出口连通性
+                        </p>
                       </div>
-                    )}
 
-                    {/* type=1,2 时显示三种测试类型 */}
-                    {(serviceType === "1" || serviceType === "2") && (
+                      <div className="border border-default-200 p-4 rounded-lg">
+                        <p className="text-sm font-medium mb-3">测试类型</p>
+                        <RadioGroup
+                          value={testType}
+                          onValueChange={(value) => {
+                            setTestType(value as "entry" | "exit");
+                            setTcpingResult(null); // 清除之前的测试结果
+                          }}
+                        >
+                          <Radio
+                            classNames={{
+                              base: cn(
+                                "inline-flex max-w-md w-full bg-content1 m-0 mb-2",
+                                "hover:bg-content2 items-center justify-start",
+                                "cursor-pointer rounded-lg gap-2 p-4 border-2 border-transparent",
+                                "data-[selected=true]:border-primary",
+                              ),
+                            }}
+                            value="entry"
+                          >
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm font-semibold">测试入口</span>
+                              <span className="text-xs text-default-500">
+                                {serviceType === "0" ? "Client 端测试监听地址" : "Server 端测试隧道入口"}
+                              </span>
+                              <span className="text-xs text-default-400 font-mono">
+                                {serviceType === "0"
+                                  ? `${clientTunnelAddress || serverEndpointHost}:${clientListenPort || 0}`
+                                  : `${serverTunnelAddress || serverEndpointHost || ""}:${serverListenPort || 0}`
+                                }
+                              </span>
+                            </div>
+                          </Radio>
+                          <Radio
+                            classNames={{
+                              base: cn(
+                                "inline-flex max-w-md w-full bg-content1 m-0",
+                                "hover:bg-content2 items-center justify-start",
+                                "cursor-pointer rounded-lg gap-2 p-4 border-2 border-transparent",
+                                "data-[selected=true]:border-primary",
+                              ),
+                            }}
+                            value="exit"
+                          >
+                            <div className="flex flex-col gap-1">
+                              <span className="text-sm font-semibold">测试出口</span>
+                              <span className="text-xs text-default-500">
+                                Client 端测试目标地址
+                              </span>
+                              <span className="text-xs text-default-400 font-mono">
+                                {clientTargetAddress || ""}:{clientTargetPort || 0}
+                                {extendTargetAddress && extendTargetAddress.length > 0 && ` (+${extendTargetAddress.length})`}
+                              </span>
+                            </div>
+                          </Radio>
+                        </RadioGroup>
+                      </div>
+                    </div>
+
+                    {/* 地址选择区域 - 始终显示 */}
+                    {getAddressOptions.length > 0 && (
                       <div className="space-y-4">
-                        <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 border border-blue-200 dark:border-blue-900">
-                          <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                            ℹ️ {serviceType === "1" ? "NAT穿透模式" : "隧道转发模式"}
-                          </p>
-                          <p className="text-xs text-blue-800 dark:text-blue-200">
-                            请选择测试类型：端内延迟、入口连通性或出口连通性
-                          </p>
-                        </div>
+                        {/* 如果有多个地址，显示提示 */}
+                        {testType === "exit" && getAddressOptions.length > 1 && (
+                          <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 border border-blue-200 dark:border-blue-900">
+                            <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
+                              ℹ️ 检测到多个目标地址
+                            </p>
+                            <p className="text-xs text-blue-800 dark:text-blue-200">
+                              此服务配置了负载均衡，请选择要测试的目标地址
+                            </p>
+                          </div>
+                        )}
 
                         <div className="border border-default-200 p-4 rounded-lg">
-                          <p className="text-sm font-medium mb-3">测试类型</p>
+                          <p className="text-sm font-medium mb-3">
+                            {getAddressOptions.length > 1 ? "选择目标地址" : "目标地址"}
+                          </p>
                           <RadioGroup
-                            value={testType}
-                            onValueChange={(value) => {
-                              setTestType(value as "latency" | "entry" | "exit");
-                            }}
+                            value={tcpingSelectedAddress || ""}
+                            onValueChange={setTcpingSelectedAddress}
                           >
-                            <Radio
-                              classNames={{
-                                base: cn(
-                                  "inline-flex max-w-md w-full bg-content1 m-0 mb-2",
-                                  "hover:bg-content2 items-center justify-start",
-                                  "cursor-pointer rounded-lg gap-2 p-4 border-2 border-transparent",
-                                  "data-[selected=true]:border-primary",
-                                ),
-                              }}
-                              value="latency"
-                            >
-                              <div className="flex flex-col gap-1">
-                                <span className="text-sm font-semibold">测试端内延迟</span>
-                                <span className="text-xs text-default-500">
-                                  Client 端测试 Client 的隧道地址
-                                </span>
-                                <span className="text-xs text-default-400 font-mono">
-                                  {clientTunnelAddress}:{clientListenPort}
-                                </span>
-                              </div>
-                            </Radio>
-                            <Radio
-                              classNames={{
-                                base: cn(
-                                  "inline-flex max-w-md w-full bg-content1 m-0 mb-2",
-                                  "hover:bg-content2 items-center justify-start",
-                                  "cursor-pointer rounded-lg gap-2 p-4 border-2 border-transparent",
-                                  "data-[selected=true]:border-primary",
-                                ),
-                              }}
-                              value="entry"
-                            >
-                              <div className="flex flex-col gap-1">
-                                <span className="text-sm font-semibold">测试入口</span>
-                                <span className="text-xs text-default-500">
-                                  Server 端测试 Server 的目标地址
-                                </span>
-                                <span className="text-xs text-default-400 font-mono">
-                                  {serverTargetAddress}:{serverTargetPort}
-                                </span>
-                              </div>
-                            </Radio>
-                            <Radio
-                              classNames={{
-                                base: cn(
-                                  "inline-flex max-w-md w-full bg-content1 m-0",
-                                  "hover:bg-content2 items-center justify-start",
-                                  "cursor-pointer rounded-lg gap-2 p-4 border-2 border-transparent",
-                                  "data-[selected=true]:border-primary",
-                                ),
-                              }}
-                              value="exit"
-                            >
-                              <div className="flex flex-col gap-1">
-                                <span className="text-sm font-semibold">测试出口</span>
-                                <span className="text-xs text-default-500">
-                                  Client 端测试 Client 的目标地址
-                                </span>
-                                <span className="text-xs text-default-400 font-mono">
-                                  {clientTargetAddress}:{clientTargetPort}
-                                </span>
-                              </div>
-                            </Radio>
+                            {getAddressOptions.map((option) => (
+                              <Radio
+                                key={option.value}
+                                classNames={{
+                                  base: cn(
+                                    "inline-flex max-w-md w-full bg-content1 m-0 mb-2 last:mb-0",
+                                    "hover:bg-content2 items-center justify-start",
+                                    "cursor-pointer rounded-lg gap-2 p-4 border-2 border-transparent",
+                                    "data-[selected=true]:border-primary",
+                                  ),
+                                }}
+                                value={option.value}
+                              >
+                                <div className="flex flex-col gap-1">
+                                  <span className="font-mono text-sm">{option.label}</span>
+                                  <span className="text-xs text-default-400">{option.description}</span>
+                                </div>
+                              </Radio>
+                            ))}
                           </RadioGroup>
                         </div>
                       </div>

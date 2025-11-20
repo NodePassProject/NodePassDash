@@ -74,6 +74,7 @@ interface TunnelInfo {
     version: string;
     tls: string;
     log: string;
+    host?: string; // 主控的 host 地址
   };
   password?: string;
   certPath?: string;
@@ -1845,6 +1846,13 @@ export default function ServiceDetailsPage() {
               extendTargetAddress={clientTunnel.extendTargetAddress || []}
               isOpen={tcpingModalOpen}
               serverInstanceId={service.serverInstanceId}
+              serverTunnelAddress={serverTunnel?.tunnelAddress || ""}
+              serverEndpointHost={
+                service.type === "0"
+                  ? clientTunnel.endpoint?.host || ""
+                  : serverTunnel?.endpoint?.host || ""
+              }
+              serverListenPort={serverTunnel?.listenPort || 0}
               serverTargetAddress={serverTunnel?.targetAddress || ""}
               serverTargetPort={serverTunnel?.targetPort || 0}
               serviceType={service.type}

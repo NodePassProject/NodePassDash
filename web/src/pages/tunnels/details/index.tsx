@@ -104,6 +104,7 @@ interface TunnelInfo {
     version: string;
     tls: string;
     log: string;
+    host?: string; // 主控的 host 地址
   };
   password?: string;
   certPath?: string;
@@ -1973,7 +1974,7 @@ export default function TunnelDetailPage() {
                     const configValue = tunnelInfo.config?.dns;
                     return (
                       <span className="font-mono text-sm">
-                        {hasValue ? tunnelInfo.dns : configValue}
+                        {hasValue ? tunnelInfo.dns : (configValue ? tunnelInfo.dns : "-")}
                         {!hasValue && configValue && (
                           <span className="text-default-400 text-xs ml-1">
                             (默认)
@@ -3375,6 +3376,10 @@ export default function TunnelDetailPage() {
           targetAddress={tunnelInfo.targetAddress}
           targetPort={tunnelInfo.targetPort}
           extendTargetAddress={tunnelInfo.extendTargetAddress}
+          tunnelAddress={tunnelInfo.tunnelAddress}
+          endpointHost={tunnelInfo.endpoint?.host}
+          listenPort={tunnelInfo.listenPort}
+          tunnelType={tunnelInfo.type}
         />
       )}
     </>
