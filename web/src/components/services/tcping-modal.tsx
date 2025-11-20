@@ -292,10 +292,10 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                         <p className="text-sm font-medium text-default-500">网络质量</p>
                         <Chip
                           className="text-xs uppercase tracking-wider"
-                          color={getLatencyQuality(tcpingResult.avgLatency).color}
+                          color={tcpingResult.avgLatency != null ? getLatencyQuality(tcpingResult.avgLatency).color : "default"}
                           variant="flat"
                         >
-                          {tcpingResult.avgLatency ? getLatencyQuality(tcpingResult.avgLatency).text : "-"}
+                          {tcpingResult.avgLatency != null ? getLatencyQuality(tcpingResult.avgLatency).text : "-"}
                         </Chip>
                       </div>
                     </div>
@@ -331,7 +331,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                     </div>
 
                     {/* 延迟质量指示器 */}
-                    {tcpingResult.avgLatency !== undefined && (
+                    {tcpingResult.avgLatency != null && (
                       <div className="relative pt-2">
                         {/* 渐变进度条 */}
                         <div className="relative h-2 w-full rounded-full bg-default-200 overflow-hidden">
