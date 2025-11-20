@@ -2323,19 +2323,19 @@ export default function TunnelDetailPage() {
                   label="出站源IP"
                   value={
                     (() => {
-                    const hasValue = tunnelInfo.dial !== undefined && tunnelInfo.dial !== null;
-                    const configValue = tunnelInfo.config?.dial;
-                    return (
-                      <span className="font-mono text-sm">
-                        {hasValue ? tunnelInfo.dial : configValue}
-                        {!hasValue && configValue && (
-                          <span className="text-default-400 text-xs ml-1">
-                            (默认)
-                          </span>
-                        )}
-                      </span>
-                    );
-                  })()
+                      const hasValue = tunnelInfo.dial !== undefined && tunnelInfo.dial !== null;
+                      const configValue = tunnelInfo.config?.dial;
+                      return (
+                        <span className="font-mono text-sm">
+                          {hasValue ? tunnelInfo.dial : (configValue ? configValue : "-")}
+                          {!hasValue && configValue && (
+                            <span className="text-default-400 text-xs ml-1">
+                              (默认)
+                            </span>
+                          )}
+                        </span>
+                      );
+                    })()
                   }
                 />
                 <CellValue

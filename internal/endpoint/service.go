@@ -433,7 +433,7 @@ type SimpleEndpoint struct {
 // GetSimpleEndpoints 获取简化端点列表，可排除 FAIL
 func (s *Service) GetSimpleEndpoints(excludeFail bool) ([]SimpleEndpoint, error) {
 	query := s.db.Table("endpoints e").
-		Select("e.id, e.name, e.ip as url, e.api_path, e.status,  e.tunnel_count, e.ver, e.tls, e.log, e.crt, e.key_path, e.uptime")
+		Select("e.id, e.name, e.hostname as url, e.api_path, e.status,  e.tunnel_count, e.ver, e.tls, e.log, e.crt, e.key_path, e.uptime")
 
 	if excludeFail {
 		query = query.Where("e.status NOT IN ('FAIL', 'DISCONNECT')")

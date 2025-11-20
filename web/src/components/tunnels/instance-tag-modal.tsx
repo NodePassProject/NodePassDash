@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from "react";
+import React, { useState, useEffect, useRef } from "react";
 import {
   Modal,
   ModalContent,
@@ -7,17 +7,18 @@ import {
   ModalFooter,
   Button,
   Input,
-  Textarea,
   DatePicker,
   Checkbox,
   Select,
   SelectItem,
   RadioGroup,
   Radio,
-  Divider,
+  Tabs,
+  Tab,
 } from "@heroui/react";
 import { parseDate } from "@internationalized/date";
 import { addToast } from "@heroui/toast";
+import Editor from "@monaco-editor/react";
 
 interface InstanceTagModalProps {
   isOpen: boolean;
@@ -99,6 +100,12 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
 
   // 是否正在保存
   const [isSaving, setIsSaving] = useState(false);
+
+  // Tab 状态
+  const [activeTab, setActiveTab] = useState<string>("json");
+
+  // 用于跟踪上一个 tab，以便在切换时同步数据
+  const previousTabRef = useRef<string>("json");
 
   // 标准字段列表（用于区分标准字段和扩展字段）
   const STANDARD_FIELDS = [
@@ -354,16 +361,75 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
     }
   };
 
-  // 处理JSON输入变化
-  const handleJsonChange = (value: string) => {
-    setJsonValue(value);
-    updateFieldsFromJson(value);
+  // 处理JSON输入变化（Monaco Editor）
+  const handleJsonChange = (value: string | undefined) => {
+    const newValue = value || "";
+    setJsonValue(newValue);
+    // 不在 JSON 编辑时自动更新表单字段，只在切换 tab 时更新
+  };
+
+  // 处理 Tab 切换
+  const handleTabChange = (key: React.Key) => {
+    const newTab = key.toString();
+    const previousTab = previousTabRef.current;
+
+    // 从 JSON 切换到模板编辑时，将 JSON 数据同步到表单
+    if (previousTab === "json" && newTab === "template") {
+      updateFieldsFromJson(jsonValue);
+    }
+
+    // 从模板切换到 JSON 时，将表单数据同步到 JSON
+    if (previousTab === "template" && newTab === "json") {
+      updateJsonFromFields();
+    }
+
+    previousTabRef.current = newTab;
+    setActiveTab(newTab);
   };
 
   // 保存标签
   const handleSave = async () => {
     try {
-      const tags = JSON.parse(jsonValue);
+      // 如果当前在模板编辑 tab，先同步表单数据到 JSON
+      let finalJsonValue = jsonValue;
+      if (activeTab === "template") {
+        // 构建最终的 tags 对象
+        const tags: { [key: string]: string } = { ...extendedFields };
+
+        if (startDate) tags.startDate = startDate;
+
+        if (isUnlimited) {
+          tags.endDate = "0000-00-00T23:59:59+08:00";
+        } else if (endDate) {
+          tags.endDate = endDate;
+        }
+
+        if (amountType === "free") {
+          tags.amount = "free";
+        } else if (amountType === "prefix" && amountValue) {
+          const currency = CURRENCY_OPTIONS.find(c => c.key === prefixCurrency);
+          tags.amount = `${currency?.symbol}${amountValue}`;
+        } else if (amountType === "suffix" && amountValue) {
+          tags.amount = `${amountValue}${suffixCurrency}`;
+        } else if (amountType === "none" && amountValue) {
+          tags.amount = amountValue;
+        }
+
+        if (bandwidthValue) {
+          tags.bandwidth = `${bandwidthValue}${bandwidthUnit}`;
+        }
+
+        if (trafficValue) {
+          tags.trafficVol = `${trafficValue}${trafficUnit}`;
+        }
+
+        if (networkRoute) tags.networkRoute = networkRoute;
+        if (extra) tags.extra = extra;
+
+        finalJsonValue = JSON.stringify(tags, null, 2);
+      }
+
+      const tags = JSON.parse(finalJsonValue);
       setIsSaving(true);
 
       const response = await fetch(`/api/tunnels/${tunnelId}/tags`, {
@@ -402,23 +468,50 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
     <Modal
       isOpen={isOpen}
       onOpenChange={onOpenChange}
-      size="5xl"
+      size="xl"
       scrollBehavior="inside"
       className="max-h-[90vh]"
     >
       <ModalContent>
         {(onClose) => (
           <>
-            <ModalHeader className="flex flex-col gap-1">
-              <h2 className="text-xl font-semibold">编辑实例标签</h2>
+            <ModalHeader className="flex flex-col gap-1 pb-0">
+              <h2 className="text-xl font-semibold">设置标签</h2>
             </ModalHeader>
             <ModalBody>
-              <div className="flex gap-6 h-full">
-                {/* 左侧：标准字段表单 */}
-                <div className="flex-1 space-y-2">
-                  {/* 日期字段 */}
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 gap-4">
+              <Tabs
+                fullWidth
+                selectedKey={activeTab}
+                onSelectionChange={handleTabChange}
+                aria-label="编辑模式"
+              >
+                <Tab key="json" title="JSON 编辑">
+                  <div className={`border rounded-lg overflow-hidden ${isJsonError ? 'border-danger' : 'border-default-200'}`}>
+                    <Editor
+                      defaultLanguage="json"
+                      height="400px"
+                      value={jsonValue}
+                      onChange={handleJsonChange}
+                      options={{
+                        minimap: { enabled: false },
+                        fontSize: 13,
+                        lineNumbers: "off",
+                        formatOnType: true,
+                        formatOnPaste: true,
+                        tabSize: 2,
+                        wordWrap: "on",
+                        scrollBeyondLastLine: false,
+                        automaticLayout: true,
+                        bracketPairColorization: { enabled: true },
+                      }}
+                      theme="vs-dark"
+                    />
+                  </div>
+                </Tab>
+                <Tab key="template" title="模板编辑">
+                  <div className="space-y-4 ">
+                    {/* 日期字段 */}
+                    <div className="grid grid-cols-2 gap-4">
                       {/* 开始日期 */}
                       <div className="flex flex-col gap-2">
                         <label className="text-sm font-medium text-default-700">开始日期</label>
@@ -426,7 +519,6 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                           value={startDate ? (parseDate(startDate.split('T')[0]) as any) : undefined}
                           onChange={(date) => {
                             if (date) {
-                              // 格式化为 YYYY-MM-DD 然后拼接时区时间
                               const year = date.year;
                               const month = String(date.month).padStart(2, '0');
                               const day = String(date.day).padStart(2, '0');
@@ -450,7 +542,7 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                             onValueChange={(checked) => {
                               setIsUnlimited(checked);
                               if (checked) {
-                                setEndDate(''); // 清空日期，会在updateJsonFromFields中设置为特殊值
+                                setEndDate('');
                               }
                             }}
                             size="sm"
@@ -462,7 +554,6 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                           value={!isUnlimited && endDate ? (parseDate(endDate.split('T')[0]) as any) : undefined}
                           onChange={(date) => {
                             if (date) {
-                              // 格式化为 YYYY-MM-DD 然后拼接时区时间
                               const year = date.year;
                               const month = String(date.month).padStart(2, '0');
                               const day = String(date.day).padStart(2, '0');
@@ -479,115 +570,113 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                         />
                       </div>
                     </div>
-                  </div>
 
-                  {/* 金额字段 */}
-                  <div className="flex flex-col gap-1.5">
-                    <div className="flex items-center justify-between">
-                      <label className="text-sm font-medium text-default-700">金额</label>
-                      <RadioGroup
-                        value={amountType}
-                        onValueChange={setAmountType}
-                        orientation="horizontal"
-                        className="gap-2"
-                        size="sm"
-                      >
-                        <Radio value="none">无格式</Radio>
-                        <Radio value="prefix">前缀</Radio>
-                        <Radio value="suffix">后缀</Radio>
-                        <Radio value="free">免费</Radio>
-                      </RadioGroup>
+                    {/* 金额字段 */}
+                    <div className="flex flex-col gap-1.5">
+                      <div className="flex items-center justify-between">
+                        <label className="text-sm font-medium text-default-700">金额</label>
+                        <RadioGroup
+                          value={amountType}
+                          onValueChange={setAmountType}
+                          orientation="horizontal"
+                          className="gap-2"
+                          size="sm"
+                        >
+                          <Radio value="none">无格式</Radio>
+                          <Radio value="prefix">前缀</Radio>
+                          <Radio value="suffix">后缀</Radio>
+                          <Radio value="free">免费</Radio>
+                        </RadioGroup>
+                      </div>
+
+                      {/* 金额输入区域 */}
+                      {amountType === "none" && (
+                        <Input
+                          placeholder="输入金额"
+                          value={amountValue}
+                          onValueChange={setAmountValue}
+                          variant="bordered"
+                        />
+                      )}
+
+                      {amountType === "prefix" && (
+                        <div className="flex gap-2">
+                          <Select
+                            selectedKeys={[prefixCurrency]}
+                            onSelectionChange={(keys) => {
+                              const selected = Array.from(keys)[0] as string;
+                              setPrefixCurrency(selected);
+                            }}
+                            className="w-32"
+                            variant="bordered"
+                            aria-label="货币符号"
+                          >
+                            {CURRENCY_OPTIONS.map((currency) => (
+                              <SelectItem key={currency.key}>
+                                {currency.symbol}
+                              </SelectItem>
+                            ))}
+                          </Select>
+                          <Input
+                            placeholder="输入金额"
+                            value={amountValue}
+                            onValueChange={setAmountValue}
+                            variant="bordered"
+                            className="flex-1"
+                            startContent={
+                              <span className="text-default-500">
+                                {CURRENCY_OPTIONS.find(c => c.key === prefixCurrency)?.symbol}
+                              </span>
+                            }
+                          />
+                        </div>
+                      )}
+
+                      {amountType === "suffix" && (
+                        <div className="flex gap-2">
+                          <Input
+                            placeholder="输入金额"
+                            value={amountValue}
+                            onValueChange={setAmountValue}
+                            variant="bordered"
+                            className="flex-1"
+                            endContent={
+                              <span className="text-default-500">
+                                {suffixCurrency}
+                              </span>
+                            }
+                          />
+                          <Select
+                            selectedKeys={[suffixCurrency]}
+                            onSelectionChange={(keys) => {
+                              const selected = Array.from(keys)[0] as string;
+                              setSuffixCurrency(selected);
+                            }}
+                            className="w-32"
+                            variant="bordered"
+                            aria-label="货币代码"
+                          >
+                            {CURRENCY_CODES.map((currency) => (
+                              <SelectItem key={currency.key}>
+                                {currency.label}
+                              </SelectItem>
+                            ))}
+                          </Select>
+                        </div>
+                      )}
+
+                      {amountType === "free" && (
+                        <Input
+                          placeholder="free"
+                          value="free"
+                          variant="bordered"
+                          isDisabled
+                        />
+                      )}
                     </div>
 
-                    {/* 金额输入区域 */}
-                    {amountType === "none" && (
-                      <Input
-                        placeholder="输入金额"
-                        value={amountValue}
-                        onValueChange={setAmountValue}
-                        variant="bordered"
-                      />
-                    )}
-
-                    {amountType === "prefix" && (
-                      <div className="flex gap-2">
-                        <Select
-                          selectedKeys={[prefixCurrency]}
-                          onSelectionChange={(keys) => {
-                            const selected = Array.from(keys)[0] as string;
-                            setPrefixCurrency(selected);
-                          }}
-                          className="w-32"
-                          variant="bordered"
-                          aria-label="货币符号"
-                        >
-                          {CURRENCY_OPTIONS.map((currency) => (
-                            <SelectItem key={currency.key}>
-                              {currency.symbol}
-                            </SelectItem>
-                          ))}
-                        </Select>
-                        <Input
-                          placeholder="输入金额"
-                          value={amountValue}
-                          onValueChange={setAmountValue}
-                          variant="bordered"
-                          className="flex-1"
-                          startContent={
-                            <span className="text-default-500">
-                              {CURRENCY_OPTIONS.find(c => c.key === prefixCurrency)?.symbol}
-                            </span>
-                          }
-                        />
-                      </div>
-                    )}
-
-                    {amountType === "suffix" && (
-                      <div className="flex gap-2">
-                        <Input
-                          placeholder="输入金额"
-                          value={amountValue}
-                          onValueChange={setAmountValue}
-                          variant="bordered"
-                          className="flex-1"
-                          endContent={
-                            <span className="text-default-500">
-                              {suffixCurrency}
-                            </span>
-                          }
-                        />
-                        <Select
-                          selectedKeys={[suffixCurrency]}
-                          onSelectionChange={(keys) => {
-                            const selected = Array.from(keys)[0] as string;
-                            setSuffixCurrency(selected);
-                          }}
-                          className="w-32"
-                          variant="bordered"
-                          aria-label="货币代码"
-                        >
-                          {CURRENCY_CODES.map((currency) => (
-                            <SelectItem key={currency.key}>
-                              {currency.label}
-                            </SelectItem>
-                          ))}
-                        </Select>
-                      </div>
-                    )}
-
-                    {amountType === "free" && (
-                      <Input
-                        placeholder="free"
-                        value="free"
-                        variant="bordered"
-                        isDisabled
-                      />
-                    )}
-                  </div>
-
-                  {/* 带宽和流量字段 */}
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 gap-4">
+                    {/* 带宽和流量字段 */}
+                    <div className="grid grid-cols-2 gap-4">
                       {/* 带宽 */}
                       <div className="flex flex-col gap-1.5">
                         <label className="text-sm font-medium text-default-700">带宽</label>
@@ -636,11 +725,9 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                         />
                       </div>
                     </div>
-                  </div>
 
-                  {/* 其他信息字段 */}
-                  <div className="space-y-4">
-                    <div className="grid grid-cols-1 gap-4">
+                    {/* 其他信息字段 */}
+                    <div className="grid grid-cols-2 gap-4">
                       {/* 网络路由 */}
                       <div className="flex flex-col gap-1.5">
                         <label className="text-sm font-medium text-default-700">网络路由</label>
@@ -664,25 +751,10 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                       </div>
                     </div>
                   </div>
-                </div>
-
-                <Divider orientation="vertical" />
-
-                {/* 右侧：JSON编辑器 */}
-                <div className="flex-1 space-y-4">
-                  <Textarea
-                    value={jsonValue}
-                    onValueChange={handleJsonChange}
-                    minRows={20}
-                    maxRows={25}
-                    variant="bordered"
-                    className="font-mono text-sm"
-                    color={isJsonError ? "danger" : "default"}
-                  />
-                </div>
-              </div>
+                </Tab>
+              </Tabs>
             </ModalBody>
-            <ModalFooter>
+            <ModalFooter className="pt-0">
               <Button color="danger" variant="light" onPress={onClose}>
                 取消
               </Button>

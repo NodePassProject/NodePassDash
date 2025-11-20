@@ -155,6 +155,63 @@ export default function ServiceDetailsPage() {
     };
   };
 
+  // 格式化地址显示（处理脱敏逻辑）
+  const formatAddress = (address: string | undefined) => {
+    if (!address) return "N/A";
+
+    // 如果隐私模式关闭，显示完整地址
+    if (!settings.isPrivacyMode) {
+      return address;
+    }
+
+    // 隐私模式开启时进行脱敏
+    // 尝试解析地址（可能是 host:port 格式）
+    const parts = address.split(":");
+    if (parts.length >= 2) {
+      const host = parts.slice(0, -1).join(":"); // 处理 IPv6 的情况
+      const port = parts[parts.length - 1];
+
+      // 检测IPv4地址
+      const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+      const ipv4Match = host.match(ipv4Regex);
+
+      if (ipv4Match) {
+        // IPv4地址：只保留前两段
+        return `${ipv4Match[1]}.${ipv4Match[2]}.***.***:${port}`;
+      }
+
+      // 检测IPv6地址
+      const ipv6Regex = /^\[?([0-9a-fA-F]{1,4}):([0-9a-fA-F]{1,4})/;
+      const ipv6Match = host.match(ipv6Regex);
+
+      if (ipv6Match) {
+        // IPv6地址：只保留前两段
+        return `${ipv6Match[1]}:${ipv6Match[2]}:***:***:***:***:***:***:${port}`;
+      }
+
+      // 域名：完全脱敏
+      return `********:${port}`;
+    }
+
+    // 如果没有端口，直接对整个地址进行脱敏
+    const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
+    const ipv4Match = address.match(ipv4Regex);
+
+    if (ipv4Match) {
+      return `${ipv4Match[1]}.${ipv4Match[2]}.***.***`;
+    }
+
+    const ipv6Regex = /^([0-9a-fA-F]{1,4}):([0-9a-fA-F]{1,4})/;
+    const ipv6Match = address.match(ipv6Regex);
+
+    if (ipv6Match) {
+      return `${ipv6Match[1]}:${ipv6Match[2]}:***:***:***:***:***:***`;
+    }
+
+    // 域名或其他格式：完全脱敏
+    return "********";
+  };
+
   // 隧道详情相关状态
   const [clientTunnel, setClientTunnel] = useState<TunnelInfo | null>(null);
   const [serverTunnel, setServerTunnel] = useState<TunnelInfo | null>(null);
@@ -1477,13 +1534,13 @@ export default function ServiceDetailsPage() {
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-default-500">隧道地址</span>
                           <span className="text-sm font-mono">
-                            {clientTunnel.tunnelAddress}
+                            {formatAddress(clientTunnel.tunnelAddress)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-default-500">目标地址</span>
                           <span className="text-sm font-mono">
-                            {clientTunnel.targetAddress}
+                            {formatAddress(clientTunnel.targetAddress)}
                           </span>
                         </div>
                       </CardBody>
@@ -1557,13 +1614,13 @@ export default function ServiceDetailsPage() {
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-default-500">隧道地址</span>
                           <span className="text-sm font-mono">
-                            {serverTunnel.tunnelAddress}
+                            {formatAddress(serverTunnel.tunnelAddress)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-default-500">目标地址</span>
                           <span className="text-sm font-mono">
-                            {serverTunnel.targetAddress}
+                            {formatAddress(serverTunnel.targetAddress)}
                           </span>
                         </div>
                       </CardBody>
