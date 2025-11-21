@@ -32,6 +32,8 @@ import {
   faDice,
   faCirclePlus,
   faCircleQuestion,
+  faLock,
+  faLockOpen,
 } from "@fortawesome/free-solid-svg-icons";
 
 import { buildApiUrl } from "@/lib/utils";
@@ -541,8 +543,8 @@ export default function ScenarioCreateModal({
             <InlineSwitch
               isSelected={formData.natTlsEnabled}
               onValueChange={(v) => handleField("natTlsEnabled", v)}
-              onIcon={<LockIcon />}
-              offIcon={<UnlockIcon />}
+              onIcon={<FontAwesomeIcon icon={faLock} className="text-white" />}
+              offIcon={<FontAwesomeIcon icon={faLockOpen} className="text-white" />}
               color="success"
             />
           </div>
@@ -572,13 +574,13 @@ export default function ScenarioCreateModal({
           </Select>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-row items-center gap-2">
-            <label className="text-sm whitespace-nowrap flex-shrink-0">监听端口</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm">监听端口</label>
             <NumberInput
               isRequired
               placeholder="10022"
-              type="number"
               labelPlacement="outside-left"
+              type="number"
               minValue={0}
               maxValue={65535}
               value={formData.publicListenPort ? Number(formData.publicListenPort) : undefined}
@@ -588,14 +590,14 @@ export default function ScenarioCreateModal({
               }}
             />
           </div>
-          <div className="flex flex-row items-center gap-2">
-            <label className="text-sm whitespace-nowrap flex-shrink-0">隧道端口</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm">隧道端口</label>
             <NumberInput
               isRequired
               placeholder="10101"
-              labelPlacement="outside-left"
               type="number"
               minValue={0}
+              labelPlacement="outside-left"
               maxValue={65535}
               value={formData.publicTunnelPort ? Number(formData.publicTunnelPort) : undefined}
               onValueChange={(v) => handleField("publicTunnelPort", v ? String(v) : "")}
@@ -634,18 +636,18 @@ export default function ScenarioCreateModal({
             size="sm"
             color="warning"
             classNames={{
-              tabList: "h-6",                    // 整体 24px 高
-              tab: "min-h-6 h-6 px-2 py-0",      // 去掉多余 padding
-              tabContent: "text-xs leading-6",   // 行高 24px
-              cursor: "h-[4px]",                 // 视需要调细一点
+              tabList: "h-6 rounded-md p-0.5 gap-0",
+              tab: "min-h-5 h-5 px-2 py-0",
+              tabContent: "text-xs leading-5",
+              cursor: "h-full rounded-sm",
             }}
             selectedKey={formData.natTargetExternal ? "external" : "local"}
             onSelectionChange={(key) =>
               handleField("natTargetExternal", key === "external")
             }
           >
-            <Tab key="local" title="本地" />
-            <Tab key="external" title="外部" />
+            <Tab key="local" title="本地地址" />
+            <Tab key="external" title="外部地址" />
           </Tabs>
         </div>
         <div className="flex flex-row items-center gap-2">
@@ -671,8 +673,8 @@ export default function ScenarioCreateModal({
           </Select>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-row items-center gap-2">
-            <label className="text-sm whitespace-nowrap flex-shrink-0">目标地址</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm">目标地址</label>
             <Input
               isRequired
               readOnly={!formData.natTargetExternal}
@@ -705,13 +707,13 @@ export default function ScenarioCreateModal({
               }
             />
           </div>
-          <div className="flex flex-row items-center gap-2">
-            <label className="text-sm whitespace-nowrap flex-shrink-0">目标端口</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm">目标端口</label>
             <NumberInput
               isRequired
-              labelPlacement="outside-left"
               placeholder="22"
               type="number"
+              labelPlacement="outside-left"
               minValue={0}
               maxValue={65535}
               value={formData.localServicePort ? Number(formData.localServicePort) : undefined}
@@ -744,18 +746,17 @@ export default function ScenarioCreateModal({
           />
         )}
       </div>
-        <Divider className="my-3" />
+      <Divider className="my-3" />
       {/* 可选配置 */}
       <div className="grid grid-cols-2 gap-3">
         {/* 监听类型 */}
-        <div className="flex flex-row items-center gap-2">
-          <label className="text-sm whitespace-nowrap flex-shrink-0" >监听</label>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm">监听类型</label>
           <Tabs
             classNames={{
               tabContent: "group-data-[selected=true]:text-white text-xs",
             }}
-            color="success"
-            size="sm"
+            color="secondary"
             fullWidth
             selectedKey={formData.listenType}
             onSelectionChange={(key) =>
@@ -769,8 +770,8 @@ export default function ScenarioCreateModal({
         </div>
 
         {/* 日志级别 */}
-        <div className="flex flex-row items-center gap-2">
-          <label className="text-sm whitespace-nowrap flex-shrink-0">日志级别</label>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm">日志级别</label>
           <Select
             selectedKeys={formData.logLevel ? [formData.logLevel] : ["inherit"]}
             onSelectionChange={(keys) => {
@@ -807,10 +808,10 @@ export default function ScenarioCreateModal({
 
       {/* 中转服务器 */}
       <div className="space-y-3">
-        <h4 className="text-sm font-medium text-default-700">中转服务器</h4>
+        <h4 className="text-sm font-semibold text-default-700">中转服务器</h4>
         <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-row items-center gap-2">
-            <label className="text-sm whitespace-nowrap flex-shrink-0">服务器</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm">服务器</label>
             <Select
               isRequired
               placeholder="选择中转服务器"
@@ -832,8 +833,8 @@ export default function ScenarioCreateModal({
               ))}
             </Select>
           </div>
-          <div className="flex flex-row items-center gap-2">
-            <label className="text-sm whitespace-nowrap flex-shrink-0">监听端口</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm">监听端口</label>
             <NumberInput
               isRequired
               placeholder="1080"
@@ -854,30 +855,30 @@ export default function ScenarioCreateModal({
       {/* 目标服务器 */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-medium text-default-700">
+          <h4 className="text-sm font-semibold text-default-700">
             目标服务器
           </h4>
           <Tabs
             size="sm"
             color="warning"
             classNames={{
-              tabList: "h-6",
-              tab: "min-h-6 h-6 px-2 py-0",
-              tabContent: "text-xs leading-6",
-              cursor: "h-[4px]",
+              tabList: "h-6 rounded-md p-0.5 gap-0",
+              tab: "min-h-5 h-5 px-2 py-0",
+              tabContent: "text-xs leading-5",
+              cursor: "h-full rounded-sm",
             }}
             selectedKey={formData.singleTargetExternal ? "external" : "local"}
             onSelectionChange={(key) =>
               handleField("singleTargetExternal", key === "external")
             }
           >
-            <Tab key="local" title="本地" />
-            <Tab key="external" title="外部" />
+            <Tab key="local" title="本地地址" />
+            <Tab key="external" title="外部地址" />
           </Tabs>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-row items-center gap-2">
-            <label className="text-sm whitespace-nowrap flex-shrink-0">目标地址</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm">目标地址</label>
             <Input
               isRequired
               readOnly={!formData.singleTargetExternal}
@@ -910,14 +911,14 @@ export default function ScenarioCreateModal({
               }
             />
           </div>
-          <div className="flex flex-row items-center gap-2">
-            <label className="text-sm whitespace-nowrap flex-shrink-0">目标端口</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm">目标端口</label>
             <NumberInput
               isRequired
               placeholder="3306"
-              labelPlacement="outside-left"
               type="number"
               minValue={0}
+              labelPlacement="outside-left"
               maxValue={65535}
               value={formData.targetServicePort ? Number(formData.targetServicePort) : undefined}
               onValueChange={(v) => handleField("targetServicePort", v ? String(v) : "")}
@@ -954,14 +955,13 @@ export default function ScenarioCreateModal({
       {/* 可选配置 */}
       <div className="grid grid-cols-2 gap-3">
         {/* 监听类型 */}
-        <div className="flex flex-row items-center gap-2">
-          <label className="text-sm whitespace-nowrap flex-shrink-0">监听</label>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm">监听类型</label>
           <Tabs
             classNames={{
               tabContent: "group-data-[selected=true]:text-white text-xs",
             }}
-            color="success"
-            size="sm"
+            color="secondary"
             fullWidth
             selectedKey={formData.listenType}
             onSelectionChange={(key) =>
@@ -975,8 +975,8 @@ export default function ScenarioCreateModal({
         </div>
 
         {/* 日志级别 */}
-        <div className="flex flex-row items-center gap-2">
-          <label className="text-sm whitespace-nowrap flex-shrink-0">日志级别</label>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm">日志级别</label>
           <Select
             selectedKeys={formData.logLevel ? [formData.logLevel] : ["inherit"]}
             onSelectionChange={(keys) => {
@@ -1014,14 +1014,14 @@ export default function ScenarioCreateModal({
       {/* 中转服务器 */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-medium text-default-700">中转服务器</h4>
+          <h4 className="text-sm font-semibold text-default-700">中转服务器</h4>
           <div className="flex items-center gap-2">
             <span className="text-xs text-default-500">TLS</span>
             <InlineSwitch
               isSelected={formData.doubleTlsEnabled}
               onValueChange={(v) => handleField("doubleTlsEnabled", v)}
-              onIcon={<LockIcon />}
-              offIcon={<UnlockIcon />}
+              onIcon={<FontAwesomeIcon icon={faLock} className="text-white" />}
+              offIcon={<FontAwesomeIcon icon={faLockOpen} className="text-white" />}
               color="success"
             />
           </div>
@@ -1051,13 +1051,13 @@ export default function ScenarioCreateModal({
           </Select>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-row items-center gap-2">
-            <label className="text-sm whitespace-nowrap flex-shrink-0">监听端口</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm">监听端口</label>
             <NumberInput
               isRequired
               placeholder="10022"
-              labelPlacement="outside-left"
               type="number"
+              labelPlacement="outside-left"
               minValue={0}
               maxValue={65535}
               value={formData.relayListenPort2 ? Number(formData.relayListenPort2) : undefined}
@@ -1067,13 +1067,13 @@ export default function ScenarioCreateModal({
               }}
             />
           </div>
-          <div className="flex flex-row items-center gap-2">
-            <label className="text-sm whitespace-nowrap flex-shrink-0">隧道端口</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm">隧道端口</label>
             <NumberInput
               isRequired
-              labelPlacement="outside-left"
               placeholder="10101"
               type="number"
+              labelPlacement="outside-left"
               minValue={0}
               maxValue={65535}
               value={formData.relayTunnelPort2 ? Number(formData.relayTunnelPort2) : undefined}
@@ -1106,25 +1106,25 @@ export default function ScenarioCreateModal({
       {/* 目标服务器 */}
       <div className="space-y-3">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-medium text-default-700">
+          <h4 className="text-sm font-semibold text-default-700">
             目标服务器
           </h4>
           <Tabs
             size="sm"
             color="warning"
             classNames={{
-              tabList: "h-6",
-              tab: "min-h-6 h-6 px-2 py-0",
-              tabContent: "text-xs leading-6",
-              cursor: "h-[4px]",
+              tabList: "h-6 rounded-md p-0.5 gap-0",
+              tab: "min-h-5 h-5 px-2 py-0",
+              tabContent: "text-xs leading-5",
+              cursor: "h-full rounded-sm",
             }}
             selectedKey={formData.doubleTargetExternal ? "external" : "local"}
             onSelectionChange={(key) =>
               handleField("doubleTargetExternal", key === "external")
             }
           >
-            <Tab key="local" title="本地" />
-            <Tab key="external" title="外部" />
+            <Tab key="local" title="本地地址" />
+            <Tab key="external" title="外部地址" />
           </Tabs>
         </div>
         <div className="flex flex-row items-center gap-2">
@@ -1153,8 +1153,8 @@ export default function ScenarioCreateModal({
           </Select>
         </div>
         <div className="grid grid-cols-2 gap-3">
-          <div className="flex flex-row items-center gap-2">
-            <label className="text-sm whitespace-nowrap flex-shrink-0">目标地址</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm">目标地址</label>
             <Input
               isRequired
               readOnly={!formData.doubleTargetExternal}
@@ -1187,12 +1187,12 @@ export default function ScenarioCreateModal({
               }
             />
           </div>
-          <div className="flex flex-row items-center gap-2">
-            <label className="text-sm whitespace-nowrap flex-shrink-0">目标端口</label>
+          <div className="flex flex-col gap-1">
+            <label className="text-sm">目标端口</label>
             <NumberInput
               isRequired
-              labelPlacement="outside-left"
               placeholder="1080"
+              labelPlacement="outside-left"
               type="number"
               minValue={0}
               maxValue={65535}
@@ -1231,14 +1231,13 @@ export default function ScenarioCreateModal({
       {/* 可选配置 */}
       <div className="grid grid-cols-2 gap-3">
         {/* 监听类型 */}
-        <div className="flex flex-row items-center gap-2">
-          <label className="text-sm whitespace-nowrap flex-shrink-0">监听</label>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm">监听类型</label>
           <Tabs
             classNames={{
               tabContent: "group-data-[selected=true]:text-white text-xs",
             }}
-            color="success"
-            size="sm"
+            color="secondary"
             fullWidth
             selectedKey={formData.listenType}
             onSelectionChange={(key) =>
@@ -1252,8 +1251,8 @@ export default function ScenarioCreateModal({
         </div>
 
         {/* 日志级别 */}
-        <div className="flex flex-row items-center gap-2">
-          <label className="text-sm whitespace-nowrap flex-shrink-0">日志级别</label>
+        <div className="flex flex-col gap-1">
+          <label className="text-sm">日志级别</label>
           <Select
             selectedKeys={formData.logLevel ? [formData.logLevel] : ["inherit"]}
             onSelectionChange={(keys) => {
@@ -1402,7 +1401,7 @@ export default function ScenarioCreateModal({
           <div className="relative flex flex-col items-center">
             {formData.natTlsEnabled && (
               <div className="absolute -top-4">
-                <Icon className="text-sm text-success" icon="solar:lock-bold" />
+                <FontAwesomeIcon className="text-sm text-success" icon={faLock} />
               </div>
             )}
             <Icon
@@ -1481,7 +1480,7 @@ export default function ScenarioCreateModal({
           <div className="relative flex flex-col items-center">
             {formData.doubleTlsEnabled && (
               <div className="absolute -top-4">
-                <Icon className="text-sm text-success" icon="solar:lock-bold" />
+                <FontAwesomeIcon className="text-sm text-success" icon={faLock} />
               </div>
             )}
             <Icon
