@@ -14,7 +14,7 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
-  CardFooter 
+  CardFooter
 } from "@heroui/react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -44,7 +44,7 @@ import { buildApiUrl, formatBytes } from "@/lib/utils";
 import { useSettings } from "@/components/providers/settings-provider";
 import ScenarioCreateModal, {
   ScenarioType,
-} from "@/components/tunnels/scenario-create-modal";
+} from "@/components/services/service-create-modal";
 import AssembleServiceModal from "@/components/services/assemble-service-modal";
 import RenameServiceModal from "@/components/services/rename-service-modal";
 import { HeroUIServiceCard } from "@/components/services/heroui-service-card";
@@ -375,7 +375,7 @@ export default function ServicesPage() {
       case "0":
         return "单端转发";
       case "1":
-        return "NAT穿透";
+        return "内网穿透";
       case "2":
         return "隧道转发";
       case "3":
@@ -483,14 +483,19 @@ export default function ServicesPage() {
             >
               <DropdownItem
                 key="nat-penetration"
+                color="success"
+                classNames={{
+                  title: "group-hover:text-white"
+                }}
                 startContent={
-                  <FontAwesomeIcon fixedWidth icon={faShield} />
+                  <FontAwesomeIcon fixedWidth icon={faShield} className="group-hover:text-white" />
                 }
               >
-                NAT穿透
+                内网穿透
               </DropdownItem>
               <DropdownItem
                 key="single-forward"
+                color="primary"
                 startContent={
                   <FontAwesomeIcon fixedWidth icon={faArrowRight} />
                 }
@@ -499,6 +504,7 @@ export default function ServicesPage() {
               </DropdownItem>
               <DropdownItem
                 key="tunnel-forward"
+                color="secondary"
                 startContent={
                   <FontAwesomeIcon fixedWidth icon={faExchangeAlt} />
                 }

@@ -259,7 +259,7 @@ export default function ServiceDetailsPage() {
       case "0":
         return "单端转发";
       case "1":
-        return "NAT穿透";
+        return "内网穿透";
       case "2":
         return "隧道转发";
       default:

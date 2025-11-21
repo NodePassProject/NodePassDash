@@ -1694,12 +1694,12 @@ export default function TunnelsPage() {
                       sortDescriptor?.column ? (
                         <FontAwesomeIcon
                           icon={sortDescriptor.direction === 'ascending' ? faArrowUp : faArrowDown}
-                          className="text-white"
+                          className="text-foreground"
                         />
                       ) : (
                          <FontAwesomeIcon
                           icon={faSort}
-                          className="text-white"
+                          className="text-foreground"
                         />
                         // <Icon className="text-default-400" icon="solar:sort-linear" width={16} />
                       )
