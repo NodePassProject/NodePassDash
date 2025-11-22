@@ -976,7 +976,7 @@ export default function TunnelsPage() {
               color="primary"
               size="sm"
               variant="light"
-              onClick={() => navigate(`/tunnels/details?id=${tunnel.id}`)}
+              onPress={() => navigate(`/tunnels/details?id=${tunnel.instanceId}`)}
             >
               <FontAwesomeIcon className="text-xs" icon={faEye} />
             </Button>
@@ -1697,7 +1697,7 @@ export default function TunnelsPage() {
                           className="text-foreground"
                         />
                       ) : (
-                         <FontAwesomeIcon
+                        <FontAwesomeIcon
                           icon={faSort}
                           className="text-foreground"
                         />

@@ -2344,7 +2344,7 @@ export default function TunnelDetailPage() {
                             content={hasValue ? tunnelInfo.dial : (configValue ? configValue : "-")}
                             placement="top"
                           >
-                            <span className="font-mono text-sm ">
+                            <span className="font-mono text-sm truncate block">
                               {hasValue ? tunnelInfo.dial : (configValue ? configValue : "-")}
                               {!hasValue && configValue && (
                                 <span className="text-default-400 text-xs ml-1">
