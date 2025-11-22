@@ -1470,7 +1470,7 @@ export default function ServicesDetailsDemoPage() {
             clientTargetAddress={clientTunnel.targetAddress || ""}
             clientTargetPort={clientTunnel.targetPort || 0}
             clientTunnelAddress={clientTunnel.tunnelAddress || ""}
-            extendTargetAddress={[]}
+            clientExtendTargetAddress={[]}
             isOpen={tcpingModalOpen}
             serverInstanceId={service.serverInstanceId}
             serverTargetAddress={serverTunnel?.targetAddress || ""}

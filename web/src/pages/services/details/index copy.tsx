@@ -1261,7 +1261,7 @@ export default function ServiceDetailsPage() {
             clientTargetAddress={clientTunnel.targetAddress || ""}
             clientTargetPort={clientTunnel.targetPort || 0}
             clientTunnelAddress={clientTunnel.tunnelAddress || ""}
-            extendTargetAddress={clientTunnel.extendTargetAddress || []}
+            clientExtendTargetAddress={clientTunnel.extendTargetAddress || []}
             isOpen={tcpingModalOpen}
             serverInstanceId={service.serverInstanceId}
             serverTargetAddress={serverTunnel?.targetAddress || ""}

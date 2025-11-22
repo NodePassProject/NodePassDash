@@ -42,7 +42,8 @@ interface TcpingTestModalProps {
   serverListenPort?: number; // 新增：server 的监听端口
   serverTargetAddress?: string;
   serverTargetPort?: number;
-  extendTargetAddress?: string[]; // 扩展目标地址（负载均衡）
+  clientExtendTargetAddress?: string[]; // 扩展目标地址（负载均衡）
+  serverExtendTargetAddress?: string[]; // 扩展目标地址（负载均衡）
 }
 
 interface TcpingResult {
@@ -74,7 +75,8 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
   serverListenPort,
   serverTargetAddress,
   serverTargetPort,
-  extendTargetAddress = [],
+  clientExtendTargetAddress = [],
+  serverExtendTargetAddress = [],
 }) => {
   const [tcpingTarget, setTcpingTarget] = React.useState("");
   const [tcpingLoading, setTcpingLoading] = React.useState(false);
@@ -146,6 +148,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
     let exitAddr = "";
     let exitPort = 0;
     let exitInstanceId = "";
+    let extendTargetAddress: string[] = [];
 
     if (serviceType === "0" || serviceType === "5") {
       // type=0,5: 单端转发/均衡单端转发 - 使用 client 的 tunnelAddress，如果为空则使用 endpoint.host
@@ -155,6 +158,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
       exitAddr = clientTargetAddress || "";
       exitPort = clientTargetPort || 0;
       exitInstanceId = clientInstanceId || "";
+      extendTargetAddress = clientExtendTargetAddress
     } else if (serviceType === "1" || serviceType === "3" || serviceType === "6") {
       // type=1,3,6: 内网穿透 - 使用 server 的 tunnelAddress，如果为空则使用 server 的 endpoint.host
       entryAddr = serverTunnelAddress || serverEndpointHost || "";
@@ -163,6 +167,8 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
       exitAddr = clientTargetAddress || "";
       exitPort = clientTargetPort || 0;
       exitInstanceId = clientInstanceId || "";
+      extendTargetAddress = clientExtendTargetAddress
+
     } else {
       // type=2,4,7: 隧道转发 - 使用 server 的 tunnelAddress，如果为空则使用 server 的 endpoint.host
       entryAddr = clientTargetAddress || clientEndpointHost || "";
@@ -172,6 +178,8 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
       exitAddr = serverTargetAddress || "";
       exitPort = serverTargetPort || 0;
       exitInstanceId = serverInstanceId || "";
+      extendTargetAddress = serverExtendTargetAddress
+
     }
 
     const entryFullAddr = `${entryAddr}:${entryPort}`;
@@ -216,7 +224,8 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
     serverListenPort,
     clientTargetAddress,
     clientTargetPort,
-    extendTargetAddress,
+    clientExtendTargetAddress,
+    serverExtendTargetAddress,
     clientInstanceId,
     serverInstanceId,
   ]);
