@@ -38,6 +38,7 @@ interface TcpingTestModalProps {
   serverInstanceId?: string;
   serverTunnelAddress?: string; // 新增：server 的隧道地址
   serverEndpointHost?: string; // 新增：server 的 endpoint host
+  clientEndpointHost?: string; // 新增：server 的 endpoint host
   serverListenPort?: number; // 新增：server 的监听端口
   serverTargetAddress?: string;
   serverTargetPort?: number;
@@ -69,6 +70,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
   serverInstanceId,
   serverTunnelAddress,
   serverEndpointHost,
+  clientEndpointHost,
   serverListenPort,
   serverTargetAddress,
   serverTargetPort,
@@ -141,17 +143,35 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
     let entryAddr = "";
     let entryPort = 0;
     let entryInstanceId = "";
+    let exitAddr = "";
+    let exitPort = 0;
+    let exitInstanceId = "";
 
-    if (serviceType === "0") {
-      // type=0: 使用 client 的 tunnelAddress，如果为空则使用 client 的 endpoint.host
-      entryAddr = clientTunnelAddress || serverEndpointHost || "";
+    if (serviceType === "0" || serviceType === "5") {
+      // type=0,5: 单端转发/均衡单端转发 - 使用 client 的 tunnelAddress，如果为空则使用 endpoint.host
+      entryAddr = clientTunnelAddress || clientEndpointHost || "";
       entryPort = clientListenPort || 0;
       entryInstanceId = clientInstanceId || "";
-    } else {
-      // type=1,2: 使用 server 的 tunnelAddress，如果为空则使用 server 的 endpoint.host
+      exitAddr = clientTargetAddress || "";
+      exitPort = clientTargetPort || 0;
+      exitInstanceId = clientInstanceId || "";
+    } else if (serviceType === "1" || serviceType === "3" || serviceType === "6") {
+      // type=1,3,6: 内网穿透 - 使用 server 的 tunnelAddress，如果为空则使用 server 的 endpoint.host
       entryAddr = serverTunnelAddress || serverEndpointHost || "";
-      entryPort = serverListenPort || 0;
+      entryPort = serverTargetPort || 0;
       entryInstanceId = serverInstanceId || "";
+      exitAddr = clientTargetAddress || "";
+      exitPort = clientTargetPort || 0;
+      exitInstanceId = clientInstanceId || "";
+    } else {
+      // type=2,4,7: 隧道转发 - 使用 server 的 tunnelAddress，如果为空则使用 server 的 endpoint.host
+      entryAddr = clientTargetAddress || clientEndpointHost || "";
+      entryPort = clientTargetPort || 0;
+      entryInstanceId = clientInstanceId || "";
+
+      exitAddr = serverTargetAddress || "";
+      exitPort = serverTargetPort || 0;
+      exitInstanceId = serverInstanceId || "";
     }
 
     const entryFullAddr = `${entryAddr}:${entryPort}`;
@@ -164,13 +184,13 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
     });
 
     // 添加出口地址（主目标地址）
-    const mainAddr = `${clientTargetAddress}:${clientTargetPort}`;
+    const mainAddr = `${exitAddr}:${exitPort}`;
     addresses.push({
       key: "exit-main",
       type: "exit",
       label: "出口地址",
       address: mainAddr,
-      instanceId: clientInstanceId || "",
+      instanceId: exitInstanceId || "",
     });
 
     // 添加扩展目标地址

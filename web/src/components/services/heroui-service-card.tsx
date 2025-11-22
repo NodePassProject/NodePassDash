@@ -47,7 +47,7 @@ interface ServiceCardProps {
   formatHost: (host: string | undefined) => string;
   getTypeLabel: (type: string) => string;
   getTypeIcon: (type: string) => any;
-  getTypeColor: (type: string) => "primary" | "success" | "secondary" | "default";
+  getTypeColor: (type: string) => "primary" | "success" | "secondary" | "warning" | "default";
   onNavigate: () => void;
   onAction: (action: string) => void;
 }
@@ -76,7 +76,8 @@ export function HeroUIServiceCard({
         <div className={`absolute top-0 left-0 right-0 h-1 ${cardColor === "primary" ? "bg-primary" :
             cardColor === "success" ? "bg-success" :
               cardColor === "secondary" ? "bg-secondary" :
-                "bg-default-300"
+                cardColor === "warning" ? "bg-warning" :
+                  "bg-default-300"
           }`} />
 
         {/* 右上角操作菜单 */}

@@ -29,6 +29,7 @@ USER_PORT="$DEFAULT_PORT"
 ENABLE_HTTPS="false"
 CERT_PATH=""
 KEY_PATH=""
+VERSION_TYPE="stable"  # stable 或 beta
 
 # GitHub 仓库信息
 GITHUB_REPO="NodePassProject/NodePassDash"
@@ -56,24 +57,28 @@ show_help() {
     echo "NodePassDash 一键安装/卸载脚本"
     echo
     echo "使用方式:"
-    echo "  $0 [install|uninstall] [选项]"
+    echo "  $0 [install|uninstall|switch] [选项]"
     echo
     echo "命令:"
     echo "  install    安装 NodePassDash (默认)"
     echo "  uninstall  卸载 NodePassDash"
+    echo "  switch     切换版本 (stable <-> beta)"
     echo
     echo "安装选项:"
     echo "  --port PORT           指定端口 (默认: 3000)"
     echo "  --https               启用 HTTPS"
     echo "  --cert PATH           HTTPS 证书文件路径"
     echo "  --key PATH            HTTPS 私钥文件路径"
+    echo "  --beta                安装 Beta 版本"
     echo "  --non-interactive     非交互式安装"
     echo "  --help                显示此帮助信息"
     echo
     echo "示例:"
-    echo "  $0 install                                    # 默认安装"
-    echo "  $0 install --port 8080                       # 指定端口"
+    echo "  $0 install                                    # 默认安装正式版"
+    echo "  $0 install --beta                             # 安装 Beta 版"
+    echo "  $0 install --port 8080                        # 指定端口"
     echo "  $0 install --https --cert /path/cert.pem --key /path/key.pem  # HTTPS"
+    echo "  $0 switch                                     # 切换版本"
     echo "  $0 uninstall                                  # 卸载"
 }
 
@@ -81,7 +86,7 @@ show_help() {
 parse_args() {
     local command="install"
     local non_interactive=false
-    
+
     while [[ $# -gt 0 ]]; do
         case $1 in
             install)
@@ -90,6 +95,10 @@ parse_args() {
                 ;;
             uninstall)
                 command="uninstall"
+                shift
+                ;;
+            switch)
+                command="switch"
                 shift
                 ;;
             --port)
@@ -108,6 +117,10 @@ parse_args() {
                 KEY_PATH="$2"
                 shift 2
                 ;;
+            --beta)
+                VERSION_TYPE="beta"
+                shift
+                ;;
             --non-interactive)
                 non_interactive=true
                 shift
@@ -123,12 +136,7 @@ parse_args() {
                 ;;
         esac
     done
-    
-    # 如果没有指定命令且传入了 uninstall，则执行卸载
-    if [[ "$1" == "uninstall" ]]; then
-        command="uninstall"
-    fi
-    
+
     case $command in
         install)
             if ! $non_interactive; then
@@ -139,6 +147,9 @@ parse_args() {
             ;;
         uninstall)
             main_uninstall
+            ;;
+        switch)
+            main_switch_version
             ;;
         *)
             log_error "未知命令: $command"
@@ -155,31 +166,39 @@ interactive_config() {
     echo "🔧 NodePassDash 配置"
     echo "=========================================="
     echo
-    
+
+    # 版本类型配置
+    echo -n "选择版本类型 [1.正式版 2.Beta版] (默认: 1): "
+    read version_choice
+    if [[ "$version_choice" == "2" ]]; then
+        VERSION_TYPE="beta"
+    fi
+
     # 端口配置
     echo -n "请输入监听端口 [默认: $DEFAULT_PORT]: "
     read input_port
     if [[ -n "$input_port" ]]; then
         USER_PORT="$input_port"
     fi
-    
+
     # HTTPS 配置
     echo -n "是否启用 HTTPS? [y/N]: "
     read enable_https
     if [[ "$enable_https" =~ ^[Yy]$ ]]; then
         ENABLE_HTTPS="true"
-        
+
         echo -n "请输入证书文件路径 (.crt/.pem): "
         read cert_path
         CERT_PATH="$cert_path"
-        
+
         echo -n "请输入私钥文件路径 (.key): "
         read key_path
         KEY_PATH="$key_path"
     fi
-    
+
     echo
     echo "配置总结:"
+    echo "  版本类型: $VERSION_TYPE"
     echo "  端口: $USER_PORT"
     echo "  HTTPS: $ENABLE_HTTPS"
     if [[ "$ENABLE_HTTPS" == "true" ]]; then
@@ -320,26 +339,41 @@ check_dependencies() {
 
 # 获取最新版本信息
 get_latest_version() {
-    log_info "获取最新版本信息..."
-    
+    log_info "获取最新${VERSION_TYPE}版本信息..."
+
     local api_response
-    api_response=$(curl -s "$GITHUB_API/releases/latest")
-    
-    if [[ $? -ne 0 ]]; then
-        log_error "无法获取版本信息，请检查网络连接"
-        exit 1
+
+    if [[ "$VERSION_TYPE" == "beta" ]]; then
+        # 获取所有 releases（包括 prerelease）
+        api_response=$(curl -s "$GITHUB_API/releases")
+
+        if [[ $? -ne 0 ]]; then
+            log_error "无法获取版本信息，请检查网络连接"
+            exit 1
+        fi
+
+        # 提取第一个 prerelease 版本
+        VERSION=$(echo "$api_response" | grep -B 1 '"prerelease": true' | grep '"tag_name"' | head -1 | sed -E 's/.*"([^"]+)".*/\1/')
+    else
+        # 获取最新正式版
+        api_response=$(curl -s "$GITHUB_API/releases/latest")
+
+        if [[ $? -ne 0 ]]; then
+            log_error "无法获取版本信息，请检查网络连接"
+            exit 1
+        fi
+
+        VERSION=$(echo "$api_response" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
     fi
-    
-    VERSION=$(echo "$api_response" | grep '"tag_name":' | sed -E 's/.*"([^"]+)".*/\1/')
-    
+
     if [[ -z "$VERSION" ]]; then
         log_error "解析版本信息失败"
         exit 1
     fi
-    
+
     DOWNLOAD_URL="https://github.com/${GITHUB_REPO}/releases/download/${VERSION}/NodePassDash_${DOWNLOAD_ARCH}.tar.gz"
-    
-    log_success "最新版本: $VERSION"
+
+    log_success "最新${VERSION_TYPE}版本: $VERSION"
     log_info "下载架构: $DOWNLOAD_ARCH"
 }
 
@@ -448,12 +482,12 @@ setup_user_and_dirs() {
     fi
     
     # 创建目录结构
-    mkdir -p "$INSTALL_DIR"/{bin,data,logs,backups}
-    
+    mkdir -p "$INSTALL_DIR"/{bin,db,logs,backups}
+
     # 设置权限
     chown -R root:root "$INSTALL_DIR/bin" 2>/dev/null || true
-    chown -R "$USER_NAME:$USER_NAME" "$INSTALL_DIR"/{data,logs,backups}
-    # nodepassdash 运行时会创建 dist 和 public 目录，确保有写权限
+    chown -R "$USER_NAME:$USER_NAME" "$INSTALL_DIR"/{db,logs,backups}
+    # nodepassdash 需要在工作目录创建数据库文件，确保有写权限
     chown "$USER_NAME:$USER_NAME" "$INSTALL_DIR"
     
     log_success "目录结构创建完成"
@@ -467,12 +501,6 @@ install_binary() {
     if [[ -f "$INSTALL_DIR/bin/$BINARY_NAME" ]]; then
         cp "$INSTALL_DIR/bin/$BINARY_NAME" "$INSTALL_DIR/bin/${BINARY_NAME}.backup.$(date +%Y%m%d%H%M%S)"
         log_info "已备份旧版本"
-        
-        # 删除前端资源目录，强制重新释放
-        if [[ -d "$INSTALL_DIR/dist" ]]; then
-            log_info "删除旧的前端资源..."
-            rm -rf "$INSTALL_DIR/dist"
-        fi
     fi
     
     # 安装新版本
@@ -496,8 +524,15 @@ create_config() {
 # NodePassDash 配置文件
 # 此文件由安装脚本自动生成
 
+# 版本信息
+VERSION=$VERSION
+VERSION_TYPE=$VERSION_TYPE
+
 # 服务端口
 PORT=$USER_PORT
+
+# 数据库配置
+DB_PATH=$INSTALL_DIR/db/database.db
 
 # HTTPS 配置
 ENABLE_HTTPS=$ENABLE_HTTPS
@@ -576,12 +611,12 @@ StandardOutput=journal
 StandardError=journal
 SyslogIdentifier=nodepassdash
 
-# 安全设置（先注释掉一些严格的限制，避免权限问题）
+# 安全设置
 NoNewPrivileges=true
 # PrivateTmp=true
 # ProtectSystem=strict
 # ProtectHome=true
-# nodepassdash 需要在工作目录创建 dist 和 public 目录
+# 程序需要在工作目录创建和访问数据库文件
 ReadWritePaths=$INSTALL_DIR
 
 # 资源限制
@@ -630,48 +665,82 @@ show_config() {
 
 uninstall_nodepassdash() {
     echo "开始卸载 NodePassDash..."
-    
+
     # 停止并禁用服务
     if systemctl is-active --quiet $SERVICE_NAME; then
         echo "停止服务..."
         sudo systemctl stop $SERVICE_NAME
     fi
-    
+
     if systemctl is-enabled --quiet $SERVICE_NAME 2>/dev/null; then
         echo "禁用服务..."
         sudo systemctl disable $SERVICE_NAME
     fi
-    
+
     # 删除服务文件
     if [[ -f "/etc/systemd/system/$SERVICE_NAME.service" ]]; then
         echo "删除服务文件..."
         sudo rm -f "/etc/systemd/system/$SERVICE_NAME.service"
         sudo systemctl daemon-reload
     fi
-    
+
     # 删除安装目录
     if [[ -d "$INSTALL_DIR" ]]; then
         echo "删除安装目录..."
         sudo rm -rf "$INSTALL_DIR"
     fi
-    
+
     # 删除用户
     if id nodepass &>/dev/null; then
         echo "删除用户..."
         sudo userdel nodepass 2>/dev/null || true
     fi
-    
+
     # 删除软链接
     if [[ -L "/usr/local/bin/nodepassdash" ]]; then
         echo "删除软链接..."
         sudo rm -f "/usr/local/bin/nodepassdash"
     fi
-    
+
     # 删除管理脚本本身
     echo "删除管理脚本..."
     sudo rm -f "/usr/local/bin/nodepassdash-ctl"
-    
+
     echo "NodePassDash 卸载完成！"
+}
+
+switch_version() {
+    echo "切换版本..."
+
+    # 读取当前版本类型
+    local current_type="stable"
+    if [[ -f "$CONFIG_FILE" ]]; then
+        current_type=$(grep "^VERSION_TYPE=" "$CONFIG_FILE" | cut -d'=' -f2)
+    fi
+
+    # 确定目标版本类型
+    local target_type="beta"
+    if [[ "$current_type" == "beta" ]]; then
+        target_type="stable"
+    fi
+
+    echo "当前版本类型: $current_type"
+    echo "目标版本类型: $target_type"
+    echo
+    echo "确认要切换到 $target_type 版本吗？[y/N]"
+    read -r confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        echo "取消切换"
+        exit 0
+    fi
+
+    # 使用安装脚本进行切换
+    echo "开始切换版本..."
+    if [[ "$target_type" == "beta" ]]; then
+        curl -fsSL https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/scripts/install.sh | sudo bash -s -- install --beta --non-interactive
+    else
+        curl -fsSL https://raw.githubusercontent.com/NodePassProject/NodePassDash/main/scripts/install.sh | sudo bash -s -- install --non-interactive
+    fi
 }
 
 case "$1" in
@@ -696,7 +765,7 @@ case "$1" in
     reset-password)
         echo "重置管理员密码..."
         sudo systemctl stop $SERVICE_NAME
-        sudo -u nodepass $BINARY_PATH --reset-pwd
+        sudo -u nodepass $BINARY_PATH --resetpwd
         sudo systemctl start $SERVICE_NAME
         ;;
     update)
@@ -715,8 +784,11 @@ case "$1" in
             echo "取消卸载"
         fi
         ;;
+    switch-version)
+        switch_version
+        ;;
     *)
-        echo "使用方式: $0 {start|stop|restart|status|logs|reset-password|update|config|uninstall}"
+        echo "使用方式: $0 {start|stop|restart|status|logs|reset-password|update|config|switch-version|uninstall}"
         exit 1
         ;;
 esac
@@ -845,12 +917,13 @@ show_result() {
     echo "   nodepassdash-ctl logs        # 查看日志"
     echo "   nodepassdash-ctl reset-password  # 重置密码"
     echo "   nodepassdash-ctl update      # 更新版本"
+    echo "   nodepassdash-ctl switch-version  # 切换版本 (stable/beta)"
     echo "   nodepassdash-ctl config      # 查看配置"
     echo "   nodepassdash-ctl uninstall   # 卸载系统"
     echo
     echo "📁 重要路径:"
     echo "   程序目录: $INSTALL_DIR"
-    echo "   数据目录: $INSTALL_DIR/data"
+    echo "   数据目录: $INSTALL_DIR/db"
     echo "   日志目录: $INSTALL_DIR/logs"
     echo "   配置文件: $INSTALL_DIR/config.env"
     if [[ "$ENABLE_HTTPS" == "true" ]]; then
@@ -858,6 +931,7 @@ show_result() {
     fi
     echo
     echo "🔧 当前配置:"
+    echo "   版本: $VERSION ($VERSION_TYPE)"
     echo "   端口: $USER_PORT"
     echo "   HTTPS: $ENABLE_HTTPS"
     if [[ "$ENABLE_HTTPS" == "true" ]]; then
@@ -916,13 +990,13 @@ main_uninstall() {
     fi
     
     # 备份数据（可选）
-    if [[ -d "$INSTALL_DIR/data" ]] && [[ -n "$(ls -A $INSTALL_DIR/data 2>/dev/null)" ]]; then
+    if [[ -d "$INSTALL_DIR/db" ]] && [[ -n "$(ls -A $INSTALL_DIR/db 2>/dev/null)" ]]; then
         echo -n "是否备份数据到 /tmp/nodepassdash-backup-$(date +%Y%m%d%H%M%S).tar.gz？[Y/n]: "
         read backup_confirm
         if [[ ! "$backup_confirm" =~ ^[Nn]$ ]]; then
             local backup_file="/tmp/nodepassdash-backup-$(date +%Y%m%d%H%M%S).tar.gz"
             log_info "备份数据到 $backup_file..."
-            tar -czf "$backup_file" -C "$INSTALL_DIR" data logs config.env 2>/dev/null || true
+            tar -czf "$backup_file" -C "$INSTALL_DIR" db logs config.env 2>/dev/null || true
             log_success "数据已备份到 $backup_file"
         fi
     fi
@@ -983,6 +1057,92 @@ main_uninstall() {
     echo
     log_success "NodePassDash 已完全从系统中移除"
     echo
+}
+
+# 版本切换功能
+main_switch_version() {
+    echo "=========================================="
+    echo "🔄 NodePassDash 版本切换"
+    echo "=========================================="
+    echo
+
+    check_root
+
+    # 检查是否已安装
+    if [[ ! -f "$INSTALL_DIR/bin/$BINARY_NAME" ]]; then
+        log_error "NodePassDash 未安装，请先安装"
+        exit 1
+    fi
+
+    # 读取当前配置
+    local current_version=""
+    local current_type="stable"
+    if [[ -f "$INSTALL_DIR/config.env" ]]; then
+        current_version=$(grep "^VERSION=" "$INSTALL_DIR/config.env" | cut -d'=' -f2)
+        current_type=$(grep "^VERSION_TYPE=" "$INSTALL_DIR/config.env" | cut -d'=' -f2)
+    fi
+
+    # 确定目标版本类型
+    local target_type="beta"
+    if [[ "$current_type" == "beta" ]]; then
+        target_type="stable"
+    fi
+
+    echo "当前版本: $current_version ($current_type)"
+    echo "目标版本类型: $target_type"
+    echo
+    echo -n "确认要切换到 $target_type 版本吗？[y/N]: "
+    read confirm
+    if [[ ! "$confirm" =~ ^[Yy]$ ]]; then
+        log_info "版本切换已取消"
+        exit 0
+    fi
+
+    # 设置版本类型并执行安装流程
+    VERSION_TYPE="$target_type"
+
+    # 读取现有配置
+    if [[ -f "$INSTALL_DIR/config.env" ]]; then
+        USER_PORT=$(grep "^PORT=" "$INSTALL_DIR/config.env" | cut -d'=' -f2)
+        ENABLE_HTTPS=$(grep "^ENABLE_HTTPS=" "$INSTALL_DIR/config.env" | cut -d'=' -f2)
+        if [[ "$ENABLE_HTTPS" == "true" ]]; then
+            CERT_PATH="$INSTALL_DIR/certs/server.crt"
+            KEY_PATH="$INSTALL_DIR/certs/server.key"
+        fi
+    fi
+
+    log_info "开始切换到 $target_type 版本..."
+
+    detect_system
+    check_dependencies
+    get_latest_version
+    download_binary
+
+    # 停止服务
+    if systemctl is-active --quiet $SERVICE_NAME; then
+        log_info "停止服务..."
+        systemctl stop $SERVICE_NAME
+    fi
+
+    install_binary
+    create_config
+
+    # 重启服务
+    log_info "重启服务..."
+    systemctl start $SERVICE_NAME
+
+    cleanup
+
+    echo
+    echo "=========================================="
+    echo -e "${GREEN}✅ 版本切换完成！${NC}"
+    echo "=========================================="
+    echo
+    echo "新版本: $VERSION ($target_type)"
+    echo
+    echo "使用 'nodepassdash-ctl status' 查看服务状态"
+    echo "使用 'nodepassdash-ctl logs' 查看运行日志"
+    echo "=========================================="
 }
 
 # 主安装流程

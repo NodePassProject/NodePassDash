@@ -10,7 +10,7 @@ interface SortableServiceCardProps {
   formatHost: (host: string | undefined) => string;
   getTypeLabel: (type: string) => string;
   getTypeIcon: (type: string) => any;
-  getTypeColor: (type: string) => "primary" | "success" | "secondary" | "default";
+  getTypeColor: (type: string) => "primary" | "success" | "secondary" | "warning" | "default";
   onNavigate: () => void;
   onAction: (action: string) => void;
 }

@@ -195,6 +195,9 @@ interface TemplateCreateRequest {
   cert_path?: string;
   key_path?: string;
   tunnel_name?: string;
+  service_type?: number; // 服务类型 0-7
+  listen_type?: string; // 监听类型 TCP/UDP/ALL
+  extend_target_address?: string[]; // 扩展目标地址（负载均衡）
   inbounds?: {
     target_host: string;
     target_port: number;
@@ -213,6 +216,39 @@ export type ScenarioType =
   | "single-forward"
   | "tunnel-forward"
   | "nat-penetration";
+
+/**
+ * 服务类型定义 (0-7)
+ * 0: 通用单端转发
+ * 1: 本地内网穿透
+ * 2: 本地隧道转发
+ * 3: 外部内网穿透
+ * 4: 外部隧道转发
+ * 5: 均衡单端转发
+ * 6: 均衡内网穿透
+ * 7: 均衡隧道转发
+ */
+export const SERVICE_TYPE_LABELS: Record<number, string> = {
+  0: "通用单端转发",
+  1: "本地内网穿透",
+  2: "本地隧道转发",
+  3: "外部内网穿透",
+  4: "外部隧道转发",
+  5: "均衡单端转发",
+  6: "均衡内网穿透",
+  7: "均衡隧道转发",
+};
+
+export const SERVICE_TYPE_COLORS: Record<number, "primary" | "success" | "secondary" | "warning" | "default"> = {
+  0: "primary",    // 单端转发 - 蓝色
+  1: "success",    // 内网穿透 - 绿色
+  2: "secondary",  // 隧道转发 - 紫色
+  3: "success",    // 外部内网穿透 - 绿色
+  4: "secondary",  // 外部隧道转发 - 紫色
+  5: "warning",    // 均衡单端转发 - 橙色
+  6: "warning",    // 均衡内网穿透 - 橙色
+  7: "warning",    // 均衡隧道转发 - 橙色
+};
 
 interface ScenarioCreateModalProps {
   isOpen: boolean;
@@ -361,13 +397,23 @@ export default function ScenarioCreateModal({
           return null;
         }
 
+        // 单端转发: 0=通用, 5=均衡
+        const singleServiceType = isEnableExtendTargetsSingle ? 5 : 0;
+
+        // 处理扩展目标地址
+        const extendAddressesSingle = isEnableExtendTargetsSingle && formData.extendTargetAddressesSingle
+          ? formData.extendTargetAddressesSingle.split("\n").filter(addr => addr.trim()).map(addr => addr.trim())
+          : undefined;
+
         return {
           log: formData.logLevel || "debug",
           listen_host: "",
           listen_port: parseInt(formData.relayListenPort),
           mode: "single",
           tunnel_name: formData.tunnelName,
-          // listen_type: formData.listenType && formData.listenType !== "ALL" ? formData.listenType : undefined,
+          service_type: singleServiceType,
+          listen_type: formData.listenType && formData.listenType !== "ALL" ? formData.listenType : undefined,
+          extend_target_address: extendAddressesSingle,
           inbounds: {
             target_host: formData.singleTargetExternal ? formData.targetServerAddress : "127.0.0.1",
             target_port: parseInt(formData.targetServicePort),
@@ -389,21 +435,31 @@ export default function ScenarioCreateModal({
           return null;
         }
 
+        // 隧道转发: 2=本地, 4=外部, 7=均衡
+        const tunnelServiceType = isEnableExtendTargets2 ? 7 : (formData.doubleTargetExternal ? 4 : 2);
+
+        // 处理扩展目标地址
+        const extendAddresses2 = isEnableExtendTargets2 && formData.extendTargetAddresses2
+          ? formData.extendTargetAddresses2.split("\n").filter(addr => addr.trim()).map(addr => addr.trim())
+          : undefined;
+
         const doubleRequest: TemplateCreateRequest = {
           log: formData.logLevel || "debug",
           listen_port: parseInt(formData.relayTunnelPort2),
           mode: "bothway",
           tls: formData.doubleTlsEnabled ? 1 : 0,
           tunnel_name: formData.tunnelName,
+          service_type: tunnelServiceType,
           listen_type: formData.listenType && formData.listenType !== "ALL" ? formData.listenType : undefined,
+          extend_target_address: extendAddresses2,
           inbounds: {
-            target_host: formData.doubleTargetExternal ? formData.targetAddress2 : "127.0.0.1",
+            target_host: "",
             target_port: parseInt(formData.relayListenPort2),
             master_id: getEndpointIdByName(formData.targetServerEndpoint2),
             type: "client",
           },
           outbounds: {
-            target_host: "",
+            target_host: formData.doubleTargetExternal ? formData.targetAddress2 : "127.0.0.1",
             target_port: parseInt(formData.targetServicePort2),
             master_id: getEndpointIdByName(formData.relayServerEndpoint2),
             type: "server",
@@ -425,13 +481,23 @@ export default function ScenarioCreateModal({
           return null;
         }
 
+        // 内网穿透: 1=本地, 3=外部, 6=均衡
+        const natServiceType = isEnableExtendTargets ? 6 : (formData.natTargetExternal ? 3 : 1);
+
+        // 处理扩展目标地址
+        const extendAddresses = isEnableExtendTargets && formData.extendTargetAddresses
+          ? formData.extendTargetAddresses.split("\n").filter(addr => addr.trim()).map(addr => addr.trim())
+          : undefined;
+
         const natRequest: TemplateCreateRequest = {
           log: formData.logLevel || "debug",
           listen_port: parseInt(formData.publicTunnelPort),
           mode: "intranet",
           tls: formData.natTlsEnabled ? 1 : 0,
           tunnel_name: formData.tunnelName,
+          service_type: natServiceType,
           listen_type: formData.listenType && formData.listenType !== "ALL" ? formData.listenType : undefined,
+          extend_target_address: extendAddresses,
           inbounds: {
             target_host: "",
             target_port: parseInt(formData.publicListenPort),
@@ -491,7 +557,7 @@ export default function ScenarioCreateModal({
     try {
       setSubmitting(true);
 
-      const res = await fetch(buildApiUrl("/api/tunnels/template"), {
+      const res = await fetch(buildApiUrl("/api/services"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(requestData),
@@ -1461,11 +1527,12 @@ export default function ScenarioCreateModal({
           {/* 中转服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1">
-              {relayEndpoint
-                ? relayEndpoint.url
-                  ? extractHostFromUrl(relayEndpoint.url)
-                  : relayEndpoint.name
-                : "选择中转服务器"}
+              {targetEndpoint
+                ? targetEndpoint.url
+                  ? extractHostFromUrl(targetEndpoint.url)
+                  : targetEndpoint.name
+                : "选择目标服务器"}
+
             </span>
             <Icon
               className="text-3xl text-primary"
@@ -1492,11 +1559,11 @@ export default function ScenarioCreateModal({
           {/* 目标服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1">
-              {targetEndpoint
-                ? targetEndpoint.url
-                  ? extractHostFromUrl(targetEndpoint.url)
-                  : targetEndpoint.name
-                : "选择目标服务器"}
+              {relayEndpoint
+                ? relayEndpoint.url
+                  ? extractHostFromUrl(relayEndpoint.url)
+                  : relayEndpoint.name
+                : "选择中转服务器"}
             </span>
             <Icon
               className="text-3xl text-success"
@@ -1520,7 +1587,15 @@ export default function ScenarioCreateModal({
         const exits = [`${mainHost}:${port}`];
         if (extendAddresses) {
           const extraHosts = extendAddresses.split("\n").filter((addr) => addr.trim());
-          extraHosts.forEach((host) => exits.push(`${host.trim()}:${port}`));
+          extraHosts.forEach((host) => {
+            const trimmedHost = host.trim();
+            // 如果地址已经包含端口（存在冒号），直接使用；否则添加主端口
+            if (trimmedHost.includes(':')) {
+              exits.push(trimmedHost);
+            } else {
+              exits.push(`${trimmedHost}:${port}`);
+            }
+          });
         }
         return exits;
       };
@@ -1549,7 +1624,11 @@ export default function ScenarioCreateModal({
         const relayEndpoint = endpoints.find(
           (ep) => String(ep.id) === String(formData.relayServerEndpoint2)
         );
-        const entryHost = relayEndpoint?.url ? extractHostFromUrl(relayEndpoint.url) : "选择服务器";
+        const targetEndpoint = endpoints.find(
+          (ep) => String(ep.id) === String(formData.targetServerEndpoint2),
+        );
+        // const entryHost = formData.targetServerEndpoint2?.url ? extractHostFromUrl(formData.targetServerEndpoint2.url) : "选择目标服务器"
+        const entryHost = targetEndpoint? targetEndpoint.url? extractHostFromUrl(targetEndpoint.url) : targetEndpoint.name : "选择目标服务器";
         const entryPort = formData.relayListenPort2 || "10022";
         const exitHost = formData.doubleTargetExternal ? formData.targetAddress2 || "192.168.1.100" : "127.0.0.1";
         const exitPort = formData.targetServicePort2 || "1080";

@@ -451,15 +451,29 @@ func (s *ServiceImpl) SyncService(sid string) error {
 
 	// 根据 service.Type 查询并更新服务信息
 	switch service.Type {
-	case "0":
-		// type=0: 单端转发，只有 client 端
+	case "0", "5":
+		// type=0/5: 通用单端转发/均衡单端转发，只有 client 端
 		if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
 			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ClientInstanceId, *service.ClientEndpointId); err != nil {
 				return fmt.Errorf("同步客户端实例失败: %w", err)
 			}
 		}
-	case "1", "2":
-		// type=1/2: NAT穿透/隧道转发，有 client 和 server 两端
+	case "1", "3", "6":
+		// type=1/3/6: 内网穿透（本地/外部/均衡），有 client 和 server 两端
+		// 同步 client 端
+		if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
+			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ClientInstanceId, *service.ClientEndpointId); err != nil {
+				return fmt.Errorf("同步客户端实例失败: %w", err)
+			}
+		}
+		// 同步 server 端
+		if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
+			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ServerInstanceId, *service.ServerEndpointId); err != nil {
+				return fmt.Errorf("同步服务端实例失败: %w", err)
+			}
+		}
+	case "2", "4", "7":
+		// type=2/4/7: 隧道转发（本地/外部/均衡），有 client 和 server 两端
 		// 同步 client 端
 		if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
 			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ClientInstanceId, *service.ClientEndpointId); err != nil {
@@ -500,7 +514,8 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 	var updateColumns []string
 
 	switch serviceType {
-	case "0":
+	case "0", "5":
+		// type=0/5: 通用单端转发/均衡单端转发，只有 client 端
 		if tunnel.Type == models.TunnelModeServer {
 			return fmt.Errorf("服务 SID=%s 的 Type 为 0，但 tunnel 类型为 %s", sid, tunnel.Type)
 		}
@@ -517,24 +532,37 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 
 		updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "entrance_host", "entrance_port", "total_rx", "total_tx"}
 
-	case "1":
+	case "1", "3", "6":
+		// type=1/3/6: 内网穿透（本地/外部/均衡），有 client 和 server 两端
+		// 内网穿透：入口是Server端的目标地址，出口是Client端的目标地址
 		if tunnel.Type == models.TunnelModeServer {
 			service.ServerInstanceId = &instanceID
 			service.ServerEndpointId = &endpointID
-			service.EntranceHost = &tunnel.TargetAddress
-			service.EntrancePort = &tunnel.TargetPort
 			service.TunnelPort = &tunnel.TunnelPort
 
-			// 查询并填充 tunnelEndpointName
-			var endpoint models.Endpoint
-			if err := s.db.First(&endpoint, endpointID).Error; err == nil {
-				service.TunnelEndpointName = &endpoint.Name
-				if service.EntranceHost == nil || *service.EntranceHost == "" {
+			// 内网穿透 Server端：入口是server的监听地址
+			// 优先使用TunnelAddress，如果为空则使用endpoint的Hostname
+			if tunnel.TargetAddress != "" {
+				service.EntranceHost = &tunnel.TargetAddress
+			} else {
+				// 查询endpoint获取Hostname作为入口地址
+				var endpoint models.Endpoint
+				if err := s.db.First(&endpoint, endpointID).Error; err == nil {
+					service.TunnelEndpointName = &endpoint.Name
 					service.EntranceHost = &endpoint.Hostname
 				}
 			}
+			service.EntrancePort = &tunnel.TunnelPort
 
-			// type=1 server端: 查询 client 端的流量数据，相加
+			// 查询并填充 tunnelEndpointName（如果前面没查询过）
+			if service.TunnelEndpointName == nil {
+				var endpoint models.Endpoint
+				if err := s.db.First(&endpoint, endpointID).Error; err == nil {
+					service.TunnelEndpointName = &endpoint.Name
+				}
+			}
+
+			// type=1/3/6 server端: 查询 client 端的流量数据，相加
 			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 client 端流量
@@ -549,10 +577,11 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 		} else {
 			service.ClientInstanceId = &instanceID
 			service.ClientEndpointId = &endpointID
+			// 内网穿透 Client端：出口是client的目标地址
 			service.ExitHost = &tunnel.TargetAddress
 			service.ExitPort = &tunnel.TargetPort
 
-			// type=1 client端: 查询 server 端的流量数据，相加
+			// type=1/3/6 client端: 查询 server 端的流量数据，相加
 			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 server 端流量
@@ -565,24 +594,25 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "total_rx", "total_tx"}
 		}
 
-	case "2":
+	case "2", "4", "7":
+		// type=2/4/7: 隧道转发（本地/外部/均衡），有 client 和 server 两端
+		// 隧道转发：入口是Client端的监听地址，出口是Server端的目标地址
 		if tunnel.Type == models.TunnelModeServer {
 			service.ServerInstanceId = &instanceID
 			service.ServerEndpointId = &endpointID
-			service.EntranceHost = &tunnel.TargetAddress
-			service.EntrancePort = &tunnel.TargetPort
 			service.TunnelPort = &tunnel.TunnelPort
 
-			// 查询并填充 tunnelEndpointName
-			var endpoint models.Endpoint
-			if err := s.db.First(&endpoint, endpointID).Error; err == nil {
-				service.TunnelEndpointName = &endpoint.Name
-				if service.EntranceHost == nil || *service.EntranceHost == "" {
-					service.EntranceHost = &endpoint.Hostname
-				}
-			}
+			// 隧道转发 Server端：出口是server的目标地址
+			service.ExitHost = &tunnel.TargetAddress
+			service.ExitPort = &tunnel.TargetPort
 
-			// type=2 server端: 查询 client 端的流量数据，相加
+			// 查询并填充 tunnelEndpointName
+			// var endpoint models.Endpoint
+			// if err := s.db.First(&endpoint, endpointID).Error; err == nil {
+			// 	service.TunnelEndpointName = &endpoint.Name
+			// }
+
+			// type=2/4/7 server端: 查询 client 端的流量数据，相加
 			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 client 端流量
@@ -592,15 +622,24 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 				service.TotalTx += clientTunnel.TCPTx + clientTunnel.UDPTx
 			}
 
-			updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "tunnel_endpoint_name", "entrance_host", "entrance_port", "total_rx", "total_tx"}
+			updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "tunnel_endpoint_name", "exit_host", "exit_port", "total_rx", "total_tx"}
 
 		} else {
 			service.ClientInstanceId = &instanceID
 			service.ClientEndpointId = &endpointID
-			service.ExitHost = &tunnel.TargetAddress
-			service.ExitPort = &tunnel.TargetPort
 
-			// type=2 client端: 查询 server 端的流量数据，相加
+			// 隧道转发 Client端：入口是client的监听地址
+			service.EntrancePort = &tunnel.TargetPort
+			service.EntranceHost = &tunnel.TargetAddress
+			// 查询endpoint获取Hostname作为入口地址
+			var endpoint models.Endpoint
+			if err := s.db.First(&endpoint, endpointID).Error; err == nil {
+				service.TunnelEndpointName = &endpoint.Name
+				if tunnel.TargetAddress == "" {
+					service.EntranceHost = &endpoint.Hostname
+				}
+			}
+			// type=2/4/7 client端: 查询 server 端的流量数据，相加
 			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 server 端流量
@@ -610,7 +649,7 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 				service.TotalTx += serverTunnel.TCPTx + serverTunnel.UDPTx
 			}
 
-			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "total_rx", "total_tx"}
+			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "entrance_host", "entrance_port", "total_rx", "total_tx"}
 		}
 	}
 

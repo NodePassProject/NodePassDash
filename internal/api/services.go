@@ -2,6 +2,7 @@ package api
 
 import (
 	"NodePassDash/internal/services"
+	"NodePassDash/internal/tunnel"
 	"net/http"
 
 	"github.com/gin-gonic/gin"
@@ -10,20 +11,25 @@ import (
 // ServicesHandler 服务处理器
 type ServicesHandler struct {
 	servicesService *services.ServiceImpl
+	tunnelService   *tunnel.Service
 }
 
 // NewServicesHandler 创建服务处理器
-func NewServicesHandler(servicesService *services.ServiceImpl) *ServicesHandler {
-	return &ServicesHandler{servicesService: servicesService}
+func NewServicesHandler(servicesService *services.ServiceImpl, tunnelService *tunnel.Service) *ServicesHandler {
+	return &ServicesHandler{
+		servicesService: servicesService,
+		tunnelService:   tunnelService,
+	}
 }
 
 // SetupServicesRoutes 设置服务相关路由
-func SetupServicesRoutes(rg *gin.RouterGroup, servicesService *services.ServiceImpl) {
+func SetupServicesRoutes(rg *gin.RouterGroup, servicesService *services.ServiceImpl, tunnelService *tunnel.Service) {
 	// 创建ServicesHandler实例
-	servicesHandler := NewServicesHandler(servicesService)
+	servicesHandler := NewServicesHandler(servicesService, tunnelService)
 
 	// 服务相关路由
 	rg.GET("/services", servicesHandler.GetServices)
+	rg.POST("/services", servicesHandler.CreateService) // 新增：创建服务接口
 	rg.GET("/services/:sid", servicesHandler.GetServiceByID)
 	rg.GET("/services/available-instances", servicesHandler.GetAvailableInstances)
 	rg.POST("/services/assemble", servicesHandler.AssembleService)
@@ -238,3 +244,5 @@ func (h *ServicesHandler) UpdateServicesSorts(c *gin.Context) {
 		"message": "排序已保存",
 	})
 }
+
+// ============ 辅助函数 ============

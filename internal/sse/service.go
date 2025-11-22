@@ -616,7 +616,7 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 	var updateColumns []string
 
 	switch *peer.Type {
-	case "0":
+	case "0", "5":
 		if tunnel.Type == models.TunnelModeServer {
 			// 抛错
 			log.Errorf("服务 SID=%s 的 Type 为 0，但 tunnel 类型为 %s，跳过处理", *peer.SID, tunnel.Type)
@@ -643,7 +643,7 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 		service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 
 		updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "entrance_host", "entrance_port", "total_rx", "total_tx"}
-	case "1":
+	case "1", "3", "6":
 		if tunnel.Type == models.TunnelModeServer {
 			service.ServerInstanceId = &instanceID
 			service.ServerEndpointId = &tunnel.EndpointID
@@ -689,21 +689,15 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 
 			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "total_rx", "total_tx"}
 		}
-	case "2":
+	case "2", "4", "7":
 		if tunnel.Type == models.TunnelModeServer {
 			service.ServerInstanceId = &instanceID
 			service.ServerEndpointId = &tunnel.EndpointID
-			service.EntranceHost = &tunnel.TargetAddress
-			service.EntrancePort = &tunnel.TargetPort
+
+			service.ExitHost = &tunnel.TargetAddress
+			service.ExitPort = &tunnel.TargetPort
+
 			service.TunnelPort = &tunnel.TunnelPort
-			// 查询并填充 tunnelEndpointName
-			var endpoint models.Endpoint
-			if err := s.db.First(&endpoint, tunnel.EndpointID).Error; err == nil {
-				service.TunnelEndpointName = &endpoint.Name
-				if service.EntranceHost == nil || *service.EntranceHost == "" {
-					service.EntranceHost = &endpoint.Hostname
-				}
-			}
 
 			// type=2 server端: 查询 client 端的流量数据，相加
 			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
@@ -715,13 +709,22 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 				service.TotalTx += clientTunnel.TCPTx + clientTunnel.UDPTx
 			}
 
-			updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "tunnel_endpoint_name", "entrance_host", "entrance_port", "total_rx", "total_tx"}
+			updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "exit_host", "exit_port", "total_rx", "total_tx"}
 		} else {
 			service.ClientInstanceId = &instanceID
 			service.ClientEndpointId = &tunnel.EndpointID
-			service.ExitHost = &tunnel.TargetAddress
-			service.ExitPort = &tunnel.TargetPort
 
+			service.EntranceHost = &tunnel.TargetAddress
+			service.EntrancePort = &tunnel.TargetPort
+
+			// 查询并填充 tunnelEndpointName
+			var endpoint models.Endpoint
+			if err := s.db.First(&endpoint, tunnel.EndpointID).Error; err == nil {
+				service.TunnelEndpointName = &endpoint.Name
+				if service.EntranceHost == nil || *service.EntranceHost == "" {
+					service.EntranceHost = &endpoint.Hostname
+				}
+			}
 			// type=2 client端: 查询 server 端的流量数据，相加
 			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
@@ -732,7 +735,7 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 				service.TotalTx += serverTunnel.TCPTx + serverTunnel.UDPTx
 			}
 
-			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "total_rx", "total_tx"}
+			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "tunnel_endpoint_name", "entrance_host", "entrance_port", "total_rx", "total_tx"}
 		}
 	}
 	// 检查服务是否已存在，如果不存在则自动设置 sorts

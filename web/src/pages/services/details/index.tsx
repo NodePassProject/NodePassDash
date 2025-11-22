@@ -254,14 +254,27 @@ export default function ServiceDetailsPage() {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0); // 保存当前页面索引
 
   // 根据 type 获取模式文案
+  // 0: 通用单端转发, 1: 本地内网穿透, 2: 本地隧道转发
+  // 3: 外部内网穿透, 4: 外部隧道转发, 5: 均衡单端转发
+  // 6: 均衡内网穿透, 7: 均衡隧道转发
   const getTypeLabel = (typeValue: string) => {
     switch (typeValue) {
       case "0":
-        return "单端转发";
+        return "通用单端转发";
       case "1":
-        return "内网穿透";
+        return "本地内网穿透";
       case "2":
-        return "隧道转发";
+        return "本地隧道转发";
+      case "3":
+        return "外部内网穿透";
+      case "4":
+        return "外部隧道转发";
+      case "5":
+        return "均衡单端转发";
+      case "6":
+        return "均衡内网穿透";
+      case "7":
+        return "均衡隧道转发";
       default:
         return typeValue;
     }
@@ -273,9 +286,19 @@ export default function ServiceDetailsPage() {
       case "0":
         return "Single-end Forwarding";
       case "1":
-        return "NAT Traversal";
+        return "Local NAT Traversal";
       case "2":
-        return "Tunnel Forwarding";
+        return "Local Tunnel Forwarding";
+      case "3":
+        return "External NAT Traversal";
+      case "4":
+        return "External Tunnel Forwarding";
+      case "5":
+        return "Load-balanced Single-end";
+      case "6":
+        return "Load-balanced NAT Traversal";
+      case "7":
+        return "Load-balanced Tunnel";
       default:
         return typeValue;
     }
@@ -285,25 +308,41 @@ export default function ServiceDetailsPage() {
   const getTypeIcon = (typeValue: string) => {
     switch (typeValue) {
       case "0":
-        return faArrowRight;
+      case "5":
+        return faArrowRight;  // 单端转发
       case "1":
-        return faShield;
+      case "3":
+      case "6":
+        return faShield;      // 内网穿透
       case "2":
-        return faExchangeAlt;
+      case "4":
+      case "7":
+        return faExchangeAlt; // 隧道转发
       default:
         return faServer;
     }
   };
 
   // 根据类型获取颜色
+  // 单端转发=primary(蓝), 内网穿透=success(绿), 隧道转发=secondary(紫), 均衡=warning(橙)
   const getTypeColor = (typeValue: string) => {
     switch (typeValue) {
       case "0":
-        return "primary";
+        return "primary";     // 通用单端转发 - 蓝色
       case "1":
-        return "success";
+        return "success";     // 本地内网穿透 - 绿色
       case "2":
-        return "secondary";
+        return "secondary";   // 本地隧道转发 - 紫色
+      case "3":
+        return "success";     // 外部内网穿透 - 绿色
+      case "4":
+        return "secondary";   // 外部隧道转发 - 紫色
+      case "5":
+        return "warning";     // 均衡单端转发 - 橙色
+      case "6":
+        return "warning";     // 均衡内网穿透 - 橙色
+      case "7":
+        return "warning";     // 均衡隧道转发 - 橙色
       default:
         return "default";
     }
@@ -1847,11 +1886,8 @@ export default function ServiceDetailsPage() {
               isOpen={tcpingModalOpen}
               serverInstanceId={service.serverInstanceId}
               serverTunnelAddress={serverTunnel?.tunnelAddress || ""}
-              serverEndpointHost={
-                service.type === "0"
-                  ? clientTunnel.endpoint?.host || ""
-                  : serverTunnel?.endpoint?.host || ""
-              }
+              serverEndpointHost={serverTunnel?.endpoint?.host || ""}
+              clientEndpointHost={clientTunnel.endpoint?.host || ""}
               serverListenPort={serverTunnel?.listenPort || 0}
               serverTargetAddress={serverTunnel?.targetAddress || ""}
               serverTargetPort={serverTunnel?.targetPort || 0}
