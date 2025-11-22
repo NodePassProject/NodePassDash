@@ -350,8 +350,8 @@ export default function ScenarioCreateModal({
             // publicServerEndpoint: "", // NAT穿透公网服务器不设默认值
             // localServerEndpoint: "", // NAT穿透本地服务器不设默认值
             // relayServerEndpoint: "", // 单端转发中转服务器不设默认值
-            relayServerEndpoint2: defaultEndpoint,
-            targetServerEndpoint2: defaultEndpoint,
+            // relayServerEndpoint2: defaultEndpoint,  // 隧道转发公网服务器不设默认值
+            // targetServerEndpoint2: defaultEndpoint,  // 隧道转发公网服务器不设默认值
           }));
         }
       } catch (err) {
@@ -590,7 +590,7 @@ export default function ScenarioCreateModal({
 
   // NAT穿透场景表单
   const renderNATForm = () => (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <Input
         isRequired
         placeholder="服务名称"
@@ -599,10 +599,10 @@ export default function ScenarioCreateModal({
       />
 
       {/* 公网服务器 */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-default-700">
-            公网服务器（拥有公网IP）
+          <h4 className="text-[15px] font-semibold text-default-700">
+            入口(服务端)
           </h4>
           <div className="flex items-center gap-2">
             <span className="text-xs text-default-500">TLS</span>
@@ -618,7 +618,10 @@ export default function ScenarioCreateModal({
         <div className="flex flex-row items-center gap-2">
           <Select
             isRequired
-            placeholder="选择服务器"
+            placeholder="选择入口服务器"
+            classNames={{
+              trigger: "bg-primary-900/40"
+            }}
             selectedKeys={
               formData.publicServerEndpoint
                 ? [formData.publicServerEndpoint]
@@ -641,35 +644,23 @@ export default function ScenarioCreateModal({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-sm">监听端口</label>
-            <NumberInput
+            <label className="text-sm">访问端口</label>
+            <Input
               isRequired
               placeholder="10022"
-              labelPlacement="outside-left"
               type="number"
-              minValue={0}
-              maxValue={65535}
-              value={formData.publicListenPort ? Number(formData.publicListenPort) : undefined}
+              value={formData.publicListenPort}
               onValueChange={(v) => handleField("publicListenPort", v ? String(v) : "")}
-              formatOptions={{
-                useGrouping: false,
-              }}
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm">隧道端口</label>
-            <NumberInput
+            <Input
               isRequired
               placeholder="10101"
               type="number"
-              minValue={0}
-              labelPlacement="outside-left"
-              maxValue={65535}
-              value={formData.publicTunnelPort ? Number(formData.publicTunnelPort) : undefined}
+              value={formData.publicTunnelPort}
               onValueChange={(v) => handleField("publicTunnelPort", v ? String(v) : "")}
-              formatOptions={{
-                useGrouping: false,
-              }}
               endContent={
                 <Tooltip content="随机生成端口号">
                   <button
@@ -693,14 +684,13 @@ export default function ScenarioCreateModal({
       </div>
 
       {/* 目标服务器 */}
-      <div className="space-y-3">
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-default-700">
-            目标服务器
+          <h4 className="text-[15px] font-semibold text-default-700">
+            出口(客户端)
           </h4>
           <Tabs
             size="sm"
-            color="warning"
             classNames={{
               tabList: "h-6 rounded-md p-0.5 gap-0",
               tab: "min-h-5 h-5 px-2 py-0",
@@ -719,7 +709,8 @@ export default function ScenarioCreateModal({
         <div className="flex flex-row items-center gap-2">
           <Select
             isRequired
-            placeholder="选择服务器"
+            placeholder="选择出口服务器"
+            color="success"
             selectedKeys={
               formData.localServerEndpoint ? [formData.localServerEndpoint] : []
             }
@@ -775,18 +766,12 @@ export default function ScenarioCreateModal({
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm">目标端口</label>
-            <NumberInput
+            <Input
               isRequired
               placeholder="22"
               type="number"
-              labelPlacement="outside-left"
-              minValue={0}
-              maxValue={65535}
-              value={formData.localServicePort ? Number(formData.localServicePort) : undefined}
+              value={formData.localServicePort}
               onValueChange={(v) => handleField("localServicePort", v ? String(v) : "")}
-              formatOptions={{
-                useGrouping: false,
-              }}
             />
           </div>
         </div>
@@ -864,7 +849,7 @@ export default function ScenarioCreateModal({
 
   // 单端转发场景表单
   const renderSingleForwardForm = () => (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <Input
         isRequired
         placeholder="服务名称"
@@ -873,11 +858,30 @@ export default function ScenarioCreateModal({
       />
 
       {/* 中转服务器 */}
-      <div className="space-y-3">
-        <h4 className="text-sm font-semibold text-default-700">中转服务器</h4>
-        <div className="grid grid-cols-2 gap-3">
+      <div className="space-y-2">
+        <div className="flex items-center justify-between">
+          <h4 className="text-[15px] font-semibold text-default-700">中转(客户端)</h4>
+          <Tabs
+            size="sm"
+            color="warning"
+            classNames={{
+              tabList: "h-6 rounded-md p-0.5 gap-0",
+              tab: "min-h-5 h-5 px-2 py-0",
+              tabContent: "text-xs leading-5",
+              cursor: "h-full rounded-sm",
+            }}
+            selectedKey={formData.singleTargetExternal ? "external" : "local"}
+            onSelectionChange={(key) =>
+              handleField("singleTargetExternal", key === "external")
+            }
+          >
+            <Tab key="local" title="本地地址" />
+            <Tab key="external" title="外部地址" />
+          </Tabs>
+        </div>
+        <div className="grid grid-cols-2 gap-2">
           <div className="flex flex-col gap-1">
-            <label className="text-sm">服务器</label>
+            <label className="text-sm">中转服务器</label>
             <Select
               isRequired
               placeholder="选择中转服务器"
@@ -900,48 +904,20 @@ export default function ScenarioCreateModal({
             </Select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm">监听端口</label>
-            <NumberInput
+            <label className="text-sm">访问端口</label>
+            <Input
               isRequired
               placeholder="1080"
-              labelPlacement="outside-left"
               type="number"
-              minValue={0}
-              maxValue={65535}
-              value={formData.relayListenPort ? Number(formData.relayListenPort) : undefined}
+              value={formData.relayListenPort}
               onValueChange={(v) => handleField("relayListenPort", v ? String(v) : "")}
-              formatOptions={{
-                useGrouping: false,
-              }}
             />
           </div>
         </div>
       </div>
 
       {/* 目标服务器 */}
-      <div className="space-y-3">
-        <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-default-700">
-            目标服务器
-          </h4>
-          <Tabs
-            size="sm"
-            color="warning"
-            classNames={{
-              tabList: "h-6 rounded-md p-0.5 gap-0",
-              tab: "min-h-5 h-5 px-2 py-0",
-              tabContent: "text-xs leading-5",
-              cursor: "h-full rounded-sm",
-            }}
-            selectedKey={formData.singleTargetExternal ? "external" : "local"}
-            onSelectionChange={(key) =>
-              handleField("singleTargetExternal", key === "external")
-            }
-          >
-            <Tab key="local" title="本地地址" />
-            <Tab key="external" title="外部地址" />
-          </Tabs>
-        </div>
+      <div className="space-y-2">
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
             <label className="text-sm">目标地址</label>
@@ -979,18 +955,12 @@ export default function ScenarioCreateModal({
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm">目标端口</label>
-            <NumberInput
+            <Input
               isRequired
               placeholder="3306"
               type="number"
-              minValue={0}
-              labelPlacement="outside-left"
-              maxValue={65535}
-              value={formData.targetServicePort ? Number(formData.targetServicePort) : undefined}
+              value={formData.targetServicePort}
               onValueChange={(v) => handleField("targetServicePort", v ? String(v) : "")}
-              formatOptions={{
-                useGrouping: false,
-              }}
             />
           </div>
         </div>
@@ -1069,7 +1039,7 @@ export default function ScenarioCreateModal({
 
   // 双端转发场景表单
   const renderTunnelForwardForm = () => (
-    <div className="space-y-4">
+    <div className="space-y-2">
       <Input
         isRequired
         placeholder="服务名称"
@@ -1077,10 +1047,10 @@ export default function ScenarioCreateModal({
         onValueChange={(v) => handleField("tunnelName", v)}
       />
 
-      {/* 中转服务器 */}
-      <div className="space-y-3">
+      {/* 入口服务器 */}
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-default-700">中转服务器</h4>
+          <h4 className="text-[15px] font-semibold text-default-700">入口(客户端)</h4>
           <div className="flex items-center gap-2">
             <span className="text-xs text-default-500">TLS</span>
             <InlineSwitch
@@ -1095,14 +1065,18 @@ export default function ScenarioCreateModal({
         <div className="flex flex-row items-center gap-2">
           <Select
             isRequired
-            placeholder="选择中转服务器"
+            placeholder="选择入口服务器"
+            classNames={{
+              trigger: "bg-primary-900/40"
+            }}
             selectedKeys={
-              formData.relayServerEndpoint2
-                ? [formData.relayServerEndpoint2]
-                : []
+              formData.targetServerEndpoint2 ? [formData.targetServerEndpoint2] : []
             }
             onSelectionChange={(keys) =>
-              handleField("relayServerEndpoint2", Array.from(keys)[0] as string)
+              handleField(
+                "targetServerEndpoint2",
+                Array.from(keys)[0] as string,
+              )
             }
           >
             {endpoints.map((ep) => (
@@ -1118,35 +1092,25 @@ export default function ScenarioCreateModal({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-sm">监听端口</label>
-            <NumberInput
+            <label className="text-sm">访问端口</label>
+            <Input
+              fullWidth
               isRequired
               placeholder="10022"
               type="number"
-              labelPlacement="outside-left"
-              minValue={0}
-              maxValue={65535}
-              value={formData.relayListenPort2 ? Number(formData.relayListenPort2) : undefined}
+              value={formData.relayListenPort2}
               onValueChange={(v) => handleField("relayListenPort2", v ? String(v) : "")}
-              formatOptions={{
-                useGrouping: false,
-              }}
             />
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm">隧道端口</label>
-            <NumberInput
+            <Input
+              fullWidth
               isRequired
               placeholder="10101"
               type="number"
-              labelPlacement="outside-left"
-              minValue={0}
-              maxValue={65535}
-              value={formData.relayTunnelPort2 ? Number(formData.relayTunnelPort2) : undefined}
+              value={formData.relayTunnelPort2}
               onValueChange={(v) => handleField("relayTunnelPort2", v ? String(v) : "")}
-              formatOptions={{
-                useGrouping: false,
-              }}
               endContent={
                 <Tooltip content="随机生成端口号">
                   <button
@@ -1169,15 +1133,14 @@ export default function ScenarioCreateModal({
         </div>
       </div>
 
-      {/* 目标服务器 */}
-      <div className="space-y-3">
+      {/* 出口服务器 */}
+      <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h4 className="text-sm font-semibold text-default-700">
-            目标服务器
+          <h4 className="text-[15px] font-semibold text-default-700">
+            出口(服户端)
           </h4>
           <Tabs
             size="sm"
-            color="warning"
             classNames={{
               tabList: "h-6 rounded-md p-0.5 gap-0",
               tab: "min-h-5 h-5 px-2 py-0",
@@ -1196,15 +1159,15 @@ export default function ScenarioCreateModal({
         <div className="flex flex-row items-center gap-2">
           <Select
             isRequired
-            placeholder="选择目标服务器"
+            color="success"
+            placeholder="选择出口服务器"
             selectedKeys={
-              formData.targetServerEndpoint2 ? [formData.targetServerEndpoint2] : []
+              formData.relayServerEndpoint2
+                ? [formData.relayServerEndpoint2]
+                : []
             }
             onSelectionChange={(keys) =>
-              handleField(
-                "targetServerEndpoint2",
-                Array.from(keys)[0] as string,
-              )
+              handleField("relayServerEndpoint2", Array.from(keys)[0] as string)
             }
           >
             {endpoints.map((ep) => (
@@ -1217,6 +1180,7 @@ export default function ScenarioCreateModal({
               </SelectItem>
             ))}
           </Select>
+
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
@@ -1255,18 +1219,13 @@ export default function ScenarioCreateModal({
           </div>
           <div className="flex flex-col gap-1">
             <label className="text-sm">目标端口</label>
-            <NumberInput
+            <Input
+              fullWidth
               isRequired
               placeholder="1080"
-              labelPlacement="outside-left"
               type="number"
-              minValue={0}
-              maxValue={65535}
-              value={formData.targetServicePort2 ? Number(formData.targetServicePort2) : undefined}
+              value={formData.targetServicePort2}
               onValueChange={(v) => handleField("targetServicePort2", v ? String(v) : "")}
-              formatOptions={{
-                useGrouping: false,
-              }}
             />
           </div>
         </div>
@@ -1466,8 +1425,8 @@ export default function ScenarioCreateModal({
           {/* 箭头 + TLS锁 */}
           <div className="relative flex flex-col items-center">
             {formData.natTlsEnabled && (
-              <div className="absolute -top-4">
-                <FontAwesomeIcon className="text-sm text-success" icon={faLock} />
+              <div className="absolute -top-6">
+                <FontAwesomeIcon className="text-sm text-default-400" icon={faLock} />
               </div>
             )}
             <Icon
@@ -1546,8 +1505,8 @@ export default function ScenarioCreateModal({
           {/* 箭头 + TLS锁 */}
           <div className="relative flex flex-col items-center">
             {formData.doubleTlsEnabled && (
-              <div className="absolute -top-4">
-                <FontAwesomeIcon className="text-sm text-success" icon={faLock} />
+              <div className="absolute -top-6">
+                <FontAwesomeIcon className="text-sm text-default-400" icon={faLock} />
               </div>
             )}
             <Icon
@@ -1628,7 +1587,7 @@ export default function ScenarioCreateModal({
           (ep) => String(ep.id) === String(formData.targetServerEndpoint2),
         );
         // const entryHost = formData.targetServerEndpoint2?.url ? extractHostFromUrl(formData.targetServerEndpoint2.url) : "选择目标服务器"
-        const entryHost = targetEndpoint? targetEndpoint.url? extractHostFromUrl(targetEndpoint.url) : targetEndpoint.name : "选择目标服务器";
+        const entryHost = targetEndpoint ? targetEndpoint.url ? extractHostFromUrl(targetEndpoint.url) : targetEndpoint.name : "选择目标服务器";
         const entryPort = formData.relayListenPort2 || "10022";
         const exitHost = formData.doubleTargetExternal ? formData.targetAddress2 || "192.168.1.100" : "127.0.0.1";
         const exitPort = formData.targetServicePort2 || "1080";
