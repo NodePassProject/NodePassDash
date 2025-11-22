@@ -231,10 +231,13 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 				// UDP支持控制 (0=启用, 1=禁用)
 				noUDP = &val
 			case "dial":
-				// UDP支持控制 (0=启用, 1=禁用)
-				tunnel.Dial = &val
+				// URL解码dail
+				if decodedVal, err := url.QueryUnescape(val); err == nil {
+					tunnel.Dial = &decodedVal
+				} else {
+					tunnel.Dial = &val // 解码失败时使用原值
+				}
 			case "dns":
-				// UDP支持控制 (0=启用, 1=禁用)
 				tunnel.Dns = &val
 			case "quic":
 				// QUIC控制 (0=启用, 1=禁用)
@@ -447,7 +450,14 @@ func ParseTunnelConfig(rawURL string) *TunnelConfig {
 	cfg.Slot = query.Get("slot")
 	cfg.Proxy = query.Get("proxy")
 	cfg.Quic = query.Get("quic")
-	cfg.Dial = query.Get("dial")
+	// dial 参数需要URL解码，因为可能包含IP地址等特殊字符
+	if dialVal := query.Get("dial"); dialVal != "" {
+		if decodedVal, err := url.QueryUnescape(dialVal); err == nil {
+			cfg.Dial = decodedVal
+		} else {
+			cfg.Dial = dialVal // 解码失败时使用原值
+		}
+	}
 	noTCP := query.Get("notcp")
 	noUDP := query.Get("noudp")
 	cfg.Dns = query.Get("dns")
@@ -574,7 +584,7 @@ func (c *TunnelConfig) BuildTunnelConfigURL() string {
 		queryParams = append(queryParams, fmt.Sprintf("quic=%s", c.Quic))
 	}
 	if c.Dial != "" {
-		queryParams = append(queryParams, fmt.Sprintf("dial=%s", c.Dial))
+		queryParams = append(queryParams, fmt.Sprintf("dial=%s", url.QueryEscape(c.Dial)))
 	}
 	if c.Dns != "" {
 		queryParams = append(queryParams, fmt.Sprintf("dns=%s", c.Dns))
@@ -753,7 +763,7 @@ func BuildTunnelURLs(tunnel models.Tunnel) string {
 		queryParams = append(queryParams, fmt.Sprintf("slot=%d", *tunnel.Slot))
 	}
 	if tunnel.Dial != nil {
-		queryParams = append(queryParams, fmt.Sprintf("dial=%s", *tunnel.Dial))
+		queryParams = append(queryParams, fmt.Sprintf("dial=%s", url.QueryEscape(*tunnel.Dial)))
 	}
 	if tunnel.Dns != nil {
 		queryParams = append(queryParams, fmt.Sprintf("dns=%s", *tunnel.Dns))
