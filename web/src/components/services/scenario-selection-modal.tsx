@@ -35,20 +35,20 @@ interface ScenarioOption {
 
 const scenarioOptions: ScenarioOption[] = [
   {
-    type: "nat-penetration",
-    title: "内网穿透",
-    description: "内网穿透模式适用于安全要求的穿透需求，用户连接到服务端指定端口，流量通过完整连接池转发至目标服务",
-    icon: "solar:shield-network-bold-duotone",
-    color: "secondary",
-    bgClass: "bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/30 dark:to-purple-800/20",
-  },
-  {
     type: "single-forward",
     title: "单端转发",
     description: "单端转发模式适用于简单的端口转发需求，用户连接到客户端指定端口，流量通过轻量连接池转发至目标服务",
     icon: "solar:server-square-cloud-bold-duotone",
     color: "primary",
     bgClass: "bg-gradient-to-br from-blue-100 to-blue-200 dark:from-blue-900/30 dark:to-blue-800/20",
+  },
+  {
+    type: "nat-penetration",
+    title: "内网穿透",
+    description: "内网穿透模式适用于安全要求的穿透需求，用户连接到服务端指定端口，流量通过完整连接池转发至目标服务",
+    icon: "solar:shield-network-bold-duotone",
+    color: "secondary",
+    bgClass: "bg-gradient-to-br from-purple-100 to-purple-200 dark:from-purple-900/30 dark:to-purple-800/20",
   },
   {
     type: "tunnel-forward",

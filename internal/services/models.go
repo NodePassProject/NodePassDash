@@ -15,15 +15,16 @@ type ServiceResponse struct {
 
 // AvailableInstance 可用实例（没有peer或peer.sid的实例）
 type AvailableInstance struct {
-	InstanceId    string `json:"instanceId"`
-	EndpointId    int64  `json:"endpointId"`
-	EndpointName  string `json:"endpointName"`
-	TunnelType    string `json:"tunnelType"` // "server" | "client"
-	Name          string `json:"name"`
-	TunnelAddress string `json:"tunnelAddress"`
-	TunnelPort    string `json:"tunnelPort"`
-	TargetAddress string `json:"targetAddress"`
-	TargetPort    string `json:"targetPort"`
+	InstanceId          string    `json:"instanceId"`
+	EndpointId          int64     `json:"endpointId"`
+	EndpointName        string    `json:"endpointName"`
+	TunnelType          string    `json:"tunnelType"` // "server" | "client"
+	Name                string    `json:"name"`
+	TunnelAddress       string    `json:"tunnelAddress"`
+	TunnelPort          string    `json:"tunnelPort"`
+	TargetAddress       string    `json:"targetAddress"`
+	TargetPort          string    `json:"targetPort"`
+	ExtendTargetAddress *[]string `json:"extendTargetAddress"  `
 }
 
 // AvailableInstancesResponse 可用实例响应

@@ -508,6 +508,15 @@ export default function ServicesPage() {
               }}
             >
               <DropdownItem
+                key="single-forward"
+                color="primary"
+                startContent={
+                  <FontAwesomeIcon fixedWidth icon={faArrowRight} />
+                }
+              >
+                单端转发
+              </DropdownItem>
+              <DropdownItem
                 key="nat-penetration"
                 color="success"
                 classNames={{
@@ -519,15 +528,7 @@ export default function ServicesPage() {
               >
                 内网穿透
               </DropdownItem>
-              <DropdownItem
-                key="single-forward"
-                color="primary"
-                startContent={
-                  <FontAwesomeIcon fixedWidth icon={faArrowRight} />
-                }
-              >
-                单端转发
-              </DropdownItem>
+
               <DropdownItem
                 key="tunnel-forward"
                 color="secondary"

@@ -64,16 +64,19 @@ func (s *ServiceImpl) GetAvailableInstances() ([]*AvailableInstance, error) {
 		if tunnel.InstanceID == nil {
 			continue
 		}
+		// 添加调试日志
+		log.Debugf("[Service] Tunnel ID=%d, Name=%s, ExtendTargetAddress=%v", tunnel.ID, tunnel.Name, tunnel.ExtendTargetAddress)
 		instances = append(instances, &AvailableInstance{
-			InstanceId:    *tunnel.InstanceID,
-			EndpointId:    tunnel.EndpointID,
-			EndpointName:  tunnel.Endpoint.Name,
-			TunnelType:    string(tunnel.Type),
-			Name:          tunnel.Name,
-			TunnelAddress: tunnel.TunnelAddress,
-			TunnelPort:    tunnel.TunnelPort,
-			TargetAddress: tunnel.TargetAddress,
-			TargetPort:    tunnel.TargetPort,
+			InstanceId:          *tunnel.InstanceID,
+			EndpointId:          tunnel.EndpointID,
+			EndpointName:        tunnel.Endpoint.Name,
+			TunnelType:          string(tunnel.Type),
+			Name:                tunnel.Name,
+			TunnelAddress:       tunnel.TunnelAddress,
+			TunnelPort:          tunnel.TunnelPort,
+			TargetAddress:       tunnel.TargetAddress,
+			TargetPort:          tunnel.TargetPort,
+			ExtendTargetAddress: tunnel.ExtendTargetAddress,
 		})
 	}
 
