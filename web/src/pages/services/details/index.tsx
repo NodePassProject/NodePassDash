@@ -158,7 +158,7 @@ export default function ServiceDetailsPage() {
 
   // 格式化地址显示（处理脱敏逻辑）
   const formatAddress = (address: string | undefined) => {
-    if (!address) return "N/A";
+    if (!address) return "[::]";
 
     // 如果隐私模式关闭，显示完整地址
     if (!settings.isPrivacyMode) {

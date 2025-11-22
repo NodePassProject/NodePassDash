@@ -107,7 +107,6 @@ export default function ServicesPage() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-
   // 场景创建模态框状态
   const [scenarioModalOpen, setScenarioModalOpen] = useState(false);
   const [selectedScenarioType, setSelectedScenarioType] = useState<
@@ -497,7 +496,7 @@ export default function ServicesPage() {
                 startContent={<FontAwesomeIcon icon={faLayerGroup} />}
                 variant="flat"
               >
-                服务创建
+                创建服务
               </Button>
             </DropdownTrigger>
             <DropdownMenu
