@@ -583,11 +583,15 @@ export default function ServiceDetailsPage() {
     setFullscreenChart({ isOpen: true, type, title });
   };
 
+  // 判断是否为单端转发类型（type=0 通用单端转发, type=5 均衡单端转发）
+  const isSingleEndForwarding = service?.type === "0" || service?.type === "5";
+
   // 获取当前显示的隧道实例ID
+  // 单端转发使用 client 数据，内网穿透和隧道转发使用 server 数据
   const currentTunnelInstanceId = service
-    ? service.type !== "0"
-      ? serverTunnel?.instanceId
-      : clientTunnel?.instanceId
+    ? isSingleEndForwarding
+      ? clientTunnel?.instanceId
+      : serverTunnel?.instanceId
     : undefined;
 
   // 使用metrics趋势hook
@@ -1130,12 +1134,12 @@ export default function ServiceDetailsPage() {
                     </div>
                   ) : (
                     <>
-                      {/* 根据 type 决定显示哪个实例：type != 0 时显示服务端，type = 0 时显示客户端 */}
-                      {((service.type !== "0" && serverTunnel) || (service.type === "0" && clientTunnel)) && (
+                      {/* 根据 type 决定显示哪个实例：单端转发(0,5)显示客户端，其他显示服务端 */}
+                      {((isSingleEndForwarding && clientTunnel) || (!isSingleEndForwarding && serverTunnel)) && (
                         <div className="flex flex-col gap-4 md:gap-6">
                           {/* 数据统计卡片 - 参考 code.html 布局 */}
                           {!settings.isExperimentalMode && (() => {
-                            const tunnel = service.type !== "0" ? serverTunnel : clientTunnel;
+                            const tunnel = isSingleEndForwarding ? clientTunnel : serverTunnel;
                             const tcpRx = tunnel?.tcpRx || 0;
                             const tcpTx = tunnel?.tcpTx || 0;
                             const udpRx = tunnel?.udpRx || 0;
