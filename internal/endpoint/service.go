@@ -63,12 +63,13 @@ func extractIPFromURL(urlStr string) string {
 		return ""
 	}
 
-	// 检查是否为有效的IP地址
-	//if ip := net.ParseIP(host); ip != nil {
-	//	return ip.String()
-	//}
+	// 检查是否为IPv6地址（包含冒号）
+	if strings.Contains(host, ":") {
+		// IPv6地址需要用方括号包裹
+		return "[" + host + "]"
+	}
 
-	// 如果不是IP地址，返回空字符串
+	// 返回主机名（域名或IPv4地址）
 	return host
 }
 

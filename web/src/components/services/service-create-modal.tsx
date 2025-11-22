@@ -1328,7 +1328,7 @@ export default function ScenarioCreateModal({
 
           {/* 中转服务器 */}
           <div className="flex flex-col items-center">
-            <span className="text-xs text-default-500 mb-1">
+            <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
               {relayEndpoint
                 ? relayEndpoint.url
                   ? extractHostFromUrl(relayEndpoint.url)
@@ -1409,7 +1409,7 @@ export default function ScenarioCreateModal({
 
           {/* 公网服务器 */}
           <div className="flex flex-col items-center">
-            <span className="text-xs text-default-500 mb-1">
+            <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
               {publicEndpoint
                 ? publicEndpoint.url
                   ? extractHostFromUrl(publicEndpoint.url)
@@ -1437,7 +1437,7 @@ export default function ScenarioCreateModal({
 
           {/* 本地服务器 */}
           <div className="flex flex-col items-center">
-            <span className="text-xs text-default-500 mb-1">
+            <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
               {localEndpoint
                 ? localEndpoint.url
                   ? extractHostFromUrl(localEndpoint.url)
@@ -1485,7 +1485,7 @@ export default function ScenarioCreateModal({
 
           {/* 中转服务器 */}
           <div className="flex flex-col items-center">
-            <span className="text-xs text-default-500 mb-1">
+            <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
               {targetEndpoint
                 ? targetEndpoint.url
                   ? extractHostFromUrl(targetEndpoint.url)
@@ -1517,7 +1517,7 @@ export default function ScenarioCreateModal({
 
           {/* 目标服务器 */}
           <div className="flex flex-col items-center">
-            <span className="text-xs text-default-500 mb-1">
+            <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
               {relayEndpoint
                 ? relayEndpoint.url
                   ? extractHostFromUrl(relayEndpoint.url)

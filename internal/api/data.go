@@ -51,7 +51,13 @@ func extractIPFromURL(urlStr string) string {
 		return ""
 	}
 
-	// 返回hostname（可以是IP或域名）
+	// 检查是否为IPv6地址（包含冒号）
+	if strings.Contains(host, ":") {
+		// IPv6地址需要用方括号包裹
+		return "[" + host + "]"
+	}
+
+	// 返回主机名（域名或IPv4地址）
 	return host
 }
 

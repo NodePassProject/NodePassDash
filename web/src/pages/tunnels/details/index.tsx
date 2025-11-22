@@ -1765,9 +1765,16 @@ export default function TunnelDetailPage() {
                   }
                   label="隧道地址"
                   value={
-                    <span className="font-mono text-sm">
-                      {tunnelInfo.tunnelAddress}:{tunnelInfo.listenPort}
-                    </span>
+                    <div className="overflow-hidden">
+                      <Tooltip
+                        content={`${tunnelInfo.tunnelAddress}:${tunnelInfo.listenPort}`}
+                        placement="top"
+                      >
+                        <span className="font-mono text-sm truncate block">
+                          {tunnelInfo.tunnelAddress}:{tunnelInfo.listenPort}
+                        </span>
+                      </Tooltip>
+                    </div>
                   }
                 />
                 <CellValue
@@ -1781,10 +1788,15 @@ export default function TunnelDetailPage() {
                   }
                   label="目标地址"
                   value={
-                    <div className="flex items-center gap-2">
-                      <span className="font-mono text-sm">
-                        {tunnelInfo.targetAddress}:{tunnelInfo.targetPort}
-                      </span>
+                    <div className="flex items-center gap-2 overflow-hidden">
+                      <Tooltip
+                        content={`${tunnelInfo.targetAddress}:${tunnelInfo.targetPort}`}
+                        placement="top"
+                      >
+                        <span className="font-mono text-sm truncate">
+                          {tunnelInfo.targetAddress}:{tunnelInfo.targetPort}
+                        </span>
+                      </Tooltip>
                       {tunnelInfo.extendTargetAddress && tunnelInfo.extendTargetAddress.length > 0 && (
                         <Tooltip
                           content={
@@ -1805,7 +1817,7 @@ export default function TunnelDetailPage() {
                             color="default"
                             size="sm"
                             variant="flat"
-                            className="cursor-help"
+                            className="cursor-help flex-shrink-0"
                           >
                             +{tunnelInfo.extendTargetAddress.length}
                           </Chip>

@@ -240,11 +240,14 @@ export default function ServiceSSEPage() {
     console.error("[Client SSE] 连接错误:", error);
   }, []);
 
-  // Server 端 SSE 连接
+  // 判断是否为单端转发模式 (type=0 或 type=5)
+  const isSingleForward = service?.type === "0" || service?.type === "5";
+
+  // Server 端 SSE 连接（单端转发模式不连接）
   useTunnelSSE(service?.serverInstanceId || "", {
     onMessage: serverSseOnMessage,
     onError: serverSseOnError,
-    enabled: !!service?.serverInstanceId, // 只有存在 serverInstanceId 时才连接
+    enabled: !!service?.serverInstanceId && !isSingleForward, // 单端转发时不连接 Server 端
   });
 
   // Client 端 SSE 连接
@@ -406,10 +409,10 @@ export default function ServiceSSEPage() {
         </div>
       </div>
 
-      {/* 双栏日志展示 */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
-        {/* Server 端日志 */}
-        {renderLogPanel(
+      {/* 日志展示区域：单端转发只显示 Client 端 */}
+      <div className={`flex-1 grid grid-cols-1 ${isSingleForward ? "" : "lg:grid-cols-2"} gap-4 overflow-hidden`}>
+        {/* Server 端日志（单端转发模式不显示） */}
+        {!isSingleForward && renderLogPanel(
           "Server 端 SSE",
           serverLogs,
           () => scrollToBottom(serverLogContainerRef),
@@ -421,7 +424,7 @@ export default function ServiceSSEPage() {
 
         {/* Client 端日志 */}
         {renderLogPanel(
-          "Client 端 SSE",
+          isSingleForward ? "实时日志" : "Client 端 SSE",
           clientLogs,
           () => scrollToBottom(clientLogContainerRef),
           clientClearPopoverOpen,
