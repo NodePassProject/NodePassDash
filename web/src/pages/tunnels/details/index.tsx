@@ -1986,7 +1986,7 @@ export default function TunnelDetailPage() {
                     const configValue = tunnelInfo.config?.dns;
                     return (
                       <span className="font-mono text-sm">
-                        {hasValue ? tunnelInfo.dns : (configValue ? tunnelInfo.dns : "-")}
+                        {hasValue ? tunnelInfo.dns : (configValue ? tunnelInfo.config.dns : "-")}
                         {!hasValue && configValue && (
                           <span className="text-default-400 text-xs ml-1">
                             (默认)
