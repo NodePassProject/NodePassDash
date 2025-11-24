@@ -1980,7 +1980,7 @@ export default function TunnelDetailPage() {
                       />
                     </svg>
                   }
-                  label="DNS"
+                  label="DNS TTL"
                   value={(() => {
                     const hasValue = tunnelInfo.dns !== undefined && tunnelInfo.dns !== null;
                     const configValue = tunnelInfo.config?.dns;

@@ -1357,15 +1357,15 @@ export default function ScenarioCreateModal({
 
           {/* 目标服务器 */}
           <div className="flex flex-col items-center">
-            <span className="text-xs text-default-500 mb-1 opacity-0">
-              占位
+            <span className="text-xs text-default-500 mb-1">
+                            {formData.targetServerAddress || "192.168.1.100"}
             </span>
             <Icon
               className="text-3xl text-success"
               icon="ph:airplane-landing-fill"
             />
             <span className="text-xs text-default-600 font-medium mt-1">
-              {formData.targetServicePort || "1080"}
+              {formData.targetServicePort || "3306"}
             </span>
           </div>
         </div>
@@ -1661,7 +1661,7 @@ export default function ScenarioCreateModal({
                 {/* 入口 */}
                 <div className="bg-primary-50 dark:bg-primary-900/20 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <Icon icon="uim:exit" className="text-primary text-lg" />
+                    <Icon icon="line-md:login" className="text-primary text-lg" />
                     <span className="text-xs font-medium text-primary">入口</span>
                   </div>
                   <div className="font-mono text-sm text-default-700 break-all">{entry}</div>
@@ -1669,7 +1669,7 @@ export default function ScenarioCreateModal({
                 {/* 出口 */}
                 <div className="bg-success-50 dark:bg-success-900/20 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <Icon icon="uim:sign-out" className="text-success text-lg" />
+                    <Icon icon="line-md:logout" className="text-success text-lg" />
                     <span className="text-xs font-medium text-success">出口</span>
                     {exit.length > 1 && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-warning-100 text-warning-600 dark:bg-warning-900/30 dark:text-warning-400">
