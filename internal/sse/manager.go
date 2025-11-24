@@ -447,7 +447,7 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 			// 更新最后事件时间（用于检测僵尸连接）
 			conn.UpdateLastEventTime()
 
-			log.Debugf("[Master-%d#SSE]收到SSE消息: %s", conn.EndpointID, ev.Data)
+			log.Debugf("[Master-%d#SSE]%s", conn.EndpointID, ev.Data)
 
 			// 投递到全局 worker pool 异步处理
 			select {

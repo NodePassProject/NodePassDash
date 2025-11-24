@@ -98,6 +98,8 @@ func SetupDataRoutes(rg *gin.RouterGroup, db *gorm.DB, sseManager *sse.Manager, 
 	// 数据导入导出
 	rg.GET("/data/export", dataHandler.HandleExport)
 	rg.POST("/data/import", dataHandler.HandleImport)
+	rg.POST("/data/validate-import", dataHandler.HandleValidateImport)    // 验证导入数据
+	rg.POST("/data/batch-import", dataHandler.HandleBatchImportEndpoints) // 批量导入可导入的主控
 }
 
 // EndpointExport 导出端点结构（简化版，仅包含基本配置信息）
@@ -543,4 +545,279 @@ func updateEndpointTunnelCountForData(endpointID int64) {
 	} else {
 		log.Debugf("[数据导入]端点 %d 隧道计数已更新", endpointID)
 	}
+}
+
+// ValidateImportResult 单个主控的验证结果
+type ValidateImportResult struct {
+	Name      string `json:"name"`
+	URL       string `json:"url"`
+	APIPath   string `json:"apiPath"`
+	Version   string `json:"version"`
+	CanImport bool   `json:"canImport"`
+	Message   string `json:"message"`
+	Status    string `json:"status"` // "success", "error", "low_version"
+}
+
+// HandleValidateImport 验证导入数据中的主控
+func (h *DataHandler) HandleValidateImport(c *gin.Context) {
+	// 首先解析基本结构以获取版本信息
+	var baseImportData struct {
+		Version   string      `json:"version"`
+		Timestamp string      `json:"timestamp"`
+		Data      interface{} `json:"data"`
+	}
+	if err := c.ShouldBindJSON(&baseImportData); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json", "success": false})
+		return
+	}
+
+	var endpoints []EndpointExport
+
+	// 根据版本解析不同格式
+	if baseImportData.Version == "1.0" {
+		// v1 格式
+		var importDataV1 struct {
+			Version   string `json:"version"`
+			Timestamp string `json:"timestamp"`
+			Data      struct {
+				Endpoints []EndpointExportV1 `json:"endpoints"`
+			} `json:"data"`
+		}
+		dataBytes, _ := json.Marshal(baseImportData)
+		if err := json.Unmarshal(dataBytes, &importDataV1); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid v1 format", "success": false})
+			return
+		}
+
+		// 转换为统一格式
+		for _, ep := range importDataV1.Data.Endpoints {
+			endpoints = append(endpoints, EndpointExport{
+				Name:    ep.Name,
+				URL:     ep.URL,
+				APIPath: ep.APIPath,
+				APIKey:  ep.APIKey,
+			})
+		}
+	} else {
+		// v2 格式
+		var importDataV2 struct {
+			Version   string `json:"version"`
+			Timestamp string `json:"timestamp"`
+			Data      struct {
+				Endpoints []EndpointExport `json:"endpoints"`
+			} `json:"data"`
+		}
+		dataBytes, _ := json.Marshal(baseImportData)
+		if err := json.Unmarshal(dataBytes, &importDataV2); err != nil {
+			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid v2 format", "success": false})
+			return
+		}
+		endpoints = importDataV2.Data.Endpoints
+	}
+
+	// 验证每个主控
+	results := make([]ValidateImportResult, 0, len(endpoints))
+
+	for i, ep := range endpoints {
+		result := ValidateImportResult{
+			Name:      ep.Name,
+			URL:       ep.URL,
+			APIPath:   ep.APIPath,
+			Version:   "unknown",
+			CanImport: false,
+			Status:    "error",
+		}
+
+		// 使用临时ID来调用 nodepass.GetInfo
+		tempEndpointID := int64(-1000 - i) // 使用不同的负数ID避免冲突
+
+		// 设置临时缓存
+		baseURL := fmt.Sprintf("%s%s", ep.URL, ep.APIPath)
+		nodepass.GetCache().Set(fmt.Sprintf("%d", tempEndpointID), baseURL, ep.APIKey)
+
+		// 尝试获取版本信息
+		info, err := nodepass.GetInfo(tempEndpointID)
+
+		// 清理临时缓存
+		nodepass.GetCache().Delete(fmt.Sprintf("%d", tempEndpointID))
+
+		if err != nil {
+			result.Message = fmt.Sprintf("无法连接或获取版本信息", err)
+			result.Status = "error"
+			result.CanImport = false
+		} else {
+			result.Version = info.Ver
+			// 比较版本
+			canImport := compareVersionForData(info.Ver, "1.10.0")
+			result.CanImport = canImport
+
+			if canImport {
+				result.Status = "success"
+				result.Message = fmt.Sprintf("版本 %s，支持导入", info.Ver)
+			} else {
+				result.Status = "low_version"
+				result.Message = fmt.Sprintf("版本 %s 低于 1.10.0，不支持导入", info.Ver)
+			}
+		}
+
+		results = append(results, result)
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"results": results,
+		"total":   len(results),
+	})
+}
+
+// compareVersionForData 比较版本号，返回 actual >= required
+func compareVersionForData(actual, required string) bool {
+	// 简单的版本比较实现
+	// 支持格式：1.10.0, v1.10.0
+	actual = strings.TrimPrefix(actual, "v")
+	required = strings.TrimPrefix(required, "v")
+
+	actualParts := strings.Split(actual, ".")
+	requiredParts := strings.Split(required, ".")
+
+	// 补齐长度
+	for len(actualParts) < len(requiredParts) {
+		actualParts = append(actualParts, "0")
+	}
+	for len(requiredParts) < len(actualParts) {
+		requiredParts = append(requiredParts, "0")
+	}
+
+	// 逐位比较
+	for i := 0; i < len(actualParts); i++ {
+		actualNum := 0
+		requiredNum := 0
+
+		// 解析数字（忽略错误，默认为0）
+		fmt.Sscanf(actualParts[i], "%d", &actualNum)
+		fmt.Sscanf(requiredParts[i], "%d", &requiredNum)
+
+		if actualNum > requiredNum {
+			return true
+		} else if actualNum < requiredNum {
+			return false
+		}
+		// 相等则继续比较下一位
+	}
+
+	return true // 完全相等，返回 true
+}
+
+// BatchImportEndpoint 批量导入的主控数据结构
+type BatchImportEndpoint struct {
+	Name    string `json:"name"`
+	URL     string `json:"url"`
+	APIPath string `json:"apiPath"`
+	APIKey  string `json:"apiKey"`
+}
+
+// HandleBatchImportEndpoints 批量导入可导入的主控
+func (h *DataHandler) HandleBatchImportEndpoints(c *gin.Context) {
+	var req struct {
+		Endpoints []BatchImportEndpoint `json:"endpoints"`
+	}
+
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json", "success": false})
+		return
+	}
+
+	if len(req.Endpoints) == 0 {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "没有可导入的主控", "success": false})
+		return
+	}
+
+	var skippedEndpoints int
+	var importedEndpoints int
+
+	// 存储新创建的端点信息，用于后续启动SSE
+	var newEndpoints []struct {
+		ID      int64
+		URL     string
+		APIPath string
+		APIKey  string
+	}
+
+	// 使用GORM事务
+	err := h.db.Transaction(func(tx *gorm.DB) error {
+		for _, ep := range req.Endpoints {
+			// 检查端点是否已存在
+			var existingEndpoint models.Endpoint
+			if err := tx.Where("url = ? AND api_path = ?", ep.URL, ep.APIPath).First(&existingEndpoint).Error; err == nil {
+				skippedEndpoints++
+				continue
+			}
+
+			// 从URL中提取IP地址
+			extractedIP := extractIPFromURL(ep.URL)
+
+			// 插入端点，设置默认状态为 OFFLINE
+			newEndpoint := models.Endpoint{
+				Name:      ep.Name,
+				URL:       ep.URL,
+				Hostname:  extractedIP,
+				APIPath:   ep.APIPath,
+				APIKey:    ep.APIKey,
+				Status:    models.EndpointStatusOffline,
+				LastCheck: time.Now(),
+				CreatedAt: time.Now(),
+				UpdatedAt: time.Now(),
+			}
+
+			if err := tx.Create(&newEndpoint).Error; err != nil {
+				log.Errorf("批量导入：插入端点失败: %v", err)
+				continue
+			}
+
+			// 添加到缓存
+			nodepass.GetCache().Set(fmt.Sprintf("%d", newEndpoint.ID), newEndpoint.URL+newEndpoint.APIPath, newEndpoint.APIKey)
+
+			// 保存端点信息用于后续启动SSE
+			newEndpoints = append(newEndpoints, struct {
+				ID      int64
+				URL     string
+				APIPath string
+				APIKey  string
+			}{
+				ID:      newEndpoint.ID,
+				URL:     ep.URL,
+				APIPath: ep.APIPath,
+				APIKey:  ep.APIKey,
+			})
+
+			importedEndpoints++
+		}
+
+		// 为每个新导入的端点启动SSE监听
+		if h.sseManager != nil {
+			for _, ep := range newEndpoints {
+				go func(endpointID int64, url, apiPath, apiKey string) {
+					log.Infof("[Master-%v] 批量导入成功，准备启动 SSE 监听", endpointID)
+					if err := h.sseManager.ConnectEndpoint(endpointID, url, apiPath, apiKey); err != nil {
+						log.Errorf("[Master-%v] 启动 SSE 监听失败: %v", endpointID, err)
+					}
+				}(ep.ID, ep.URL, ep.APIPath, ep.APIKey)
+			}
+		}
+
+		return nil
+	})
+
+	if err != nil {
+		log.Errorf("批量导入事务失败: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "导入失败", "success": false})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":           true,
+		"message":           fmt.Sprintf("成功导入 %d 个主控", importedEndpoints),
+		"importedEndpoints": importedEndpoints,
+		"skippedEndpoints":  skippedEndpoints,
+	})
 }

@@ -48,6 +48,14 @@ export default function AddEndpointModal({
   const [showApiKey, setShowApiKey] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
   const [importText, setImportText] = useState("");
+  const [showTestResultModal, setShowTestResultModal] = useState(false);
+  const [testResult, setTestResult] = useState<{
+    success: boolean;
+    connected: boolean;
+    version: string;
+    canAdd: boolean;
+    message: string;
+  } | null>(null);
   const [formData, setFormData] = useState<FormData>({
     name: "",
     url: "",
@@ -78,8 +86,8 @@ export default function AddEndpointModal({
     return { baseUrl: fullUrl, apiPath: "/api" };
   };
 
-  // 测试连接功能
-  const testConnection = async () => {
+  // 测试连接并检查版本
+  const testConnectionAndVersion = async () => {
     if (!formData.url || !formData.apiKey) {
       addToast({
         title: "参数不完整",
@@ -95,8 +103,8 @@ export default function AddEndpointModal({
     try {
       const { baseUrl, apiPath } = parseUrl(formData.url);
 
-      // 使用新的 SSE 测试主控
-      const response = await fetch("/api/sse/test", {
+      // 调用新的接口：测试连接并获取版本信息
+      const response = await fetch("/api/sse/test-with-version", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -114,11 +122,9 @@ export default function AddEndpointModal({
         throw new Error(result.error || "连接测试失败");
       }
 
-      addToast({
-        title: "连接测试成功",
-        description: "主控连接正常，可以正常接收 SSE 事件",
-        color: "success",
-      });
+      // 保存测试结果并显示模态窗
+      setTestResult(result);
+      setShowTestResultModal(true);
     } catch (error) {
       addToast({
         title: "连接测试失败",
@@ -133,35 +139,37 @@ export default function AddEndpointModal({
     }
   };
 
-  const handleSubmit = async (event: React.FormEvent<HTMLFormElement>) => {
-    event.preventDefault();
-
-    const formDataObj = new FormData(event.target as HTMLFormElement);
-    const formEntries = Object.fromEntries(formDataObj.entries()) as any;
-
-    // 从URL中分离出基础URL和API前缀
-    const { baseUrl, apiPath } = parseUrl(formEntries.url);
+  // 从测试结果模态窗中点击"添加"按钮时调用
+  const handleAddFromTestResult = async () => {
+    const { baseUrl, apiPath } = parseUrl(formData.url);
 
     // 构造包含API前缀的数据对象，保持原有接口兼容
     const data: EndpointFormData = {
-      name: formEntries.name,
+      name: formData.name,
       url: baseUrl,
       apiPath: apiPath,
-      apiKey: formEntries.apiKey,
+      apiKey: formData.apiKey,
     };
 
     if (onAdd) {
       await onAdd(data);
     }
 
-    // 重置表单
+    // 重置表单和状态
     setFormData({
       name: "",
       url: "",
       apiKey: "",
     });
+    setTestResult(null);
+    setShowTestResultModal(false);
+    onOpenChange(); // 关闭所有模态框
+  };
 
-    onOpenChange(); // 关闭模态框
+  // 关闭测试结果模态窗
+  const handleCloseTestResult = () => {
+    setShowTestResultModal(false);
+    setTestResult(null);
   };
 
   return (
@@ -227,167 +235,232 @@ export default function AddEndpointModal({
                 </p>
               </div>
 
-              <Form validationBehavior="native" onSubmit={handleSubmit}>
-                <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-1">
-                  {/* 主控名称 */}
-                  <Input
-                    isRequired
-                    endContent={
-                      <span className="text-xs text-default-500">
-                        {formData.name.length}/25
-                      </span>
-                    }
-                    label="主控名称"
-                    labelPlacement="outside"
-                    maxLength={25}
-                    name="name"
-                    placeholder="主服务器"
-                    value={formData.name}
-                    onValueChange={(value) => handleInputChange("name", value)}
-                  />
-                  {/* URL 地址（包含API前缀） */}
-                  <Input
-                    isRequired
-                    className="md:col-span-1"
-                    label="URL 地址"
-                    labelPlacement="outside"
-                    name="url"
-                    placeholder="http(s)://example.com:9090/api/v1"
-                    type="url"
-                    value={formData.url}
-                    onValueChange={(value) => handleInputChange("url", value)}
-                  />
-                  {/* API Key */}
-                  <Input
-                    isRequired
-                    className="md:col-span-1"
-                    endContent={
-                      <Button
-                        isIconOnly
-                        className="text-default-400 hover:text-primary"
-                        size="sm"
-                        variant="light"
-                        onPress={() => setShowApiKey(!showApiKey)}
-                      >
-                        <FontAwesomeIcon
-                          className="text-sm"
-                          icon={showApiKey ? faEyeSlash : faEye}
-                        />
-                      </Button>
-                    }
-                    label="API Key"
-                    labelPlacement="outside"
-                    maxLength={100}
-                    name="apiKey"
-                    placeholder="输入您的 API Key"
-                    type={showApiKey ? "text" : "password"}
-                    value={formData.apiKey}
-                    onValueChange={(value) =>
-                      handleInputChange("apiKey", value)
-                    }
-                  />
-                </div>
-
-                <div className="mt-6 flex w-full justify-end gap-2">
-                  <div className="flex gap-2">
-                    <Button radius="full" variant="bordered" onPress={onClose}>
-                      取消
-                    </Button>
+              <div className="grid w-full grid-cols-1 gap-4 md:grid-cols-1">
+                {/* 主控名称 */}
+                <Input
+                  isRequired
+                  endContent={
+                    <span className="text-xs text-default-500">
+                      {formData.name.length}/25
+                    </span>
+                  }
+                  label="主控名称"
+                  labelPlacement="outside"
+                  maxLength={25}
+                  name="name"
+                  placeholder="主服务器"
+                  value={formData.name}
+                  onValueChange={(value) => handleInputChange("name", value)}
+                />
+                {/* URL 地址（包含API前缀） */}
+                <Input
+                  isRequired
+                  className="md:col-span-1"
+                  label="URL 地址"
+                  labelPlacement="outside"
+                  name="url"
+                  placeholder="http(s)://example.com:9090/api/v1"
+                  type="url"
+                  value={formData.url}
+                  onValueChange={(value) => handleInputChange("url", value)}
+                />
+                {/* API Key */}
+                <Input
+                  isRequired
+                  className="md:col-span-1"
+                  endContent={
                     <Button
-                      color="primary"
-                      isLoading={isTestingConnection}
-                      radius="full"
-                      startContent={
-                        !isTestingConnection && (
-                          <FontAwesomeIcon icon={faWifi} />
-                        )
-                      }
-                      variant="bordered"
-                      onPress={testConnection}
+                      isIconOnly
+                      className="text-default-400 hover:text-primary"
+                      size="sm"
+                      variant="light"
+                      onPress={() => setShowApiKey(!showApiKey)}
                     >
-                      {isTestingConnection ? "检测中..." : "检测连接"}
+                      <FontAwesomeIcon
+                        className="text-sm"
+                        icon={showApiKey ? faEyeSlash : faEye}
+                      />
                     </Button>
-                    <Button color="primary" radius="full" type="submit">
-                      添加主控
-                    </Button>
-                  </div>
+                  }
+                  label="API Key"
+                  labelPlacement="outside"
+                  maxLength={100}
+                  name="apiKey"
+                  placeholder="输入您的 API Key"
+                  type={showApiKey ? "text" : "password"}
+                  value={formData.apiKey}
+                  onValueChange={(value) =>
+                    handleInputChange("apiKey", value)
+                  }
+                />
+              </div>
+
+              <div className="mt-6 flex w-full justify-end gap-2">
+                <div className="flex gap-2">
+                  <Button radius="full" variant="bordered" onPress={onClose}>
+                    取消
+                  </Button>
+                  <Button
+                    color="primary"
+                    isLoading={isTestingConnection}
+                    radius="full"
+                    startContent={
+                      !isTestingConnection && (
+                        <FontAwesomeIcon icon={faWifi} />
+                      )
+                    }
+                    onPress={testConnectionAndVersion}
+                  >
+                    {isTestingConnection ? "检测中..." : "检测连接并添加"}
+                  </Button>
                 </div>
+              </div>
 
-                {/* 导入配置模态框 */}
-                <Modal
-                  isOpen={showImportModal}
-                  size="lg"
-                  onOpenChange={() => {
-                    setShowImportModal(false);
-                    setImportText("");
-                  }}
-                >
-                  <ModalContent>
-                    {(onClose) => (
-                      <>
-                        <ModalHeader>导入配置</ModalHeader>
-                        <ModalBody className="gap-4">
-                          <Textarea
-                            label="配置内容"
-                            minRows={3}
-                            placeholder={
-                              "API URL: http(s)://xxx.xxx.xxx.xxx:10101/api/v1\nAPI KEY: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                            }
-                            value={importText}
-                            onValueChange={setImportText}
-                          />
-                          <div className="flex justify-end gap-2">
-                            <Button
-                              radius="full"
-                              variant="bordered"
-                              onPress={onClose}
-                            >
-                              取消
-                            </Button>
-                            <Button
-                              color="primary"
-                              radius="full"
-                              onPress={() => {
-                                // 解析配置文本
-                                const urlMatch = importText.match(
-                                  /API URL:\s*(http[s]?:\/\/[^\s]+)/i,
-                                );
-                                const keyMatch =
-                                  importText.match(/API KEY:\s*([^\s]+)/i);
+              {/* 导入配置模态框 */}
+              <Modal
+                isOpen={showImportModal}
+                size="lg"
+                onOpenChange={() => {
+                  setShowImportModal(false);
+                  setImportText("");
+                }}
+              >
+                <ModalContent>
+                  {(onClose) => (
+                    <>
+                      <ModalHeader>导入配置</ModalHeader>
+                      <ModalBody className="gap-4">
+                        <Textarea
+                          label="配置内容"
+                          minRows={3}
+                          placeholder={
+                            "API URL: http(s)://xxx.xxx.xxx.xxx:10101/api/v1\nAPI KEY: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
+                          }
+                          value={importText}
+                          onValueChange={setImportText}
+                        />
+                        <div className="flex justify-end gap-2">
+                          <Button
+                            radius="full"
+                            variant="bordered"
+                            onPress={onClose}
+                          >
+                            取消
+                          </Button>
+                          <Button
+                            color="primary"
+                            radius="full"
+                            onPress={() => {
+                              // 解析配置文本
+                              const urlMatch = importText.match(
+                                /API URL:\s*(http[s]?:\/\/[^\s]+)/i,
+                              );
+                              const keyMatch =
+                                importText.match(/API KEY:\s*([^\s]+)/i);
 
-                                if (urlMatch && keyMatch) {
-                                  const { baseUrl } = parseUrl(urlMatch[1]);
+                              if (urlMatch && keyMatch) {
+                                const { baseUrl } = parseUrl(urlMatch[1]);
 
-                                  setFormData({
-                                    name: "导入的主控",
-                                    url: urlMatch[1],
-                                    apiKey: keyMatch[1],
-                                  });
+                                setFormData({
+                                  name: "导入的主控",
+                                  url: urlMatch[1],
+                                  apiKey: keyMatch[1],
+                                });
+                                onClose();
+                                addToast({
+                                  title: "导入成功",
+                                  description: "配置已成功导入到表单中",
+                                  color: "success",
+                                });
+                              } else {
+                                addToast({
+                                  title: "导入失败",
+                                  description:
+                                    "无法识别配置格式，请检查内容是否正确",
+                                  color: "danger",
+                                });
+                              }
+                            }}
+                          >
+                            解析配置
+                          </Button>
+                        </div>
+                      </ModalBody>
+                    </>
+                  )}
+                </ModalContent>
+              </Modal>
+
+              {/* 测试结果模态框 */}
+              <Modal
+                isOpen={showTestResultModal}
+                size="md"
+                onOpenChange={handleCloseTestResult}
+              >
+                <ModalContent>
+                  {(onClose) => (
+                    <>
+                      <ModalHeader>连接检测结果</ModalHeader>
+                      <ModalBody className="gap-4 pb-6">
+                        {testResult && (
+                          <>
+                            <div className="flex flex-col gap-2">
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold">
+                                  连接状态：
+                                </span>
+                                <span
+                                  className={`text-sm ${testResult.connected ? "text-success" : "text-danger"}`}
+                                >
+                                  {testResult.connected ? "成功" : "失败"}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold">
+                                  主控版本：
+                                </span>
+                                <span className="text-sm">
+                                  {testResult.version}
+                                </span>
+                              </div>
+                              <div className="flex items-center gap-2">
+                                <span className="text-sm font-semibold">
+                                  支持添加：
+                                </span>
+                                <span
+                                  className={`text-sm ${testResult.canAdd ? "text-success" : "text-danger"}`}
+                                >
+                                  {testResult.canAdd ? "是" : "否"}
+                                </span>
+                              </div>
+                            </div>
+                            <div className="flex justify-end gap-2">
+                              <Button
+                                radius="full"
+                                variant="bordered"
+                                onPress={() => {
+                                  handleCloseTestResult();
                                   onClose();
-                                  addToast({
-                                    title: "导入成功",
-                                    description: "配置已成功导入到表单中",
-                                    color: "success",
-                                  });
-                                } else {
-                                  addToast({
-                                    title: "导入失败",
-                                    description:
-                                      "无法识别配置格式，请检查内容是否正确",
-                                    color: "danger",
-                                  });
-                                }
-                              }}
-                            >
-                              解析配置
-                            </Button>
-                          </div>
-                        </ModalBody>
-                      </>
-                    )}
-                  </ModalContent>
-                </Modal>
-              </Form>
+                                }}
+                              >
+                                关闭
+                              </Button>
+                              <Button
+                                color="primary"
+                                isDisabled={!testResult.canAdd}
+                                radius="full"
+                                onPress={handleAddFromTestResult}
+                              >
+                                添加主控
+                              </Button>
+                            </div>
+                          </>
+                        )}
+                      </ModalBody>
+                    </>
+                  )}
+                </ModalContent>
+              </Modal>
             </ModalBody>
           </>
         )}
