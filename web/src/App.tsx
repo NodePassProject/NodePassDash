@@ -15,7 +15,7 @@ import TemplatesPage from "./pages/templates";
 import SetupGuidePage from "./pages/setup-guide";
 import OAuthErrorPage from "./pages/oauth-error";
 import DebugPage from "./pages/debug";
-import EndpointDetailsPage from "./pages/endpoints/details/index";
+import EndpointDetailsPage from "./pages/endpoints/details/index copy";
 import EndpointSSEDebugPage from "./pages/endpoints/sse-debug";
 import ExamplesPage from "./pages/examples";
 import IconComparisonPage from "./pages/icon-comparison";
