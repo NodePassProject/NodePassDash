@@ -1329,11 +1329,16 @@ export default function ScenarioCreateModal({
           {/* 中转服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
-              {relayEndpoint
+              {/* {relayEndpoint
                 ? relayEndpoint.url
                   ? extractHostFromUrl(relayEndpoint.url)
                   : relayEndpoint.name
-                : "选择"}
+                : "选择"} */}
+              {
+                relayEndpoint
+                  ? relayEndpoint.name
+                  : "选择"
+              }
             </span>
             <Icon
               className="text-3xl text-primary"
@@ -1352,8 +1357,8 @@ export default function ScenarioCreateModal({
 
           {/* 目标服务器 */}
           <div className="flex flex-col items-center">
-            <span className="text-xs text-default-500 mb-1">
-              {formData.targetServerAddress || "地址"}
+            <span className="text-xs text-default-500 mb-1 opacity-0">
+              占位
             </span>
             <Icon
               className="text-3xl text-success"
@@ -1411,9 +1416,7 @@ export default function ScenarioCreateModal({
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
               {publicEndpoint
-                ? publicEndpoint.url
-                  ? extractHostFromUrl(publicEndpoint.url)
-                  : publicEndpoint.name
+                ? publicEndpoint.name
                 : "选择"}
             </span>
             <Icon className="text-4xl text-primary" icon="solar:cloud-bold" />
@@ -1421,6 +1424,7 @@ export default function ScenarioCreateModal({
               {formData.publicListenPort || "10022"}
             </span>
           </div>
+
 
           {/* 箭头 + TLS锁 */}
           <div className="relative flex flex-col items-center">
@@ -1435,14 +1439,38 @@ export default function ScenarioCreateModal({
             />
           </div>
 
+          {/* 隧道端口节点 - 仅在外部地址模式下显示 */}
+          {formData.natTargetExternal && (
+            <>
+              <div className="flex flex-col items-center">
+                <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
+                  {localEndpoint ? localEndpoint.name : "选择"}
+                </span>
+                <Icon
+                  className="text-4xl text-success"
+                  icon="fluent:home-16-filled"
+                />
+                <span className="text-xs text-default-600 font-medium mt-1">
+                  {formData.publicTunnelPort || "10101"}
+                </span>
+              </div>
+
+              {/* 箭头 */}
+              <div className="relative flex flex-col items-center">
+                <Icon
+                  className="text-2xl text-default-400"
+                  icon="tabler:arrow-big-right-filled"
+                />
+              </div>
+            </>
+          )}
+
           {/* 本地服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
-              {localEndpoint
-                ? localEndpoint.url
-                  ? extractHostFromUrl(localEndpoint.url)
-                  : localEndpoint.name
-                : "选择"}
+              {formData.natTargetExternal
+                ? formData.localTargetHost || "192.168.1.100"
+                : (localEndpoint ? localEndpoint.name : "选择")}
             </span>
             <Icon
               className="text-4xl text-success"
@@ -1486,12 +1514,7 @@ export default function ScenarioCreateModal({
           {/* 中转服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
-              {targetEndpoint
-                ? targetEndpoint.url
-                  ? extractHostFromUrl(targetEndpoint.url)
-                  : targetEndpoint.name
-                : "选择目标服务器"}
-
+              {targetEndpoint ? targetEndpoint.name : "选择"}
             </span>
             <Icon
               className="text-3xl text-primary"
@@ -1502,7 +1525,8 @@ export default function ScenarioCreateModal({
             </span>
           </div>
 
-          {/* 箭头 + TLS锁 */}
+          {/* 箭头 */}
+
           <div className="relative flex flex-col items-center">
             {formData.doubleTlsEnabled && (
               <div className="absolute -top-6">
@@ -1514,15 +1538,36 @@ export default function ScenarioCreateModal({
               icon="tabler:arrow-big-right-filled"
             />
           </div>
+          {/* 隧道端口节点 - 仅在外部地址模式下显示 */}
+          {formData.doubleTargetExternal && (
+            <>
+              <div className="flex flex-col items-center">
+                <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
+                  {relayEndpoint ? relayEndpoint.name : "选择"}
+                </span>
+                <Icon
+                  className="text-3xl text-primary"
+                  icon="ph:airplane-taxiing-fill"
+                />
+                <span className="text-xs text-default-600 font-medium mt-1">
+                  {formData.relayTunnelPort2 || "10101"}
+                </span>
+              </div>
+
+              {/* 箭头 + TLS锁 */}
+              <Icon
+                className="text-2xl text-default-400"
+                icon="tabler:arrow-big-right-filled"
+              />
+            </>
+          )}
 
           {/* 目标服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
-              {relayEndpoint
-                ? relayEndpoint.url
-                  ? extractHostFromUrl(relayEndpoint.url)
-                  : relayEndpoint.name
-                : "选择中转服务器"}
+              {formData.doubleTargetExternal
+                ? formData.targetAddress2 || "192.168.1.100"
+                : (relayEndpoint ? relayEndpoint.name : "选择")}
             </span>
             <Icon
               className="text-3xl text-success"
@@ -1602,7 +1647,7 @@ export default function ScenarioCreateModal({
     return (
       <div className="h-full flex flex-col">
         <Card className="flex-1">
-          <CardBody className="p-6 bg-default-50">
+          <CardBody className="bg-default-50">
             <h4 className="text-sm font-semibold text-default-700 mb-4">架构预览</h4>
             {selectedScenario === "single-forward" &&
               renderSingleForwardPreview()}
@@ -1611,12 +1656,12 @@ export default function ScenarioCreateModal({
               renderTunnelForwardPreview()}
 
             {/* 入口出口信息 */}
-            <div className="mt-4 pt-4 border-t border-default-200">
+            <div className="mt-4 pt-4 border-t border-default-200 p-2" >
               <div className={`${selectedScenario === "single-forward" && !isEnableExtendTargetsSingle ? "grid grid-cols-2" : "flex flex-col"} gap-3`}>
                 {/* 入口 */}
                 <div className="bg-primary-50 dark:bg-primary-900/20 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <Icon icon="solar:login-2-bold-duotone" className="text-primary text-lg" />
+                    <Icon icon="uim:exit" className="text-primary text-lg" />
                     <span className="text-xs font-medium text-primary">入口</span>
                   </div>
                   <div className="font-mono text-sm text-default-700 break-all">{entry}</div>
@@ -1624,7 +1669,7 @@ export default function ScenarioCreateModal({
                 {/* 出口 */}
                 <div className="bg-success-50 dark:bg-success-900/20 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-2">
-                    <Icon icon="solar:logout-2-bold-duotone" className="text-success text-lg" />
+                    <Icon icon="uim:sign-out" className="text-success text-lg" />
                     <span className="text-xs font-medium text-success">出口</span>
                     {exit.length > 1 && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-warning-100 text-warning-600 dark:bg-warning-900/30 dark:text-warning-400">
