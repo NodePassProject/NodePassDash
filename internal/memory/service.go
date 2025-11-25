@@ -92,19 +92,6 @@ func (s *Service) AddStatusChangeListener(listener StatusChangeListener) {
 	s.statusChangeListeners = append(s.statusChangeListeners, listener)
 }
 
-// RemoveStatusChangeListener 移除状态变化监听器
-func (s *Service) RemoveStatusChangeListener(listener StatusChangeListener) {
-	s.listenersMutex.Lock()
-	defer s.listenersMutex.Unlock()
-
-	for i, l := range s.statusChangeListeners {
-		if l == listener {
-			s.statusChangeListeners = append(s.statusChangeListeners[:i], s.statusChangeListeners[i+1:]...)
-			break
-		}
-	}
-}
-
 // notifyStatusChange 通知状态变化
 func (s *Service) notifyStatusChange(endpointID int64, tunnelID string, eventType, fromStatus, toStatus, reason string, duration int64) {
 	s.listenersMutex.RLock()
@@ -130,19 +117,6 @@ func (s *Service) AddSSEEventListener(listener SSEEventListener) {
 	s.sseListenersMutex.Lock()
 	defer s.sseListenersMutex.Unlock()
 	s.sseEventListeners = append(s.sseEventListeners, listener)
-}
-
-// RemoveSSEEventListener 移除 SSE 事件监听器
-func (s *Service) RemoveSSEEventListener(listener SSEEventListener) {
-	s.sseListenersMutex.Lock()
-	defer s.sseListenersMutex.Unlock()
-
-	for i, l := range s.sseEventListeners {
-		if l == listener {
-			s.sseEventListeners = append(s.sseEventListeners[:i], s.sseEventListeners[i+1:]...)
-			break
-		}
-	}
 }
 
 // notifySSEEvent 通知 SSE 事件
@@ -266,19 +240,6 @@ func (s *Service) GetEndpointState(endpointID int64) *EndpointShared {
 // GetAllEndpointStates 获取所有端点实时状态（从内存）
 func (s *Service) GetAllEndpointStates() map[int64]*EndpointShared {
 	return s.manager.GetAllEndpoints()
-}
-
-// GetTunnelState 获取隧道实时状态（从内存）
-func (s *Service) GetTunnelState(endpointID int64, instanceID string) *TunnelState {
-	endpoint := s.manager.GetEndpoint(endpointID)
-	if endpoint == nil {
-		return nil
-	}
-
-	endpoint.Mu.RLock()
-	defer endpoint.Mu.RUnlock()
-
-	return endpoint.State.Tunnels[instanceID]
 }
 
 // updateMemoryState 更新内存状态
@@ -526,7 +487,7 @@ func (s *Service) persistTunnelState(endpointID int64, event models.EndpointSSE)
 				log.Warnf("删除隧道 %d 操作日志失败: %v", tunnel.ID, err)
 			}
 		}
-		
+
 		err := s.db.Where("endpoint_id = ? AND instance_id = ?", endpointID, event.InstanceID).
 			Delete(&models.Tunnel{}).Error
 		if err != nil {

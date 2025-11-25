@@ -2,6 +2,7 @@ package tunnel
 
 import (
 	"NodePassDash/internal/db"
+	"NodePassDash/internal/endpointcache"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
@@ -2468,20 +2469,18 @@ func (s *Service) ResetTunnelTrafficByInstanceID(instanceID string) error {
 	return nil
 }
 
-// updateEndpointTunnelCount 更新端点的隧道计数，使用重试机制避免死锁
+// updateEndpointTunnelCount 更新端点的隧道计数（直接使用缓存）
 func (s *Service) updateEndpointTunnelCount(endpointID int64) {
-	err := db.ExecuteWithRetry(func(db *gorm.DB) error {
-		return db.Model(&models.Endpoint{}).Where("id = ?", endpointID).
-			Update("tunnel_count", db.Model(&models.Tunnel{}).
-				Where("endpoint_id = ?", endpointID).
-				Select("count(*)")).Error
-	})
-
-	if err != nil {
-		log.Errorf("[API] 更新端点 %d 隧道计数失败: %v", endpointID, err)
-	} else {
-		log.Debugf("[API] 端点 %d 隧道计数已更新", endpointID)
+	// 查询当前的隧道数量
+	var count int64
+	if err := s.db.Model(&models.Tunnel{}).Where("endpoint_id = ?", endpointID).Count(&count).Error; err != nil {
+		log.Errorf("[隧道服务] 查询端点 %d 隧道计数失败: %v", endpointID, err)
+		return
 	}
+
+	// 直接更新缓存（30秒后自动持久化）
+	endpointcache.Shared.UpdateTunnelCount(endpointID, count)
+	log.Debugf("[隧道服务] 端点 %d 隧道计数已更新为: %d (已缓存)", endpointID, count)
 }
 
 // GetTunnelsWithPagination 获取带分页和筛选的隧道列表（优化版本）

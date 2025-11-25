@@ -2,9 +2,11 @@ package sse
 
 import (
 	"NodePassDash/internal/endpoint"
+	"NodePassDash/internal/endpointcache"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
+	"NodePassDash/internal/servicecache"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -36,9 +38,6 @@ type Service struct {
 	// 历史数据处理Worker（类似Nezha的ServiceHistory）
 	historyWorker *HistoryWorker
 
-	// 异步持久化队列
-	storeJobCh chan models.EndpointSSE // 事件持久化任务队列
-
 	// 文件日志管理器
 	fileLogger *log.FileLogger // 文件日志管理器
 
@@ -60,13 +59,10 @@ func NewService(db *gorm.DB, endpointService *endpoint.Service) *Service {
 		db:              db,
 		endpointService: endpointService,
 		historyWorker:   NewHistoryWorker(db),
-		storeJobCh:      make(chan models.EndpointSSE, 20000), // 增加缓冲大小到20000
 		fileLogger:      log.NewFileLogger(logDir),
 		ctx:             ctx,
 		cancel:          cancel,
 	}
-
-	s.StartStoreWorkers(8)
 
 	return s
 }
@@ -168,48 +164,10 @@ func (s *Service) UnsubscribeFromTunnel(clientID, tunnelID string) {
 	}
 }
 
-// ======================== Worker ============================
-
-// StartStoreWorkers 启动固定数量的事件持久化 worker
-func (s *Service) StartStoreWorkers(n int) {
-	if n <= 0 {
-		n = 1 // 默认至少 1 个
-	}
-	for i := 0; i < n; i++ {
-		go s.storeWorkerLoop()
-	}
-}
-
-// storeWorkerLoop 存储worker循环
-func (s *Service) storeWorkerLoop() {
-	for event := range s.storeJobCh {
-		if event.EventType == models.SSEEventTypeLog {
-			// 写入文件日志
-			logContent := ""
-			if event.Logs != nil {
-				logContent = *event.Logs
-			}
-
-			if err := s.fileLogger.WriteLog(event.EndpointID, event.InstanceID, logContent); err != nil {
-				log.Warnf("[Master-%d]写入文件日志失败: %v", event.EndpointID, err)
-			}
-		}
-	}
-}
-
 // ======================== 事件处理器 ============================
 
-// ProcessEvent 处理SSE事件（回滚到原来的直接更新逻辑）
+// ProcessEvent 处理SSE事件
 func (s *Service) ProcessEvent(payload SSEResp) {
-	// 异步处理事件，避免阻塞SSE接收
-	// select {
-	// case s.storeJobCh <- event:
-	// 	// 成功投递到存储队列
-	// default:
-	// 	log.Warnf("[Master-%d]事件存储队列已满，丢弃事件", endpointID)
-	// 	return fmt.Errorf("存储队列已满")
-	// }
-
 	switch payload.Type {
 	case "shutdown":
 		s.handleShutdownEvent(payload)
@@ -218,7 +176,6 @@ func (s *Service) ProcessEvent(payload SSEResp) {
 	case "create":
 		s.handleCreateEvent(payload)
 	case "update":
-		// 保留History Worker逻辑（参照Nezha的逻辑）
 		if s.historyWorker != nil {
 			s.historyWorker.Dispatch(payload)
 		}
@@ -243,7 +200,7 @@ func (s *Service) handleInitialEvent(payload SSEResp) {
 	// 检查隧道是否已存在
 	if err := s.db.Where("endpoint_id = ? AND instance_id = ?", payload.EndpointID, payload.Instance.ID).First(&models.Tunnel{}).Error; err == nil {
 		// 隧道已存在（正常情况），更新运行时信息
-		log.Debugf("[Master-%d]隧道 %s 已存在，更新运行时信息", payload.EndpointID, payload.Instance.ID)
+		// log.Debugf("[Master-%d]隧道 %s 已存在，更新运行时信息", payload.EndpointID, payload.Instance.ID)
 		s.updateTunnelRuntimeInfo(payload)
 		return
 	} else if err != gorm.ErrRecordNotFound {
@@ -256,9 +213,15 @@ func (s *Service) handleInitialEvent(payload SSEResp) {
 		if err = s.db.Create(&tunnel).Error; err != nil {
 			log.Errorf("[Master-%d]初始化隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
 		} else {
-			log.Infof("[Master-%d]最小化隧道记录 %s 初始化成功，包含流量信息", payload.EndpointID, payload.Instance.ID)
-			s.updateEndpointTunnelCount(payload.EndpointID)
-
+			log.Infof("[Master-%d]最小化隧道记录 %s 初始化成功", payload.EndpointID, payload.Instance.ID)
+			// 查询并更新隧道计数
+			var count int64
+			if err := s.db.Model(&models.Tunnel{}).Where("endpoint_id = ?", payload.EndpointID).Count(&count).Error; err != nil {
+				log.Errorf("[Master-%d] 查询隧道计数失败: %v", payload.EndpointID, err)
+			} else {
+				endpointcache.Shared.UpdateTunnelCount(payload.EndpointID, count)
+				log.Debugf("[Master-%d#SSE] 更新端点隧道计数为: %d (已缓存)", payload.EndpointID, count)
+			}
 			// 处理服务记录
 			s.upsertService(payload.Instance.ID, tunnel)
 		}
@@ -327,8 +290,15 @@ func (s *Service) handleCreateEvent(payload SSEResp) {
 	}).Create(&tunnel).Error; err != nil {
 		log.Errorf("[Master-%d]创建/更新隧道记录 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
 	} else {
-		log.Infof("[Master-%d]隧道记录 %s 处理成功（创建或更新）", payload.EndpointID, payload.Instance.ID)
-		s.updateEndpointTunnelCount(payload.EndpointID)
+		log.Debugf("[Master-%d]隧道记录 %s 处理成功（创建或更新）", payload.EndpointID, payload.Instance.ID)
+		// 查询并更新隧道计数
+		var count int64
+		if err := s.db.Model(&models.Tunnel{}).Where("endpoint_id = ?", payload.EndpointID).Count(&count).Error; err != nil {
+			log.Errorf("[Master-%d] 查询隧道计数失败: %v", payload.EndpointID, err)
+		} else {
+			endpointcache.Shared.UpdateTunnelCount(payload.EndpointID, count)
+			log.Debugf("[Master-%d#SSE] 更新端点隧道计数为: %d (已缓存)", payload.EndpointID, count)
+		}
 
 		// 处理服务记录
 		s.upsertService(payload.Instance.ID, tunnel)
@@ -375,8 +345,14 @@ func (s *Service) handleDeleteEvent(payload SSEResp) {
 		log.Errorf("[Master-%d]删除隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
 	} else {
 		log.Infof("[Master-%d]隧道 %s 删除成功", payload.EndpointID, payload.Instance.ID)
-		// 更新端点隧道计数
-		s.updateEndpointTunnelCount(payload.EndpointID)
+		// 查询并更新隧道计数
+		var count int64
+		if err := s.db.Model(&models.Tunnel{}).Where("endpoint_id = ?", payload.EndpointID).Count(&count).Error; err != nil {
+			log.Errorf("[Master-%d] 查询隧道计数失败: %v", payload.EndpointID, err)
+		} else {
+			endpointcache.Shared.UpdateTunnelCount(payload.EndpointID, count)
+			log.Debugf("[Master-%d#SSE] 更新端点隧道计数为: %d (已缓存)", payload.EndpointID, count)
+		}
 	}
 }
 
@@ -483,24 +459,6 @@ func (s *Service) fetchAndUpdateEndpointInfo(endpointID int64) {
 			log.Infof("[Master-%d] 系统信息已更新: OS=%s, Arch=%s, Ver=%s, Uptime=%s", endpointID, info.OS, info.Arch, info.Ver, uptimeMsg)
 		}
 	}
-}
-
-// updateEndpointTunnelCount 更新端点的隧道计数
-func (s *Service) updateEndpointTunnelCount(endpointID int64) {
-	var count int64
-	if err := s.db.Exec(`
-		UPDATE endpoints 
-		SET tunnel_count = (
-			SELECT COUNT(*) 
-			FROM tunnels 
-			WHERE tunnels.endpoint_id = endpoints.id
-		)
-		WHERE id = ?
-	`, endpointID).Error; err != nil {
-		log.Errorf("[Master-%d] 更新端点隧道计数失败: %v", endpointID, err)
-	}
-
-	log.Infof("[Master-%d#SSE]更新端点隧道计数为: %d", endpointID, count)
 }
 
 // sendTunnelUpdateByInstanceId 根据实例ID发送隧道更新
@@ -738,28 +696,92 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "tunnel_endpoint_name", "entrance_host", "entrance_port", "total_rx", "total_tx"}
 		}
 	}
-	// 检查服务是否已存在，如果不存在则自动设置 sorts
-	var existingService models.Services
-	isNewService := s.db.Where("sid = ? AND type = ?", *peer.SID, *peer.Type).First(&existingService).Error != nil
+	// 优先从缓存检查服务是否已存在
+	var isNewService bool
+	if servicecache.Shared != nil {
+		existingInCache := servicecache.Shared.Get(*peer.SID)
+		isNewService = (existingInCache == nil)
+	} else {
+		// 缓存未初始化，从数据库检查（降级方案）
+		var existingService models.Services
+		isNewService = s.db.Where("sid = ? AND type = ?", *peer.SID, *peer.Type).First(&existingService).Error != nil
+	}
 
 	if isNewService {
 		// 新服务：查询当前最大 sorts 值并 +1
+		// 优先从缓存获取，否则从数据库查询
 		var maxSorts int64
-		s.db.Model(&models.Services{}).Select("COALESCE(MAX(sorts), -1)").Scan(&maxSorts)
+		if servicecache.Shared != nil {
+			services := servicecache.Shared.GetAll()
+			maxSorts = -1
+			for _, s := range services {
+				if s.Sorts > maxSorts {
+					maxSorts = s.Sorts
+				}
+			}
+		} else {
+			s.db.Model(&models.Services{}).Select("COALESCE(MAX(sorts), -1)").Scan(&maxSorts)
+		}
 		service.Sorts = maxSorts + 1
-		log.Infof("新服务 SID=%s, Type=%s, 自动设置 sorts=%d", *peer.SID, *peer.Type, service.Sorts)
+		service.CreatedAt = time.Now()
+		log.Infof("[ServiceCache] 新服务 SID=%s, Type=%s, 自动设置 sorts=%d", *peer.SID, *peer.Type, service.Sorts)
 	}
 
-	// 使用 OnConflict 处理插入或更新
-	if err := s.db.Clauses(clause.OnConflict{
-		Columns: []clause.Column{
-			{Name: "sid"},
-			{Name: "type"},
-		},
-		DoUpdates: clause.AssignmentColumns(updateColumns),
-	}).Create(&service).Error; err != nil {
-		log.Errorf("处理服务记录失败 (SID=%s, Type=%s): %v", *peer.SID, *peer.Type, err)
+	service.UpdatedAt = time.Now()
+
+	// 只更新缓存，不写数据库（由后台定期持久化）
+	if servicecache.Shared != nil {
+		if isNewService {
+			// 新服务：添加到缓存
+			servicecache.Shared.Add(&service)
+			log.Debugf("[ServiceCache] 添加新服务到缓存: SID=%s, Type=%s", *peer.SID, *peer.Type)
+		} else {
+			// 已存在服务：更新缓存
+			updates := make(map[string]interface{})
+			for _, col := range updateColumns {
+				switch col {
+				case "alias":
+					updates["alias"] = service.Alias
+				case "client_instance_id":
+					updates["client_instance_id"] = service.ClientInstanceId
+				case "client_endpoint_id":
+					updates["client_endpoint_id"] = service.ClientEndpointId
+				case "server_instance_id":
+					updates["server_instance_id"] = service.ServerInstanceId
+				case "server_endpoint_id":
+					updates["server_endpoint_id"] = service.ServerEndpointId
+				case "exit_host":
+					updates["exit_host"] = service.ExitHost
+				case "exit_port":
+					updates["exit_port"] = service.ExitPort
+				case "entrance_host":
+					updates["entrance_host"] = service.EntranceHost
+				case "entrance_port":
+					updates["entrance_port"] = service.EntrancePort
+				case "tunnel_port":
+					updates["tunnel_port"] = service.TunnelPort
+				case "tunnel_endpoint_name":
+					updates["tunnel_endpoint_name"] = service.TunnelEndpointName
+				case "total_rx":
+					updates["total_rx"] = service.TotalRx
+				case "total_tx":
+					updates["total_tx"] = service.TotalTx
+				}
+			}
+			servicecache.Shared.UpdateService(*peer.SID, updates)
+			log.Debugf("[ServiceCache] 更新缓存中的服务: SID=%s, fields=%d", *peer.SID, len(updates))
+		}
 	} else {
-		// log.Infof("处理服务记录成功 (SID=%s, Type=%s, InstanceID=%s)", *peer.SID, *peer.Type, instanceID)
+		// 缓存未初始化，降级为直接写数据库（兼容性处理）
+		log.Warnf("[ServiceCache] 缓存未初始化，降级为直接写数据库: SID=%s", *peer.SID)
+		if err := s.db.Clauses(clause.OnConflict{
+			Columns: []clause.Column{
+				{Name: "sid"},
+				{Name: "type"},
+			},
+			DoUpdates: clause.AssignmentColumns(updateColumns),
+		}).Create(&service).Error; err != nil {
+			log.Errorf("处理服务记录失败 (SID=%s, Type=%s): %v", *peer.SID, *peer.Type, err)
+		}
 	}
 }

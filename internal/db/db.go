@@ -184,9 +184,7 @@ func QuickInitSchema(db *gorm.DB) error {
 
 		// 依赖表
 		&models.Tunnel{},
-		&models.TunnelRecycle{},
 		&models.TunnelOperationLog{},
-		&models.EndpointSSE{},
 		&models.TunnelGroup{},
 
 		// 流量统计表
@@ -214,9 +212,7 @@ func StandardMigrate(db *gorm.DB) error {
 
 		// 依赖表
 		&models.Tunnel{},
-		&models.TunnelRecycle{},
 		&models.TunnelOperationLog{},
-		&models.EndpointSSE{},
 		&models.TunnelGroup{},
 
 		// 流量统计表

@@ -1,8 +1,8 @@
 package api
 
 import (
-	"NodePassDash/internal/db"
 	"NodePassDash/internal/endpoint"
+	"NodePassDash/internal/endpointcache"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
@@ -408,7 +408,15 @@ func (h *DataHandler) handleImportV1(c *gin.Context, baseData struct {
 		go func() {
 			time.Sleep(100 * time.Millisecond) // 稍作延迟确保事务提交完成
 			for _, ep := range newEndpoints {
-				updateEndpointTunnelCountForData(ep.ID)
+				// 查询隧道数量
+				var count int64
+				if err := h.db.Model(&models.Tunnel{}).Where("endpoint_id = ?", ep.ID).Count(&count).Error; err != nil {
+					log.Errorf("[数据导入] 查询端点 %d 隧道计数失败: %v", ep.ID, err)
+					continue
+				}
+				// 直接更新缓存
+				endpointcache.Shared.UpdateTunnelCount(ep.ID, count)
+				log.Debugf("[数据导入] 端点 %d 隧道计数已更新为: %d (已缓存)", ep.ID, count)
 			}
 		}()
 	}
@@ -531,20 +539,6 @@ func (h *DataHandler) handleImportV2(c *gin.Context, baseData struct {
 		"importedEndpoints": importedEndpoints,
 		"skippedEndpoints":  skippedEndpoints,
 	})
-}
-
-// updateEndpointTunnelCountForData 更新端点的隧道计数，用于数据导入后的异步更新
-func updateEndpointTunnelCountForData(endpointID int64) {
-	err := db.ExecuteWithRetry(func(db *gorm.DB) error {
-		return db.Model(&models.Endpoint{}).Where("id = ?", endpointID).
-			Update("tunnel_count", gorm.Expr("(SELECT COUNT(*) FROM tunnels WHERE endpoint_id = ?)", endpointID)).Error
-	})
-
-	if err != nil {
-		log.Errorf("[数据导入]更新端点 %d 隧道计数失败: %v", endpointID, err)
-	} else {
-		log.Debugf("[数据导入]端点 %d 隧道计数已更新", endpointID)
-	}
 }
 
 // ValidateImportResult 单个主控的验证结果

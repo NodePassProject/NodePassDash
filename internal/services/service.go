@@ -4,6 +4,7 @@ import (
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
+	"NodePassDash/internal/servicecache"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
 	"encoding/json"
@@ -30,13 +31,31 @@ func NewService(db *gorm.DB, tunnelService *tunnel.Service, sseManager *sse.Mana
 
 // GetServices 获取所有服务（按 sorts 降序排序，更大的值排在前面）
 func (s *ServiceImpl) GetServices() ([]*models.Services, error) {
+	// 优先从缓存获取
+	if servicecache.Shared != nil {
+		services := servicecache.Shared.GetSortedList()
+		log.Debugf("[Service] 从缓存获取 %d 个服务", len(services))
+		return services, nil
+	}
+
+	// 缓存未初始化，从数据库查询
 	var services []*models.Services
 	err := s.db.Order("sorts DESC").Find(&services).Error
 	return services, err
 }
 
-// GetServiceByID 根据 SID 和 Type 获取单个服务
+// GetServiceByID 根据 SID 获取单个服务
 func (s *ServiceImpl) GetServiceByID(sid string) (*models.Services, error) {
+	// 优先从缓存获取
+	if servicecache.Shared != nil {
+		service := servicecache.Shared.Get(sid)
+		if service != nil {
+			log.Debugf("[Service] 从缓存获取服务: SID=%s", sid)
+			return service, nil
+		}
+	}
+
+	// 缓存中不存在或缓存未初始化，从数据库查询
 	var service models.Services
 	err := s.db.Where("sid = ?", sid).First(&service).Error
 	if err != nil {
@@ -286,6 +305,11 @@ func (s *ServiceImpl) DeleteService(sid string) error {
 		return fmt.Errorf("删除服务记录失败: %w", err)
 	}
 
+	// 从缓存中删除
+	if servicecache.Shared != nil {
+		servicecache.Shared.Delete(sid)
+	}
+
 	return nil
 }
 
@@ -356,6 +380,11 @@ func (s *ServiceImpl) RenameService(sid, newName string) error {
 		Where("sid = ? ", sid).
 		Update("alias", newName).Error; err != nil {
 		return fmt.Errorf("更新服务别名失败: %w", err)
+	}
+
+	// 更新缓存中的别名
+	if servicecache.Shared != nil {
+		servicecache.Shared.UpdateField(sid, "alias", &newName)
 	}
 
 	return nil
@@ -439,6 +468,11 @@ func (s *ServiceImpl) DissolveService(sid string) error {
 	// 删除服务记录（但不删除实例）
 	if err := s.db.Where("sid = ?", sid).Delete(&models.Services{}).Error; err != nil {
 		return fmt.Errorf("删除服务记录失败: %w", err)
+	}
+
+	// 从缓存中删除
+	if servicecache.Shared != nil {
+		servicecache.Shared.Delete(sid)
 	}
 
 	return nil
@@ -664,6 +698,43 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 		return fmt.Errorf("更新服务记录失败: %w", err)
 	}
 
+	// 更新缓存
+	if servicecache.Shared != nil {
+		// 构建更新字段的map
+		updates := make(map[string]interface{})
+		for _, col := range updateColumns {
+			switch col {
+			case "alias":
+				updates["alias"] = service.Alias
+			case "client_instance_id":
+				updates["client_instance_id"] = service.ClientInstanceId
+			case "client_endpoint_id":
+				updates["client_endpoint_id"] = service.ClientEndpointId
+			case "server_instance_id":
+				updates["server_instance_id"] = service.ServerInstanceId
+			case "server_endpoint_id":
+				updates["server_endpoint_id"] = service.ServerEndpointId
+			case "exit_host":
+				updates["exit_host"] = service.ExitHost
+			case "exit_port":
+				updates["exit_port"] = service.ExitPort
+			case "entrance_host":
+				updates["entrance_host"] = service.EntranceHost
+			case "entrance_port":
+				updates["entrance_port"] = service.EntrancePort
+			case "tunnel_port":
+				updates["tunnel_port"] = service.TunnelPort
+			case "tunnel_endpoint_name":
+				updates["tunnel_endpoint_name"] = service.TunnelEndpointName
+			case "total_rx":
+				updates["total_rx"] = service.TotalRx
+			case "total_tx":
+				updates["total_tx"] = service.TotalTx
+			}
+		}
+		servicecache.Shared.UpdateService(sid, updates)
+	}
+
 	return nil
 }
 
@@ -713,6 +784,13 @@ func (s *ServiceImpl) UpdateServicesSorts(req *UpdateServicesSortsRequest) error
 	// 提交事务
 	if err := tx.Commit().Error; err != nil {
 		return fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	// 批量更新缓存中的sorts字段
+	if servicecache.Shared != nil {
+		for _, item := range req.Services {
+			servicecache.Shared.UpdateField(item.Sid, "sorts", item.Sorts)
+		}
 	}
 
 	log.Infof("[Service] 批量更新 %d 个服务的排序成功", len(req.Services))
