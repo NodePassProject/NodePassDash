@@ -34,10 +34,8 @@ import {
   faFileLines,
   faHardDrive,
   faClock,
-  faCalendar,
   faPlus,
   faSync,
-  faCheckCircle,
   faCopy,
   faPlug,
   faPlugCircleXmark,
@@ -894,7 +892,7 @@ export default function EndpointDetailPage() {
   }, [endpointDetail, onQrCodeOpen]);
 
   return (
-    <div className="space-y-4 p-4 md:p-6">
+    <div className="space-y-6 p-4 md:p-6">
       {/* 顶部返回按钮和主控信息 */}
       <div className="flex flex-col md:flex-row md:items-center gap-3 md:justify-between">
         <div className="flex items-center gap-3">
@@ -927,18 +925,6 @@ export default function EndpointDetailPage() {
                         : "warning"
                 }
                 variant="flat"
-                startContent={
-                  <div
-                    className={`ml-2 w-2 h-2 rounded-full ${endpointDetail.status === "ONLINE"
-                        ? "bg-green-500 animate-pulse"
-                        : endpointDetail.status === "FAIL"
-                          ? "bg-red-500"
-                          : endpointDetail.status === "DISCONNECT"
-                            ? "bg-gray-400"
-                            : "bg-yellow-500"
-                      }`}
-                  />
-                }
               >
                 {endpointDetail.status === "ONLINE"
                   ? "在线"
@@ -995,364 +981,246 @@ export default function EndpointDetailPage() {
         </div>
       </div>
 
-      {/* 系统监控统计图 */}
+      {/* 系统监控统计图 - 仅在实验模式下显示 */}
       <SystemStatsCharts
         endpointId={endpointId ? parseInt(endpointId) : null}
         endpointOS={endpointDetail?.os || null}
         endpointVersion={endpointDetail?.ver || null}
       />
 
-      {/* 主布局：左侧主内容 + 右侧信息面板 */}
-      <div className="grid grid-cols-1 xl:grid-cols-4 gap-4">
-        {/* 左侧主内容区域 */}
-        <div className="xl:col-span-3 space-y-2">
-          {/* 统计信息标题 */}
-          <div>
-            <h3 className="text-base font-semibold mt-4">主控统计</h3>
+      {/* 统计信息卡片 */}
+      <Card className="p-2">
+        <CardHeader>
+          <div className="flex flex-col flex-1">
+            <p className="text-lg font-semibold">主控统计</p>
+            <p className="text-sm text-default-500">当前主控的数据统计概览</p>
           </div>
-
-          {/* 统计信息卡片 - 无外层Card */}
+        </CardHeader>
+        <CardBody>
           {statsLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {Array.from({ length: 3 }, (_, index) => (
-                <Card key={index} className="p-4">
-                  <CardBody className="p-0">
-                    <div className="flex items-center justify-between">
-                      <div>
-                        <Skeleton className="h-3 w-16 mb-1" />
-                        <Skeleton className="h-6 w-12 mb-1" />
-                        <Skeleton className="h-3 w-20" />
-                      </div>
-                      <Skeleton className="w-12 h-12 rounded-lg" />
-                    </div>
-                  </CardBody>
-                </Card>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {Array.from({ length: 4 }, (_, index) => (
+                <div
+                  key={index}
+                  className="flex items-center gap-3 p-4 bg-default/10 rounded-lg"
+                >
+                  <Skeleton className="w-6 h-6 rounded" />
+                  <div className="flex-1">
+                    <Skeleton className="h-3 w-16 mb-1" />
+                    <Skeleton className="h-5 w-12 mb-1" />
+                    <Skeleton className="h-3 w-20" />
+                  </div>
+                </div>
               ))}
             </div>
           ) : endpointStats ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-              {/* 实例总数量 */}
-              <Card className="p-4 bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20">
-                <CardBody className="p-0">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-default-600 mb-1">实例总数量</p>
-                      <p className="text-2xl font-bold text-primary mb-1">
-                        {endpointStats.tunnelCount}
-                      </p>
-                      <p className="text-xs text-default-500">活跃实例</p>
-                    </div>
-                    <div className="w-12 h-12 rounded-lg bg-primary/20 flex items-center justify-center">
-                      <FontAwesomeIcon
-                        className="text-primary text-xl"
-                        icon={faLayerGroup}
-                      />
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
+            <div className="grid grid-cols-1 md:grid-cols-4 gap-4">
+              {/* 隧道数量 */}
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-primary/20 via-primary/10 to-primary/5 border border-primary/20">
+                <FontAwesomeIcon
+                  className="text-primary text-xl"
+                  icon={faLayerGroup}
+                />
+                <div>
+                  <p className="text-xs text-default-600">实例总数量</p>
+                  <p className="text-xl font-bold text-primary">
+                    {endpointStats.tunnelCount}
+                  </p>
+                  <p className="text-xs text-default-500">活跃实例</p>
+                </div>
+              </div>
 
               {/* 日志文件数 */}
-              <Card className="p-4 bg-gradient-to-br from-secondary/10 to-secondary/5 border border-secondary/20">
-                <CardBody className="p-0">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-default-600 mb-1">日志文件数</p>
-                      <p className="text-2xl font-bold text-secondary mb-1">
-                        {endpointStats.fileLogCount}
-                      </p>
-                      <p className="text-xs text-default-500">日志文件</p>
-                    </div>
-                    <div className="w-12 h-12 rounded-lg bg-secondary/20 flex items-center justify-center">
-                      <FontAwesomeIcon
-                        className="text-secondary text-xl"
-                        icon={faFileLines}
-                      />
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-secondary/20 via-secondary/10 to-secondary/5 border border-secondary/20">
+                <FontAwesomeIcon
+                  className="text-secondary text-xl"
+                  icon={faFileLines}
+                />
+                <div>
+                  <p className="text-xs text-default-600">日志文件数</p>
+                  <p className="text-xl font-bold text-secondary">
+                    {endpointStats.fileLogCount}
+                  </p>
+                  <p className="text-xs text-default-500">日志文件</p>
+                </div>
+              </div>
+
+              {/* 日志文件大小 */}
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-success/20 via-success/10 to-success/5 border border-success/20">
+                <FontAwesomeIcon
+                  className="text-success text-xl"
+                  icon={faHardDrive}
+                />
+                <div>
+                  <p className="text-xs text-default-600">日志文件大小</p>
+                  <p className="text-xl font-bold text-success">
+                    {formatFileSize(endpointStats.fileLogSize)}
+                  </p>
+                  <p className="text-xs text-default-500">磁盘占用</p>
+                </div>
+              </div>
 
               {/* 总流量 */}
-              <Card className="p-4 bg-gradient-to-br from-success/10 to-success/5 border border-success/20">
-                <CardBody className="p-0">
-                  <div className="flex items-center justify-between">
-                    <div>
-                      <p className="text-xs text-default-600 mb-1">总流量</p>
-                      <p className="text-lg font-bold text-success mb-0.5">
-                        ↑{formatTraffic(endpointStats.totalTrafficOut)}
-                      </p>
-                      <p className="text-sm font-bold text-danger">
-                        ↓{formatTraffic(endpointStats.totalTrafficIn)}
-                      </p>
-                    </div>
-                    <div className="w-12 h-12 rounded-lg bg-success/20 flex items-center justify-center">
-                      <FontAwesomeIcon
-                        className="text-success text-xl"
-                        icon={faWifi}
-                      />
-                    </div>
-                  </div>
-                </CardBody>
-              </Card>
+              <div className="flex items-center gap-3 p-4 rounded-lg bg-gradient-to-br from-warning/20 via-warning/10 to-warning/5 border border-warning/20">
+                <FontAwesomeIcon
+                  className="text-warning text-xl"
+                  icon={faWifi}
+                />
+                <div>
+                  <p className="text-xs text-default-600">总流量</p>
+                  <p className="text-lg font-bold text-warning">
+                    ↑{formatTraffic(endpointStats.totalTrafficOut)}
+                  </p>
+                  <p className="text-sm font-bold text-danger">
+                    ↓{formatTraffic(endpointStats.totalTrafficIn)}
+                  </p>
+                </div>
+              </div>
             </div>
           ) : (
             <div className="text-center py-8">
               <p className="text-default-500">无法获取统计数据</p>
             </div>
           )}
+        </CardBody>
+      </Card>
 
-          {/* 主控操作 */}
-          {endpointDetail && (
-            <>
-              <div>
-                <h3 className="text-base font-semibold mt-4">主控操作</h3>
-              </div>
-              <Card className="p-3 bg-gradient-to-br from-default/50 to-default/50">
-                <CardBody className="p-0">
-                  <div className="flex flex-wrap items-center gap-2">
-                    {/* 添加实例 */}
-                    <Button
-                      size="sm"
-                      color="primary"
-                      startContent={<FontAwesomeIcon icon={faPlus} className="hidden sm:inline" />}
-                      variant="flat"
-                      onPress={handleAddTunnel}
-                    >
-                      添加实例
-                    </Button>
+      {/* 主控操作 */}
+      {endpointDetail && (
+        <Card className="p-2">
+          <CardHeader>
+            <h3 className="text-lg font-semibold">主控操作</h3>
+          </CardHeader>
+          <CardBody>
+            <div className="flex flex-wrap items-center gap-3">
+              {/* 添加实例 */}
+              <Button
+                color="primary"
+                startContent={<FontAwesomeIcon icon={faPlus} />}
+                variant="flat"
+                onPress={handleAddTunnel}
+              >
+                添加实例
+              </Button>
 
-                    {/* 同步实例 */}
-                    <Button
-                      size="sm"
-                      color="secondary"
-                      startContent={<FontAwesomeIcon icon={faSync} className="hidden sm:inline" />}
-                      variant="flat"
-                      onPress={handleRefreshTunnels}
-                    >
-                      同步实例
-                    </Button>
+              {/* 同步实例 */}
+              <Button
+                color="secondary"
+                startContent={<FontAwesomeIcon icon={faSync} />}
+                variant="flat"
+                onPress={handleRefreshTunnels}
+              >
+                同步实例
+              </Button>
 
-                    {/* 网络调试 */}
-                    <Button
-                      size="sm"
-                      color="primary"
-                      isDisabled={endpointDetail.status !== "ONLINE"}
-                      startContent={<FontAwesomeIcon icon={faNetworkWired} className="hidden sm:inline" />}
-                      variant="flat"
-                      onPress={onNetworkDebugOpen}
-                    >
-                      网络调试
-                    </Button>
+              {/* 分隔线 */}
+              <Divider className="h-8 hidden md:block" orientation="vertical" />
 
-                    {/* 连接/断开按钮 */}
-                    {endpointDetail.status === "ONLINE" ? (
-                      <Button
-                        size="sm"
-                        color="warning"
-                        startContent={<FontAwesomeIcon icon={faPlugCircleXmark} className="hidden sm:inline" />}
-                        variant="flat"
-                        onPress={handleDisconnect}
-                      >
-                        断开连接
-                      </Button>
-                    ) : (
-                      <Button
-                        size="sm"
-                        color="success"
-                        startContent={<FontAwesomeIcon icon={faPlug} className="hidden sm:inline" />}
-                        variant="flat"
-                        onPress={handleConnect}
-                      >
-                        连接主控
-                      </Button>
-                    )}
+              {/* 网络调试 */}
+              <Button
+                color="primary"
+                isDisabled={endpointDetail.status !== "ONLINE"}
+                startContent={<FontAwesomeIcon icon={faNetworkWired} />}
+                variant="flat"
+                onPress={onNetworkDebugOpen}
+              >
+                网络调试
+              </Button>
 
-                    {/* 复制配置 */}
-                    <Button
-                      size="sm"
-                      color="default"
-                      startContent={<FontAwesomeIcon icon={faCopy} className="hidden sm:inline" />}
-                      variant="flat"
-                      onPress={handleCopyConfig}
-                    >
-                      复制配置
-                    </Button>
+              {/* 连接/断开按钮 */}
+              {endpointDetail.status === "ONLINE" ? (
+                <Button
+                  color="warning"
+                  startContent={<FontAwesomeIcon icon={faPlugCircleXmark} />}
+                  variant="flat"
+                  onPress={handleDisconnect}
+                >
+                  断开连接
+                </Button>
+              ) : (
+                <Button
+                  color="success"
+                  startContent={<FontAwesomeIcon icon={faPlug} />}
+                  variant="flat"
+                  onPress={handleConnect}
+                >
+                  连接主控
+                </Button>
+              )}
 
-                    {/* 修改配置 */}
-                    <Button
-                      size="sm"
-                      color="primary"
-                      startContent={<FontAwesomeIcon icon={faCog} className="hidden sm:inline" />}
-                      variant="flat"
-                      onPress={handleEditConfig}
-                    >
-                      修改配置
-                    </Button>
+              {/* 分隔线 */}
+              <Divider className="h-8 hidden md:block" orientation="vertical" />
 
-                    {/* 重置密钥 */}
-                    <Button
-                      size="sm"
-                      color="success"
-                      startContent={<FontAwesomeIcon icon={faKey} className="hidden sm:inline" />}
-                      variant="flat"
-                      onPress={onResetApiKeyOpen}
-                    >
-                      重置密钥
-                    </Button>
+              {/* 复制配置 */}
+              <Button
+                color="default"
+                startContent={<FontAwesomeIcon icon={faCopy} />}
+                variant="flat"
+                onPress={handleCopyConfig}
+              >
+                复制配置
+              </Button>
 
-                    {/* 删除主控 */}
-                    <Button
-                      size="sm"
-                      color="danger"
-                      startContent={<FontAwesomeIcon icon={faTrash} className="hidden sm:inline" />}
-                      variant="flat"
-                      onPress={onDeleteEndpointOpen}
-                    >
-                      删除主控
-                    </Button>
-                  </div>
-                </CardBody>
-              </Card>
-            </>
-          )}
+              {/* 修改配置 */}
+              <Button
+                color="primary"
+                startContent={<FontAwesomeIcon icon={faCog} />}
+                variant="flat"
+                onPress={handleEditConfig}
+              >
+                修改配置
+              </Button>
 
-          {/* 实例列表 */}
-          <div>
-            <h3 className="text-base font-semibold  mt-4">主控实例</h3>
-          </div>
+              {/* 重置密钥 */}
+              <Button
+                color="success"
+                startContent={<FontAwesomeIcon icon={faKey} />}
+                variant="flat"
+                onPress={onResetApiKeyOpen}
+              >
+                重置密钥
+              </Button>
 
-          {instancesLoading ? (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
-              {Array.from({ length: 3 }, (_, index) => (
-                <Card key={index} className="h-[100px]">
-                  <CardBody className="p-3 flex flex-col">
-                    <Skeleton className="h-3 w-16 mb-1" />
-                    <Skeleton className="h-3 w-24 mb-1" />
-                    <Skeleton className="h-5 w-12" />
-                  </CardBody>
-                </Card>
-              ))}
+              {/* 删除主控 */}
+              <Button
+                color="danger"
+                startContent={<FontAwesomeIcon icon={faTrash} />}
+                variant="flat"
+                onPress={onDeleteEndpointOpen}
+              >
+                删除主控
+              </Button>
             </div>
-          ) : instances.length === 0 ? (
-            <div className="text-center py-8">
-              <p className="text-default-500 text-sm">暂无实例数据</p>
+          </CardBody>
+        </Card>
+      )}
+
+      {/* 主控详情信息 */}
+      {endpointDetail && (
+        <Card className="p-2">
+          <CardHeader className="flex items-center justify-between">
+            <div className="flex items-center gap-2">
+              <h3 className="text-lg font-semibold">主控信息</h3>
+              <Button
+                isIconOnly
+                color="primary"
+                size="sm"
+                title="显示二维码"
+                variant="flat"
+                onPress={generateQRCode}
+              >
+                <FontAwesomeIcon icon={faQrcode} />
+              </Button>
             </div>
-          ) : (
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-3 max-h-[400px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
-              {instances.map((ins) => {
-                const statusConfig = {
-                  running: { label: "运行中", color: "success" },
-                  stopped: { label: "已停止", color: "danger" },
-                  error: { label: "错误", color: "danger" },
-                  starting: { label: "启动中", color: "warning" },
-                  stopping: { label: "停止中", color: "warning" },
-                  unknown: { label: "未知", color: "default" },
-                };
-                const status = statusConfig[ins.status as keyof typeof statusConfig] || statusConfig.unknown;
-
-                return (
-                  <Card
-                    key={ins.instanceId}
-                    className={`h-[100px] shadow-none relative overflow-hidden ${
-                      ins.type === "server"
-                        ? "bg-gradient-to-br from-primary/10 to-primary/5 border border-primary/20"
-                        : "bg-gradient-to-br from-secondary/10 to-secondary/5 border border-secondary/20"
-                    }`}
-                  >
-                    <CardBody className="p-3 flex flex-col h-full relative">
-                      {/* 第一行：状态点 + 名称 + 状态chip（同一行对齐） */}
-                      <div className="flex items-center justify-between gap-2 mb-1">
-                        <div className="flex items-center gap-2 min-w-0 flex-1">
-                          <div
-                            className={`w-2 h-2 rounded-full flex-shrink-0 ${ins.status === "running"
-                                ? "bg-green-500"
-                                : ins.status === "stopped"
-                                  ? "bg-red-500"
-                                  : ins.status === "error"
-                                    ? "bg-red-500 animate-pulse"
-                                    : ins.status === "starting" || ins.status === "stopping"
-                                      ? "bg-yellow-500 animate-pulse"
-                                      : "bg-gray-400"
-                              }`}
-                          />
-                          <p
-                            className="text-sm font-semibold truncate"
-                            title={ins.alias || ins.instanceId}
-                          >
-                            {ins.alias || "未命名"}
-                          </p>
-                        </div>
-                        <Chip
-                          className="text-xs h-5 flex-shrink-0"
-                          color={status.color as any}
-                          size="sm"
-                          variant="flat"
-                        >
-                          {status.label}
-                        </Chip>
-                      </div>
-
-                      {/* 实例ID */}
-                      <p
-                        className="text-xs text-default-500 truncate mb-1"
-                        title={ins.instanceId}
-                      >
-                        {ins.instanceId}
-                      </p>
-
-                      {/* 类型标签 */}
-                      <Chip
-                        className="text-xs h-5 w-fit"
-                        color={ins.type === "server" ? "primary" : "secondary"}
-                        size="sm"
-                        variant="flat"
-                      >
-                        {ins.type === "server" ? "服务端" : "客户端"}
-                      </Chip>
-
-                      {/* 右下角：图标 */}
-                      <div className="absolute bottom-3 right-3">
-                        <div
-                          className={`w-8 h-8 rounded-lg flex items-center justify-center ${ins.type === "server"
-                              ? "bg-primary/10 text-primary"
-                              : "bg-secondary/10 text-secondary"
-                            }`}
-                        >
-                          <FontAwesomeIcon
-                            className="text-base"
-                            icon={ins.type === "server" ? faServer : faDesktop}
-                          />
-                        </div>
-                      </div>
-                    </CardBody>
-                  </Card>
-                );
-              })}
-            </div>
-          )}
-        </div>
-
-        {/* 右侧主控信息面板 */}
-        {endpointDetail && (
-          <Card className="p-4 xl:sticky xl:top-6 xl:h-fit xl:col-span-1 bg-gradient-to-br from-default/50 to-default/10">
-            <CardHeader className="flex items-center justify-between p-0 pb-3">
-              <div className="flex items-center gap-2">
-                <h3 className="text-base font-semibold">主控信息</h3>
-                <FontAwesomeIcon
-                  icon={faQrcode}
-                  className="text-primary cursor-pointer hover:text-primary-600 transition-colors"
-                  title="显示二维码"
-                  onClick={generateQRCode}
-                />
-              </div>
-            </CardHeader>
-            <CardBody className="p-0">
-              <div className="space-y-3">
-                {/* 服务地址 - 垂直布局 */}
+          </CardHeader>
+          <CardBody>
+            <div className="space-y-4">
+              {/* 详细信息网格 */}
+              <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+                {/* 连接信息 */}
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-small text-default-500">
-                    <FontAwesomeIcon icon={faGlobe} />
+                    <FontAwesomeIcon icon={faServer} />
                     <span>服务地址</span>
                   </div>
                   <p className="text-small font-mono truncate">
@@ -1364,24 +1232,32 @@ export default function EndpointDetailPage() {
                   </p>
                 </div>
 
-                {(endpointDetail.uptime == null || endpointDetail.uptime == 0) && (
-                  <div className="flex items-center justify-between gap-2">
+                {(endpointDetail.uptime == null ||
+                  endpointDetail.uptime == 0) && (
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faKey} />
                       <span>API Key</span>
                     </div>
-                    <p className="text-small font-mono">••••••••</p>
+                    <p className="text-small font-mono truncate">
+                      ••••••••••••••••••••••••••••••••
+                    </p>
                   </div>
                 )}
 
-                {/* 系统信息 - 左右布局 */}
+                {/* 系统信息 */}
                 {endpointDetail.os && (
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faDesktop} />
                       <span>操作系统</span>
                     </div>
-                    <Chip className="font-mono" color="primary" size="sm" variant="flat">
+                    <Chip
+                      className="font-mono"
+                      color="primary"
+                      size="sm"
+                      variant="flat"
+                    >
                       <div className="flex items-center gap-2">
                         <OSIcon className="w-3 h-3" os={endpointDetail.os} />
                         {endpointDetail.os}
@@ -1391,12 +1267,17 @@ export default function EndpointDetailPage() {
                 )}
 
                 {endpointDetail.arch && (
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faCode} />
                       <span>架构</span>
                     </div>
-                    <Chip className="font-mono" color="secondary" size="sm" variant="flat">
+                    <Chip
+                      className="font-mono"
+                      color="secondary"
+                      size="sm"
+                      variant="flat"
+                    >
                       <div className="flex items-center gap-2">
                         <OSIcon
                           arch={endpointDetail.arch}
@@ -1410,9 +1291,9 @@ export default function EndpointDetailPage() {
                 )}
 
                 {endpointDetail.log && (
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
-                      <FontAwesomeIcon icon={faFileLines} />
+                      <FontAwesomeIcon icon={faGlobe} />
                       <span>日志级别</span>
                     </div>
                     <Chip
@@ -1427,29 +1308,41 @@ export default function EndpointDetailPage() {
                 )}
 
                 {endpointDetail.tls && (
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faLock} />
                       <span>TLS配置</span>
                     </div>
-                    <Chip
-                      color={endpointDetail.tls === "0" ? "default" : "success"}
-                      size="sm"
-                      variant="flat"
-                    >
-                      {getTlsDescription(endpointDetail.tls)}
-                    </Chip>
+                    <div className="flex items-center gap-2">
+                      <Chip
+                        color={
+                          endpointDetail.tls === "0" ? "default" : "success"
+                        }
+                        size="sm"
+                        variant="flat"
+                      >
+                        {getTlsDescription(endpointDetail.tls)}
+                      </Chip>
+                      {/* <span className="text-tiny text-default-400">
+                        (Level {endpointDetail.tls})
+                      </span> */}
+                    </div>
                   </div>
                 )}
 
                 {/* 在线时长 */}
                 {endpointDetail.uptime != null && endpointDetail.uptime > 0 && (
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faClock} />
                       <span>在线时长</span>
                     </div>
-                    <Chip className="font-mono" color="success" size="sm" variant="flat">
+                    <Chip
+                      className="font-mono"
+                      color="success"
+                      size="sm"
+                      variant="flat"
+                    >
                       {formatUptime(endpointDetail.uptime)}
                     </Chip>
                   </div>
@@ -1457,60 +1350,168 @@ export default function EndpointDetailPage() {
 
                 {/* 证书配置 - 仅当TLS=2时显示 */}
                 {endpointDetail.tls === "2" && endpointDetail.crt && (
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faCertificate} />
                       <span>证书路径</span>
                     </div>
-                    <p className="text-small font-mono truncate">{endpointDetail.crt}</p>
+                    <p className="text-small font-mono truncate">
+                      {endpointDetail.crt}
+                    </p>
                   </div>
                 )}
 
                 {endpointDetail.tls === "2" && endpointDetail.keyPath && (
-                  <div className="flex items-center justify-between gap-2">
+                  <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faKey} />
                       <span>密钥路径</span>
                     </div>
-                    <p className="text-small font-mono truncate">{endpointDetail.keyPath}</p>
+                    <p className="text-small font-mono truncate">
+                      {endpointDetail.keyPath}
+                    </p>
                   </div>
                 )}
+              </div>
 
-                {/* 时间信息 - 左右布局 */}
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-small text-default-500">
-                    <FontAwesomeIcon icon={faCalendar} />
-                    <span>创建时间</span>
-                  </div>
-                  <span className="text-xs text-default-600">
-                    {new Date(endpointDetail.createdAt).toLocaleString("zh-CN")}
-                  </span>
+              {/* 时间信息 */}
+              <Divider />
+              <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-small text-default-500">
+                <div>
+                  <span className="font-medium">创建时间：</span>
+                  {new Date(endpointDetail.createdAt).toLocaleString("zh-CN")}
                 </div>
-
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-small text-default-500">
-                    <FontAwesomeIcon icon={faSync} />
-                    <span>更新时间</span>
-                  </div>
-                  <span className="text-xs text-default-600">
-                    {new Date(endpointDetail.updatedAt).toLocaleString("zh-CN")}
-                  </span>
+                <div>
+                  <span className="font-medium">更新时间：</span>
+                  {new Date(endpointDetail.updatedAt).toLocaleString("zh-CN")}
                 </div>
-
-                <div className="flex items-center justify-between gap-2">
-                  <div className="flex items-center gap-2 text-small text-default-500">
-                    <FontAwesomeIcon icon={faCheckCircle} />
-                    <span>最后检查</span>
-                  </div>
-                  <span className="text-xs text-default-600">
-                    {new Date(endpointDetail.lastCheck).toLocaleString("zh-CN")}
-                  </span>
+                <div>
+                  <span className="font-medium">最后检查：</span>
+                  {new Date(endpointDetail.lastCheck).toLocaleString("zh-CN")}
                 </div>
               </div>
-            </CardBody>
-          </Card>
-        )}
-      </div>
+            </div>
+          </CardBody>
+        </Card>
+      )}
+
+      {/* 实例列表 */}
+      <Card className="p-2">
+        <CardHeader className="flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <h3 className="text-lg font-semibold">主控实例</h3>
+            {/* <span className="text-sm text-default-500">({instances.length} 个实例)</span> */}
+            {/* 类型和状态提示 */}
+            {/* <div className="flex items-center gap-3 text-tiny">
+              <div className="flex items-center gap-1 text-default-500">
+                <span className="w-2 h-2 rounded-full bg-primary inline-block"></span> 服务端
+              </div>
+              <div className="flex items-center gap-1 text-default-500">
+                <span className="w-2 h-2 rounded-full bg-secondary inline-block"></span> 客户端
+              </div>
+              <div className="border-l border-default-200 pl-3 flex items-center gap-3">
+                <div className="flex items-center gap-1 text-default-500">
+                  <span className="w-2 h-2 rounded-full bg-green-500 inline-block"></span> 运行中
+                </div>
+                <div className="flex items-center gap-1 text-default-500">
+                  <span className="w-2 h-2 rounded-full bg-red-500 inline-block"></span> 已停止
+                </div>
+                <div className="flex items-center gap-1 text-default-500">
+                  <span className="w-2 h-2 rounded-full bg-yellow-500 animate-pulse inline-block"></span> 状态变化中
+                </div>
+              </div>
+            </div> */}
+          </div>
+          <div className="flex items-center gap-2">
+            {/* <Button size="sm" color="primary" variant="flat" onPress={() => setExtractOpen(true)}>提取</Button>
+            <Button size="sm" color="secondary" variant="flat" onPress={() => setImportOpen(true)}>导入</Button> */}
+          </div>
+        </CardHeader>
+        <CardBody>
+          {instancesLoading ? (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3">
+              {Array.from({ length: 6 }, (_, index) => (
+                <Card key={index} className="h-[100px]">
+                  <CardBody className="p-3 flex flex-col items-center justify-center">
+                    <Skeleton className="w-8 h-8 rounded-full mb-2" />
+                    <Skeleton className="h-3 w-16 mb-1" />
+                    <Skeleton className="h-2 w-12" />
+                  </CardBody>
+                </Card>
+              ))}
+            </div>
+          ) : instances.length === 0 ? (
+            <div className="text-center py-8">
+              <p className="text-default-500 text-sm">暂无实例数据</p>
+            </div>
+          ) : (
+            <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-[324px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
+              {instances.map((ins) => (
+                <Card
+                  key={ins.instanceId}
+                  className={`h-[100px] shadow-none border-1 transition-all relative ${
+                    ins.type === "server"
+                      ? "bg-primary-50 dark:bg-primary-900/20 border-primary-200 dark:border-primary-700"
+                      : "bg-secondary-50 border-secondary-200"
+                  }`}
+                >
+                  {/* 状态指示器 */}
+                  {getInstanceStatusIndicator(ins.status)}
+
+                  <CardBody className="p-3 flex flex-col h-full relative">
+                    {/* 顶部区域：左上角图标 + 右侧文字 */}
+                    <div className="flex items-start gap-2 flex-1">
+                      {/* 实例类型图标 */}
+                      <div
+                        className={`w-7 h-7 rounded-full flex items-center justify-center flex-shrink-0 ${
+                          ins.type === "server"
+                            ? "bg-primary-100 text-primary dark:bg-primary-600/20"
+                            : "bg-secondary-100 text-secondary"
+                        }`}
+                      >
+                        <FontAwesomeIcon
+                          className="text-xs"
+                          icon={ins.type === "server" ? faServer : faDesktop}
+                        />
+                      </div>
+
+                      {/* 右侧文字区域 */}
+                      <div className="flex-1 min-w-0">
+                        {/* 第一行：alias */}
+                        <p
+                          className="text-xs font-medium truncate"
+                          title={ins.alias || ins.instanceId}
+                        >
+                          {ins.alias || "未命名"}
+                        </p>
+                        {/* 第二行：实例ID */}
+                        <p
+                          className="text-xs text-default-500 truncate mt-0.5"
+                          title={ins.instanceId}
+                        >
+                          {ins.instanceId}
+                        </p>
+                      </div>
+                    </div>
+
+                    {/* 左下角类型标签 */}
+                    <div className="absolute bottom-2 left-2">
+                      <Chip
+                        className="text-xs h-4 px-2"
+                        color={ins.type === "server" ? "primary" : "secondary"}
+                        size="sm"
+                        variant="flat"
+                      >
+                        {ins.type === "server" ? "服务端" : "客户端"}
+                      </Chip>
+                    </div>
+                  </CardBody>
+                </Card>
+              ))}
+            </div>
+          )}
+        </CardBody>
+      </Card>
 
       {/* 提取模态框 */}
       <Modal
