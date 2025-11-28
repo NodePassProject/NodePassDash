@@ -5,10 +5,12 @@ import { ToastProvider } from "@heroui/toast";
 import { useHref, useNavigate } from "react-router-dom";
 import { useEffect } from "react";
 import { ThemeProvider } from "next-themes";
+import { I18nextProvider } from "react-i18next";
 
 import { AuthProvider } from "./components/auth/auth-provider";
 import { RouteGuard } from "./components/auth/route-guard";
 import { SettingsProvider } from "./components/providers/settings-provider";
+import i18n from "@/lib/i18n";
 
 declare module "@react-types/shared" {
   interface RouterConfig {
@@ -69,11 +71,13 @@ export function Providers({ children }: { children: React.ReactNode }) {
         defaultTheme="system"
         themes={["light", "dark", "system"]}
       >
-        <SettingsProvider>
-          <AuthProvider>
-            <RouteGuard>{children}</RouteGuard>
-          </AuthProvider>
-        </SettingsProvider>
+        <I18nextProvider i18n={i18n}>
+          <SettingsProvider>
+            <AuthProvider>
+              <RouteGuard>{children}</RouteGuard>
+            </AuthProvider>
+          </SettingsProvider>
+        </I18nextProvider>
       </ThemeProvider>
     </HeroUIProvider>
   );

@@ -135,6 +135,8 @@
   },
   "language": {
     "zhCN": "简体中文",
-    "enUS": "English"
+    "enUS": "English",
+    "switch": "切换语言",
+    "select": "选择语言"
   }
 }

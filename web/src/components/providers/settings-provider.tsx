@@ -2,10 +2,13 @@
 
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useTheme } from "next-themes";
+import i18n from "@/lib/i18n";
+import type { SupportedLanguage } from "@/lib/i18n";
 
 // 设置类型定义
 interface Settings {
   theme: "light" | "dark" | "system";
+  language: SupportedLanguage;
   isPrivacyMode: boolean;
   isExperimentalMode: boolean;
   autoCheckUpdates: boolean;
@@ -18,6 +21,7 @@ interface Settings {
 // 默认设置
 const defaultSettings: Settings = {
   theme: "system",
+  language: "zh-CN",
   isPrivacyMode: true,
   isExperimentalMode: false,
   autoCheckUpdates: false,
@@ -31,6 +35,7 @@ const defaultSettings: Settings = {
 interface SettingsContextType {
   settings: Settings;
   updateTheme: (theme: "light" | "dark" | "system") => void;
+  updateLanguage: (language: SupportedLanguage) => void;
   togglePrivacyMode: () => void;
   toggleExperimentalMode: () => void;
   updateSettings: (newSettings: Partial<Settings>) => void;
@@ -75,10 +80,17 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     }
   }, []);
 
-  // 只在初始化时同步，避免循环更新
+  // 只在初始化时同步主题，避免循环更新
   useEffect(() => {
     if (isLoaded && settings.theme && settings.theme !== theme) {
       setTheme(settings.theme);
+    }
+  }, [isLoaded]);
+
+  // 只在初始化时同步语言，避免循环更新
+  useEffect(() => {
+    if (isLoaded && settings.language && settings.language !== i18n.language) {
+      i18n.changeLanguage(settings.language);
     }
   }, [isLoaded]);
 
@@ -117,6 +129,19 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     setSettings(newSettings);
     saveSettings(newSettings);
     setTheme(newTheme);
+  };
+
+  // 更新语言
+  const updateLanguage = (newLanguage: SupportedLanguage) => {
+    if (settings.language === newLanguage) {
+      return;
+    }
+
+    const newSettings = { ...settings, language: newLanguage };
+
+    setSettings(newSettings);
+    saveSettings(newSettings);
+    i18n.changeLanguage(newLanguage);
   };
 
 
@@ -193,6 +218,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   const contextValue: SettingsContextType = {
     settings,
     updateTheme,
+    updateLanguage,
     togglePrivacyMode,
     toggleExperimentalMode,
     updateSettings,
