@@ -14,17 +14,16 @@ export const Footer = () => {
     <footer className="w-full flex items-center justify-center py-3">
       <div className="text-default-600 text-sm">
         {t("footer.copyright")} | {t("footer.version")}
-        {getVersion()} | {isZhCN && t("footer.poweredBy")}{" "}
+        {getVersion()} | {t("footer.poweredBy")}
         <a
           className="text-blue-500 hover:text-blue-600 transition-colors"
           href="https://github.com/yosebyte/nodepass"
           rel="noopener noreferrer"
           target="_blank"
         >
-          {t("footer.poweredByLink")}
+          {" "+t("footer.poweredByLink")+" "}
         </a>
         {isZhCN ? ` ${t("footer.poweredBySuffix")}` : ""}
-        {!isZhCN && ` ${t("footer.poweredBy")}`}
       </div>
     </footer>
   );

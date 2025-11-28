@@ -1,0 +1,69 @@
+{
+  "title": "Service Management",
+  "actions": {
+    "refresh": "Refresh",
+    "createService": "Create Service",
+    "assembleService": "Assemble Service",
+    "start": "Start",
+    "stop": "Stop",
+    "restart": "Restart",
+    "sync": "Sync",
+    "rename": "Rename",
+    "dissolve": "Dissolve",
+    "delete": "Delete"
+  },
+  "scenarios": {
+    "label": "Scenario Options",
+    "singleEndpoint": "Single Endpoint",
+    "penetration": "Penetration",
+    "tunnelForward": "Tunnel Forward"
+  },
+  "types": {
+    "general": "General Single Endpoint",
+    "localPenetration": "Local Penetration",
+    "localTunnel": "Local Tunnel",
+    "externalPenetration": "External Penetration",
+    "externalTunnel": "External Tunnel",
+    "balancedSingle": "Balanced Single",
+    "balancedPenetration": "Balanced Penetration",
+    "balancedTunnel": "Balanced Tunnel"
+  },
+  "search": {
+    "placeholder": "Search service SID, type or alias..."
+  },
+  "sorting": {
+    "enabled": "Drag cards to adjust display order",
+    "disabled": "Drag sorting is disabled in search mode"
+  },
+  "empty": {
+    "noServices": "No service data"
+  },
+  "confirm": {
+    "dissolveTitle": "Confirm Dissolve Service",
+    "deleteTitle": "Confirm Delete Service",
+    "dissolveMessage": "Are you sure you want to dissolve service \"{name}\"?",
+    "deleteMessage": "Are you sure you want to delete service \"{name}\"? This action cannot be undone!"
+  },
+  "toast": {
+    "fetchError": "Failed to fetch service list",
+    "sortSaved": "Sort order saved",
+    "sortError": "Failed to save sort order",
+    "dissolveSuccess": "Dissolved successfully",
+    "deleteSuccess": "Deleted successfully",
+    "dissolveError": "Failed to dissolve",
+    "deleteError": "Failed to delete",
+    "startSuccess": "Started successfully",
+    "stopSuccess": "Stopped successfully",
+    "restartSuccess": "Restarted successfully",
+    "startError": "Failed to start",
+    "stopError": "Failed to stop",
+    "restartError": "Failed to restart",
+    "syncSuccess": "Synced successfully",
+    "syncError": "Failed to sync",
+    "actionSuccess": "{action} successful",
+    "actionError": "{action} failed",
+    "operationError": "Operation failed",
+    "unknownError": "Unknown error",
+    "serviceActioned": "Service {name} has been {action}"
+  }
+}

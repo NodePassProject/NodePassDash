@@ -1,0 +1,69 @@
+{
+  "title": "服务管理",
+  "actions": {
+    "refresh": "刷新",
+    "createService": "创建服务",
+    "assembleService": "组装服务",
+    "start": "启动",
+    "stop": "停止",
+    "restart": "重启",
+    "sync": "同步",
+    "rename": "重命名",
+    "dissolve": "解散",
+    "delete": "删除"
+  },
+  "scenarios": {
+    "label": "场景创建选项",
+    "singleEndpoint": "单端转发",
+    "penetration": "内网穿透",
+    "tunnelForward": "隧道转发"
+  },
+  "types": {
+    "general": "通用单端转发",
+    "localPenetration": "本地内网穿透",
+    "localTunnel": "本地隧道转发",
+    "externalPenetration": "外部内网穿透",
+    "externalTunnel": "外部隧道转发",
+    "balancedSingle": "均衡单端转发",
+    "balancedPenetration": "均衡内网穿透",
+    "balancedTunnel": "均衡隧道转发"
+  },
+  "search": {
+    "placeholder": "搜索服务 SID、类型或别名..."
+  },
+  "sorting": {
+    "enabled": "拖拽卡片可以调整显示顺序",
+    "disabled": "搜索模式下拖拽排序已禁用"
+  },
+  "empty": {
+    "noServices": "暂无服务数据"
+  },
+  "confirm": {
+    "dissolveTitle": "确认解散服务",
+    "deleteTitle": "确认删除服务",
+    "dissolveMessage": "确定要解散服务 \"{name}\" 吗？",
+    "deleteMessage": "确定要删除服务 \"{name}\" 吗？此操作不可撤销！"
+  },
+  "toast": {
+    "fetchError": "获取服务列表失败",
+    "sortSaved": "排序已保存",
+    "sortError": "保存排序失败",
+    "dissolveSuccess": "解散成功",
+    "deleteSuccess": "删除成功",
+    "dissolveError": "解散失败",
+    "deleteError": "删除失败",
+    "startSuccess": "启动成功",
+    "stopSuccess": "停止成功",
+    "restartSuccess": "重启成功",
+    "startError": "启动失败",
+    "stopError": "停止失败",
+    "restartError": "重启失败",
+    "syncSuccess": "同步成功",
+    "syncError": "同步失败",
+    "actionSuccess": "{action}成功",
+    "actionError": "{action}失败",
+    "operationError": "操作失败",
+    "unknownError": "未知错误",
+    "serviceActioned": "服务 {name} 已{action}"
+  }
+}
