@@ -7,10 +7,6 @@ import {
   CardHeader,
   Input,
   Divider,
-  Dropdown,
-  DropdownTrigger,
-  DropdownMenu,
-  DropdownItem,
 } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -22,18 +18,19 @@ import {
 import { Icon } from "@iconify/react";
 import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
+import { useTranslation } from "react-i18next";
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { buildApiUrl } from "@/lib/utils";
 import Image from "@/components/common/image";
 import { ThemeSwitch } from "@/components/theme-switch";
+import { LanguageSwitch } from "@/components/language-switch";
 import { Footer } from "@/components/layout/footer";
-import { useSettings } from "@/components/providers/settings-provider";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { checkAuth, setUserDirectly } = useAuth();
-  const { settings, updateLanguage } = useSettings();
+  const { t } = useTranslation("auth");
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -82,9 +79,7 @@ export default function LoginPage() {
 
           // 检查系统配置错误：禁用了登录但没有配置 OAuth2
           if (loginDisabled && !hasOAuth) {
-            setSystemError(
-              "系统配置错误：已禁用用户名密码登录但未配置 OAuth2 登录方式，请联系管理员",
-            );
+            setSystemError(t("login.systemErrorMessage"));
           }
         }
       } catch (e) {
@@ -140,11 +135,11 @@ export default function LoginPage() {
         const result = await response.json();
 
         console.error("❌ 登录失败", result);
-        setError(result.error || "登录失败");
+        setError(result.error || t("error.loginFailed"));
       }
     } catch (error) {
       console.error("🚨 登录请求异常:", error);
-      setError("网络错误，请稍后重试");
+      setError(t("error.networkError"));
     } finally {
       setIsLoading(false);
     }
@@ -178,49 +173,7 @@ export default function LoginPage() {
             <CardHeader className="flex flex-col gap-1 items-center pb-6 pt-8 relative">
               {/* 语言切换 - 右上角 */}
               <div className="absolute top-4 right-4">
-                <Dropdown>
-                  <DropdownTrigger>
-                    <Button
-                      isIconOnly
-                      className="bg-default-100/50 hover:bg-default-200/50 backdrop-blur-sm"
-                      radius="full"
-                      size="sm"
-                      variant="flat"
-                    >
-                      <Icon
-                        icon={
-                          settings.language === "zh"
-                            ? "circle-flags:cn"
-                            : "circle-flags:us"
-                        }
-                        width={20}
-                      />
-                    </Button>
-                  </DropdownTrigger>
-                  <DropdownMenu
-                    aria-label="语言选择"
-                    selectedKeys={settings.language ? [settings.language] : []}
-                    selectionMode="single"
-                    onAction={(key) => {
-                      if (key) {
-                        updateLanguage(key as "zh" | "en");
-                      }
-                    }}
-                  >
-                    <DropdownItem
-                      key="zh"
-                      startContent={<Icon icon="circle-flags:cn" width={16} />}
-                    >
-                      简体中文
-                    </DropdownItem>
-                    <DropdownItem
-                      key="en"
-                      startContent={<Icon icon="circle-flags:us" width={16} />}
-                    >
-                      English
-                    </DropdownItem>
-                  </DropdownMenu>
-                </Dropdown>
+                <LanguageSwitch />
               </div>
 
               <motion.div
@@ -239,12 +192,12 @@ export default function LoginPage() {
                 />
               </motion.div>
               <h1 className="text-2xl font-bold text-foreground">
-                NodePassDash
+                {t("login.title")}
               </h1>
               {/* 仅当允许用户名密码登录时显示提示文案 */}
               {!isLoginDisabled && (
                 <p className="text-small text-default-500">
-                  请输入您的登录凭据
+                  {t("login.subtitle")}
                 </p>
               )}
             </CardHeader>
@@ -263,7 +216,7 @@ export default function LoginPage() {
                     width={24}
                   />
                   <p className="text-danger text-sm font-medium">
-                    系统配置错误
+                    {t("login.systemError")}
                   </p>
                   <p className="text-danger-600 text-xs mt-1">{systemError}</p>
                 </motion.div>
@@ -285,8 +238,8 @@ export default function LoginPage() {
                   <div className="space-y-4">
                     <Input
                       isRequired
-                      label="用户名"
-                      placeholder="请输入用户名"
+                      label={t("login.username")}
+                      placeholder={t("login.usernamePlaceholder")}
                       startContent={
                         <FontAwesomeIcon
                           className="text-default-400"
@@ -313,8 +266,8 @@ export default function LoginPage() {
                           />
                         </button>
                       }
-                      label="密码"
-                      placeholder="请输入密码"
+                      label={t("login.password")}
+                      placeholder={t("login.passwordPlaceholder")}
                       startContent={
                         <FontAwesomeIcon
                           className="text-default-400"
@@ -336,7 +289,7 @@ export default function LoginPage() {
                     size="lg"
                     type="submit"
                   >
-                    {isLoading ? "登录中..." : "登录"}
+                    {isLoading ? t("login.submitting") : t("login.submit")}
                   </Button>
                 </form>
               )}
@@ -347,8 +300,8 @@ export default function LoginPage() {
                   {!isLoginDisabled && <Divider />}
                   <p className="text-center text-sm text-default-500">
                     {isLoginDisabled
-                      ? "请使用以下方式登录"
-                      : "或使用以下方式登录"}
+                      ? t("login.dividerLoginDisabled")
+                      : t("login.divider")}
                   </p>
                   <div className="flex flex-col gap-3">
                     {oauthProviders.provider === "github" && (
@@ -362,7 +315,7 @@ export default function LoginPage() {
                           window.location.href = "/api/oauth2/login";
                         }}
                       >
-                        使用 GitHub 登录
+                        {t("login.githubLogin")}
                       </Button>
                     )}
                     {oauthProviders.provider === "cloudflare" && (
@@ -376,7 +329,7 @@ export default function LoginPage() {
                           window.location.href = "/api/oauth2/login";
                         }}
                       >
-                        使用 Cloudflare 登录
+                        {t("login.cloudflareLogin")}
                       </Button>
                     )}
                   </div>

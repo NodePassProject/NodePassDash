@@ -41,7 +41,8 @@ export const LanguageSwitch: React.FC<LanguageSwitchProps> = ({
     updateLanguage(key as SupportedLanguage);
   };
 
-  const currentLangConfig = languageConfig[currentLanguage];
+  // 添加防御性检查，如果 currentLanguage 不在配置中，使用默认语言
+  const currentLangConfig = languageConfig[currentLanguage] || languageConfig["zh-CN"];
 
   return (
     <Dropdown placement="bottom-end">
