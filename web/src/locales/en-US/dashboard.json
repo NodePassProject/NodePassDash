@@ -51,5 +51,19 @@
     "fetchTrafficError": "Failed to fetch traffic trend data",
     "fetchWeeklyStatsError": "Failed to fetch weekly statistics",
     "clearLogsError": "Unable to clear logs"
+  },
+  "quickActions": {
+    "title": "Quick Actions",
+    "addEndpoint": "Add Endpoint",
+    "createTunnel": "Create Instance",
+    "scenarioCreate": "Scenario Create",
+    "debugTools": "Debug Tools",
+    "docs": "Documentation",
+    "settings": "Settings",
+    "addEndpointSuccess": "Added Successfully",
+    "addEndpointSuccessDesc": "Endpoint added successfully",
+    "addEndpointFailed": "Add Failed",
+    "addEndpointError": "Failed to add endpoint",
+    "addEndpointErrorDesc": "Error occurred while adding endpoint"
   }
 }

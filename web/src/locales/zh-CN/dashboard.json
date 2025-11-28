@@ -51,5 +51,19 @@
     "fetchTrafficError": "获取流量趋势数据失败",
     "fetchWeeklyStatsError": "获取每周统计数据失败",
     "clearLogsError": "无法清空日志"
+  },
+  "quickActions": {
+    "title": "快捷操作",
+    "addEndpoint": "添加主控",
+    "createTunnel": "创建实例",
+    "scenarioCreate": "场景创建",
+    "debugTools": "调试工具",
+    "docs": "说明文档",
+    "settings": "系统设置",
+    "addEndpointSuccess": "添加成功",
+    "addEndpointSuccessDesc": "主控已成功添加",
+    "addEndpointFailed": "添加失败",
+    "addEndpointError": "添加主控失败",
+    "addEndpointErrorDesc": "添加主控时发生错误"
   }
 }
