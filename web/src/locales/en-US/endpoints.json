@@ -22,13 +22,19 @@
       "actions": "Actions"
     },
     "instances": "{count} instances",
+    "instancesBracket": "[{count} instances]",
+    "instancesCount": "{count}",
+    "noInstances": "0 instances",
     "urlLabel": "URL Address",
     "apiPrefix": "API Prefix",
     "apiKeyLabel": "API Key",
     "currentApiKey": "Current API Key",
     "newApiKey": "New API Key",
     "apiPath": "Path",
-    "apiKeyPlaceholder": "Key"
+    "apiKeyPlaceholder": "Key",
+    "tableTitle": "API Endpoint List",
+    "layoutSwitch": "Layout Switch",
+    "editName": "Edit Name"
   },
   "status": {
     "online": "Online",
