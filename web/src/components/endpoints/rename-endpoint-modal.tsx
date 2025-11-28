@@ -10,6 +10,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faSave } from "@fortawesome/free-solid-svg-icons";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 
 interface RenameEndpointModalProps {
   isOpen: boolean;
@@ -24,6 +25,7 @@ export default function RenameEndpointModal({
   onRename,
   currentName,
 }: RenameEndpointModalProps) {
+  const { t } = useTranslation("endpoints");
   const [newName, setNewName] = useState(currentName);
 
   // 当模态框打开时，设置初始名称
@@ -51,13 +53,13 @@ export default function RenameEndpointModal({
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1">
-              修改主控名称
+              {t("renameModal.title")}
             </ModalHeader>
             <ModalBody>
               <Input
                 isRequired
-                label="主控名称"
-                placeholder="请输入新的主控名称"
+                label={t("renameModal.label")}
+                placeholder={t("renameModal.placeholder")}
                 value={newName}
                 variant="bordered"
                 onValueChange={setNewName}
@@ -65,7 +67,7 @@ export default function RenameEndpointModal({
             </ModalBody>
             <ModalFooter>
               <Button color="default" variant="light" onPress={onClose}>
-                取消
+                {t("renameModal.cancel")}
               </Button>
               <Button
                 color="primary"
@@ -73,7 +75,7 @@ export default function RenameEndpointModal({
                 startContent={<FontAwesomeIcon icon={faSave} />}
                 onPress={handleSubmit}
               >
-                保存修改
+                {t("renameModal.save")}
               </Button>
             </ModalFooter>
           </>
