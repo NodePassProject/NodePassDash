@@ -13,7 +13,15 @@
   "traffic": {
     "overview": "流量概览",
     "weeklyStats": "本周统计",
-    "todayTraffic": "今日流量"
+    "todayTraffic": "今日流量",
+    "totalConsumption": "流量总耗",
+    "loading": "加载流量数据中...",
+    "noData": "暂无流量数据",
+    "noDataDescription": "当有实例运行时，流量趋势数据将在此显示",
+    "tcpIn": "TCP In",
+    "tcpOut": "TCP Out",
+    "udpIn": "UDP In",
+    "udpOut": "UDP Out"
   },
   "endpoints": {
     "title": "主控列表",

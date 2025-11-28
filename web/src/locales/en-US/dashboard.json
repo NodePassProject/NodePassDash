@@ -13,7 +13,15 @@
   "traffic": {
     "overview": "Traffic Overview",
     "weeklyStats": "Weekly Statistics",
-    "todayTraffic": "Today's Traffic"
+    "todayTraffic": "Today's Traffic",
+    "totalConsumption": "Total Traffic Consumption",
+    "loading": "Loading traffic data...",
+    "noData": "No traffic data",
+    "noDataDescription": "Traffic trend data will be displayed here when instances are running",
+    "tcpIn": "TCP In",
+    "tcpOut": "TCP Out",
+    "udpIn": "UDP In",
+    "udpOut": "UDP Out"
   },
   "endpoints": {
     "title": "Endpoints",
