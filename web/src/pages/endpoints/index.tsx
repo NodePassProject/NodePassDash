@@ -31,6 +31,23 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import { addToast } from "@heroui/toast";
+import {
+  DndContext,
+  closestCenter,
+  KeyboardSensor,
+  PointerSensor,
+  useSensor,
+  useSensors,
+  DragEndEvent,
+} from "@dnd-kit/core";
+import {
+  arrayMove,
+  SortableContext,
+  sortableKeyboardCoordinates,
+  useSortable,
+  verticalListSortingStrategy,
+} from "@dnd-kit/sortable";
+import { CSS } from "@dnd-kit/utilities";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faPlus,
@@ -102,6 +119,86 @@ interface EndpointFormData {
   apiKey: string;
 }
 
+// 可排序的表格行组件
+function SortableTableRow({
+  id,
+  result,
+  index,
+}: {
+  id: string;
+  result: any;
+  index: number;
+}) {
+  const {
+    attributes,
+    listeners,
+    setNodeRef,
+    transform,
+    transition,
+    isDragging,
+  } = useSortable({ id });
+
+  const style = {
+    transform: CSS.Transform.toString(transform),
+    transition,
+    opacity: isDragging ? 0.5 : 1,
+  };
+
+  return (
+    <tr
+      ref={setNodeRef}
+      style={style}
+      className="border-b border-divider hover:bg-default-50"
+    >
+      <td className="px-3 py-3">
+        <div className="flex items-center gap-2">
+          <button
+            {...attributes}
+            {...listeners}
+            className="cursor-grab active:cursor-grabbing text-default-400 hover:text-default-600"
+          >
+            <FontAwesomeIcon icon={faGrip} />
+          </button>
+          <span className="text-small">{result.name}</span>
+        </div>
+      </td>
+      <td className="px-3 py-3 text-small font-mono text-xs">
+        {result.url}
+        {result.apiPath}
+      </td>
+      <td className="px-3 py-3 text-small">
+        <span
+          className={`font-mono ${
+            result.status === "success"
+              ? "text-success"
+              : result.status === "low_version"
+                ? "text-warning"
+                : "text-danger"
+          }`}
+        >
+          {result.version}
+        </span>
+      </td>
+      <td className="px-3 py-3">
+        <div className="flex flex-col gap-1">
+          <span
+            className={`text-xs ${
+              result.status === "success"
+                ? "text-success"
+                : result.status === "low_version"
+                  ? "text-warning"
+                  : "text-danger"
+            }`}
+          >
+            {result.canImport ? "✓ 可导入" : "✗ 不可导入"}
+          </span>
+          <span className="text-xs text-default-400">{result.message}</span>
+        </div>
+      </td>
+    </tr>
+  );
+}
+
 export default function EndpointsPage() {
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -130,6 +227,24 @@ export default function EndpointsPage() {
     onOpen: onImportOpen,
     onOpenChange: onImportOpenChange,
   } = useDisclosure();
+
+  const {
+    isOpen: isImportValidateOpen,
+    onOpen: onImportValidateOpen,
+    onOpenChange: onImportValidateOpenChange,
+  } = useDisclosure();
+
+  const [importValidateResults, setImportValidateResults] = useState<any[]>([]);
+  const [sortedValidateResults, setSortedValidateResults] = useState<any[]>([]);
+  const [importFileData, setImportFileData] = useState<any>(null);
+
+  // 拖拽传感器配置
+  const sensors = useSensors(
+    useSensor(PointerSensor),
+    useSensor(KeyboardSensor, {
+      coordinateGetter: sortableKeyboardCoordinates,
+    })
+  );
 
   const {
     isOpen: isAddOpen,
@@ -531,7 +646,11 @@ export default function EndpointsPage() {
       const fileContent = await selectedFile.text();
       const importData = JSON.parse(fileContent);
 
-      const response = await fetch("/api/data/import", {
+      // 保存文件数据用于后续实际导入
+      setImportFileData(importData);
+
+      // 先调用验证接口
+      const validateResponse = await fetch("/api/data/validate-import", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -539,16 +658,92 @@ export default function EndpointsPage() {
         body: JSON.stringify(importData),
       });
 
+      const validateResult = await validateResponse.json();
+
+      if (!validateResult.success) {
+        throw new Error(validateResult.error || "验证失败");
+      }
+
+      // 关闭导入窗口，显示验证结果窗口
+      const results = validateResult.results || [];
+      setImportValidateResults(results);
+      setSortedValidateResults(results); // 初始化排序结果
+      onImportOpenChange();
+      onImportValidateOpen();
+    } catch (error) {
+      console.error("验证导入数据失败:", error);
+      addToast({
+        title: "验证失败",
+        description:
+          error instanceof Error ? error.message : "验证导入数据时发生错误",
+        color: "danger",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
+  // 处理拖拽结束事件
+  const handleDragEnd = (event: DragEndEvent) => {
+    const { active, over } = event;
+
+    if (over && active.id !== over.id) {
+      setSortedValidateResults((items) => {
+        const oldIndex = items.findIndex((item, idx) => `item-${idx}` === active.id);
+        const newIndex = items.findIndex((item, idx) => `item-${idx}` === over.id);
+
+        return arrayMove(items, oldIndex, newIndex);
+      });
+    }
+  };
+
+  // 确认导入 - 只导入可导入的主控
+  const handleConfirmImport = async () => {
+    // 筛选出可导入的主控，使用排序后的结果
+    const importableEndpoints = sortedValidateResults
+      .filter((result) => result.canImport)
+      .map((result) => ({
+        name: result.name,
+        url: result.url,
+        apiPath: result.apiPath,
+        apiKey: importFileData?.data?.endpoints?.find(
+          (ep: any) => ep.url === result.url && ep.apiPath === result.apiPath
+        )?.apiKey || "",
+      }));
+
+    if (importableEndpoints.length === 0) {
+      addToast({
+        title: "没有可导入的主控",
+        description: "所有主控都不符合导入条件",
+        color: "warning",
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      const response = await fetch("/api/data/batch-import", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ endpoints: importableEndpoints }),
+      });
+
       const result = await response.json();
 
-      if (response.ok) {
+      if (response.ok && result.success) {
         addToast({
           title: "导入成功",
           description: result.message,
           color: "success",
         });
-        onImportOpenChange();
+        onImportValidateOpenChange();
         setSelectedFile(null);
+        setImportFileData(null);
+        setImportValidateResults([]);
+        setSortedValidateResults([]);
         if (fileInputRef.current) {
           fileInputRef.current.value = "";
         }
@@ -1777,7 +1972,117 @@ export default function EndpointsPage() {
                   }
                   onPress={handleImportData}
                 >
-                  {isSubmitting ? "导入中..." : "开始导入"}
+                  {isSubmitting ? "检查中..." : "开始导入"}
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* 导入验证结果模态窗 */}
+      <Modal
+        backdrop="blur"
+        classNames={{
+          backdrop:
+            "bg-gradient-to-t from-zinc-900 to-zinc-900/10 backdrop-opacity-20",
+        }}
+        isOpen={isImportValidateOpen}
+        placement="center"
+        size="3xl"
+        onOpenChange={onImportValidateOpenChange}
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex flex-col gap-1">
+                <div className="flex items-center gap-2">
+                  <Icon
+                    className="text-primary"
+                    icon="solar:check-circle-bold"
+                    width={24}
+                  />
+                  导入验证结果
+                </div>
+              </ModalHeader>
+              <ModalBody>
+                <div className="flex flex-col gap-4">
+                  <p className="text-small text-default-500">
+                    共检测到 {importValidateResults.length} 个主控，请查看验证结果（可拖动排序）：
+                  </p>
+                  <div className="max-h-[400px] overflow-y-auto">
+                    <DndContext
+                      sensors={sensors}
+                      collisionDetection={closestCenter}
+                      onDragEnd={handleDragEnd}
+                    >
+                      <table className="w-full">
+                        <thead className="sticky top-0 bg-default-100 z-10">
+                          <tr>
+                            <th className="text-left px-3 py-2 text-small font-semibold">
+                              名称
+                            </th>
+                            <th className="text-left px-3 py-2 text-small font-semibold">
+                              URL
+                            </th>
+                            <th className="text-left px-3 py-2 text-small font-semibold">
+                              版本
+                            </th>
+                            <th className="text-left px-3 py-2 text-small font-semibold">
+                              状态
+                            </th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          <SortableContext
+                            items={sortedValidateResults.map((_, idx) => `item-${idx}`)}
+                            strategy={verticalListSortingStrategy}
+                          >
+                            {sortedValidateResults.map((result, index) => (
+                              <SortableTableRow
+                                key={`item-${index}`}
+                                id={`item-${index}`}
+                                result={result}
+                                index={index}
+                              />
+                            ))}
+                          </SortableContext>
+                        </tbody>
+                      </table>
+                    </DndContext>
+                  </div>
+                  <div className="rounded-lg bg-default-100 p-3">
+                    <p className="text-xs text-default-600">
+                      注意：只有版本 ≥ 1.10.0 的主控才会被导入，低版本或连接失败的主控将被自动跳过。拖动行可调整导入顺序。
+                    </p>
+                  </div>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button
+                  color="danger"
+                  isDisabled={isSubmitting}
+                  variant="light"
+                  onPress={() => {
+                    onClose();
+                    setImportValidateResults([]);
+                    setSortedValidateResults([]);
+                    setImportFileData(null);
+                  }}
+                >
+                  取消
+                </Button>
+                <Button
+                  color="primary"
+                  isLoading={isSubmitting}
+                  startContent={
+                    !isSubmitting ? (
+                      <Icon icon="solar:check-circle-linear" width={18} />
+                    ) : null
+                  }
+                  onPress={handleConfirmImport}
+                >
+                  {isSubmitting ? "导入中..." : "确认导入"}
                 </Button>
               </ModalFooter>
             </>

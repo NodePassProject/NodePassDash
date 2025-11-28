@@ -62,28 +62,52 @@ export default function ServiceSSEPage() {
   const clientLogContainerRef = useRef<HTMLDivElement>(null);
 
   // 根据 type 获取模式文案
+  // 0: 通用单端转发, 1: 本地内网穿透, 2: 本地隧道转发
+  // 3: 外部内网穿透, 4: 外部隧道转发, 5: 均衡单端转发
+  // 6: 均衡内网穿透, 7: 均衡隧道转发
   const getTypeLabel = (typeValue: string) => {
     switch (typeValue) {
       case "0":
-        return "单端转发";
+        return "通用单端转发";
       case "1":
-        return "NAT穿透";
+        return "本地内网穿透";
       case "2":
-        return "隧道转发";
+        return "本地隧道转发";
+      case "3":
+        return "外部内网穿透";
+      case "4":
+        return "外部隧道转发";
+      case "5":
+        return "均衡单端转发";
+      case "6":
+        return "均衡内网穿透";
+      case "7":
+        return "均衡隧道转发";
       default:
         return typeValue;
     }
   };
 
-  // 根据类型获取颜色
+  // 根据类型获取颜色 (HeroUI 原生颜色)
+  // 单端转发=primary(蓝), 内网穿透=success(绿), 隧道转发=secondary(紫), 均衡=warning(橙)
   const getTypeColor = (typeValue: string) => {
     switch (typeValue) {
       case "0":
-        return "primary";
+        return "primary";     // 通用单端转发 - 蓝色
       case "1":
-        return "success";
+        return "success";     // 本地内网穿透 - 绿色
       case "2":
-        return "secondary";
+        return "secondary";   // 本地隧道转发 - 紫色
+      case "3":
+        return "success";     // 外部内网穿透 - 绿色
+      case "4":
+        return "secondary";   // 外部隧道转发 - 紫色
+      case "5":
+        return "warning";     // 均衡单端转发 - 橙色
+      case "6":
+        return "warning";     // 均衡内网穿透 - 橙色
+      case "7":
+        return "warning";     // 均衡隧道转发 - 橙色
       default:
         return "default";
     }
@@ -216,11 +240,14 @@ export default function ServiceSSEPage() {
     console.error("[Client SSE] 连接错误:", error);
   }, []);
 
-  // Server 端 SSE 连接
+  // 判断是否为单端转发模式 (type=0 或 type=5)
+  const isSingleForward = service?.type === "0" || service?.type === "5";
+
+  // Server 端 SSE 连接（单端转发模式不连接）
   useTunnelSSE(service?.serverInstanceId || "", {
     onMessage: serverSseOnMessage,
     onError: serverSseOnError,
-    enabled: !!service?.serverInstanceId, // 只有存在 serverInstanceId 时才连接
+    enabled: !!service?.serverInstanceId && !isSingleForward, // 单端转发时不连接 Server 端
   });
 
   // Client 端 SSE 连接
@@ -382,10 +409,10 @@ export default function ServiceSSEPage() {
         </div>
       </div>
 
-      {/* 双栏日志展示 */}
-      <div className="flex-1 grid grid-cols-1 lg:grid-cols-2 gap-4 overflow-hidden">
-        {/* Server 端日志 */}
-        {renderLogPanel(
+      {/* 日志展示区域：单端转发只显示 Client 端 */}
+      <div className={`flex-1 grid grid-cols-1 ${isSingleForward ? "" : "lg:grid-cols-2"} gap-4 overflow-hidden`}>
+        {/* Server 端日志（单端转发模式不显示） */}
+        {!isSingleForward && renderLogPanel(
           "Server 端 SSE",
           serverLogs,
           () => scrollToBottom(serverLogContainerRef),
@@ -397,7 +424,7 @@ export default function ServiceSSEPage() {
 
         {/* Client 端日志 */}
         {renderLogPanel(
-          "Client 端 SSE",
+          isSingleForward ? "实时日志" : "Client 端 SSE",
           clientLogs,
           () => scrollToBottom(clientLogContainerRef),
           clientClearPopoverOpen,

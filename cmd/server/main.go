@@ -5,8 +5,11 @@ import (
 	"NodePassDash/internal/dashboard"
 	dbPkg "NodePassDash/internal/db"
 	"NodePassDash/internal/endpoint"
+	"NodePassDash/internal/endpointcache"
 	"NodePassDash/internal/nodepass"
 	"NodePassDash/internal/router"
+	"NodePassDash/internal/servicecache"
+	"NodePassDash/internal/tunnelcache"
 
 	// "NodePassDash/internal/lifecycle"
 	log "NodePassDash/internal/log"
@@ -55,7 +58,7 @@ func serveStaticFile(c *gin.Context, fsys fs.FS, fileName, contentType string) {
 }
 
 // parseFlags 解析命令行参数并处理基础配置
-func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, disableLogin bool) {
+func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, disableLogin, sseDebugLog bool) {
 	// 命令行参数处理
 	resetPwdCmd := flag.Bool("resetpwd", false, "重置管理员密码")
 	portFlag := flag.String("port", "", "HTTP 服务端口 (优先级高于环境变量 PORT)，默认 3000")
@@ -67,6 +70,8 @@ func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, d
 	tlsKeyFlag := flag.String("key", "", "TLS 私钥文件路径")
 	// 禁用用户名密码登录参数
 	disableLoginFlag := flag.Bool("disable-login", false, "禁用用户名密码登录，仅允许 OAuth2 登录")
+	// SSE 调试日志参数
+	sseDebugLogFlag := flag.Bool("sse-debug-log", false, "启用 SSE 消息调试日志")
 
 	flag.Parse()
 
@@ -110,7 +115,16 @@ func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, d
 		}
 	}
 
-	return *resetPwdCmd, port, certFile, keyFile, *versionFlag || *vFlag, disableLogin
+	// 设置 SSE 调试日志配置
+	// 优先级：命令行参数 > 环境变量
+	sseDebugLog = *sseDebugLogFlag
+	if !sseDebugLog {
+		if env := os.Getenv("SSE_DEBUG_LOG"); env == "true" || env == "1" {
+			sseDebugLog = true
+		}
+	}
+
+	return *resetPwdCmd, port, certFile, keyFile, *versionFlag || *vFlag, disableLogin, sseDebugLog
 }
 
 // setupStaticFiles 配置静态文件服务
@@ -180,7 +194,7 @@ func setupStaticFiles(ginRouter *gin.Engine) error {
 }
 
 // initializeServices 初始化所有服务
-func initializeServices() (*gorm.DB, *auth.Service, *endpoint.Service, *tunnel.Service, *dashboard.Service, *sse.Service, *sse.Manager, *websocket.Service, error) {
+func initializeServices(sseDebugLog bool) (*gorm.DB, *auth.Service, *endpoint.Service, *tunnel.Service, *dashboard.Service, *sse.Service, *sse.Manager, *websocket.Service, error) {
 	// 获取GORM数据库连接
 	gormDB := dbPkg.GetDB()
 	log.Info("数据库连接成功")
@@ -191,12 +205,33 @@ func initializeServices() (*gorm.DB, *auth.Service, *endpoint.Service, *tunnel.S
 		log.Errorf("系统初始化失败: %v", err)
 	}
 
-	// 初始化端点缓存
+	// 初始化NodePass客户端缓存（用于API调用）
 	if err := nodepass.InitializeCache(gormDB); err != nil {
-		log.Errorf("初始化端点缓存失败: %v", err)
+		log.Errorf("初始化NodePass客户端缓存失败: %v", err)
 	} else {
-		log.Infof("端点缓存初始化成功，加载了 %d 个端点", nodepass.GetCache().Count())
+		log.Infof("NodePass客户端缓存初始化成功，加载了 %d 个端点", nodepass.GetCache().Count())
 	}
+
+	// 初始化Endpoint内存缓存（类似Nezha的ServerShared）
+	if err := endpointcache.InitShared(gormDB); err != nil {
+		log.Errorf("初始化Endpoint内存缓存失败: %v", err)
+		return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("初始化Endpoint缓存失败: %v", err)
+	}
+	log.Infof("✅ Endpoint内存缓存初始化成功，已加载 %d 个端点", endpointcache.Shared.Count())
+
+	// 初始化Service内存缓存
+	if err := servicecache.InitShared(gormDB); err != nil {
+		log.Errorf("初始化Service内存缓存失败: %v", err)
+		return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("初始化Service缓存失败: %v", err)
+	}
+	log.Infof("✅ Service内存缓存初始化成功，已加载 %d 个服务", servicecache.Shared.Count())
+
+	// 初始化Tunnel内存缓存
+	if err := tunnelcache.InitShared(gormDB); err != nil {
+		log.Errorf("初始化Tunnel内存缓存失败: %v", err)
+		return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("初始化Tunnel缓存失败: %v", err)
+	}
+	log.Infof("✅ Tunnel内存缓存初始化成功，已加载 %d 个隧道", tunnelcache.Shared.Count())
 
 	// 初始化其他服务
 	endpointService := endpoint.NewService(gormDB)
@@ -210,7 +245,7 @@ func initializeServices() (*gorm.DB, *auth.Service, *endpoint.Service, *tunnel.S
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("获取底层sql.DB失败: %v", err)
 	}
-	sseManager := sse.NewManager(sqlDB, sseService)
+	sseManager := sse.NewManager(sqlDB, sseService, sseDebugLog)
 
 	// 设置Manager引用到Service（避免循环依赖）
 	sseService.SetManager(sseManager)
@@ -263,9 +298,65 @@ func startBackgroundServices(gormDB *gorm.DB, sseService *sse.Service, sseManage
 		log.Info("流量数据优化调度器已启动")
 	}()
 
+	// 启动Endpoint缓存定时持久化任务（每30秒持久化一次变更）
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			if err := endpointcache.Shared.PersistIfNeeded(gormDB); err != nil {
+				log.Errorf("❌ 持久化Endpoint缓存失败: %v", err)
+			} else {
+				stats := endpointcache.Shared.GetStats()
+				dirtyCount := stats["dirty_count"].(int)
+				if dirtyCount > 0 {
+					log.Debugf("💾 持久化了 %d 个变更的端点", dirtyCount)
+				}
+			}
+		}
+	}()
+	log.Info("Endpoint缓存定时持久化任务已启动（间隔: 30秒）")
+
+	// 启动Service缓存定时持久化任务（每30秒持久化一次变更）
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			if err := servicecache.Shared.PersistIfNeeded(gormDB); err != nil {
+				log.Errorf("❌ 持久化Service缓存失败: %v", err)
+			} else {
+				stats := servicecache.Shared.GetStats()
+				dirtyCount := stats["dirty_count"].(int)
+				if dirtyCount > 0 {
+					log.Debugf("💾 持久化了 %d 个变更的服务", dirtyCount)
+				}
+			}
+		}
+	}()
+	log.Info("Service缓存定时持久化任务已启动（间隔: 30秒）")
+
+	// 启动Tunnel缓存定时持久化任务（每30秒持久化一次变更）
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			if err := tunnelcache.Shared.PersistIfNeeded(gormDB); err != nil {
+				log.Errorf("❌ 持久化Tunnel缓存失败: %v", err)
+			} else {
+				stats := tunnelcache.Shared.GetStats()
+				dirtyCount := stats["dirty_count"].(int)
+				if dirtyCount > 0 {
+					log.Debugf("💾 持久化了 %d 个变更的隧道", dirtyCount)
+				}
+			}
+		}
+	}()
+	log.Info("Tunnel缓存定时持久化任务已启动（间隔: 30秒）")
+
 	// 启动SSE相关服务
 	go func() {
-		sseService.StartStoreWorkers(4) // 减少worker数量
 		sseManager.StartDaemon()
 
 		// 初始化SSE系统
@@ -285,31 +376,55 @@ func startBackgroundServices(gormDB *gorm.DB, sseService *sse.Service, sseManage
 }
 
 // gracefulShutdown 优雅关闭服务
-func gracefulShutdown(server *http.Server, trafficScheduler *dashboard.TrafficScheduler, wsService *websocket.Service, sseManager *sse.Manager, sseService *sse.Service) {
+func gracefulShutdown(server *http.Server, gormDB *gorm.DB, trafficScheduler *dashboard.TrafficScheduler, wsService *websocket.Service, sseManager *sse.Manager, sseService *sse.Service) {
 	// 等待中断信号
 	quit := make(chan os.Signal, 1)
 	signal.Notify(quit, syscall.SIGINT, syscall.SIGTERM)
 	<-quit
 
 	// 关闭服务
-	log.Infof("正在关闭服务器...")
+	log.Infof("⏳ 正在关闭服务器...")
+
+	// 1. 优先持久化Endpoint缓存（保证数据不丢失）
+	log.Infof("💾 正在持久化Endpoint缓存...")
+	if err := endpointcache.Shared.Shutdown(gormDB); err != nil {
+		log.Errorf("❌ 关闭Endpoint缓存失败: %v", err)
+	} else {
+		log.Infof("✅ Endpoint缓存已成功关闭并持久化")
+	}
+
+	// 2. 持久化Service缓存（保证数据不丢失）
+	log.Infof("💾 正在持久化Service缓存...")
+	if err := servicecache.Shared.Shutdown(gormDB); err != nil {
+		log.Errorf("❌ 关闭Service缓存失败: %v", err)
+	} else {
+		log.Infof("✅ Service缓存已成功关闭并持久化")
+	}
+
+	// 3. 持久化Tunnel缓存（保证数据不丢失）
+	log.Infof("💾 正在持久化Tunnel缓存...")
+	if err := tunnelcache.Shared.Shutdown(gormDB); err != nil {
+		log.Errorf("❌ 关闭Tunnel缓存失败: %v", err)
+	} else {
+		log.Infof("✅ Tunnel缓存已成功关闭并持久化")
+	}
 
 	// 关闭增强系统（暂时注释掉）
 	// if err := lifecycleManager.Shutdown(); err != nil {
 	// 	log.Errorf("增强系统关闭失败: %v", err)
 	// }
 
-	// 关闭流量调度器
+	// 2. 关闭流量调度器
 	if trafficScheduler != nil {
 		trafficScheduler.Stop()
 	}
 
-	// 关闭WebSocket系统
+	// 3. 关闭WebSocket系统
 	if wsService != nil {
 		wsService.Stop()
 	}
 
-	// 关闭SSE系统
+	// 4. 关闭SSE系统
 	if sseManager != nil {
 		sseManager.Close()
 	}
@@ -317,7 +432,7 @@ func gracefulShutdown(server *http.Server, trafficScheduler *dashboard.TrafficSc
 		sseService.Close()
 	}
 
-	// 优雅关闭HTTP服务器
+	// 5. 优雅关闭HTTP服务器
 	shutdownCtx, shutdownCancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer shutdownCancel()
 
@@ -325,11 +440,11 @@ func gracefulShutdown(server *http.Server, trafficScheduler *dashboard.TrafficSc
 		log.Errorf("服务器关闭错误: %v", err)
 	}
 
-	log.Infof("服务器已关闭")
+	log.Infof("✅ 服务器已安全关闭")
 }
 
 func main() {
-	resetPwd, port, certFile, keyFile, showVersion, disableLogin := parseFlags()
+	resetPwd, port, certFile, keyFile, showVersion, disableLogin, sseDebugLog := parseFlags()
 
 	// 如果指定了版本参数，显示版本信息后退出
 	if showVersion {
@@ -351,7 +466,7 @@ func main() {
 	}
 
 	// 初始化所有服务
-	gormDB, authService, endpointService, tunnelService, dashboardService, sseService, sseManager, wsService, err := initializeServices()
+	gormDB, authService, endpointService, tunnelService, dashboardService, sseService, sseManager, wsService, err := initializeServices(sseDebugLog)
 	if err != nil {
 		log.Errorf("服务初始化失败: %v", err)
 		return
@@ -417,5 +532,5 @@ func main() {
 	_ = ctx
 
 	// 优雅关闭服务
-	gracefulShutdown(server, trafficScheduler, wsService, sseManager, sseService)
+	gracefulShutdown(server, gormDB, trafficScheduler, wsService, sseManager, sseService)
 }

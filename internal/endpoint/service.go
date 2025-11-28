@@ -1,6 +1,8 @@
 package endpoint
 
 import (
+	"NodePassDash/internal/endpointcache"
+	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
 	"errors"
@@ -63,12 +65,13 @@ func extractIPFromURL(urlStr string) string {
 		return ""
 	}
 
-	// 检查是否为有效的IP地址
-	//if ip := net.ParseIP(host); ip != nil {
-	//	return ip.String()
-	//}
+	// 检查是否为IPv6地址（包含冒号）
+	if strings.Contains(host, ":") {
+		// IPv6地址需要用方括号包裹
+		return "[" + host + "]"
+	}
 
-	// 如果不是IP地址，返回空字符串
+	// 返回主机名（域名或IPv4地址）
 	return host
 }
 
@@ -197,7 +200,7 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 			updates["url"] = req.URL
 			// 如果URL更新了，同时更新IP字段
 			if extractedIP := extractIPFromURL(req.URL); extractedIP != "" {
-				updates["ip"] = extractedIP
+				updates["hostname"] = extractedIP
 			}
 		}
 		if req.APIPath != "" {
@@ -251,7 +254,7 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 			updates["url"] = req.URL
 			// 更新IP字段
 			if extractedIP := extractIPFromURL(req.URL); extractedIP != "" {
-				updates["ip"] = extractedIP
+				updates["hostname"] = extractedIP
 			}
 			needUpdateCache = true
 		}
@@ -331,22 +334,6 @@ func (s *Service) DeleteEndpoint(id int64) error {
 		// 3) 删除关联隧道
 		if err := tx.Where("endpoint_id = ?", id).Delete(&models.Tunnel{}).Error; err != nil {
 			return err
-		}
-
-		// 4) 删除SSE日志
-		if err := tx.Where("endpoint_id = ?", id).Delete(&models.EndpointSSE{}).Error; err != nil {
-			// 忽略记录不存在的错误
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
-			}
-		}
-
-		// 4) 删除回收站记录
-		if err := tx.Where("endpoint_id = ?", id).Delete(&models.TunnelRecycle{}).Error; err != nil {
-			// 忽略记录不存在的错误
-			if !errors.Is(err, gorm.ErrRecordNotFound) {
-				return err
-			}
 		}
 
 		// 5) 删除流量历史汇总记录
@@ -472,4 +459,21 @@ func (s *Service) UpdateEndpointInfo(id int64, info nodepass.EndpointInfoResult)
 	updates["uptime"] = info.Uptime
 
 	return s.db.Model(&models.Endpoint{}).Where("id = ?", id).Updates(updates).Error
+}
+
+// UpdateTunnelCount 更新端点的隧道计数（统一入口）
+// 该方法统一管理所有端点隧道计数的更新逻辑
+// 只更新缓存，不直接写数据库（缓存会在30秒后自动持久化）
+func (s *Service) UpdateTunnelCount(endpointID int64) error {
+	// 查询当前的隧道数量
+	var count int64
+	if err := s.db.Model(&models.Tunnel{}).Where("endpoint_id = ?", endpointID).Count(&count).Error; err != nil {
+		return fmt.Errorf("查询端点 %d 隧道计数失败: %v", endpointID, err)
+	}
+
+	// 只更新缓存，不写数据库（30秒后自动持久化）
+	endpointcache.Shared.UpdateTunnelCount(endpointID, count)
+
+	log.Debugf("[端点服务] 端点 %d 隧道计数已更新为: %d (已缓存)", endpointID, count)
+	return nil
 }

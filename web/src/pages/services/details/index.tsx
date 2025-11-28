@@ -158,7 +158,7 @@ export default function ServiceDetailsPage() {
 
   // 格式化地址显示（处理脱敏逻辑）
   const formatAddress = (address: string | undefined) => {
-    if (!address) return "N/A";
+    if (!address) return "[::]";
 
     // 如果隐私模式关闭，显示完整地址
     if (!settings.isPrivacyMode) {
@@ -254,14 +254,27 @@ export default function ServiceDetailsPage() {
   const [currentSlideIndex, setCurrentSlideIndex] = useState(0); // 保存当前页面索引
 
   // 根据 type 获取模式文案
+  // 0: 通用单端转发, 1: 本地内网穿透, 2: 本地隧道转发
+  // 3: 外部内网穿透, 4: 外部隧道转发, 5: 均衡单端转发
+  // 6: 均衡内网穿透, 7: 均衡隧道转发
   const getTypeLabel = (typeValue: string) => {
     switch (typeValue) {
       case "0":
-        return "单端转发";
+        return "通用单端转发";
       case "1":
-        return "NAT穿透";
+        return "本地内网穿透";
       case "2":
-        return "隧道转发";
+        return "本地隧道转发";
+      case "3":
+        return "外部内网穿透";
+      case "4":
+        return "外部隧道转发";
+      case "5":
+        return "均衡单端转发";
+      case "6":
+        return "均衡内网穿透";
+      case "7":
+        return "均衡隧道转发";
       default:
         return typeValue;
     }
@@ -273,9 +286,19 @@ export default function ServiceDetailsPage() {
       case "0":
         return "Single-end Forwarding";
       case "1":
-        return "NAT Traversal";
+        return "Local NAT Traversal";
       case "2":
-        return "Tunnel Forwarding";
+        return "Local Tunnel Forwarding";
+      case "3":
+        return "External NAT Traversal";
+      case "4":
+        return "External Tunnel Forwarding";
+      case "5":
+        return "Load-balanced Single-end";
+      case "6":
+        return "Load-balanced NAT Traversal";
+      case "7":
+        return "Load-balanced Tunnel";
       default:
         return typeValue;
     }
@@ -285,25 +308,41 @@ export default function ServiceDetailsPage() {
   const getTypeIcon = (typeValue: string) => {
     switch (typeValue) {
       case "0":
-        return faArrowRight;
+      case "5":
+        return faArrowRight;  // 单端转发
       case "1":
-        return faShield;
+      case "3":
+      case "6":
+        return faShield;      // 内网穿透
       case "2":
-        return faExchangeAlt;
+      case "4":
+      case "7":
+        return faExchangeAlt; // 隧道转发
       default:
         return faServer;
     }
   };
 
   // 根据类型获取颜色
+  // 单端转发=primary(蓝), 内网穿透=success(绿), 隧道转发=secondary(紫), 均衡=warning(橙)
   const getTypeColor = (typeValue: string) => {
     switch (typeValue) {
       case "0":
-        return "primary";
+        return "primary";     // 通用单端转发 - 蓝色
       case "1":
-        return "success";
+        return "success";     // 本地内网穿透 - 绿色
       case "2":
-        return "secondary";
+        return "secondary";   // 本地隧道转发 - 紫色
+      case "3":
+        return "success";     // 外部内网穿透 - 绿色
+      case "4":
+        return "secondary";   // 外部隧道转发 - 紫色
+      case "5":
+        return "warning";     // 均衡单端转发 - 橙色
+      case "6":
+        return "warning";     // 均衡内网穿透 - 橙色
+      case "7":
+        return "warning";     // 均衡隧道转发 - 橙色
       default:
         return "default";
     }
@@ -544,11 +583,15 @@ export default function ServiceDetailsPage() {
     setFullscreenChart({ isOpen: true, type, title });
   };
 
+  // 判断是否为单端转发类型（type=0 通用单端转发, type=5 均衡单端转发）
+  const isSingleEndForwarding = service?.type === "0" || service?.type === "5";
+
   // 获取当前显示的隧道实例ID
+  // 单端转发使用 client 数据，内网穿透和隧道转发使用 server 数据
   const currentTunnelInstanceId = service
-    ? service.type !== "0"
-      ? serverTunnel?.instanceId
-      : clientTunnel?.instanceId
+    ? isSingleEndForwarding
+      ? clientTunnel?.instanceId
+      : serverTunnel?.instanceId
     : undefined;
 
   // 使用metrics趋势hook
@@ -1091,12 +1134,12 @@ export default function ServiceDetailsPage() {
                     </div>
                   ) : (
                     <>
-                      {/* 根据 type 决定显示哪个实例：type != 0 时显示服务端，type = 0 时显示客户端 */}
-                      {((service.type !== "0" && serverTunnel) || (service.type === "0" && clientTunnel)) && (
+                      {/* 根据 type 决定显示哪个实例：单端转发(0,5)显示客户端，其他显示服务端 */}
+                      {((isSingleEndForwarding && clientTunnel) || (!isSingleEndForwarding && serverTunnel)) && (
                         <div className="flex flex-col gap-4 md:gap-6">
                           {/* 数据统计卡片 - 参考 code.html 布局 */}
-                          {!settings.isExperimentalMode && (() => {
-                            const tunnel = service.type !== "0" ? serverTunnel : clientTunnel;
+                          { (() => {
+                            const tunnel = isSingleEndForwarding ? clientTunnel : serverTunnel;
                             const tcpRx = tunnel?.tcpRx || 0;
                             const tcpTx = tunnel?.tcpTx || 0;
                             const udpRx = tunnel?.udpRx || 0;
@@ -1843,15 +1886,13 @@ export default function ServiceDetailsPage() {
               clientTargetAddress={clientTunnel.targetAddress || ""}
               clientTargetPort={clientTunnel.targetPort || 0}
               clientTunnelAddress={clientTunnel.tunnelAddress || ""}
-              extendTargetAddress={clientTunnel.extendTargetAddress || []}
+              clientExtendTargetAddress={clientTunnel.extendTargetAddress || []}
+              serverExtendTargetAddress={serverTunnel?.extendTargetAddress || []}
               isOpen={tcpingModalOpen}
               serverInstanceId={service.serverInstanceId}
               serverTunnelAddress={serverTunnel?.tunnelAddress || ""}
-              serverEndpointHost={
-                service.type === "0"
-                  ? clientTunnel.endpoint?.host || ""
-                  : serverTunnel?.endpoint?.host || ""
-              }
+              serverEndpointHost={serverTunnel?.endpoint?.host || ""}
+              clientEndpointHost={clientTunnel.endpoint?.host || ""}
               serverListenPort={serverTunnel?.listenPort || 0}
               serverTargetAddress={serverTunnel?.targetAddress || ""}
               serverTargetPort={serverTunnel?.targetPort || 0}

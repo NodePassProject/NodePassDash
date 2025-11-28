@@ -994,8 +994,8 @@ export default function SimpleCreateTunnelModal({
                             />
                             {isShowClientPoolMin &&
                               <Input
-                                label="DNS"
-                                placeholder="eg: 1.1.1.1"
+                                label="DNS TTL"
+                                placeholder="5m"
                                 value={formData.dns}
                                 onValueChange={(v) => handleField("dns", v ? String(v) : "")}
                               />}
@@ -1005,8 +1005,8 @@ export default function SimpleCreateTunnelModal({
                           <div className="grid grid-cols-1 gap-2">
                             {!isShowClientPoolMin &&
                               <Input
-                                label="DNS"
-                                placeholder="eg: 1.1.1.1"
+                                label="DNS TTL"
+                                placeholder="5m"
                                 value={formData.dns}
                                 onValueChange={(v) => handleField("dns", v ? String(v) : "")}
                               />}
@@ -1028,7 +1028,7 @@ export default function SimpleCreateTunnelModal({
                                     </Tooltip>
                                   </div>
                                 }
-                                placeholder="192.168.1.1&#10;192.168.1.2"
+                                placeholder="192.168.1.1:80&#10;192.168.1.2:80"
                                 minRows={2}
                                 value={formData.extendTargetAddresses}
                                 onValueChange={(v) => handleField("extendTargetAddresses", v)}

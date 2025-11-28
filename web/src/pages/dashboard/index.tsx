@@ -633,6 +633,12 @@ export default function DashboardPage() {
 
         <div className="flex gap-4 md:gap-6">
           <div className="text-center">
+            <div className="text-xl md:text-2xl font-bold text-success">
+              {loading ? "--" : tunnelStats.total_services || 0}
+            </div>
+            <div className="text-xs md:text-sm text-default-500">服务数</div>
+          </div>
+          <div className="text-center">
             <div className="text-xl md:text-2xl font-bold text-primary">
               {loading ? "--" : tunnelStats.total}
             </div>
@@ -643,12 +649,6 @@ export default function DashboardPage() {
               {loading ? "--" : tunnelStats.total_endpoints}
             </div>
             <div className="text-xs md:text-sm text-default-500">主控数</div>
-          </div>
-          <div className="text-center">
-            <div className="text-xl md:text-2xl font-bold text-success">
-              {loading ? "--" : tunnelStats.total_services || 0}
-            </div>
-            <div className="text-xs md:text-sm text-default-500">服务数</div>
           </div>
         </div>
       </div>
@@ -801,92 +801,92 @@ export default function DashboardPage() {
             <CardBody className="p-5 pt-3 overflow-hidden">
               <div className="h-full overflow-y-auto scrollbar-hide">
                 <div className="space-y-3 pb-5">
-                {loading ? (
-                  // 加载状态骨架屏
-                  [1, 2, 3, 4].map((i) => (
-                    <Card
-                      key={i}
-                      className="w-full h-[80px] bg-white dark:bg-default-50"
-                    >
-                      <CardBody className="p-4">
-                        <div className="flex items-center gap-4 h-full">
-                          {/* 左侧：SVG图标骨架 */}
-                          <div className="w-8 h-8 bg-default-300 rounded animate-pulse flex-shrink-0" />
+                  {loading ? (
+                    // 加载状态骨架屏
+                    [1, 2, 3, 4].map((i) => (
+                      <Card
+                        key={i}
+                        className="w-full h-[80px] bg-white dark:bg-default-50"
+                      >
+                        <CardBody className="p-4">
+                          <div className="flex items-center gap-4 h-full">
+                            {/* 左侧：SVG图标骨架 */}
+                            <div className="w-8 h-8 bg-default-300 rounded animate-pulse flex-shrink-0" />
 
-                          {/* 右侧：信息骨架 */}
-                          <div className="flex flex-col justify-center gap-1 flex-1">
-                            <div className="w-20 h-4 bg-default-300 rounded animate-pulse" />
-                            <div className="w-32 h-3 bg-default-300 rounded animate-pulse" />
-                            <div className="w-16 h-3 bg-default-200 rounded animate-pulse" />
+                            {/* 右侧：信息骨架 */}
+                            <div className="flex flex-col justify-center gap-1 flex-1">
+                              <div className="w-20 h-4 bg-default-300 rounded animate-pulse" />
+                              <div className="w-32 h-3 bg-default-300 rounded animate-pulse" />
+                              <div className="w-16 h-3 bg-default-200 rounded animate-pulse" />
+                            </div>
                           </div>
-                        </div>
-                      </CardBody>
-                    </Card>
-                  ))
-                ) : endpoints.length > 0 ? (
-                  // 主控卡片列表 - 竖向排列
-                  endpoints.map((endpoint) => (
-                    <Card
-                      key={endpoint.id}
-                      className="w-full h-[80px]  bg-white dark:bg-default-100"
-                    >
-                      <CardBody className="p-4">
-                        <div className="flex items-center h-full">
-                          {/* 左侧：服务器图标 */}
-                          <div className="flex-shrink-0 -ml-1">
-                            {endpoint.status === "ONLINE" ? (
-                              <ServerIcon
-                                className="text-default-400"
-                                size={64}
-                              />
-                            ) : (
-                              <ServerIconRed
-                                className="text-default-400"
-                                size={64}
-                              />
-                            )}
-                          </div>
-
-                          {/* 右侧：主控信息 */}
-                          <div className="flex flex-col justify-center gap-1 flex-1 min-w-0">
-                            {/* 主控名称和实例数量 */}
-                            <div className="flex items-center gap-1 min-w-0">
-                              <h4 className="font-medium text-sm text-foreground truncate">
-                                {endpoint.name}
-                              </h4>
-                              <Chip
-                                classNames={{
-                                  base: "text-xs",
-                                  content: "text-xs",
-                                }}
-                                color="default"
-                                size="sm"
-                                variant="flat"
-                              >
-                                {endpoint.tunnelCount || 0} 个实例
-                              </Chip>
+                        </CardBody>
+                      </Card>
+                    ))
+                  ) : endpoints.length > 0 ? (
+                    // 主控卡片列表 - 竖向排列
+                    endpoints.map((endpoint) => (
+                      <Card
+                        key={endpoint.id}
+                        className="w-full h-[80px]  bg-white dark:bg-default-100"
+                      >
+                        <CardBody className="p-4">
+                          <div className="flex items-center h-full">
+                            {/* 左侧：服务器图标 */}
+                            <div className="flex-shrink-0 -ml-1">
+                              {endpoint.status === "ONLINE" ? (
+                                <ServerIcon
+                                  className="text-default-400"
+                                  size={64}
+                                />
+                              ) : (
+                                <ServerIconRed
+                                  className="text-default-400"
+                                  size={64}
+                                />
+                              )}
                             </div>
 
-                            {/* 主控地址 - 根据隐私模式显示 */}
-                            <p className="text-xs text-default-500 truncate font-mono">
-                              {maskIpAddress(endpoint.url)}
-                            </p>
+                            {/* 右侧：主控信息 */}
+                            <div className="flex flex-col justify-center gap-1 flex-1 min-w-0">
+                              {/* 主控名称和实例数量 */}
+                              <div className="flex items-center gap-1 min-w-0">
+                                <h4 className="font-medium text-sm text-foreground truncate">
+                                  {endpoint.name}
+                                </h4>
+                                <Chip
+                                  classNames={{
+                                    base: "text-xs",
+                                    content: "text-xs",
+                                  }}
+                                  color="default"
+                                  size="sm"
+                                  variant="flat"
+                                >
+                                  {endpoint.tunnelCount || 0} 个实例
+                                </Chip>
+                              </div>
+
+                              {/* 主控地址 - 根据隐私模式显示 */}
+                              <p className="text-xs text-default-500 truncate font-mono">
+                                {maskIpAddress(endpoint.url)}
+                              </p>
+                            </div>
                           </div>
-                        </div>
-                      </CardBody>
-                    </Card>
-                  ))
-                ) : (
-                  // 无主控时的空状态
-                  <div className="flex items-center justify-center h-32">
-                    <div className="text-center">
-                      <p className="text-default-500 text-sm">暂无主控</p>
-                      <p className="text-default-400 text-xs mt-1">
-                        请先添加主控服务器
-                      </p>
+                        </CardBody>
+                      </Card>
+                    ))
+                  ) : (
+                    // 无主控时的空状态
+                    <div className="flex items-center justify-center h-32">
+                      <div className="text-center">
+                        <p className="text-default-500 text-sm">暂无主控</p>
+                        <p className="text-default-400 text-xs mt-1">
+                          请先添加主控服务器
+                        </p>
+                      </div>
                     </div>
-                  </div>
-                )}
+                  )}
                 </div>
               </div>
             </CardBody>

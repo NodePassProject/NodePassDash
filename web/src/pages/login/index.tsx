@@ -7,6 +7,10 @@ import {
   CardHeader,
   Input,
   Divider,
+  Dropdown,
+  DropdownTrigger,
+  DropdownMenu,
+  DropdownItem,
 } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
@@ -24,10 +28,12 @@ import { buildApiUrl } from "@/lib/utils";
 import Image from "@/components/common/image";
 import { ThemeSwitch } from "@/components/theme-switch";
 import { Footer } from "@/components/layout/footer";
+import { useSettings } from "@/components/providers/settings-provider";
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const { checkAuth, setUserDirectly } = useAuth();
+  const { settings, updateLanguage } = useSettings();
   const [formData, setFormData] = useState({
     username: "",
     password: "",
@@ -169,7 +175,54 @@ export default function LoginPage() {
           transition={{ duration: 0.5 }}
         >
           <Card className="shadow-2xl">
-            <CardHeader className="flex flex-col gap-1 items-center pb-6 pt-8">
+            <CardHeader className="flex flex-col gap-1 items-center pb-6 pt-8 relative">
+              {/* 语言切换 - 右上角 */}
+              <div className="absolute top-4 right-4">
+                <Dropdown>
+                  <DropdownTrigger>
+                    <Button
+                      isIconOnly
+                      className="bg-default-100/50 hover:bg-default-200/50 backdrop-blur-sm"
+                      radius="full"
+                      size="sm"
+                      variant="flat"
+                    >
+                      <Icon
+                        icon={
+                          settings.language === "zh"
+                            ? "circle-flags:cn"
+                            : "circle-flags:us"
+                        }
+                        width={20}
+                      />
+                    </Button>
+                  </DropdownTrigger>
+                  <DropdownMenu
+                    aria-label="语言选择"
+                    selectedKeys={settings.language ? [settings.language] : []}
+                    selectionMode="single"
+                    onAction={(key) => {
+                      if (key) {
+                        updateLanguage(key as "zh" | "en");
+                      }
+                    }}
+                  >
+                    <DropdownItem
+                      key="zh"
+                      startContent={<Icon icon="circle-flags:cn" width={16} />}
+                    >
+                      简体中文
+                    </DropdownItem>
+                    <DropdownItem
+                      key="en"
+                      startContent={<Icon icon="circle-flags:us" width={16} />}
+                    >
+                      English
+                    </DropdownItem>
+                  </DropdownMenu>
+                </Dropdown>
+              </div>
+
               <motion.div
                 animate={{ scale: 1 }}
                 className="w-16 h-16 flex items-center justify-center mb-4"

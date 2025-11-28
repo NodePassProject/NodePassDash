@@ -144,7 +144,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     i18n.changeLanguage(newLanguage);
   };
 
-
   // 切换隐私模式
   const togglePrivacyMode = () => {
     const newSettings = { ...settings, isPrivacyMode: !settings.isPrivacyMode };

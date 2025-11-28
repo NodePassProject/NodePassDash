@@ -38,10 +38,12 @@ interface TcpingTestModalProps {
   serverInstanceId?: string;
   serverTunnelAddress?: string; // 新增：server 的隧道地址
   serverEndpointHost?: string; // 新增：server 的 endpoint host
+  clientEndpointHost?: string; // 新增：server 的 endpoint host
   serverListenPort?: number; // 新增：server 的监听端口
   serverTargetAddress?: string;
   serverTargetPort?: number;
-  extendTargetAddress?: string[]; // 扩展目标地址（负载均衡）
+  clientExtendTargetAddress?: string[]; // 扩展目标地址（负载均衡）
+  serverExtendTargetAddress?: string[]; // 扩展目标地址（负载均衡）
 }
 
 interface TcpingResult {
@@ -69,10 +71,12 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
   serverInstanceId,
   serverTunnelAddress,
   serverEndpointHost,
+  clientEndpointHost,
   serverListenPort,
   serverTargetAddress,
   serverTargetPort,
-  extendTargetAddress = [],
+  clientExtendTargetAddress = [],
+  serverExtendTargetAddress = [],
 }) => {
   const [tcpingTarget, setTcpingTarget] = React.useState("");
   const [tcpingLoading, setTcpingLoading] = React.useState(false);
@@ -120,11 +124,11 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
 
   // 判断延迟是否优秀的函数
   const getLatencyQuality = (latency: number) => {
-    if (latency < 50) return { text: "优秀", color: "success" };
-    if (latency < 100) return { text: "良好", color: "primary" };
-    if (latency < 200) return { text: "一般", color: "warning" };
+    if (latency < 50) return { text: "优秀", color: "success" } as const;
+    if (latency < 100) return { text: "良好", color: "primary" } as const;
+    if (latency < 200) return { text: "一般", color: "warning" } as const;
 
-    return { text: "较差", color: "danger" };
+    return { text: "较差", color: "danger" } as const;
   };
 
   // 获取所有地址选项列表（包含入口和出口）
@@ -141,17 +145,41 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
     let entryAddr = "";
     let entryPort = 0;
     let entryInstanceId = "";
+    let exitAddr = "";
+    let exitPort = 0;
+    let exitInstanceId = "";
+    let extendTargetAddress: string[] = [];
 
-    if (serviceType === "0") {
-      // type=0: 使用 client 的 tunnelAddress，如果为空则使用 client 的 endpoint.host
-      entryAddr = clientTunnelAddress || serverEndpointHost || "";
+    if (serviceType === "0" || serviceType === "5") {
+      // type=0,5: 单端转发/均衡单端转发 - 使用 client 的 tunnelAddress，如果为空则使用 endpoint.host
+      entryAddr = clientTunnelAddress || clientEndpointHost || "";
       entryPort = clientListenPort || 0;
       entryInstanceId = clientInstanceId || "";
-    } else {
-      // type=1,2: 使用 server 的 tunnelAddress，如果为空则使用 server 的 endpoint.host
+      exitAddr = clientTargetAddress || "";
+      exitPort = clientTargetPort || 0;
+      exitInstanceId = clientInstanceId || "";
+      extendTargetAddress = clientExtendTargetAddress
+    } else if (serviceType === "1" || serviceType === "3" || serviceType === "6") {
+      // type=1,3,6: 内网穿透 - 使用 server 的 tunnelAddress，如果为空则使用 server 的 endpoint.host
       entryAddr = serverTunnelAddress || serverEndpointHost || "";
-      entryPort = serverListenPort || 0;
+      entryPort = serverTargetPort || 0;
       entryInstanceId = serverInstanceId || "";
+      exitAddr = clientTargetAddress || "";
+      exitPort = clientTargetPort || 0;
+      exitInstanceId = clientInstanceId || "";
+      extendTargetAddress = clientExtendTargetAddress
+
+    } else {
+      // type=2,4,7: 隧道转发 - 使用 server 的 tunnelAddress，如果为空则使用 server 的 endpoint.host
+      entryAddr = clientTargetAddress || clientEndpointHost || "";
+      entryPort = clientTargetPort || 0;
+      entryInstanceId = clientInstanceId || "";
+
+      exitAddr = serverTargetAddress || "";
+      exitPort = serverTargetPort || 0;
+      exitInstanceId = serverInstanceId || "";
+      extendTargetAddress = serverExtendTargetAddress
+
     }
 
     const entryFullAddr = `${entryAddr}:${entryPort}`;
@@ -164,13 +192,13 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
     });
 
     // 添加出口地址（主目标地址）
-    const mainAddr = `${clientTargetAddress}:${clientTargetPort}`;
+    const mainAddr = `${exitAddr}:${exitPort}`;
     addresses.push({
       key: "exit-main",
       type: "exit",
       label: "出口地址",
       address: mainAddr,
-      instanceId: clientInstanceId || "",
+      instanceId: exitInstanceId || "",
     });
 
     // 添加扩展目标地址
@@ -196,7 +224,8 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
     serverListenPort,
     clientTargetAddress,
     clientTargetPort,
-    extendTargetAddress,
+    clientExtendTargetAddress,
+    serverExtendTargetAddress,
     clientInstanceId,
     serverInstanceId,
   ]);
@@ -292,12 +321,10 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                         <p className="text-sm font-medium text-default-500">网络质量</p>
                         <Chip
                           className="text-xs uppercase tracking-wider"
-                          color={
-                            getLatencyQuality(tcpingResult.avgLatency).color
-                          }
+                          color={tcpingResult.avgLatency != null ? getLatencyQuality(tcpingResult.avgLatency).color : "default"}
                           variant="flat"
                         >
-                          {tcpingResult.avgLatency ? getLatencyQuality(tcpingResult.avgLatency).text : "-"}
+                          {tcpingResult.avgLatency != null ? getLatencyQuality(tcpingResult.avgLatency).text : "-"}
                         </Chip>
                       </div>
                     </div>
@@ -333,7 +360,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                     </div>
 
                     {/* 延迟质量指示器 */}
-                    {tcpingResult.avgLatency !== undefined && (
+                    {tcpingResult.avgLatency != null && (
                       <div className="relative pt-2">
                         {/* 渐变进度条 */}
                         <div className="relative h-2 w-full rounded-full bg-default-200 overflow-hidden">
@@ -413,6 +440,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                           base: "max-w-full",
                           list: "max-h-[400px] overflow-auto",
                         }}
+                        disabledKeys={["entry"]}
                         onAction={(key) => {
                           const option = getAllAddressOptions.find((opt) => opt.key === key);
                           if (option) {
@@ -430,8 +458,8 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                             startContent={
                               <div
                                 className={`flex items-center justify-center w-10 h-10 rounded-lg ${option.type === "entry"
-                                    ? "bg-success/10 text-success"
-                                    : "bg-primary/10 text-primary"
+                                  ? "bg-success/10 text-success"
+                                  : "bg-primary/10 text-primary"
                                   }`}
                               >
                                 <FontAwesomeIcon

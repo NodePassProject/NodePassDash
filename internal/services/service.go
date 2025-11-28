@@ -4,6 +4,7 @@ import (
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
+	"NodePassDash/internal/servicecache"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
 	"encoding/json"
@@ -11,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 )
 
@@ -30,13 +32,31 @@ func NewService(db *gorm.DB, tunnelService *tunnel.Service, sseManager *sse.Mana
 
 // GetServices 获取所有服务（按 sorts 降序排序，更大的值排在前面）
 func (s *ServiceImpl) GetServices() ([]*models.Services, error) {
+	// 优先从缓存获取
+	if servicecache.Shared != nil {
+		services := servicecache.Shared.GetSortedList()
+		log.Debugf("[Service] 从缓存获取 %d 个服务", len(services))
+		return services, nil
+	}
+
+	// 缓存未初始化，从数据库查询
 	var services []*models.Services
 	err := s.db.Order("sorts DESC").Find(&services).Error
 	return services, err
 }
 
-// GetServiceByID 根据 SID 和 Type 获取单个服务
+// GetServiceByID 根据 SID 获取单个服务
 func (s *ServiceImpl) GetServiceByID(sid string) (*models.Services, error) {
+	// 优先从缓存获取
+	if servicecache.Shared != nil {
+		service := servicecache.Shared.Get(sid)
+		if service != nil {
+			log.Debugf("[Service] 从缓存获取服务: SID=%s", sid)
+			return service, nil
+		}
+	}
+
+	// 缓存中不存在或缓存未初始化，从数据库查询
 	var service models.Services
 	err := s.db.Where("sid = ?", sid).First(&service).Error
 	if err != nil {
@@ -64,16 +84,19 @@ func (s *ServiceImpl) GetAvailableInstances() ([]*AvailableInstance, error) {
 		if tunnel.InstanceID == nil {
 			continue
 		}
+		// 添加调试日志
+		log.Debugf("[Service] Tunnel ID=%d, Name=%s, ExtendTargetAddress=%v", tunnel.ID, tunnel.Name, tunnel.ExtendTargetAddress)
 		instances = append(instances, &AvailableInstance{
-			InstanceId:    *tunnel.InstanceID,
-			EndpointId:    tunnel.EndpointID,
-			EndpointName:  tunnel.Endpoint.Name,
-			TunnelType:    string(tunnel.Type),
-			Name:          tunnel.Name,
-			TunnelAddress: tunnel.TunnelAddress,
-			TunnelPort:    tunnel.TunnelPort,
-			TargetAddress: tunnel.TargetAddress,
-			TargetPort:    tunnel.TargetPort,
+			InstanceId:          *tunnel.InstanceID,
+			EndpointId:          tunnel.EndpointID,
+			EndpointName:        tunnel.Endpoint.Name,
+			TunnelType:          string(tunnel.Type),
+			Name:                tunnel.Name,
+			TunnelAddress:       tunnel.TunnelAddress,
+			TunnelPort:          tunnel.TunnelPort,
+			TargetAddress:       tunnel.TargetAddress,
+			TargetPort:          tunnel.TargetPort,
+			ExtendTargetAddress: tunnel.ExtendTargetAddress,
 		})
 	}
 
@@ -140,28 +163,42 @@ func (s *ServiceImpl) AssembleService(req *AssembleServiceRequest) error {
 	return nil
 }
 
+// controlServiceInstances 并行控制服务的客户端和服务端实例
+// action: "start", "stop", "restart"
+func (s *ServiceImpl) controlServiceInstances(service *models.Services, action string) error {
+	var g errgroup.Group
+
+	// 并行控制客户端实例
+	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
+		g.Go(func() error {
+			if _, err := nodepass.ControlInstance(*service.ClientEndpointId, *service.ClientInstanceId, action); err != nil {
+				return fmt.Errorf("%s客户端实例失败: %w", action, err)
+			}
+			return nil
+		})
+	}
+
+	// 并行控制服务端实例（如果存在）
+	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
+		g.Go(func() error {
+			if _, err := nodepass.ControlInstance(*service.ServerEndpointId, *service.ServerInstanceId, action); err != nil {
+				return fmt.Errorf("%s服务端实例失败: %w", action, err)
+			}
+			return nil
+		})
+	}
+
+	// 等待所有goroutine完成
+	return g.Wait()
+}
+
 // StartService 启动服务（启动 client 和 server 实例）
 func (s *ServiceImpl) StartService(sid string) error {
 	service, err := s.GetServiceByID(sid)
 	if err != nil {
 		return fmt.Errorf("获取服务失败: %w", err)
 	}
-
-	// 启动客户端实例
-	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
-		if _, err := nodepass.ControlInstance(*service.ClientEndpointId, *service.ClientInstanceId, "start"); err != nil {
-			return fmt.Errorf("启动客户端实例失败: %w", err)
-		}
-	}
-
-	// 启动服务端实例（如果存在）
-	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
-		if _, err := nodepass.ControlInstance(*service.ServerEndpointId, *service.ServerInstanceId, "start"); err != nil {
-			return fmt.Errorf("启动服务端实例失败: %w", err)
-		}
-	}
-
-	return nil
+	return s.controlServiceInstances(service, "start")
 }
 
 // StopService 停止服务（停止 client 和 server 实例）
@@ -170,22 +207,7 @@ func (s *ServiceImpl) StopService(sid string) error {
 	if err != nil {
 		return fmt.Errorf("获取服务失败: %w", err)
 	}
-
-	// 停止客户端实例
-	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
-		if _, err := nodepass.ControlInstance(*service.ClientEndpointId, *service.ClientInstanceId, "stop"); err != nil {
-			return fmt.Errorf("停止客户端实例失败: %w", err)
-		}
-	}
-
-	// 停止服务端实例（如果存在）
-	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
-		if _, err := nodepass.ControlInstance(*service.ServerEndpointId, *service.ServerInstanceId, "stop"); err != nil {
-			return fmt.Errorf("停止服务端实例失败: %w", err)
-		}
-	}
-
-	return nil
+	return s.controlServiceInstances(service, "stop")
 }
 
 // RestartService 重启服务（重启 client 和 server 实例）
@@ -194,22 +216,7 @@ func (s *ServiceImpl) RestartService(sid string) error {
 	if err != nil {
 		return fmt.Errorf("获取服务失败: %w", err)
 	}
-
-	// 重启客户端实例
-	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
-		if _, err := nodepass.ControlInstance(*service.ClientEndpointId, *service.ClientInstanceId, "restart"); err != nil {
-			return fmt.Errorf("重启客户端实例失败: %w", err)
-		}
-	}
-
-	// 重启服务端实例（如果存在）
-	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
-		if _, err := nodepass.ControlInstance(*service.ServerEndpointId, *service.ServerInstanceId, "restart"); err != nil {
-			return fmt.Errorf("重启服务端实例失败: %w", err)
-		}
-	}
-
-	return nil
+	return s.controlServiceInstances(service, "restart")
 }
 
 // DeleteService 删除服务（先删除实例再删除服务记录）
@@ -283,6 +290,11 @@ func (s *ServiceImpl) DeleteService(sid string) error {
 		return fmt.Errorf("删除服务记录失败: %w", err)
 	}
 
+	// 从缓存中删除
+	if servicecache.Shared != nil {
+		servicecache.Shared.Delete(sid)
+	}
+
 	return nil
 }
 
@@ -353,6 +365,11 @@ func (s *ServiceImpl) RenameService(sid, newName string) error {
 		Where("sid = ? ", sid).
 		Update("alias", newName).Error; err != nil {
 		return fmt.Errorf("更新服务别名失败: %w", err)
+	}
+
+	// 更新缓存中的别名
+	if servicecache.Shared != nil {
+		servicecache.Shared.UpdateField(sid, "alias", &newName)
 	}
 
 	return nil
@@ -438,6 +455,11 @@ func (s *ServiceImpl) DissolveService(sid string) error {
 		return fmt.Errorf("删除服务记录失败: %w", err)
 	}
 
+	// 从缓存中删除
+	if servicecache.Shared != nil {
+		servicecache.Shared.Delete(sid)
+	}
+
 	return nil
 }
 
@@ -451,15 +473,29 @@ func (s *ServiceImpl) SyncService(sid string) error {
 
 	// 根据 service.Type 查询并更新服务信息
 	switch service.Type {
-	case "0":
-		// type=0: 单端转发，只有 client 端
+	case "0", "5":
+		// type=0/5: 通用单端转发/均衡单端转发，只有 client 端
 		if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
 			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ClientInstanceId, *service.ClientEndpointId); err != nil {
 				return fmt.Errorf("同步客户端实例失败: %w", err)
 			}
 		}
-	case "1", "2":
-		// type=1/2: NAT穿透/隧道转发，有 client 和 server 两端
+	case "1", "3", "6":
+		// type=1/3/6: 内网穿透（本地/外部/均衡），有 client 和 server 两端
+		// 同步 client 端
+		if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
+			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ClientInstanceId, *service.ClientEndpointId); err != nil {
+				return fmt.Errorf("同步客户端实例失败: %w", err)
+			}
+		}
+		// 同步 server 端
+		if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
+			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ServerInstanceId, *service.ServerEndpointId); err != nil {
+				return fmt.Errorf("同步服务端实例失败: %w", err)
+			}
+		}
+	case "2", "4", "7":
+		// type=2/4/7: 隧道转发（本地/外部/均衡），有 client 和 server 两端
 		// 同步 client 端
 		if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
 			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ClientInstanceId, *service.ClientEndpointId); err != nil {
@@ -500,7 +536,8 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 	var updateColumns []string
 
 	switch serviceType {
-	case "0":
+	case "0", "5":
+		// type=0/5: 通用单端转发/均衡单端转发，只有 client 端
 		if tunnel.Type == models.TunnelModeServer {
 			return fmt.Errorf("服务 SID=%s 的 Type 为 0，但 tunnel 类型为 %s", sid, tunnel.Type)
 		}
@@ -517,24 +554,37 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 
 		updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "entrance_host", "entrance_port", "total_rx", "total_tx"}
 
-	case "1":
+	case "1", "3", "6":
+		// type=1/3/6: 内网穿透（本地/外部/均衡），有 client 和 server 两端
+		// 内网穿透：入口是Server端的目标地址，出口是Client端的目标地址
 		if tunnel.Type == models.TunnelModeServer {
 			service.ServerInstanceId = &instanceID
 			service.ServerEndpointId = &endpointID
-			service.EntranceHost = &tunnel.TargetAddress
-			service.EntrancePort = &tunnel.TargetPort
 			service.TunnelPort = &tunnel.TunnelPort
 
-			// 查询并填充 tunnelEndpointName
-			var endpoint models.Endpoint
-			if err := s.db.First(&endpoint, endpointID).Error; err == nil {
-				service.TunnelEndpointName = &endpoint.Name
-				if service.EntranceHost == nil || *service.EntranceHost == "" {
+			// 内网穿透 Server端：入口是server的监听地址
+			// 优先使用TunnelAddress，如果为空则使用endpoint的Hostname
+			if tunnel.TargetAddress != "" {
+				service.EntranceHost = &tunnel.TargetAddress
+			} else {
+				// 查询endpoint获取Hostname作为入口地址
+				var endpoint models.Endpoint
+				if err := s.db.First(&endpoint, endpointID).Error; err == nil {
+					service.TunnelEndpointName = &endpoint.Name
 					service.EntranceHost = &endpoint.Hostname
 				}
 			}
+			service.EntrancePort = &tunnel.TunnelPort
 
-			// type=1 server端: 查询 client 端的流量数据，相加
+			// 查询并填充 tunnelEndpointName（如果前面没查询过）
+			if service.TunnelEndpointName == nil {
+				var endpoint models.Endpoint
+				if err := s.db.First(&endpoint, endpointID).Error; err == nil {
+					service.TunnelEndpointName = &endpoint.Name
+				}
+			}
+
+			// type=1/3/6 server端: 查询 client 端的流量数据，相加
 			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 client 端流量
@@ -549,10 +599,11 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 		} else {
 			service.ClientInstanceId = &instanceID
 			service.ClientEndpointId = &endpointID
+			// 内网穿透 Client端：出口是client的目标地址
 			service.ExitHost = &tunnel.TargetAddress
 			service.ExitPort = &tunnel.TargetPort
 
-			// type=1 client端: 查询 server 端的流量数据，相加
+			// type=1/3/6 client端: 查询 server 端的流量数据，相加
 			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 server 端流量
@@ -565,24 +616,25 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "total_rx", "total_tx"}
 		}
 
-	case "2":
+	case "2", "4", "7":
+		// type=2/4/7: 隧道转发（本地/外部/均衡），有 client 和 server 两端
+		// 隧道转发：入口是Client端的监听地址，出口是Server端的目标地址
 		if tunnel.Type == models.TunnelModeServer {
 			service.ServerInstanceId = &instanceID
 			service.ServerEndpointId = &endpointID
-			service.EntranceHost = &tunnel.TargetAddress
-			service.EntrancePort = &tunnel.TargetPort
 			service.TunnelPort = &tunnel.TunnelPort
 
-			// 查询并填充 tunnelEndpointName
-			var endpoint models.Endpoint
-			if err := s.db.First(&endpoint, endpointID).Error; err == nil {
-				service.TunnelEndpointName = &endpoint.Name
-				if service.EntranceHost == nil || *service.EntranceHost == "" {
-					service.EntranceHost = &endpoint.Hostname
-				}
-			}
+			// 隧道转发 Server端：出口是server的目标地址
+			service.ExitHost = &tunnel.TargetAddress
+			service.ExitPort = &tunnel.TargetPort
 
-			// type=2 server端: 查询 client 端的流量数据，相加
+			// 查询并填充 tunnelEndpointName
+			// var endpoint models.Endpoint
+			// if err := s.db.First(&endpoint, endpointID).Error; err == nil {
+			// 	service.TunnelEndpointName = &endpoint.Name
+			// }
+
+			// type=2/4/7 server端: 查询 client 端的流量数据，相加
 			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 client 端流量
@@ -592,15 +644,24 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 				service.TotalTx += clientTunnel.TCPTx + clientTunnel.UDPTx
 			}
 
-			updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "tunnel_endpoint_name", "entrance_host", "entrance_port", "total_rx", "total_tx"}
+			updateColumns = []string{"alias", "server_instance_id", "server_endpoint_id", "tunnel_port", "tunnel_endpoint_name", "exit_host", "exit_port", "total_rx", "total_tx"}
 
 		} else {
 			service.ClientInstanceId = &instanceID
 			service.ClientEndpointId = &endpointID
-			service.ExitHost = &tunnel.TargetAddress
-			service.ExitPort = &tunnel.TargetPort
 
-			// type=2 client端: 查询 server 端的流量数据，相加
+			// 隧道转发 Client端：入口是client的监听地址
+			service.EntrancePort = &tunnel.TargetPort
+			service.EntranceHost = &tunnel.TargetAddress
+			// 查询endpoint获取Hostname作为入口地址
+			var endpoint models.Endpoint
+			if err := s.db.First(&endpoint, endpointID).Error; err == nil {
+				service.TunnelEndpointName = &endpoint.Name
+				if tunnel.TargetAddress == "" {
+					service.EntranceHost = &endpoint.Hostname
+				}
+			}
+			// type=2/4/7 client端: 查询 server 端的流量数据，相加
 			service.TotalRx = tunnel.TCPRx + tunnel.UDPRx
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 server 端流量
@@ -610,7 +671,7 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 				service.TotalTx += serverTunnel.TCPTx + serverTunnel.UDPTx
 			}
 
-			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "exit_host", "exit_port", "total_rx", "total_tx"}
+			updateColumns = []string{"alias", "client_instance_id", "client_endpoint_id", "entrance_host", "entrance_port", "total_rx", "total_tx"}
 		}
 	}
 
@@ -620,6 +681,43 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 		Select(updateColumns).
 		Updates(&service).Error; err != nil {
 		return fmt.Errorf("更新服务记录失败: %w", err)
+	}
+
+	// 更新缓存
+	if servicecache.Shared != nil {
+		// 构建更新字段的map
+		updates := make(map[string]interface{})
+		for _, col := range updateColumns {
+			switch col {
+			case "alias":
+				updates["alias"] = service.Alias
+			case "client_instance_id":
+				updates["client_instance_id"] = service.ClientInstanceId
+			case "client_endpoint_id":
+				updates["client_endpoint_id"] = service.ClientEndpointId
+			case "server_instance_id":
+				updates["server_instance_id"] = service.ServerInstanceId
+			case "server_endpoint_id":
+				updates["server_endpoint_id"] = service.ServerEndpointId
+			case "exit_host":
+				updates["exit_host"] = service.ExitHost
+			case "exit_port":
+				updates["exit_port"] = service.ExitPort
+			case "entrance_host":
+				updates["entrance_host"] = service.EntranceHost
+			case "entrance_port":
+				updates["entrance_port"] = service.EntrancePort
+			case "tunnel_port":
+				updates["tunnel_port"] = service.TunnelPort
+			case "tunnel_endpoint_name":
+				updates["tunnel_endpoint_name"] = service.TunnelEndpointName
+			case "total_rx":
+				updates["total_rx"] = service.TotalRx
+			case "total_tx":
+				updates["total_tx"] = service.TotalTx
+			}
+		}
+		servicecache.Shared.UpdateService(sid, updates)
 	}
 
 	return nil
@@ -671,6 +769,13 @@ func (s *ServiceImpl) UpdateServicesSorts(req *UpdateServicesSortsRequest) error
 	// 提交事务
 	if err := tx.Commit().Error; err != nil {
 		return fmt.Errorf("提交事务失败: %w", err)
+	}
+
+	// 批量更新缓存中的sorts字段
+	if servicecache.Shared != nil {
+		for _, item := range req.Services {
+			servicecache.Shared.UpdateField(item.Sid, "sorts", item.Sorts)
+		}
 	}
 
 	log.Infof("[Service] 批量更新 %d 个服务的排序成功", len(req.Services))

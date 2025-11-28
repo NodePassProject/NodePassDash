@@ -8,9 +8,8 @@ import {
   ModalHeader,
   Tabs,
   Tab,
-  Select,
-  SelectItem,
-  Spinner,
+  Autocomplete,
+  AutocompleteItem,
 } from "@heroui/react";
 import { useEffect, useState, useCallback } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -40,6 +39,7 @@ interface AvailableInstance {
   tunnelPort: string;
   targetAddress: string;
   targetPort: string;
+  extendTargetAddress?: string[];
 }
 
 // 生成 UUID v4
@@ -132,6 +132,49 @@ export default function AssembleServiceModal({
     }
   }, []);
 
+  // 根据类型和实例属性计算最终的服务类型
+  const calculateFinalServiceType = (): string => {
+    const clientInstance = clientInstances.find(
+      (i) => i.instanceId === selectedClientInstance
+    );
+    const serverInstance = serverInstances.find(
+      (i) => i.instanceId === selectedServerInstance
+    );
+
+    // 判断 extendTargetAddress 是否有效（数组不为空且至少有一个非空元素）
+    const hasValidExtendTarget = (arr?: string[]) =>
+      arr && arr.length > 0 && arr.some(addr => addr && addr.trim() !== "");
+
+    switch (serviceType) {
+      case "0": // 单端转发
+        if (clientInstance && hasValidExtendTarget(clientInstance.extendTargetAddress)) {
+          return "5"; // 均衡单端转发
+        }
+        return "0"; // 通用单端转发
+
+      case "1": // 内网穿透
+        if (clientInstance && hasValidExtendTarget(clientInstance.extendTargetAddress)) {
+          return "6"; // 均衡内网穿透（优先级最高）
+        }
+        if (clientInstance?.targetAddress === "127.0.0.1") {
+          return "1"; // 本地内网穿透
+        }
+        return "3"; // 外部内网穿透
+
+      case "2": // 隧道转发
+        if (serverInstance && hasValidExtendTarget(serverInstance.extendTargetAddress)) {
+          return "7"; // 均衡隧道转发（优先级最高）
+        }
+        if (serverInstance?.targetAddress === "127.0.0.1") {
+          return "2"; // 本地隧道转发
+        }
+        return "4"; // 外部隧道转发
+
+      default:
+        return serviceType;
+    }
+  };
+
   // 提交表单
   const handleSubmit = async () => {
     // 验证表单
@@ -168,10 +211,13 @@ export default function AssembleServiceModal({
     try {
       setSubmitting(true);
 
+      // 根据选择的实例属性计算最终的服务类型
+      const finalType = calculateFinalServiceType();
+
       const payload = {
         sid: serviceId,
         name: serviceName,
-        type: serviceType,
+        type: finalType,
         clientInstanceId: selectedClientInstance,
         serverInstanceId: serviceType !== "0" ? selectedServerInstance : undefined,
       };
@@ -223,6 +269,20 @@ export default function AssembleServiceModal({
     }
   };
 
+  // 获取类型对应的颜色
+  const getTypeColor = (type: string) => {
+    switch (type) {
+      case "0":
+        return "primary";     // 单端转发 - 蓝色
+      case "1":
+        return "success";     // NAT穿透 - 绿色
+      case "2":
+        return "secondary";   // 隧道转发 - 紫色
+      default:
+        return "primary";
+    }
+  };
+
   return (
     <Modal
       isOpen={isOpen}
@@ -266,6 +326,7 @@ export default function AssembleServiceModal({
               <div className="space-y-2">
                 <Tabs
                   fullWidth
+                  color={getTypeColor(serviceType) as any}
                   selectedKey={serviceType}
                   onSelectionChange={(key) => {
                     setServiceType(key as string);
@@ -285,9 +346,9 @@ export default function AssembleServiceModal({
                   <Tab
                     key="1"
                     title={
-                      <div className="flex items-center gap-2">
+                      <div className={`flex items-center gap-2 ${serviceType === "1" ? "text-white" : ""}`}>
                         <FontAwesomeIcon icon={faShield} />
-                        <span>NAT穿透</span>
+                        <span>内网穿透</span>
                       </div>
                     }
                   />
@@ -305,23 +366,20 @@ export default function AssembleServiceModal({
               {/* 选择服务端实例（仅当type!=0时显示） */}
               {serviceType !== "0" && (
                 <div className="space-y-2">
-                  <Select
+                  <Autocomplete
                     label="服务端实例"
                     isLoading={loading}
-                    placeholder="请选择服务端实例"
-                    selectedKeys={
-                      selectedServerInstance ? [selectedServerInstance] : []
-                    }
-                    onSelectionChange={(keys) => {
-                      const selected = Array.from(keys)[0] as string;
-
-                      setSelectedServerInstance(selected);
+                    placeholder="请选择或搜索服务端实例"
+                    selectedKey={selectedServerInstance}
+                    onSelectionChange={(key) => {
+                      setSelectedServerInstance(key as string);
                     }}
+                    allowsCustomValue={false}
                   >
                     {serverInstances.map((instance) => (
-                      <SelectItem
+                      <AutocompleteItem
                         key={instance.instanceId}
-                        textValue={instance.name}
+                        textValue={`${instance.name} ${instance.endpointName} ${instance.tunnelAddress}:${instance.tunnelPort}`}
                       >
                         <div className="flex flex-col">
                           <span className="font-medium">{instance.name}</span>
@@ -330,30 +388,27 @@ export default function AssembleServiceModal({
                             {instance.tunnelPort}
                           </span>
                         </div>
-                      </SelectItem>
+                      </AutocompleteItem>
                     ))}
-                  </Select>
+                  </Autocomplete>
                 </div>
               )}
               {/* 选择客户端实例 */}
               <div className="space-y-2">
-                <Select
+                <Autocomplete
                   label="客户端实例"
                   isLoading={loading}
-                  placeholder="请选择客户端实例"
-                  selectedKeys={
-                    selectedClientInstance ? [selectedClientInstance] : []
-                  }
-                  onSelectionChange={(keys) => {
-                    const selected = Array.from(keys)[0] as string;
-
-                    setSelectedClientInstance(selected);
+                  placeholder="请选择或搜索客户端实例"
+                  selectedKey={selectedClientInstance}
+                  onSelectionChange={(key) => {
+                    setSelectedClientInstance(key as string);
                   }}
+                  allowsCustomValue={false}
                 >
                   {clientInstances.map((instance) => (
-                    <SelectItem
+                    <AutocompleteItem
                       key={instance.instanceId}
-                      textValue={instance.name}
+                      textValue={`${instance.name} ${instance.endpointName} ${instance.tunnelAddress}:${instance.tunnelPort}`}
                     >
                       <div className="flex flex-col">
                         <span className="font-medium">{instance.name}</span>
@@ -362,9 +417,9 @@ export default function AssembleServiceModal({
                           {instance.tunnelPort}
                         </span>
                       </div>
-                    </SelectItem>
+                    </AutocompleteItem>
                   ))}
-                </Select>
+                </Autocomplete>
               </div>
             </ModalBody>
             <ModalFooter>

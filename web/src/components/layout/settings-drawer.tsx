@@ -35,6 +35,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
   const {
     settings,
     updateTheme,
+    updateLanguage,
     togglePrivacyMode,
     toggleExperimentalMode,
     updateSettings,
@@ -153,6 +154,79 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
               </Card>
             </div>
 
+            {/* 语言设置 */}
+            <div className="group">
+              <Card className="shadow-sm border border-divider/30 hover:border-success/30 transition-all duration-300 hover:shadow-md bg-background/60 backdrop-blur-sm">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-success/10 group-hover:bg-success/20 transition-colors">
+                      <Icon
+                        className="text-success"
+                        icon="lucide:languages"
+                        width={18}
+                      />
+                    </div>
+                    <div>
+                      <span className="font-semibold text-foreground">
+                        语言设置
+                      </span>
+                      <p className="text-xs text-default-500 mt-1">
+                        选择您的界面语言
+                      </p>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardBody className="pt-0 pb-4">
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium text-default-700">
+                      界面语言
+                    </span>
+                    <Dropdown>
+                      <DropdownTrigger>
+                        <Button
+                          className="bg-default-100 hover:bg-default-200 min-w-32"
+                          endContent={
+                            <Icon icon="lucide:chevron-down" width={16} />
+                          }
+                          size="sm"
+                          variant="flat"
+                        >
+                          {settings.language === "zh" ? "简体中文" : "English"}
+                        </Button>
+                      </DropdownTrigger>
+                      <DropdownMenu
+                        aria-label="语言选择"
+                        selectedKeys={settings.language ? [settings.language] : []}
+                        selectionMode="single"
+                        onAction={(key) => {
+                          console.log("Language selected:", key);
+                          if (key) {
+                            updateLanguage(key as "zh" | "en");
+                          }
+                        }}
+                      >
+                        <DropdownItem
+                          key="zh"
+                          startContent={
+                            <Icon icon="circle-flags:cn" width={16} />
+                          }
+                        >
+                          简体中文
+                        </DropdownItem>
+                        <DropdownItem
+                          key="en"
+                          startContent={
+                            <Icon icon="circle-flags:us" width={16} />
+                          }
+                        >
+                          English
+                        </DropdownItem>
+                      </DropdownMenu>
+                    </Dropdown>
+                  </div>
+                </CardBody>
+              </Card>
+            </div>
 
             {/* 隐私模式 */}
             <div className="group">

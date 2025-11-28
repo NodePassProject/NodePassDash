@@ -14,7 +14,7 @@ import {
   ModalHeader,
   ModalBody,
   ModalFooter,
-  CardFooter 
+  CardFooter
 } from "@heroui/react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
@@ -44,7 +44,7 @@ import { buildApiUrl, formatBytes } from "@/lib/utils";
 import { useSettings } from "@/components/providers/settings-provider";
 import ScenarioCreateModal, {
   ScenarioType,
-} from "@/components/tunnels/scenario-create-modal";
+} from "@/components/services/service-create-modal";
 import AssembleServiceModal from "@/components/services/assemble-service-modal";
 import RenameServiceModal from "@/components/services/rename-service-modal";
 import { HeroUIServiceCard } from "@/components/services/heroui-service-card";
@@ -107,7 +107,6 @@ export default function ServicesPage() {
       coordinateGetter: sortableKeyboardCoordinates,
     })
   );
-
   // 场景创建模态框状态
   const [scenarioModalOpen, setScenarioModalOpen] = useState(false);
   const [selectedScenarioType, setSelectedScenarioType] = useState<
@@ -370,16 +369,27 @@ export default function ServicesPage() {
   const isDragEnabled = !searchQuery && !isSorting;
 
   // 根据 type 获取模式文案
+  // 0: 通用单端转发, 1: 本地内网穿透, 2: 本地隧道转发
+  // 3: 外部内网穿透, 4: 外部隧道转发, 5: 均衡单端转发
+  // 6: 均衡内网穿透, 7: 均衡隧道转发
   const getTypeLabel = (type: string) => {
     switch (type) {
       case "0":
-        return "单端转发";
+        return "通用单端转发";
       case "1":
-        return "NAT穿透";
+        return "本地内网穿透";
       case "2":
-        return "隧道转发";
+        return "本地隧道转发";
       case "3":
-        return "隧道转发(外部)";
+        return "外部内网穿透";
+      case "4":
+        return "外部隧道转发";
+      case "5":
+        return "均衡单端转发";
+      case "6":
+        return "均衡内网穿透";
+      case "7":
+        return "均衡隧道转发";
       default:
         return type;
     }
@@ -389,25 +399,41 @@ export default function ServicesPage() {
   const getTypeIcon = (type: string) => {
     switch (type) {
       case "0":
-        return faArrowRight;
+      case "5":
+        return faArrowRight;  // 单端转发
       case "1":
-        return faShield;
+      case "3":
+      case "6":
+        return faShield;      // 内网穿透
       case "2":
-        return faExchangeAlt;
+      case "4":
+      case "7":
+        return faExchangeAlt; // 隧道转发
       default:
         return faNetworkWired;
     }
   };
 
   // 根据类型获取颜色 (HeroUI 原生颜色)
-  const getTypeColor = (type: string): "primary" | "success" | "secondary" | "default" => {
+  // 单端转发=primary(蓝), 内网穿透=success(绿), 隧道转发=secondary(紫), 均衡=warning(橙)
+  const getTypeColor = (type: string): "primary" | "success" | "secondary" | "warning" | "default" => {
     switch (type) {
       case "0":
-        return "primary";
+        return "primary";     // 通用单端转发 - 蓝色
       case "1":
-        return "success";
+        return "success";     // 本地内网穿透 - 绿色
       case "2":
-        return "secondary";
+        return "secondary";   // 本地隧道转发 - 紫色
+      case "3":
+        return "success";     // 外部内网穿透 - 绿色
+      case "4":
+        return "secondary";   // 外部隧道转发 - 紫色
+      case "5":
+        return "warning";     // 均衡单端转发 - 橙色
+      case "6":
+        return "warning";     // 均衡内网穿透 - 橙色
+      case "7":
+        return "warning";     // 均衡隧道转发 - 橙色
       default:
         return "default";
     }
@@ -470,7 +496,7 @@ export default function ServicesPage() {
                 startContent={<FontAwesomeIcon icon={faLayerGroup} />}
                 variant="flat"
               >
-                服务创建
+                创建服务
               </Button>
             </DropdownTrigger>
             <DropdownMenu
@@ -482,15 +508,8 @@ export default function ServicesPage() {
               }}
             >
               <DropdownItem
-                key="nat-penetration"
-                startContent={
-                  <FontAwesomeIcon fixedWidth icon={faShield} />
-                }
-              >
-                NAT穿透
-              </DropdownItem>
-              <DropdownItem
                 key="single-forward"
+                color="primary"
                 startContent={
                   <FontAwesomeIcon fixedWidth icon={faArrowRight} />
                 }
@@ -498,7 +517,21 @@ export default function ServicesPage() {
                 单端转发
               </DropdownItem>
               <DropdownItem
+                key="nat-penetration"
+                color="success"
+                classNames={{
+                  title: "group-hover:text-white"
+                }}
+                startContent={
+                  <FontAwesomeIcon fixedWidth icon={faShield} className="group-hover:text-white" />
+                }
+              >
+                内网穿透
+              </DropdownItem>
+
+              <DropdownItem
                 key="tunnel-forward"
+                color="secondary"
                 startContent={
                   <FontAwesomeIcon fixedWidth icon={faExchangeAlt} />
                 }

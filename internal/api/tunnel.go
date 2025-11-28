@@ -1214,20 +1214,63 @@ func (h *TunnelHandler) getTunnelIDByName(tunnelName string) (int64, error) {
 	return tunnelID, err
 }
 
+// calculateServiceType 根据mode和配置计算服务类型
+// 0: 通用单端转发, 1: 本地内网穿透, 2: 本地隧道转发
+// 3: 外部内网穿透, 4: 外部隧道转发, 5: 均衡单端转发
+// 6: 均衡内网穿透, 7: 均衡隧道转发
+func calculateServiceType(mode string, clientTargetHost string, serverTargetHost string, extendTargetAddress []string) string {
+	hasExtendAddresses := len(extendTargetAddress) > 0
+
+	switch mode {
+	case "single":
+		// 单端转发: 只判断是否有扩展目标地址
+		if hasExtendAddresses {
+			return "5" // 均衡单端转发
+		}
+		return "0" // 通用单端转发
+
+	case "intranet":
+		// 内网穿透: 判断client端的targetAddr
+		if hasExtendAddresses {
+			return "6" // 均衡内网穿透
+		}
+		if clientTargetHost == "127.0.0.1" || clientTargetHost == "localhost" || clientTargetHost == "" {
+			return "1" // 本地内网穿透
+		}
+		return "3" // 外部内网穿透
+
+	case "bothway":
+		// 隧道转发: 判断server端的targetAddr
+		if hasExtendAddresses {
+			return "7" // 均衡隧道转发
+		}
+		if serverTargetHost == "127.0.0.1" || serverTargetHost == "localhost" || serverTargetHost == "" {
+			return "2" // 本地隧道转发
+		}
+		return "4" // 外部隧道转发
+
+	default:
+		return "0" // 默认返回通用单端转发
+	}
+}
+
 // HandleTemplateCreate 处理模板创建请求
 func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 
 	// 定义请求结构体
 	var req struct {
-		Log        string `json:"log"`
-		ListenHost string `json:"listen_host,omitempty"`
-		ListenPort int    `json:"listen_port"`
-		Mode       string `json:"mode"`
-		TLS        int    `json:"tls,omitempty"`
-		CertPath   string `json:"cert_path,omitempty"`
-		KeyPath    string `json:"key_path,omitempty"`
-		TunnelName string `json:"tunnel_name,omitempty"`
-		Inbounds   *struct {
+		Log                 string   `json:"log"`
+		ListenHost          string   `json:"listen_host,omitempty"`
+		ListenPort          int      `json:"listen_port"`
+		Mode                string   `json:"mode"`
+		TLS                 int      `json:"tls,omitempty"`
+		CertPath            string   `json:"cert_path,omitempty"`
+		KeyPath             string   `json:"key_path,omitempty"`
+		TunnelName          string   `json:"tunnel_name,omitempty"`
+		ServiceType         int      `json:"service_type,omitempty"`          // 服务类型 0-7
+		ListenType          string   `json:"listen_type,omitempty"`           // 监听类型 TCP/UDP/ALL
+		ExtendTargetAddress []string `json:"extend_target_address,omitempty"` // 扩展目标地址（负载均衡）
+		Inbounds            *struct {
 			TargetHost string `json:"target_host"`
 			TargetPort int    `json:"target_port"`
 			MasterID   int64  `json:"master_id"`
@@ -1326,12 +1369,14 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 				// 生成UUID作为sid
 				sid := uuid.New().String()
 
+				// 计算服务类型（single模式下只需要判断扩展目标地址）
+				serviceType := calculateServiceType("single", "", "", req.ExtendTargetAddress)
+
 				// 构建peer对象
 				peer := &models.Peer{
 					SID: &sid,
 					Type: func() *string {
-						t := "0" // single对应type=0
-						return &t
+						return &serviceType
 					}(),
 				}
 
@@ -1345,7 +1390,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 				if err != nil {
 					log.Warnf("[API] 更新隧道peer信息失败，但不影响创建: %v", err)
 				} else {
-					log.Infof("[API] 成功更新隧道peer信息: sid=%s, type=0, alias=%s", sid, req.TunnelName)
+					log.Infof("[API] 成功更新隧道peer信息: sid=%s, type=%s, alias=%s", sid, serviceType, req.TunnelName)
 				}
 			}
 		}
@@ -1383,20 +1428,20 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 
 		// 获取endpoint信息
 		var serverEndpoint, clientEndpoint struct {
-			ID      int64
-			URL     string
-			IP      string
-			APIPath string
-			APIKey  string
-			Name    string
+			ID       int64
+			URL      string
+			Hostname string
+			APIPath  string
+			APIKey   string
+			Name     string
 		}
 
 		db := h.tunnelService.DB()
 		// 获取server endpoint信息
 		err := db.QueryRow(
-			"SELECT id, url, ip, api_path, api_key, name FROM endpoints WHERE id = ?",
+			"SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?",
 			serverConfig.MasterID,
-		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.IP, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
+		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.Hostname, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
@@ -1414,9 +1459,9 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 
 		// 获取client endpoint信息
 		err = db.QueryRow(
-			"SELECT id, url, ip, api_path, api_key, name FROM endpoints WHERE id = ?",
+			"SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?",
 			clientConfig.MasterID,
-		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.IP, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
+		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.Hostname, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
 		if err != nil {
 			if err == sql.ErrNoRows {
 				c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{
@@ -1433,7 +1478,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		}
 
 		// 使用数据库中存储的server端IP
-		serverIP := serverEndpoint.IP
+		serverIP := serverEndpoint.Hostname
 		if serverIP == "" {
 			// 如果数据库中没有IP，降级到从URL提取
 			serverIP = strings.TrimPrefix(serverEndpoint.URL, "http://")
@@ -1513,6 +1558,9 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		// 生成服务ID（双端模式共用一个sid）
 		sid := uuid.New().String()
 
+		// 计算服务类型（bothway模式根据server端的targetAddr判断）
+		serviceType := calculateServiceType("bothway", "", clientConfig.TargetHost, req.ExtendTargetAddress)
+
 		// 获取创建的隧道ID并更新peer信息
 		var tunnelIDs []int64
 		if serverTunnelID, err := h.getTunnelIDByName(serverTunnelName); err == nil {
@@ -1523,8 +1571,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 				peer := &models.Peer{
 					SID: &sid,
 					Type: func() *string {
-						t := "2" // bothway对应type=2
-						return &t
+						return &serviceType
 					}(),
 				}
 				if req.TunnelName != "" {
@@ -1535,7 +1582,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 				if err != nil {
 					log.Warnf("[API] 更新server端隧道peer信息失败: %v", err)
 				} else {
-					log.Infof("[API] 成功更新server端隧道peer信息: sid=%s, type=2", sid)
+					log.Infof("[API] 成功更新server端隧道peer信息: sid=%s, type=%s", sid, serviceType)
 				}
 			}
 		}
@@ -1547,8 +1594,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 				peer := &models.Peer{
 					SID: &sid,
 					Type: func() *string {
-						t := "2" // bothway对应type=2
-						return &t
+						return &serviceType
 					}(),
 				}
 				if req.TunnelName != "" {
@@ -1559,7 +1605,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 				if err != nil {
 					log.Warnf("[API] 更新client端隧道peer信息失败: %v", err)
 				} else {
-					log.Infof("[API] 成功更新client端隧道peer信息: sid=%s, type=2", sid)
+					log.Infof("[API] 成功更新client端隧道peer信息: sid=%s, type=%s", sid, serviceType)
 				}
 			}
 		}
@@ -1615,7 +1661,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		db := h.tunnelService.DB()
 		// 获取server endpoint信息
 		err := db.QueryRow(
-			"SELECT id, url, ip, api_path, api_key, name FROM endpoints WHERE id = ?",
+			"SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?",
 			serverConfig.MasterID,
 		).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.IP, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
 		if err != nil {
@@ -1635,7 +1681,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 
 		// 获取client endpoint信息
 		err = db.QueryRow(
-			"SELECT id, url, ip, api_path, api_key, name FROM endpoints WHERE id = ?",
+			"SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?",
 			clientConfig.MasterID,
 		).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.IP, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
 		if err != nil {
@@ -1734,6 +1780,9 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 		// 生成服务ID（内网穿透模式共用一个sid）
 		sid := uuid.New().String()
 
+		// 计算服务类型（intranet模式根据client端的targetAddr判断）
+		serviceType := calculateServiceType("intranet", clientConfig.TargetHost, "", req.ExtendTargetAddress)
+
 		// 获取创建的隧道ID并更新peer信息
 		var tunnelIDs []int64
 		if serverTunnelID, err := h.getTunnelIDByName(serverTunnelName); err == nil {
@@ -1744,8 +1793,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 				peer := &models.Peer{
 					SID: &sid,
 					Type: func() *string {
-						t := "1" // intranet对应type=1
-						return &t
+						return &serviceType
 					}(),
 				}
 				if req.TunnelName != "" {
@@ -1756,7 +1804,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 				if err != nil {
 					log.Warnf("[API] 更新server端隧道peer信息失败: %v", err)
 				} else {
-					log.Infof("[API] 成功更新server端隧道peer信息: sid=%s, type=1", sid)
+					log.Infof("[API] 成功更新server端隧道peer信息: sid=%s, type=%s", sid, serviceType)
 				}
 			}
 		}
@@ -1768,8 +1816,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 				peer := &models.Peer{
 					SID: &sid,
 					Type: func() *string {
-						t := "1" // intranet对应type=1
-						return &t
+						return &serviceType
 					}(),
 				}
 				if req.TunnelName != "" {
@@ -1780,7 +1827,7 @@ func (h *TunnelHandler) HandleTemplateCreate(c *gin.Context) {
 				if err != nil {
 					log.Warnf("[API] 更新client端隧道peer信息失败: %v", err)
 				} else {
-					log.Infof("[API] 成功更新client端隧道peer信息: sid=%s, type=1", sid)
+					log.Infof("[API] 成功更新client端隧道peer信息: sid=%s, type=%s", sid, serviceType)
 				}
 			}
 		}

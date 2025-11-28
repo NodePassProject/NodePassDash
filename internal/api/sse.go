@@ -2,6 +2,7 @@ package api
 
 import (
 	log "NodePassDash/internal/log"
+	"NodePassDash/internal/nodepass"
 	"NodePassDash/internal/sse"
 	"bufio"
 	"context"
@@ -38,9 +39,10 @@ func SetupSSERoutes(rg *gin.RouterGroup, sseService *sse.Service, sseManager *ss
 	sseHandler := NewSSEHandler(sseService, sseManager)
 
 	// SSE 相关路由
-	rg.GET("/sse/tunnel/:tunnelId", sseHandler.HandleTunnelSSE)      // 实例详情页用
-	rg.GET("/sse/nodepass-proxy", sseHandler.HandleNodePassSSEProxy) // 主控详情页代理用
-	rg.POST("/sse/test", sseHandler.HandleTestSSEEndpoint)           // 添加主控的时候 测试sse是否通用
+	rg.GET("/sse/tunnel/:tunnelId", sseHandler.HandleTunnelSSE)                    // 实例详情页用
+	rg.GET("/sse/nodepass-proxy", sseHandler.HandleNodePassSSEProxy)               // 主控详情页代理用
+	rg.POST("/sse/test", sseHandler.HandleTestSSEEndpoint)                         // 添加主控的时候 测试sse是否通用
+	rg.POST("/sse/test-with-version", sseHandler.HandleTestSSEEndpointWithVersion) // 添加主控时 检测连接并获取版本信息
 
 	// 日志清理相关路由
 	rg.GET("/sse/log-cleanup/stats", sseHandler.HandleLogCleanupStats)
@@ -337,6 +339,149 @@ func (h *SSEHandler) HandleTriggerLogCleanup(c *gin.Context) {
 		"success": true,
 		"message": "日志清理任务已启动，将在后台执行",
 	})
+}
+
+// HandleTestSSEEndpointWithVersion 测试端点SSE连接并获取版本信息
+func (h *SSEHandler) HandleTestSSEEndpointWithVersion(c *gin.Context) {
+	// 解析请求体
+	var req struct {
+		URL     string `json:"url"`
+		APIPath string `json:"apiPath"`
+		APIKey  string `json:"apiKey"`
+	}
+	if err := c.ShouldBindJSON(&req); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "无效的JSON"})
+		return
+	}
+
+	if req.URL == "" || req.APIPath == "" || req.APIKey == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "缺少必要参数"})
+		return
+	}
+
+	// 构造 SSE URL
+	sseURL := fmt.Sprintf("%s%s/events", req.URL, req.APIPath)
+
+	// 创建带 8 秒超时的上下文
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 8*time.Second)
+	defer cancel()
+
+	client := &http.Client{
+		Transport: &http.Transport{
+			Proxy:           ieproxy.GetProxyFunc(),
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sseURL, nil)
+	if err != nil {
+		h.loggerErrorGin(c, "构建请求失败", err)
+		return
+	}
+	request.Header.Set("X-API-Key", req.APIKey)
+	request.Header.Set("Accept", "text/event-stream")
+
+	resp, err := client.Do(request)
+	if err != nil {
+		h.loggerErrorGin(c, "连接失败", err)
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		msg := fmt.Sprintf("NodePass SSE返回状态码: %d", resp.StatusCode)
+		h.writeErrorGin(c, msg)
+		return
+	}
+
+	// 简单验证 Content-Type
+	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" && ct != "text/event-stream; charset=utf-8" {
+		h.writeErrorGin(c, "响应Content-Type不是SSE流")
+		return
+	}
+
+	// 连接测试成功，现在获取版本信息
+	// 我们需要临时将endpoint信息放入缓存以便 nodepass.GetInfo 能够调用
+	tempEndpointID := int64(-1) // 使用 -1 作为临时 ID
+
+	// 设置临时缓存
+	baseURL := fmt.Sprintf("%s%s", req.URL, req.APIPath)
+	nodepass.GetCache().Set(fmt.Sprintf("%d", tempEndpointID), baseURL, req.APIKey)
+	defer nodepass.GetCache().Delete(fmt.Sprintf("%d", tempEndpointID)) // 清理临时缓存
+
+	// 获取版本信息
+	info, err := nodepass.GetInfo(tempEndpointID)
+	if err != nil {
+		// 如果获取版本失败，说明可能是低版本，返回不支持
+		log.Warnf("[SSE] 获取版本信息失败，可能是低版本主控: %v", err)
+		c.JSON(http.StatusOK, gin.H{
+			"success":   true,
+			"connected": true,
+			"version":   "unknown",
+			"canAdd":    false,
+			"message":   "连接成功但无法获取版本信息，可能是低版本主控（< 1.10.0）",
+		})
+		return
+	}
+
+	// 解析版本号并比较
+	version := info.Ver
+	canAdd := compareVersion(version, "1.10.0")
+
+	// message := ""
+	// if !canAdd {
+	// 	message = fmt.Sprintf("主控版本 %s 低于 1.10.0，不支持添加", version)
+	// }
+	// } else {
+	// 	message = fmt.Sprintf("主控版本 %s，支持添加", version)
+	// }
+
+	// 成功返回
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"connected": true,
+		"version":   version,
+		"canAdd":    canAdd,
+		// "message":   message,
+	})
+}
+
+// compareVersion 比较版本号，返回 actual >= required
+func compareVersion(actual, required string) bool {
+	// 简单的版本比较实现
+	// 支持格式：1.10.0, v1.10.0
+	actual = strings.TrimPrefix(actual, "v")
+	required = strings.TrimPrefix(required, "v")
+
+	actualParts := strings.Split(actual, ".")
+	requiredParts := strings.Split(required, ".")
+
+	// 补齐长度
+	for len(actualParts) < len(requiredParts) {
+		actualParts = append(actualParts, "0")
+	}
+	for len(requiredParts) < len(actualParts) {
+		requiredParts = append(requiredParts, "0")
+	}
+
+	// 逐位比较
+	for i := 0; i < len(actualParts); i++ {
+		actualNum := 0
+		requiredNum := 0
+
+		// 解析数字（忽略错误，默认为0）
+		fmt.Sscanf(actualParts[i], "%d", &actualNum)
+		fmt.Sscanf(requiredParts[i], "%d", &requiredNum)
+
+		if actualNum > requiredNum {
+			return true
+		} else if actualNum < requiredNum {
+			return false
+		}
+		// 相等则继续比较下一位
+	}
+
+	return true // 完全相等，返回 true
 }
 
 // HandleNodePassSSEProxy 代理连接到NodePass主控的SSE

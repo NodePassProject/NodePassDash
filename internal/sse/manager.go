@@ -1,7 +1,9 @@
 package sse
 
 import (
+	"NodePassDash/internal/endpointcache"
 	log "NodePassDash/internal/log"
+	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
 	"context"
 	"crypto/tls"
@@ -33,6 +35,9 @@ type Manager struct {
 	daemonCtx    context.Context    // 守护进程上下文
 	daemonCancel context.CancelFunc // 守护进程取消函数
 	daemonWg     sync.WaitGroup     // 等待组，确保守护进程正常关闭
+
+	// 配置选项
+	enableDebugLog bool // 是否启用 SSE 消息调试日志
 }
 
 // eventJob 表示一个待处理的 SSE 消息
@@ -42,15 +47,16 @@ type eventJob struct {
 }
 
 // NewManager 创建SSE管理器
-func NewManager(db *sql.DB, service *Service) *Manager {
+func NewManager(db *sql.DB, service *Service, enableDebugLog bool) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
 	m := &Manager{
-		service:      service,
-		db:           db,
-		connections:  make(map[int64]*EndpointConnection),
-		jobs:         make(chan eventJob, 30000), // 增加缓冲大小到30000
-		daemonCtx:    ctx,
-		daemonCancel: cancel,
+		service:        service,
+		db:             db,
+		connections:    make(map[int64]*EndpointConnection),
+		jobs:           make(chan eventJob, 30000), // 增加缓冲大小到30000
+		daemonCtx:      ctx,
+		daemonCancel:   cancel,
+		enableDebugLog: enableDebugLog,
 	}
 
 	// 启动worker处理事件 - 增加worker数量到12个
@@ -447,7 +453,9 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 			// 更新最后事件时间（用于检测僵尸连接）
 			conn.UpdateLastEventTime()
 
-			log.Debugf("[Master-%d#SSE]收到SSE消息: %s", conn.EndpointID, ev.Data)
+			if m.enableDebugLog {
+				log.Debugf("[Master-%d#SSE]%s", conn.EndpointID, ev.Data)
+			}
 
 			// 投递到全局 worker pool 异步处理
 			select {
@@ -517,45 +525,29 @@ func (m *Manager) hasActiveTunnels(endpointID int64) bool {
 	return count > 0
 }
 
-// markEndpointFail 更新端点状态为 FAIL
+// markEndpointFail 更新端点状态为 FAIL（只更新缓存，延迟持久化）
 func (m *Manager) markEndpointFail(endpointID int64) {
-	// 更新端点状态为 FAIL，避免重复写
-	res, err := m.db.Exec(`UPDATE endpoints SET status = 'FAIL', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'FAIL'`, endpointID)
-	if err != nil {
-		// 更新失败直接返回
-		log.Errorf("[Master-%d#SSE]更新状态为 FAIL 失败 %v", endpointID, err)
-		return
-	}
+	// ✅ 只更新缓存，不直接写数据库（30秒后自动持久化）
+	endpointcache.Shared.UpdateStatus(endpointID, models.EndpointStatusFail)
 
-	// 仅当确实修改了行时再打印成功日志
-	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
-		log.Infof("[Master-%d#SSE]更新状态为 FAIL", endpointID)
+	log.Infof("[Master-%d#SSE] 更新状态为 FAIL (已缓存)", endpointID)
 
-		// 将该端点下的所有隧道标记为离线
-		if err := m.setTunnelsOfflineForEndpoint(endpointID); err != nil {
-			log.Errorf("[Master-%d#SSE]设置隧道离线状态失败: %v", endpointID, err)
-		}
+	// 将该端点下的所有隧道标记为离线
+	if err := m.setTunnelsOfflineForEndpoint(endpointID); err != nil {
+		log.Errorf("[Master-%d#SSE]设置隧道离线状态失败: %v", endpointID, err)
 	}
 }
 
-// markEndpointDisconnect 更新端点状态为 DISCONNECT
+// markEndpointDisconnect 更新端点状态为 DISCONNECT（只更新缓存，延迟持久化）
 func (m *Manager) markEndpointDisconnect(endpointID int64) {
-	// 更新端点状态为 DISCONNECT，避免重复写
-	res, err := m.db.Exec(`UPDATE endpoints SET status = 'DISCONNECT', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'DISCONNECT'`, endpointID)
-	if err != nil {
-		// 更新失败直接返回
-		log.Errorf("[Master-%d#SSE]更新状态为 DISCONNECT 失败 %v", endpointID, err)
-		return
-	}
+	// ✅ 只更新缓存，不直接写数据库（30秒后自动持久化）
+	endpointcache.Shared.UpdateStatus(endpointID, models.EndpointStatusDisconnect)
 
-	// 仅当确实修改了行时再打印成功日志
-	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
-		log.Infof("[Master-%d#SSE]更新状态为 DISCONNECT", endpointID)
+	log.Infof("[Master-%d#SSE] 更新状态为 DISCONNECT (已缓存)", endpointID)
 
-		// 将该端点下的所有隧道标记为离线
-		if err := m.setTunnelsOfflineForEndpoint(endpointID); err != nil {
-			log.Errorf("[Master-%d#SSE]设置隧道离线状态失败: %v", endpointID, err)
-		}
+	// 将该端点下的所有隧道标记为离线
+	if err := m.setTunnelsOfflineForEndpoint(endpointID); err != nil {
+		log.Errorf("[Master-%d#SSE]设置隧道离线状态失败: %v", endpointID, err)
 	}
 }
 
@@ -580,21 +572,12 @@ func (m *Manager) setTunnelsOfflineForEndpoint(endpointID int64) error {
 	return nil
 }
 
-// markEndpointOnline 更新端点状态为 ONLINE
+// markEndpointOnline 更新端点状态为 ONLINE（只更新缓存，延迟持久化）
 func (m *Manager) markEndpointOnline(endpointID int64) {
-	// 尝试更新状态为 ONLINE
-	res, err := m.db.Exec(`UPDATE endpoints SET status = 'ONLINE', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'ONLINE'`, endpointID)
-	if err != nil {
-		// 更新失败，记录错误并返回
-		log.Errorf("[Master-%d#SSE]更新状态为 ONLINE 失败 %v", endpointID, err)
-		return
-	}
+	// ✅ 只更新缓存，不直接写数据库（30秒后自动持久化）
+	endpointcache.Shared.UpdateStatus(endpointID, models.EndpointStatusOnline)
 
-	// 更新成功才输出成功日志
-	// 仅当确实修改了行时再打印成功日志
-	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
-		log.Infof("[Master-%d#SSE]更新状态为 ONLINE", endpointID)
-	}
+	log.Infof("[Master-%d#SSE] 更新状态为 ONLINE (已缓存)", endpointID)
 }
 
 // StartWorkers 启动固定数量的后台 worker 处理事件

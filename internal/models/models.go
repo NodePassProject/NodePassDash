@@ -121,35 +121,6 @@ func (Tunnel) TableName() string {
 	return "tunnels"
 }
 
-// TunnelRecycle 隧道回收站 - GORM模型
-type TunnelRecycle struct {
-	ID            int64      `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
-	Name          string     `json:"name" gorm:"type:text;not null;column:name"`
-	EndpointID    int64      `json:"endpointId" gorm:"not null;column:endpoint_id"`
-	Mode          TunnelType `json:"mode" gorm:"type:text;not null;column:mode"`
-	TunnelAddress string     `json:"tunnelAddress" gorm:"type:text;not null;column:tunnel_address"`
-	TunnelPort    string     `json:"tunnelPort" gorm:"type:text;not null;column:tunnel_port"`
-	TargetAddress string     `json:"targetAddress" gorm:"type:text;not null;column:target_address"`
-	TargetPort    string     `json:"targetPort" gorm:"type:text;not null;column:target_port"`
-	TLSMode       TLSMode    `json:"tlsMode" gorm:"type:text;default:'inherit';column:tls_mode"`
-	CertPath      *string    `json:"certPath,omitempty" gorm:"type:text;column:cert_path"`
-	KeyPath       *string    `json:"keyPath,omitempty" gorm:"type:text;column:key_path"`
-	LogLevel      LogLevel   `json:"logLevel" gorm:"type:text;default:'inherit';column:log_level"`
-	CommandLine   string     `json:"commandLine" gorm:"type:text;not null;column:command_line"`
-	Password      *string    `json:"password,omitempty" gorm:"type:text;column:password"`
-	InstanceID    *string    `json:"instanceId,omitempty" gorm:"type:text;column:instance_id"`
-	Restart       bool       `json:"restart" gorm:"default:false;column:restart"`
-	TCPRx         int64      `json:"tcpRx" gorm:"default:0;column:tcp_rx"`
-	TCPTx         int64      `json:"tcpTx" gorm:"default:0;column:tcp_tx"`
-	UDPRx         int64      `json:"udpRx" gorm:"default:0;column:udp_rx"`
-	UDPTx         int64      `json:"udpTx" gorm:"default:0;column:udp_tx"`
-	Min           *int64     `json:"min,omitempty" gorm:"column:min"`
-	Max           *int64     `json:"max,omitempty" gorm:"column:max"`
-	Slot          *int64     `json:"slot,omitempty" gorm:"column:slot"`
-	CreatedAt     time.Time  `json:"createdAt" gorm:"autoCreateTime;column:created_at"`
-	DeletedAt     time.Time  `json:"deletedAt" gorm:"autoCreateTime;column:deleted_at"`
-}
-
 type Services struct {
 	Sid                string    `json:"sid" gorm:"type:text;primaryKey;column:sid"`
 	Type               string    `json:"type" gorm:"type:text;primaryKey;column:type"`
@@ -176,11 +147,6 @@ func (Services) TableName() string {
 	return "services"
 }
 
-// TableName 设置表名
-func (TunnelRecycle) TableName() string {
-	return "tunnel_recycle"
-}
-
 // TunnelOperationLog 操作日志表 - GORM模型
 type TunnelOperationLog struct {
 	ID         int64           `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
@@ -195,48 +161,6 @@ type TunnelOperationLog struct {
 // TableName 设置表名
 func (TunnelOperationLog) TableName() string {
 	return "tunnel_operation_logs"
-}
-
-// EndpointSSE SSE推送数据表 - GORM模型
-type EndpointSSE struct {
-	ID         int64        `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
-	EventType  SSEEventType `json:"eventType" gorm:"type:text;not null;column:event_type"`
-	PushType   string       `json:"pushType" gorm:"type:text;not null;column:push_type"`
-	EventTime  time.Time    `json:"eventTime" gorm:"not null;column:event_time"`
-	EndpointID int64        `json:"endpointId" gorm:"not null;index;column:endpoint_id"`
-
-	// 实例信息
-	InstanceID   string  `json:"instanceId" gorm:"type:text;not null;column:instance_id"`
-	InstanceType *string `json:"instanceType,omitempty" gorm:"type:text;column:instance_type"`
-	Status       *string `json:"status,omitempty" gorm:"type:text;column:status"`
-	URL          *string `json:"url,omitempty" gorm:"type:text;column:url"`
-
-	// 网络统计
-	TCPRx int64 `json:"tcpRx" gorm:"default:0;column:tcp_rx"`
-	TCPTx int64 `json:"tcpTx" gorm:"default:0;column:tcp_tx"`
-	UDPRx int64 `json:"udpRx" gorm:"default:0;column:udp_rx"`
-	UDPTx int64 `json:"udpTx" gorm:"default:0;column:udp_tx"`
-
-	// 连接池和延迟信息
-	Pool *int64 `json:"pool,omitempty" gorm:"column:pool"`
-	Ping *int64 `json:"ping,omitempty" gorm:"column:ping"`
-
-	// 日志信息
-	Logs *string `json:"logs,omitempty" gorm:"type:text;column:logs"`
-
-	CreatedAt time.Time `json:"createdAt" gorm:"autoCreateTime;column:created_at"`
-
-	// 其他信息
-	Alias   *string `json:"alias,omitempty" gorm:"type:text;column:alias"`
-	Restart *bool   `json:"restart,omitempty" gorm:"column:restart"`
-
-	// 关联
-	Endpoint Endpoint `json:"endpoint,omitempty" gorm:"foreignKey:EndpointID"`
-}
-
-// TableName 设置表名
-func (EndpointSSE) TableName() string {
-	return "endpoint_sse"
 }
 
 // SystemConfig 系统配置表 - GORM模型
@@ -351,4 +275,30 @@ type ServiceHistory struct {
 // TableName 设置表名
 func (ServiceHistory) TableName() string {
 	return "service_history"
+}
+
+// EndpointSSE SSE事件数据模型
+type EndpointSSE struct {
+	ID           int64        `json:"id" gorm:"primaryKey;autoIncrement;column:id"`
+	EventType    SSEEventType `json:"eventType" gorm:"type:text;not null;column:event_type"`
+	EventTime    time.Time    `json:"eventTime" gorm:"not null;column:event_time"`
+	EndpointID   int64        `json:"endpointId" gorm:"not null;index;column:endpoint_id"`
+	InstanceID   string       `json:"instanceId" gorm:"type:text;not null;column:instance_id"`
+	InstanceType *string      `json:"instanceType,omitempty" gorm:"type:text;column:instance_type"`
+	Status       *string      `json:"status,omitempty" gorm:"type:text;column:status"`
+	URL          *string      `json:"url,omitempty" gorm:"type:text;column:url"`
+	Alias        *string      `json:"alias,omitempty" gorm:"type:text;column:alias"`
+	Restart      *bool        `json:"restart,omitempty" gorm:"type:bool;column:restart"`
+	TCPRx        int64        `json:"tcpRx" gorm:"default:0;column:tcp_rx"`
+	TCPTx        int64        `json:"tcpTx" gorm:"default:0;column:tcp_tx"`
+	UDPRx        int64        `json:"udpRx" gorm:"default:0;column:udp_rx"`
+	UDPTx        int64        `json:"udpTx" gorm:"default:0;column:udp_tx"`
+	Pool         *int64       `json:"pool,omitempty" gorm:"column:pool"`
+	Ping         *int64       `json:"ping,omitempty" gorm:"column:ping"`
+	CreatedAt    time.Time    `json:"createdAt" gorm:"autoCreateTime;column:created_at"`
+}
+
+// TableName 设置表名
+func (EndpointSSE) TableName() string {
+	return "endpoint_sse_events"
 }

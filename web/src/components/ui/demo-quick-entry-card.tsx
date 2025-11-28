@@ -8,9 +8,14 @@ import {
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
 import { addToast } from "@heroui/toast";
+import { useState } from "react";
 
 import AddEndpointModal from "@/components/endpoints/add-endpoint-modal";
 import SimpleCreateTunnelModal from "@/components/tunnels/simple-create-tunnel-modal";
+import ScenarioSelectionModal from "@/components/services/scenario-selection-modal";
+import ScenarioCreateModal, {
+  ScenarioType,
+} from "@/components/services/service-create-modal";
 import { buildApiUrl } from "@/lib/utils";
 
 /**
@@ -32,6 +37,15 @@ export function DemoQuickEntryCard() {
     onOpen: onCreateTunnelOpen,
     onOpenChange: onCreateTunnelOpenChange,
   } = useDisclosure();
+
+  // 场景选择模态框状态
+  const [scenarioSelectionModalOpen, setScenarioSelectionModalOpen] = useState(false);
+
+  // 场景创建模态框状态
+  const [scenarioModalOpen, setScenarioModalOpen] = useState(false);
+  const [selectedScenarioType, setSelectedScenarioType] = useState<
+    ScenarioType | undefined
+  >();
 
   const quickActions = [
     {
@@ -56,8 +70,7 @@ export function DemoQuickEntryCard() {
       id: "template-create",
       icon: faLayerGroup,
       label: "场景创建",
-      action: "navigate",
-      route: "/templates",
+      action: "modal",
       color: "bg-purple-500 hover:bg-purple-600",
       iconType: "fontawesome",
       external: false,
@@ -132,6 +145,12 @@ export function DemoQuickEntryCard() {
     // 创建隧道成功后的处理，可以在这里添加刷新逻辑或其他操作
   };
 
+  // 处理场景选择
+  const handleScenarioSelected = (scenarioType: ScenarioType) => {
+    setSelectedScenarioType(scenarioType);
+    setScenarioModalOpen(true);
+  };
+
   // 处理快捷操作点击
   const handleActionClick = (action: any) => {
     if (action.action === "modal") {
@@ -139,6 +158,8 @@ export function DemoQuickEntryCard() {
         onAddEndpointOpen();
       } else if (action.id === "create-tunnel") {
         onCreateTunnelOpen();
+      } else if (action.id === "template-create") {
+        setScenarioSelectionModalOpen(true);
       }
     } else if (action.action === "navigate") {
       if (action.external && action.route) {
@@ -202,6 +223,24 @@ export function DemoQuickEntryCard() {
         mode="create"
         onOpenChange={onCreateTunnelOpenChange}
         onSaved={handleTunnelCreated}
+      />
+
+      {/* 场景选择模态框 */}
+      <ScenarioSelectionModal
+        isOpen={scenarioSelectionModalOpen}
+        onOpenChange={setScenarioSelectionModalOpen}
+        onScenarioSelected={handleScenarioSelected}
+      />
+
+      {/* 场景创建模态框 */}
+      <ScenarioCreateModal
+        isOpen={scenarioModalOpen}
+        scenarioType={selectedScenarioType}
+        onOpenChange={setScenarioModalOpen}
+        onSaved={() => {
+          setScenarioModalOpen(false);
+          setSelectedScenarioType(undefined);
+        }}
       />
     </Card>
   );
