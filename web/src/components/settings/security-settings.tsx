@@ -26,6 +26,7 @@ import { addToast } from "@heroui/toast";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 // import GitHubOAuthModal from "./github-oauth-modal";
@@ -61,6 +62,8 @@ export type SecuritySettingsRef = {
 };
 
 const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
+  const { t } = useTranslation("settings");
+
   // 修改密码相关状态
   const {
     isOpen: isPasswordOpen,
@@ -180,8 +183,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
       !passwordForm.confirmPassword
     ) {
       addToast({
-        title: "表单验证失败",
-        description: "请填写所有密码字段",
+        title: t("security.toast.validationFailed"),
+        description: t("security.toast.fillAllFields"),
         color: "danger",
       });
 
@@ -190,8 +193,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       addToast({
-        title: "密码不匹配",
-        description: "新密码和确认密码不一致",
+        title: t("security.toast.passwordMismatch"),
+        description: t("security.toast.passwordMismatchDesc"),
         color: "danger",
       });
 
@@ -200,8 +203,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
     if (passwordForm.newPassword.length < 6) {
       addToast({
-        title: "密码太短",
-        description: "新密码长度至少为6位",
+        title: t("security.toast.passwordTooShort"),
+        description: t("security.toast.passwordTooShortDesc"),
         color: "danger",
       });
 
@@ -226,8 +229,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
       if (response.ok && result.success) {
         addToast({
-          title: "密码修改成功",
-          description: "您的密码已成功更新",
+          title: t("security.toast.passwordChangeSuccess"),
+          description: t("security.toast.passwordChangeSuccessDesc"),
           color: "success",
         });
 
@@ -240,16 +243,16 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         onPasswordOpenChange();
       } else {
         addToast({
-          title: "密码修改失败",
-          description: result.message || "请检查您的当前密码是否正确",
+          title: t("security.toast.passwordChangeFailed"),
+          description: result.message || t("security.toast.checkCurrentPassword"),
           color: "danger",
         });
       }
     } catch (error) {
       console.error("修改密码失败:", error);
       addToast({
-        title: "网络错误",
-        description: "请检查网络连接后重试",
+        title: t("security.toast.networkError"),
+        description: t("security.toast.checkConnection"),
         color: "danger",
       });
     } finally {
@@ -268,8 +271,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
   const handleUsernameChange = async () => {
     if (!newUsername) {
       addToast({
-        title: "表单验证失败",
-        description: "请填写新用户名",
+        title: t("security.toast.validationFailed"),
+        description: t("security.toast.fillUsername"),
         color: "danger",
       });
 
@@ -291,8 +294,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
       if (response.ok && result.success) {
         addToast({
-          title: "用户名修改成功",
-          description: "您的用户名已成功更新",
+          title: t("security.toast.usernameChangeSuccess"),
+          description: t("security.toast.usernameChangeSuccessDesc"),
           color: "success",
         });
 
@@ -303,16 +306,16 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         window.location.reload();
       } else {
         addToast({
-          title: "用户名修改失败",
-          description: result.message || "修改用户名时发生错误",
+          title: t("security.toast.usernameChangeFailed"),
+          description: result.message || t("security.toast.usernameChangeError"),
           color: "danger",
         });
       }
     } catch (error) {
       console.error("修改用户名失败:", error);
       addToast({
-        title: "网络错误",
-        description: "请检查网络连接后重试",
+        title: t("security.toast.networkError"),
+        description: t("security.toast.checkConnection"),
         color: "danger",
       });
     } finally {
@@ -343,8 +346,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
       if (!res.ok) throw new Error("保存失败");
 
       addToast({
-        title: "配置保存成功",
-        description: "GitHub OAuth2 配置已成功保存",
+        title: t("security.toast.configSaveSuccess"),
+        description: t("security.toast.githubConfigSaved"),
         color: "success",
       });
 
@@ -353,8 +356,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
     } catch (error) {
       console.error("保存 GitHub 配置失败:", error);
       addToast({
-        title: "保存失败",
-        description: "保存 GitHub OAuth2 配置时发生错误",
+        title: t("security.toast.configSaveFailed"),
+        description: t("security.toast.githubConfigError"),
         color: "danger",
       });
     } finally {
@@ -385,8 +388,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
       if (!res.ok) throw new Error("保存失败");
 
       addToast({
-        title: "配置保存成功",
-        description: "Cloudflare OAuth2 配置已成功保存",
+        title: t("security.toast.configSaveSuccess"),
+        description: t("security.toast.cloudflareConfigSaved"),
         color: "success",
       });
 
@@ -395,8 +398,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
     } catch (error) {
       console.error("保存 Cloudflare 配置失败:", error);
       addToast({
-        title: "保存失败",
-        description: "保存 Cloudflare OAuth2 配置时发生错误",
+        title: t("security.toast.configSaveFailed"),
+        description: t("security.toast.cloudflareConfigError"),
         color: "danger",
       });
     } finally {
@@ -414,8 +417,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
       if (!res.ok) throw new Error("解绑失败");
       addToast({
-        title: "解绑成功",
-        description: "已成功解绑 OAuth2 登录方式",
+        title: t("security.toast.unbindSuccess"),
+        description: t("security.toast.unbindSuccessDesc"),
         color: "success",
       });
       if (provider === "github") setIsGitHubConfigured(false);
@@ -423,8 +426,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
     } catch (e) {
       console.error("解绑失败", e);
       addToast({
-        title: "解绑失败",
-        description: "操作时发生错误",
+        title: t("security.toast.unbindFailed"),
+        description: t("security.toast.unbindError"),
         color: "danger",
       });
     } finally {
@@ -456,8 +459,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         <Card className="mt-5 p-2">
           <CardHeader className="flex gap-3">
             <div className="flex flex-col flex-1">
-              <p className="text-lg font-semibold">基础安全设置</p>
-              <p className="text-sm text-default-500">管理账户基本安全信息</p>
+              <p className="text-lg font-semibold">{t("security.basic.title")}</p>
+              <p className="text-sm text-default-500">{t("security.basic.description")}</p>
             </div>
           </CardHeader>
           <Divider />
@@ -465,8 +468,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
             <div className="divide-y divide-default-200">
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="space-y-1">
-                  <h3 className="text-base font-medium">修改用户名</h3>
-                  <p className="text-sm text-default-500">更改您的登录用户名</p>
+                  <h3 className="text-base font-medium">{t("security.username.title")}</h3>
+                  <p className="text-sm text-default-500">{t("security.username.description")}</p>
                 </div>
                 <Button
                   color="primary"
@@ -474,15 +477,15 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   startContent={<Icon icon="solar:user-bold" width={18} />}
                   onPress={onUsernameOpen}
                 >
-                  修改用户名
+                  {t("security.username.button")}
                 </Button>
               </div>
 
               <div className="flex items-center justify-between px-4 py-3">
                 <div className="space-y-1">
-                  <h3 className="text-base font-medium">修改密码</h3>
+                  <h3 className="text-base font-medium">{t("security.password.title")}</h3>
                   <p className="text-sm text-default-500">
-                    定期更新密码以提高账户安全性
+                    {t("security.password.description")}
                   </p>
                 </div>
                 <Button
@@ -491,7 +494,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   startContent={<Icon icon="solar:key-bold" width={18} />}
                   onPress={onPasswordOpen}
                 >
-                  修改密码
+                  {t("security.password.button")}
                 </Button>
               </div>
             </div>
@@ -520,14 +523,14 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     icon="solar:key-bold"
                     width={24}
                   />
-                  修改密码
+                  {t("security.password.modalTitle")}
                 </div>
               </ModalHeader>
               <ModalBody>
                 <div className="flex flex-col gap-4">
                   <Input
-                    label="当前密码"
-                    placeholder="请输入当前密码"
+                    label={t("security.password.currentPassword")}
+                    placeholder={t("security.password.currentPasswordPlaceholder")}
                     startContent={
                       <Icon icon="solar:lock-password-bold" width={18} />
                     }
@@ -543,8 +546,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   />
 
                   <Input
-                    label="新密码"
-                    placeholder="请输入新密码"
+                    label={t("security.password.newPassword")}
+                    placeholder={t("security.password.newPasswordPlaceholder")}
                     startContent={<Icon icon="solar:key-bold" width={18} />}
                     type="password"
                     value={passwordForm.newPassword}
@@ -555,8 +558,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   />
 
                   <Input
-                    label="确认新密码"
-                    placeholder="请再次输入新密码"
+                    label={t("security.password.confirmPassword")}
+                    placeholder={t("security.password.confirmPasswordPlaceholder")}
                     startContent={<Icon icon="solar:key-bold" width={18} />}
                     type="password"
                     value={passwordForm.confirmPassword}
@@ -570,8 +573,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   />
 
                   <div className="text-small text-default-500">
-                    <p>• 密码长度至少为6位</p>
-                    <p>• 建议包含字母、数字和特殊字符</p>
+                    <p>• {t("security.password.requirements.minLength")}</p>
+                    <p>• {t("security.password.requirements.recommended")}</p>
                   </div>
                 </div>
               </ModalBody>
@@ -582,7 +585,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   variant="light"
                   onPress={onClose}
                 >
-                  取消
+                  {t("security.password.cancel")}
                 </Button>
                 <Button
                   color="primary"
@@ -594,7 +597,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   }
                   onPress={handlePasswordChange}
                 >
-                  {isSubmitting ? "修改中..." : "确认修改"}
+                  {isSubmitting ? t("security.password.submitting") : t("security.password.confirm")}
                 </Button>
               </ModalFooter>
             </>
@@ -623,13 +626,13 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     icon="solar:user-bold"
                     width={24}
                   />
-                  修改用户名
+                  {t("security.username.modalTitle")}
                 </div>
               </ModalHeader>
               <ModalBody>
                 <Input
-                  label="新用户名"
-                  placeholder="请输入新用户名"
+                  label={t("security.username.label")}
+                  placeholder={t("security.username.placeholder")}
                   startContent={<Icon icon="solar:user-bold" width={18} />}
                   value={newUsername}
                   variant="bordered"
@@ -643,7 +646,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   variant="light"
                   onPress={onClose}
                 >
-                  取消
+                  {t("security.username.cancel")}
                 </Button>
                 <Button
                   color="primary"
@@ -655,7 +658,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   }
                   onPress={handleUsernameChange}
                 >
-                  {isSubmitting ? "修改中..." : "确认修改"}
+                  {isSubmitting ? t("security.username.submitting") : t("security.username.confirm")}
                 </Button>
               </ModalFooter>
             </>
@@ -667,9 +670,9 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
       <Card className="mt-8 p-2">
         <CardHeader className="flex gap-3">
           <div className="flex flex-col flex-1">
-            <p className="text-lg font-semibold">OAuth2 认证</p>
+            <p className="text-lg font-semibold">{t("security.oauth2.title")}</p>
             <p className="text-sm text-default-500">
-              系统仅允许绑定一种第三方登录方式
+              {t("security.oauth2.description")}
             </p>
           </div>
         </CardHeader>
@@ -703,7 +706,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   </>
                 )}
                 <Chip color="success" size="sm" variant="flat">
-                  已绑定
+                  {t("security.oauth2.bound")}
                 </Chip>
               </div>
               <div className="flex gap-2">
@@ -717,7 +720,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     else if (isCloudflareConfigured) onCloudflareOpen();
                   }}
                 >
-                  配置
+                  {t("security.oauth2.configure")}
                 </Button>
                 <Button
                   color="danger"
@@ -732,14 +735,14 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     )
                   }
                 >
-                  解绑
+                  {t("security.oauth2.unbind")}
                 </Button>
               </div>
             </div>
           ) : (
             // 未绑定状态
             <div className="flex items-center justify-between">
-              <p className="text-default-500">尚未绑定任何 OAuth2 登录方式</p>
+              <p className="text-default-500">{t("security.oauth2.notBound")}</p>
               <Button
                 className="text-white"
                 color="primary"
@@ -747,7 +750,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                 startContent={<Icon icon="solar:add-circle-bold" width={18} />}
                 onPress={onSelectOpen}
               >
-                绑定 OAuth2 认证
+                {t("security.oauth2.bindButton")}
               </Button>
             </div>
           )}
@@ -764,7 +767,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         <ModalContent>
           {(onClose) => (
             <>
-              <ModalHeader>选择 OAuth2 提供商</ModalHeader>
+              <ModalHeader>{t("security.oauth2.selectProvider")}</ModalHeader>
               <ModalBody>
                 <div className="space-y-3">
                   <Button
@@ -799,7 +802,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
               </ModalBody>
               <ModalFooter>
                 <Button color="default" variant="light" onPress={onClose}>
-                  取消
+                  {t("security.oauth2.github.cancel")}
                 </Button>
               </ModalFooter>
             </>
@@ -820,7 +823,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
             <>
               <ModalHeader>
                 <div className="flex items-center  w-full">
-                  <span>GitHub OAuth2 配置</span>
+                  <span>{t("security.oauth2.github.title")}</span>
                   <FontAwesomeIcon
                     className="text-[12px] text-default-400 hover:text-default-500 cursor-pointer ml-2 inline align-baseline"
                     icon={faExternalLink}
@@ -836,8 +839,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
               <ModalBody>
                 <div className="space-y-4">
                   <Input
-                    label="Client ID"
-                    placeholder="GitHub OAuth App Client ID"
+                    label={t("security.oauth2.github.clientId")}
+                    placeholder={t("security.oauth2.github.clientIdPlaceholder")}
                     value={gitHubConfig.clientId}
                     onChange={(e) =>
                       setGitHubConfig((prev) => ({
@@ -847,8 +850,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     }
                   />
                   <Input
-                    label="Client Secret"
-                    placeholder="GitHub OAuth App Client Secret"
+                    label={t("security.oauth2.github.clientSecret")}
+                    placeholder={t("security.oauth2.github.clientSecretPlaceholder")}
                     type="password"
                     value={gitHubConfig.clientSecret}
                     onChange={(e) =>
@@ -862,14 +865,14 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
               </ModalBody>
               <ModalFooter>
                 <Button color="default" variant="light" onPress={onClose}>
-                  取消
+                  {t("security.oauth2.github.cancel")}
                 </Button>
                 <Button
                   color="primary"
                   isLoading={isSubmitting}
                   onPress={handleSaveGitHubConfig}
                 >
-                  保存配置
+                  {t("security.oauth2.github.save")}
                 </Button>
               </ModalFooter>
             </>
@@ -889,7 +892,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
           {(onClose) => (
             <>
               <ModalHeader className="flex items-center  w-full">
-                <span>Cloudflare OAuth2 配置</span>
+                <span>{t("security.oauth2.cloudflare.title")}</span>
                 <FontAwesomeIcon
                   className="text-[12px] text-default-400 hover:text-default-500 cursor-pointer ml-2 inline align-baseline"
                   icon={faExternalLink}
@@ -901,8 +904,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
               <ModalBody>
                 <div className="space-y-4">
                   <Input
-                    label="Client ID"
-                    placeholder="Cloudflare OAuth App Client ID"
+                    label={t("security.oauth2.cloudflare.clientId")}
+                    placeholder={t("security.oauth2.cloudflare.clientIdPlaceholder")}
                     value={cloudflareConfig.clientId}
                     onChange={(e) =>
                       setCloudflareConfig((prev) => ({
@@ -912,8 +915,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     }
                   />
                   <Input
-                    label="Client Secret"
-                    placeholder="Cloudflare OAuth App Client Secret"
+                    label={t("security.oauth2.cloudflare.clientSecret")}
+                    placeholder={t("security.oauth2.cloudflare.clientSecretPlaceholder")}
                     type="password"
                     value={cloudflareConfig.clientSecret}
                     onChange={(e) =>
@@ -924,8 +927,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     }
                   />
                   <Input
-                    label="Auth URL"
-                    placeholder="Cloudflare Access Auth URL"
+                    label={t("security.oauth2.cloudflare.authUrl")}
+                    placeholder={t("security.oauth2.cloudflare.authUrlPlaceholder")}
                     value={cloudflareConfig.authUrl}
                     onChange={(e) =>
                       setCloudflareConfig((prev) => ({
@@ -935,8 +938,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     }
                   />
                   <Input
-                    label="Token URL"
-                    placeholder="Cloudflare Access Token URL"
+                    label={t("security.oauth2.cloudflare.tokenUrl")}
+                    placeholder={t("security.oauth2.cloudflare.tokenUrlPlaceholder")}
                     value={cloudflareConfig.tokenUrl}
                     onChange={(e) =>
                       setCloudflareConfig((prev) => ({
@@ -946,8 +949,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     }
                   />
                   <Input
-                    label="User Info URL"
-                    placeholder="Cloudflare Access User Info URL"
+                    label={t("security.oauth2.cloudflare.userInfoUrl")}
+                    placeholder={t("security.oauth2.cloudflare.userInfoUrlPlaceholder")}
                     value={cloudflareConfig.userInfoUrl}
                     onChange={(e) =>
                       setCloudflareConfig((prev) => ({
@@ -960,14 +963,14 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
               </ModalBody>
               <ModalFooter>
                 <Button color="default" variant="light" onPress={onClose}>
-                  取消
+                  {t("security.oauth2.cloudflare.cancel")}
                 </Button>
                 <Button
                   color="primary"
                   isLoading={isSubmitting}
                   onPress={handleSaveCloudflareConfig}
                 >
-                  保存配置
+                  {t("security.oauth2.cloudflare.save")}
                 </Button>
               </ModalFooter>
             </>

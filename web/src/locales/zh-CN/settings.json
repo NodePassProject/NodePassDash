@@ -78,5 +78,237 @@
       "reset": "重置",
       "save": "保存更改"
     }
+  },
+  "page": {
+    "tabs": {
+      "ariaLabel": "设置选项",
+      "security": "账户安全",
+      "logs": "日志管理",
+      "version": "版本检查"
+    },
+    "toast": {
+      "saveSuccess": "保存成功",
+      "saveSuccessDesc": "设置已更新",
+      "saveFailed": "保存失败",
+      "unknownError": "未知错误",
+      "resetSuccess": "重置成功",
+      "resetSuccessDesc": "设置已恢复默认值"
+    }
+  },
+  "security": {
+    "basic": {
+      "title": "基础安全设置",
+      "description": "管理账户基本安全信息"
+    },
+    "username": {
+      "title": "修改用户名",
+      "description": "更改您的登录用户名",
+      "button": "修改用户名",
+      "modalTitle": "修改用户名",
+      "label": "新用户名",
+      "placeholder": "请输入新用户名",
+      "cancel": "取消",
+      "confirm": "确认修改",
+      "submitting": "修改中..."
+    },
+    "password": {
+      "title": "修改密码",
+      "description": "定期更新密码以提高账户安全性",
+      "button": "修改密码",
+      "modalTitle": "修改密码",
+      "currentPassword": "当前密码",
+      "currentPasswordPlaceholder": "请输入当前密码",
+      "newPassword": "新密码",
+      "newPasswordPlaceholder": "请输入新密码",
+      "confirmPassword": "确认新密码",
+      "confirmPasswordPlaceholder": "请再次输入新密码",
+      "requirements": {
+        "minLength": "• 密码长度至少为6位",
+        "recommended": "• 建议包含字母、数字和特殊字符"
+      },
+      "cancel": "取消",
+      "confirm": "确认修改",
+      "submitting": "修改中..."
+    },
+    "oauth2": {
+      "title": "OAuth2 认证",
+      "description": "系统仅允许绑定一种第三方登录方式",
+      "bound": "已绑定",
+      "configure": "配置",
+      "unbind": "解绑",
+      "notBound": "尚未绑定任何 OAuth2 登录方式",
+      "bindButton": "绑定 OAuth2 认证",
+      "selectProvider": "选择 OAuth2 提供商",
+      "github": {
+        "title": "GitHub OAuth2 配置",
+        "clientId": "Client ID",
+        "clientIdPlaceholder": "GitHub OAuth App Client ID",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "GitHub OAuth App Client Secret",
+        "cancel": "取消",
+        "save": "保存配置"
+      },
+      "cloudflare": {
+        "title": "Cloudflare OAuth2 配置",
+        "clientId": "Client ID",
+        "clientIdPlaceholder": "Cloudflare OAuth App Client ID",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "Cloudflare OAuth App Client Secret",
+        "authUrl": "Auth URL",
+        "authUrlPlaceholder": "Cloudflare Access Auth URL",
+        "tokenUrl": "Token URL",
+        "tokenUrlPlaceholder": "Cloudflare Access Token URL",
+        "userInfoUrl": "User Info URL",
+        "userInfoUrlPlaceholder": "Cloudflare Access User Info URL",
+        "cancel": "取消",
+        "save": "保存配置"
+      }
+    },
+    "toast": {
+      "validationFailed": "表单验证失败",
+      "fillAllFields": "请填写所有密码字段",
+      "passwordMismatch": "密码不匹配",
+      "passwordMismatchDesc": "新密码和确认密码不一致",
+      "passwordTooShort": "密码太短",
+      "passwordTooShortDesc": "新密码长度至少为6位",
+      "passwordChangeSuccess": "密码修改成功",
+      "passwordChangeSuccessDesc": "您的密码已成功更新",
+      "passwordChangeFailed": "密码修改失败",
+      "checkCurrentPassword": "请检查您的当前密码是否正确",
+      "networkError": "网络错误",
+      "checkConnection": "请检查网络连接后重试",
+      "fillUsername": "请填写新用户名",
+      "usernameChangeSuccess": "用户名修改成功",
+      "usernameChangeSuccessDesc": "您的用户名已成功更新",
+      "usernameChangeFailed": "用户名修改失败",
+      "usernameChangeError": "修改用户名时发生错误",
+      "configSaveSuccess": "配置保存成功",
+      "githubConfigSaved": "GitHub OAuth2 配置已成功保存",
+      "cloudflareConfigSaved": "Cloudflare OAuth2 配置已成功保存",
+      "configSaveFailed": "保存失败",
+      "githubConfigError": "保存 GitHub OAuth2 配置时发生错误",
+      "cloudflareConfigError": "保存 Cloudflare OAuth2 配置时发生错误",
+      "unbindSuccess": "解绑成功",
+      "unbindSuccessDesc": "已成功解绑 OAuth2 登录方式",
+      "unbindFailed": "解绑失败",
+      "unbindError": "操作时发生错误"
+    }
+  },
+  "logs": {
+    "stats": {
+      "title": "日志清理统计",
+      "description": "当前日志清理系统状态",
+      "refresh": "刷新数据",
+      "status": "清理状态",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "autoCleanup": "自动清理",
+      "fileCount": "日志文件数",
+      "fileCountUnit": "文件数量",
+      "fileSize": "日志文件大小",
+      "diskUsage": "磁盘占用",
+      "noData": "无法获取统计数据"
+    },
+    "config": {
+      "title": "日志清理配置",
+      "description": "管理日志自动清理规则",
+      "configureButton": "配置清理规则",
+      "configureShort": "配置",
+      "manualCleanup": "手动清理",
+      "manualCleanupShort": "清理",
+      "retentionDays": "保留天数",
+      "retentionDaysUnit": "天",
+      "cleanupInterval": "清理间隔",
+      "maxRecordsPerDay": "每日最大记录数",
+      "unlimited": "无限制",
+      "autoCleanupStatus": "自动清理状态",
+      "enabled": "已启用",
+      "disabled": "已禁用",
+      "hint": "💡 日志清理说明：",
+      "hintDesc": "系统会定期清理超过保留天数的日志记录，保持数据库性能。清理任务会自动在后台执行，也可以手动触发清理。",
+      "noData": "无法获取配置数据"
+    },
+    "modal": {
+      "title": "配置日志清理规则",
+      "enableAutoCleanup": "启用自动清理",
+      "enableAutoCleanupDesc": "开启后将按照配置规则定期清理过期日志",
+      "retentionDays": "日志保留天数",
+      "retentionDaysDesc": "超过此天数的数据库事件将被删除",
+      "cleanupInterval": "清理间隔",
+      "cleanupIntervalDesc": "清理任务执行间隔，格式如: 24h, 12h, 6h",
+      "cleanupIntervalPlaceholder": "24h",
+      "maxRecordsPerDay": "每日最大记录数",
+      "maxRecordsPerDayDesc": "每个端点每天保留的最大数据库事件记录数，0表示无限制",
+      "warning": "⚠️ 注意：",
+      "warningDesc": "日志清理功能会影响系统日志的保留时间，清理后的日志无法恢复。建议根据实际需要合理设置保留天数。",
+      "cancel": "取消",
+      "save": "保存配置"
+    },
+    "toast": {
+      "statsFailed": "获取统计失败",
+      "statsFailedDesc": "无法获取日志统计信息",
+      "networkError": "网络错误",
+      "statsNetworkError": "获取日志统计信息失败，请检查网络连接",
+      "configFailed": "获取配置失败",
+      "configFailedDesc": "无法获取清理配置",
+      "configNetworkError": "获取清理配置失败，请检查网络连接",
+      "refreshSuccess": "刷新成功",
+      "refreshSuccessDesc": "统计数据已更新",
+      "updateSuccess": "配置更新成功",
+      "updateSuccessDesc": "日志清理配置已保存",
+      "updateFailed": "更新失败",
+      "updateFailedDesc": "配置更新失败",
+      "updateNetworkError": "配置更新失败，请检查网络连接",
+      "cleanupStarted": "清理任务已启动",
+      "cleanupStartedDesc": "日志清理将在后台执行，请稍候查看统计数据",
+      "cleanupFailed": "启动清理失败",
+      "cleanupFailedDesc": "无法启动清理任务",
+      "cleanupNetworkError": "启动清理任务失败，请检查网络连接"
+    },
+    "loading": "加载日志清理设置..."
+  },
+  "version": {
+    "title": "版本更新",
+    "description": "检查并管理系统版本",
+    "current": {
+      "title": "版本信息",
+      "current": "当前",
+      "stable": "稳定版",
+      "beta": "测试版",
+      "system": "系统",
+      "checkUpdate": "检查更新"
+    },
+    "deployment": {
+      "title": "部署环境",
+      "docker": "Docker 部署",
+      "binary": "二进制部署",
+      "autoUpdateStable": "自动更新稳定版",
+      "autoUpdateBeta": "自动更新测试版",
+      "manualUpdate": "手动更新"
+    },
+    "updateInstructions": {
+      "title": "更新说明：",
+      "docker": {
+        "desc": "在 Docker 宿主机上执行以下命令：",
+        "pull": "# 拉取最新镜像",
+        "restart": "# 重启容器"
+      },
+      "binary": {
+        "auto": "点击上方按钮即可自动更新",
+        "autoDesc": "程序会自动下载、停止、替换和重启",
+        "manual": "或手动更新：从 GitHub 下载→停止程序→替换文件→重启"
+      }
+    },
+    "modal": {
+      "title": "版本更新详情",
+      "prerelease": "(测试版)",
+      "publishedAt": "发布于",
+      "close": "关闭",
+      "viewDetails": "查看详情"
+    },
+    "alert": {
+      "updateStarted": "更新已开始: {message}\n\n程序将在几秒钟后自动重启，请稍等...",
+      "updateFailed": "更新失败: {error}"
+    }
   }
 }

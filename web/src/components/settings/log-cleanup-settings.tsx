@@ -18,6 +18,7 @@ import {
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -39,6 +40,7 @@ interface LogCleanupConfig {
 }
 
 export default function LogCleanupSettings() {
+  const { t } = useTranslation("settings");
   const [stats, setStats] = useState<LogCleanupStats | null>(null);
   const [config, setConfig] = useState<LogCleanupConfig | null>(null);
   const [loading, setLoading] = useState(true);
@@ -66,16 +68,16 @@ export default function LogCleanupSettings() {
       } else {
         console.error("获取日志统计失败:", data.error);
         addToast({
-          title: "获取统计失败",
-          description: data.error || "无法获取日志统计信息",
+          title: t("logs.toast.statsFailed"),
+          description: data.error || t("logs.toast.statsFailedDesc"),
           color: "danger",
         });
       }
     } catch (error) {
       console.error("获取日志统计失败:", error);
       addToast({
-        title: "网络错误",
-        description: "获取日志统计信息失败，请检查网络连接",
+        title: t("logs.toast.networkError"),
+        description: t("logs.toast.statsNetworkError"),
         color: "danger",
       });
     }
@@ -111,16 +113,16 @@ export default function LogCleanupSettings() {
       } else {
         console.error("获取配置失败:", data.error);
         addToast({
-          title: "获取配置失败",
-          description: data.error || "无法获取清理配置",
+          title: t("logs.toast.configFailed"),
+          description: data.error || t("logs.toast.configFailedDesc"),
           color: "danger",
         });
       }
     } catch (error) {
       console.error("获取配置失败:", error);
       addToast({
-        title: "网络错误",
-        description: "获取清理配置失败，请检查网络连接",
+        title: t("logs.toast.networkError"),
+        description: t("logs.toast.configNetworkError"),
         color: "danger",
       });
     }
@@ -132,8 +134,8 @@ export default function LogCleanupSettings() {
     try {
       await Promise.all([fetchStats(), fetchConfig()]);
       addToast({
-        title: "刷新成功",
-        description: "统计数据已更新",
+        title: t("logs.toast.refreshSuccess"),
+        description: t("logs.toast.refreshSuccessDesc"),
         color: "success",
       });
     } catch (error) {
@@ -180,22 +182,22 @@ export default function LogCleanupSettings() {
         await fetchStats(); // 刷新统计信息
         onClose();
         addToast({
-          title: "配置更新成功",
-          description: "日志清理配置已保存",
+          title: t("logs.toast.updateSuccess"),
+          description: t("logs.toast.updateSuccessDesc"),
           color: "success",
         });
       } else {
         addToast({
-          title: "更新失败",
-          description: data.error || "配置更新失败",
+          title: t("logs.toast.updateFailed"),
+          description: data.error || t("logs.toast.updateFailedDesc"),
           color: "danger",
         });
       }
     } catch (error) {
       console.error("更新配置失败:", error);
       addToast({
-        title: "网络错误",
-        description: "配置更新失败，请检查网络连接",
+        title: t("logs.toast.networkError"),
+        description: t("logs.toast.updateNetworkError"),
         color: "danger",
       });
     }
@@ -217,24 +219,24 @@ export default function LogCleanupSettings() {
 
       if (data.success) {
         addToast({
-          title: "清理任务已启动",
-          description: "日志清理将在后台执行，请稍候查看统计数据",
+          title: t("logs.toast.cleanupStarted"),
+          description: t("logs.toast.cleanupStartedDesc"),
           color: "success",
         });
         // 延迟刷新统计信息，等待清理完成
         setTimeout(fetchStats, 5000);
       } else {
         addToast({
-          title: "启动清理失败",
-          description: data.error || "无法启动清理任务",
+          title: t("logs.toast.cleanupFailed"),
+          description: data.error || t("logs.toast.cleanupFailedDesc"),
           color: "danger",
         });
       }
     } catch (error) {
       console.error("触发清理失败:", error);
       addToast({
-        title: "网络错误",
-        description: "启动清理任务失败，请检查网络连接",
+        title: t("logs.toast.networkError"),
+        description: t("logs.toast.cleanupNetworkError"),
         color: "danger",
       });
     }
@@ -283,7 +285,7 @@ export default function LogCleanupSettings() {
           <Progress
             isIndeterminate
             className="max-w-md"
-            label="加载日志清理设置..."
+            label={t("logs.loading")}
             size="sm"
           />
         </CardBody>
@@ -297,8 +299,8 @@ export default function LogCleanupSettings() {
       <Card className="mt-5 p-2">
         <CardHeader className="flex gap-3">
           <div className="flex flex-col flex-1">
-            <p className="text-lg font-semibold">日志清理统计</p>
-            <p className="text-sm text-default-500">当前日志清理系统状态</p>
+            <p className="text-lg font-semibold">{t("logs.stats.title")}</p>
+            <p className="text-sm text-default-500">{t("logs.stats.description")}</p>
           </div>
           <Button
             color="default"
@@ -308,7 +310,7 @@ export default function LogCleanupSettings() {
             variant="ghost"
             onPress={refreshData}
           >
-            刷新数据
+            {t("logs.stats.refresh")}
           </Button>
         </CardHeader>
         <Divider />
@@ -325,11 +327,11 @@ export default function LogCleanupSettings() {
                   }
                 />
                 <div>
-                  <p className="text-xs text-default-600">清理状态</p>
+                  <p className="text-xs text-default-600">{t("logs.stats.status")}</p>
                   <p className="text-xl font-bold text-primary">
-                    {stats.enabled ? "已启用" : "已禁用"}
+                    {stats.enabled ? t("logs.stats.enabled") : t("logs.stats.disabled")}
                   </p>
-                  <p className="text-xs text-default-500">自动清理</p>
+                  <p className="text-xs text-default-500">{t("logs.stats.autoCleanup")}</p>
                 </div>
               </div>
 
@@ -339,11 +341,11 @@ export default function LogCleanupSettings() {
                   icon="solar:document-text-bold"
                 />
                 <div>
-                  <p className="text-xs text-default-600">日志文件数</p>
+                  <p className="text-xs text-default-600">{t("logs.stats.fileCount")}</p>
                   <p className="text-xl font-bold text-secondary">
                     {formatNumber(stats.log_file_count || 0)}
                   </p>
-                  <p className="text-xs text-default-500">文件数量</p>
+                  <p className="text-xs text-default-500">{t("logs.stats.fileCountUnit")}</p>
                 </div>
               </div>
 
@@ -353,17 +355,17 @@ export default function LogCleanupSettings() {
                   icon="solar:database-bold"
                 />
                 <div>
-                  <p className="text-xs text-default-600">日志文件大小</p>
+                  <p className="text-xs text-default-600">{t("logs.stats.fileSize")}</p>
                   <p className="text-xl font-bold text-success">
                     {formatFileSize(stats.log_file_size || 0)}
                   </p>
-                  <p className="text-xs text-default-500">磁盘占用</p>
+                  <p className="text-xs text-default-500">{t("logs.stats.diskUsage")}</p>
                 </div>
               </div>
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className="text-default-500">无法获取统计数据</p>
+              <p className="text-default-500">{t("logs.stats.noData")}</p>
             </div>
           )}
         </CardBody>
@@ -373,8 +375,8 @@ export default function LogCleanupSettings() {
       <Card className="p-2">
         <CardHeader className="flex flex-col sm:flex-row gap-3 sm:gap-3">
           <div className="flex flex-col flex-1">
-            <p className="text-lg font-semibold">日志清理配置</p>
-            <p className="text-sm text-default-500">管理日志自动清理规则</p>
+            <p className="text-lg font-semibold">{t("logs.config.title")}</p>
+            <p className="text-sm text-default-500">{t("logs.config.description")}</p>
           </div>
           <div className="flex flex-col sm:flex-row gap-2 w-full sm:w-auto">
             <Button
@@ -385,8 +387,8 @@ export default function LogCleanupSettings() {
               variant="ghost"
               onPress={onOpen}
             >
-              <span className="hidden sm:inline">配置清理规则</span>
-              <span className="sm:hidden">配置</span>
+              <span className="hidden sm:inline">{t("logs.config.configureButton")}</span>
+              <span className="sm:hidden">{t("logs.config.configureShort")}</span>
             </Button>
             <Button
               className="sm:size-md"
@@ -396,8 +398,8 @@ export default function LogCleanupSettings() {
               startContent={<Icon icon="solar:play-bold" width={18} />}
               onPress={handleTriggerCleanup}
             >
-              <span className="hidden sm:inline">手动清理</span>
-              <span className="sm:hidden">清理</span>
+              <span className="hidden sm:inline">{t("logs.config.manualCleanup")}</span>
+              <span className="sm:hidden">{t("logs.config.manualCleanupShort")}</span>
             </Button>
           </div>
         </CardHeader>
@@ -407,25 +409,25 @@ export default function LogCleanupSettings() {
             <div className="space-y-4">
               <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">保留天数</span>
+                  <span className="text-sm font-medium">{t("logs.config.retentionDays")}</span>
                   <Chip color="primary" variant="flat">
-                    {config.retentionDays || stats?.retention_days || 7} 天
+                    {config.retentionDays || stats?.retention_days || 7} {t("logs.config.retentionDaysUnit")}
                   </Chip>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">清理间隔</span>
+                  <span className="text-sm font-medium">{t("logs.config.cleanupInterval")}</span>
                   <Chip color="secondary" variant="flat">
                     {config.cleanupInterval || stats?.cleanup_interval || "24h"}
                   </Chip>
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">每日最大记录数</span>
+                  <span className="text-sm font-medium">{t("logs.config.maxRecordsPerDay")}</span>
                   <Chip color="warning" variant="flat">
                     {(config.maxRecordsPerDay || stats?.max_records_per_day) ===
                     0
-                      ? "无限制"
+                      ? t("logs.config.unlimited")
                       : formatNumber(
                           config.maxRecordsPerDay ||
                             stats?.max_records_per_day ||
@@ -435,7 +437,7 @@ export default function LogCleanupSettings() {
                 </div>
 
                 <div className="flex items-center justify-between">
-                  <span className="text-sm font-medium">自动清理状态</span>
+                  <span className="text-sm font-medium">{t("logs.config.autoCleanupStatus")}</span>
                   <Chip
                     color={getStatusColor(
                       config.cleanupEnabled ?? stats?.enabled ?? true,
@@ -443,23 +445,22 @@ export default function LogCleanupSettings() {
                     variant="flat"
                   >
                     {(config.cleanupEnabled ?? stats?.enabled ?? true)
-                      ? "已启用"
-                      : "已禁用"}
+                      ? t("logs.config.enabled")
+                      : t("logs.config.disabled")}
                   </Chip>
                 </div>
               </div>
 
               <div className="mt-4 p-3 bg-blue-50 dark:bg-blue-900/20 rounded-lg">
                 <p className="text-xs text-blue-600 dark:text-blue-400">
-                  💡 <strong>日志清理说明：</strong>
-                  系统会定期清理超过保留天数的日志记录，保持数据库性能。
-                  清理任务会自动在后台执行，也可以手动触发清理。
+                  <strong>{t("logs.config.hint")}</strong>
+                  {t("logs.config.hintDesc")}
                 </p>
               </div>
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className="text-default-500">无法获取配置数据</p>
+              <p className="text-default-500">{t("logs.config.noData")}</p>
             </div>
           )}
         </CardBody>
@@ -471,16 +472,16 @@ export default function LogCleanupSettings() {
           <ModalHeader className="flex flex-col gap-1">
             <div className="flex items-center gap-2">
               <Icon icon="solar:settings-bold" width={20} />
-              配置日志清理规则
+              {t("logs.modal.title")}
             </div>
           </ModalHeader>
           <ModalBody>
             <div className="space-y-6">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="text-sm font-medium">启用自动清理</p>
+                  <p className="text-sm font-medium">{t("logs.modal.enableAutoCleanup")}</p>
                   <p className="text-xs text-default-500">
-                    开启后将按照配置规则定期清理过期日志
+                    {t("logs.modal.enableAutoCleanupDesc")}
                   </p>
                 </div>
                 <Switch
@@ -495,8 +496,8 @@ export default function LogCleanupSettings() {
               </div>
 
               <Input
-                description="超过此天数的数据库事件将被删除"
-                label="日志保留天数"
+                description={t("logs.modal.retentionDaysDesc")}
+                label={t("logs.modal.retentionDays")}
                 max={365}
                 min={1}
                 type="number"
@@ -510,9 +511,9 @@ export default function LogCleanupSettings() {
               />
 
               <Input
-                description="清理任务执行间隔，格式如: 24h, 12h, 6h"
-                label="清理间隔"
-                placeholder="24h"
+                description={t("logs.modal.cleanupIntervalDesc")}
+                label={t("logs.modal.cleanupInterval")}
+                placeholder={t("logs.modal.cleanupIntervalPlaceholder")}
                 value={formConfig.cleanupInterval || "24h"}
                 onChange={(e) =>
                   setFormConfig((prev) => ({
@@ -523,8 +524,8 @@ export default function LogCleanupSettings() {
               />
 
               <Input
-                description="每个端点每天保留的最大数据库事件记录数，0表示无限制"
-                label="每日最大记录数"
+                description={t("logs.modal.maxRecordsPerDayDesc")}
+                label={t("logs.modal.maxRecordsPerDay")}
                 min={0}
                 type="number"
                 value={(formConfig.maxRecordsPerDay || 0).toString()}
@@ -538,23 +539,22 @@ export default function LogCleanupSettings() {
 
               <div className="p-3 bg-warning-50 dark:bg-warning-900/20 rounded-lg">
                 <p className="text-xs text-warning-600 dark:text-warning-400">
-                  ⚠️ <strong>注意：</strong>
-                  日志清理功能会影响系统日志的保留时间，清理后的日志无法恢复。
-                  建议根据实际需要合理设置保留天数。
+                  <strong>{t("logs.modal.warning")}</strong>
+                  {t("logs.modal.warningDesc")}
                 </p>
               </div>
             </div>
           </ModalBody>
           <ModalFooter>
             <Button color="danger" variant="light" onPress={onClose}>
-              取消
+              {t("logs.modal.cancel")}
             </Button>
             <Button
               color="primary"
               isLoading={updating}
               onPress={handleUpdateConfig}
             >
-              保存配置
+              {t("logs.modal.save")}
             </Button>
           </ModalFooter>
         </ModalContent>

@@ -2,26 +2,28 @@ import { Tab, Tabs } from "@heroui/react";
 import React from "react";
 import { Icon } from "@iconify/react";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 import SecuritySettings from "@/components/settings/security-settings";
 import VersionSettings from "@/components/settings/version-settings";
 import LogCleanupSettings from "@/components/settings/log-cleanup-settings";
 
 export default function SettingsPage() {
+  const { t } = useTranslation("settings");
   const [selected, setSelected] = React.useState("security");
 
   // 保存所有更改
   const handleSaveAll = async () => {
     try {
       addToast({
-        title: "保存成功",
-        description: "设置已更新",
+        title: t("page.toast.saveSuccess"),
+        description: t("page.toast.saveSuccessDesc"),
         color: "success",
       });
     } catch (error) {
       addToast({
-        title: "保存失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("page.toast.saveFailed"),
+        description: error instanceof Error ? error.message : t("page.toast.unknownError"),
         color: "danger",
       });
     }
@@ -30,8 +32,8 @@ export default function SettingsPage() {
   // 重置当前表单
   const handleReset = () => {
     addToast({
-      title: "重置成功",
-      description: "设置已恢复默认值",
+      title: t("page.toast.resetSuccess"),
+      description: t("page.toast.resetSuccessDesc"),
       color: "warning",
     });
   };
@@ -40,7 +42,7 @@ export default function SettingsPage() {
     <div className="max-w-7xl mx-auto py-4 sm:py-6 px-4 sm:px-6 space-y-4 sm:space-y-6">
       <div className="flex w-full flex-col">
         <Tabs
-          aria-label="设置选项"
+          aria-label={t("page.tabs.ariaLabel")}
           classNames={{
             base: "w-full",
             tabList:
@@ -71,7 +73,7 @@ export default function SettingsPage() {
             title={
               <div className="flex items-center gap-2 justify-center sm:justify-start">
                 <Icon className="text-lg" icon="solar:shield-keyhole-bold" />
-                <span className="hidden sm:inline">账户安全</span>
+                <span className="hidden sm:inline">{t("page.tabs.security")}</span>
               </div>
             }
           >
@@ -104,7 +106,7 @@ export default function SettingsPage() {
             title={
               <div className="flex items-center gap-2 justify-center sm:justify-start">
                 <Icon className="text-lg" icon="solar:database-bold" />
-                <span className="hidden sm:inline">日志管理</span>
+                <span className="hidden sm:inline">{t("page.tabs.logs")}</span>
               </div>
             }
           >
@@ -115,7 +117,7 @@ export default function SettingsPage() {
             title={
               <div className="flex items-center gap-2 justify-center sm:justify-start">
                 <Icon className="text-lg" icon="solar:refresh-circle-bold" />
-                <span className="hidden sm:inline">版本检查</span>
+                <span className="hidden sm:inline">{t("page.tabs.version")}</span>
               </div>
             }
           >
