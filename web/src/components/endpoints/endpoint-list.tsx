@@ -19,6 +19,7 @@ import {
   faPenToSquare,
   faTrash,
 } from "@fortawesome/free-solid-svg-icons";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
 import { ServerIcon } from "@/components/ui/server-icon";
@@ -65,33 +66,35 @@ export function EndpointList({
   onDelete,
   loading = false,
 }: EndpointListProps) {
+  const { t } = useTranslation("endpoints");
+
   const columns = [
     {
       key: "status",
-      label: "状态",
+      label: t("table.columns.status"),
     },
     {
       key: "info",
-      label: "主控信息",
+      label: t("table.columns.info"),
     },
     {
       key: "api",
-      label: "API 配置",
+      label: t("table.columns.api"),
     },
     {
       key: "tunnels",
-      label: "隧道数量",
+      label: t("table.columns.tunnels"),
     },
     {
       key: "actions",
-      label: "操作",
+      label: t("table.columns.actions"),
     },
   ];
 
   if (loading) {
     return (
       <div className="flex items-center justify-center h-[400px] animate-pulse">
-        <p className="text-default-500">加载主控列表...</p>
+        <p className="text-default-500">{t("page.loading")}</p>
       </div>
     );
   }
@@ -100,10 +103,8 @@ export function EndpointList({
     return (
       <div className="flex items-center justify-center h-[400px]">
         <div className="text-center space-y-4">
-          <p className="text-xl text-default-500">暂无主控节点</p>
-          <p className="text-sm text-default-400">
-            点击"添加主控"按钮开始添加主控节点
-          </p>
+          <p className="text-xl text-default-500">{t("page.noEndpoints")}</p>
+          <p className="text-sm text-default-400">{t("page.noEndpointsDesc")}</p>
         </div>
       </div>
     );
@@ -111,7 +112,7 @@ export function EndpointList({
 
   return (
     <Table
-      aria-label="主控列表"
+      aria-label={t("page.title")}
       classNames={{
         base: cn(
           "border dark:border-default-100 border-transparent rounded-medium",
@@ -153,10 +154,10 @@ export function EndpointList({
             <TableCell>
               <div className="flex flex-col">
                 <span className="font-medium text-foreground">
-                  路径: {endpoint.apiPath}
+                  {t("table.apiPath")}: {endpoint.apiPath}
                 </span>
                 <span className="text-tiny text-default-400 font-mono">
-                  密钥: {endpoint.apiKey}
+                  {t("table.apiKeyPlaceholder")}: {endpoint.apiKey}
                 </span>
               </div>
             </TableCell>
@@ -165,7 +166,9 @@ export function EndpointList({
                 <span className="text-lg font-semibold">
                   {endpoint.tunnelCount}
                 </span>
-                <span className="text-tiny text-default-400">个实例</span>
+                <span className="text-tiny text-default-400">
+                  {t("table.instances", { count: endpoint.tunnelCount })}
+                </span>
               </div>
             </TableCell>
             <TableCell>
@@ -175,7 +178,7 @@ export function EndpointList({
                     isIconOnly
                     color="success"
                     size="sm"
-                    title="连接"
+                    title={t("actions.connect")}
                     variant="light"
                     onPress={() => onConnect?.(endpoint.id)}
                   >
@@ -186,7 +189,7 @@ export function EndpointList({
                     isIconOnly
                     color="warning"
                     size="sm"
-                    title="断开"
+                    title={t("actions.disconnect")}
                     variant="light"
                     onPress={() => onDisconnect?.(endpoint.id)}
                   >
@@ -197,7 +200,7 @@ export function EndpointList({
                   isIconOnly
                   color="primary"
                   size="sm"
-                  title="编辑"
+                  title={t("actions.edit")}
                   variant="light"
                   onPress={() => onEdit?.(endpoint.id)}
                 >
@@ -207,7 +210,7 @@ export function EndpointList({
                   isIconOnly
                   color="danger"
                   size="sm"
-                  title="删除"
+                  title={t("actions.delete")}
                   variant="light"
                   onPress={() => onDelete?.(endpoint.id)}
                 >

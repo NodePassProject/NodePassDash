@@ -31,6 +31,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 import {
   DndContext,
   closestCenter,
@@ -200,6 +201,7 @@ function SortableTableRow({
 }
 
 export default function EndpointsPage() {
+  const { t } = useTranslation("endpoints");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -285,7 +287,7 @@ export default function EndpointsPage() {
 
   // 表格排序状态 - 默认不排序
   const [sortDescriptor, setSortDescriptor] = useState<{
-    column: string | React.Key;
+    column: string;
     direction: "ascending" | "descending";
   } | null>(null);
 
@@ -329,7 +331,7 @@ export default function EndpointsPage() {
       setLoading(true);
       const response = await fetch(buildApiUrl("/api/endpoints"));
 
-      if (!response.ok) throw new Error("获取主控列表失败");
+      if (!response.ok) throw new Error(t("toast.fetchFailedDesc"));
       const data = await response.json();
 
       if (isMountedRef.current) {
@@ -339,8 +341,8 @@ export default function EndpointsPage() {
       if (isMountedRef.current) {
         console.error("获取主控列表失败:", error);
         addToast({
-          title: "错误",
-          description: "获取主控列表失败",
+          title: t("toast.fetchFailed"),
+          description: t("toast.fetchFailedDesc"),
           color: "danger",
         });
       }
@@ -394,11 +396,11 @@ export default function EndpointsPage() {
         body: JSON.stringify(data),
       });
 
-      if (!response.ok) throw new Error("添加主控失败");
+      if (!response.ok) throw new Error(t("toast.addFailed"));
 
       addToast({
-        title: "主控添加成功",
-        description: `${data.name} 已成功添加到主控列表`,
+        title: t("toast.addSuccess"),
+        description: t("toast.addSuccessDesc", { name: data.name }),
         color: "success",
       });
 
@@ -406,8 +408,8 @@ export default function EndpointsPage() {
       fetchEndpoints();
     } catch (error) {
       addToast({
-        title: "添加主控失败",
-        description: "请检查输入信息后重试",
+        title: t("toast.addFailed"),
+        description: t("toast.addFailedDesc"),
         color: "danger",
       });
     }
@@ -432,22 +434,22 @@ export default function EndpointsPage() {
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.message || "删除失败");
+        throw new Error(error.message || t("toast.deleteFailed"));
       }
 
       // 刷新主控列表
       await fetchEndpoints();
 
       addToast({
-        title: "成功",
-        description: "删除成功",
+        title: t("toast.deleteSuccess"),
+        description: t("toast.deleteSuccessDesc"),
         color: "success",
       });
     } catch (error) {
       console.error("删除主控失败:", error);
       addToast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "删除失败",
+        title: t("toast.fetchFailed"),
+        description: error instanceof Error ? error.message : t("toast.deleteFailed"),
         color: "danger",
       });
     }
@@ -475,15 +477,15 @@ export default function EndpointsPage() {
       if (!response.ok) {
         const errorData = await response.json();
 
-        throw new Error(errorData.error || "重连失败");
+        throw new Error(errorData.error || t("toast.reconnectFailed"));
       }
 
       const result = await response.json();
 
       addToast({
-        title: "重连成功",
+        title: t("toast.reconnectSuccess"),
         description:
-          result.message || "主控重连请求已发送，正在尝试建立连接...",
+          result.message || t("toast.reconnectSuccessDesc"),
         color: "success",
       });
 
@@ -491,9 +493,9 @@ export default function EndpointsPage() {
       await fetchEndpoints();
     } catch (error) {
       addToast({
-        title: "重连失败",
+        title: t("toast.reconnectFailed"),
         description:
-          error instanceof Error ? error.message : "重连请求失败，请稍后重试",
+          error instanceof Error ? error.message : t("toast.reconnectFailedDesc"),
         color: "danger",
       });
     }
@@ -516,15 +518,15 @@ export default function EndpointsPage() {
       if (!response.ok) {
         const errorData = await response.json();
 
-        throw new Error(errorData.error || "连接失败");
+        throw new Error(errorData.error || t("toast.connectFailed"));
       }
 
       const result = await response.json();
 
       addToast({
-        title: "连接成功",
+        title: t("toast.connectSuccess"),
         description:
-          result.message || "主控连接请求已发送，正在尝试建立连接...",
+          result.message || t("toast.connectSuccessDesc"),
         color: "success",
       });
 
@@ -532,9 +534,9 @@ export default function EndpointsPage() {
       await fetchEndpoints();
     } catch (error) {
       addToast({
-        title: "连接失败",
+        title: t("toast.connectFailed"),
         description:
-          error instanceof Error ? error.message : "连接请求失败，请稍后重试",
+          error instanceof Error ? error.message : t("toast.connectFailedDesc"),
         color: "danger",
       });
     }
@@ -557,14 +559,14 @@ export default function EndpointsPage() {
       if (!response.ok) {
         const errorData = await response.json();
 
-        throw new Error(errorData.error || "断开连接失败");
+        throw new Error(errorData.error || t("toast.disconnectFailed"));
       }
 
       const result = await response.json();
 
       addToast({
-        title: "断开连接成功",
-        description: result.message || "主控连接已断开",
+        title: t("toast.disconnectSuccess"),
+        description: result.message || t("toast.disconnectSuccessDesc"),
         color: "success",
       });
 
@@ -572,9 +574,9 @@ export default function EndpointsPage() {
       await fetchEndpoints();
     } catch (error) {
       addToast({
-        title: "断开连接失败",
+        title: t("toast.disconnectFailed"),
         description:
-          error instanceof Error ? error.message : "断开连接失败，请稍后重试",
+          error instanceof Error ? error.message : t("toast.disconnectFailedDesc"),
         color: "danger",
       });
     }
@@ -584,7 +586,7 @@ export default function EndpointsPage() {
       const response = await fetch("/api/data/export");
 
       if (!response.ok) {
-        throw new Error("导出失败");
+        throw new Error(t("toast.exportFailed"));
       }
 
       const blob = await response.blob();
@@ -599,15 +601,15 @@ export default function EndpointsPage() {
       document.body.removeChild(a);
 
       addToast({
-        title: "导出成功",
-        description: "数据已成功导出到文件",
+        title: t("toast.exportSuccess"),
+        description: t("toast.exportSuccessDesc"),
         color: "success",
       });
     } catch (error) {
       console.error("导出数据失败:", error);
       addToast({
-        title: "导出失败",
-        description: "导出数据时发生错误",
+        title: t("toast.exportFailed"),
+        description: t("toast.exportFailedDesc"),
         color: "danger",
       });
     }
@@ -619,8 +621,8 @@ export default function EndpointsPage() {
     if (file) {
       if (file.type !== "application/json") {
         addToast({
-          title: "文件格式错误",
-          description: "请选择 JSON 格式的文件",
+          title: t("toast.fileFormatError"),
+          description: t("toast.fileFormatErrorDesc"),
           color: "danger",
         });
 
@@ -673,9 +675,9 @@ export default function EndpointsPage() {
     } catch (error) {
       console.error("验证导入数据失败:", error);
       addToast({
-        title: "验证失败",
+        title: t("toast.validateFailed"),
         description:
-          error instanceof Error ? error.message : "验证导入数据时发生错误",
+          error instanceof Error ? error.message : t("toast.validateFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -752,14 +754,14 @@ export default function EndpointsPage() {
           window.location.reload();
         }, 1000);
       } else {
-        throw new Error(result.error || "导入失败");
+        throw new Error(result.error || t("toast.importDataFailed"));
       }
     } catch (error) {
       console.error("导入数据失败:", error);
       addToast({
-        title: "导入失败",
+        title: t("toast.importDataFailed"),
         description:
-          error instanceof Error ? error.message : "导入数据时发生错误",
+          error instanceof Error ? error.message : t("toast.importDataFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -852,12 +854,12 @@ export default function EndpointsPage() {
                   variant="flat"
                 >
                   {realTimeData.status === "ONLINE"
-                    ? "在线"
+                    ? t("status.online")
                     : realTimeData.status === "FAIL"
-                      ? "异常"
+                      ? t("status.fail")
                       : realTimeData.status === "DISCONNECT"
-                        ? "断开"
-                        : "离线"}
+                        ? t("status.disconnect")
+                        : t("status.offline")}
                 </Chip>
               </div>
 
@@ -1244,7 +1246,7 @@ export default function EndpointsPage() {
   function handleCopyInstallScript() {
     const cmd = "bash <(wget -qO- https://run.nodepass.eu/np.sh)";
 
-    copyToClipboard(cmd, "安装脚本已复制到剪贴板", showManualCopyModal);
+    copyToClipboard(cmd, t("toast.copyInstallSuccess"), showManualCopyModal);
   }
 
   // 刷新指定端点的隧道信息
@@ -1279,7 +1281,7 @@ export default function EndpointsPage() {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-2 md:gap-0">
         <div className="flex items-center gap-2 md:gap-4">
-          <h1 className="text-2xl font-bold">主控管理</h1>
+          <h1 className="text-2xl font-bold">{t("page.title")}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 md:gap-4 mt-2 md:mt-0">
           <Button
@@ -1287,21 +1289,21 @@ export default function EndpointsPage() {
             variant="flat"
             onPress={handleExportData}
           >
-            导出数据
+            {t("actions.export")}
           </Button>
           <Button
             startContent={<FontAwesomeIcon icon={faFileImport} />}
             variant="flat"
             onPress={onImportOpen}
           >
-            导入数据
+            {t("actions.import")}
           </Button>
           <Button
             startContent={<FontAwesomeIcon icon={faCopy} />}
             variant="flat"
             onPress={handleCopyInstallScript}
           >
-            安装脚本
+            {t("actions.copyInstall")}
           </Button>
           <Button
             startContent={<FontAwesomeIcon icon={faRotateRight} />}
@@ -1321,7 +1323,7 @@ export default function EndpointsPage() {
             <Tab
               key="card"
               title={
-                <Tooltip content="卡片视图">
+                <Tooltip content={t("page.cardView")}>
                   <div>
                     <FontAwesomeIcon icon={faGrip} />
                   </div>
@@ -1331,7 +1333,7 @@ export default function EndpointsPage() {
             <Tab
               key="table"
               title={
-                <Tooltip content="表格视图">
+                <Tooltip content={t("page.tableView")}>
                   <div>
                     <FontAwesomeIcon icon={faTable} />
                   </div>
@@ -1415,12 +1417,12 @@ export default function EndpointsPage() {
                     variant="flat"
                   >
                     {realTimeData.status === "ONLINE"
-                      ? "在线"
+                      ? t("status.online")
                       : realTimeData.status === "FAIL"
-                        ? "异常"
+                        ? t("status.fail")
                         : realTimeData.status === "DISCONNECT"
-                          ? "断开"
-                          : "离线"}
+                          ? t("status.disconnect")
+                          : t("status.offline")}
                   </Chip>
                 </div>
 
@@ -1531,7 +1533,7 @@ export default function EndpointsPage() {
           onSortChange={(descriptor) => {
             if (descriptor.column) {
               setSortDescriptor({
-                column: descriptor.column,
+                column: String(descriptor.column),
                 direction: descriptor.direction ?? "ascending",
               });
             }
@@ -1589,12 +1591,12 @@ export default function EndpointsPage() {
                           <Tooltip
                             content={
                               realTimeData.status === "ONLINE"
-                                ? "在线"
+                                ? t("status.online")
                                 : realTimeData.status === "FAIL"
-                                  ? "异常"
+                                  ? t("status.fail")
                                   : realTimeData.status === "DISCONNECT"
-                                    ? "断开"
-                                    : "离线"
+                                    ? t("status.disconnect")
+                                    : t("status.offline")
                             }
                             size="sm"
                           >
@@ -1914,7 +1916,7 @@ export default function EndpointsPage() {
                     icon="solar:import-bold"
                     width={24}
                   />
-                  导入数据
+                  {t("importModal.title")}
                 </div>
               </ModalHeader>
               <ModalBody>

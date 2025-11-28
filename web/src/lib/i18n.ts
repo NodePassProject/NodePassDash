@@ -9,12 +9,14 @@ import dashboardZh from "@/locales/zh-CN/dashboard.json";
 import servicesZh from "@/locales/zh-CN/services.json";
 import settingsZh from "@/locales/zh-CN/settings.json";
 import tunnelsZh from "@/locales/zh-CN/tunnels.json";
+import endpointsZh from "@/locales/zh-CN/endpoints.json";
 import commonEn from "@/locales/en-US/common.json";
 import authEn from "@/locales/en-US/auth.json";
 import dashboardEn from "@/locales/en-US/dashboard.json";
 import servicesEn from "@/locales/en-US/services.json";
 import settingsEn from "@/locales/en-US/settings.json";
 import tunnelsEn from "@/locales/en-US/tunnels.json";
+import endpointsEn from "@/locales/en-US/endpoints.json";
 
 // 定义支持的语言
 export const supportedLanguages = ["zh-CN", "en-US"] as const;
@@ -29,6 +31,7 @@ export const resources = {
     services: servicesZh,
     settings: settingsZh,
     tunnels: tunnelsZh,
+    endpoints: endpointsZh,
   },
   "en-US": {
     common: commonEn,
@@ -37,6 +40,7 @@ export const resources = {
     services: servicesEn,
     settings: settingsEn,
     tunnels: tunnelsEn,
+    endpoints: endpointsEn,
   },
 } as const;
 
@@ -48,7 +52,7 @@ i18n
     resources,
     fallbackLng: "zh-CN", // 默认语言为中文
     defaultNS: "common", // 默认命名空间
-    ns: ["common", "auth", "dashboard", "services", "settings", "tunnels"], // 可用的命名空间
+    ns: ["common", "auth", "dashboard", "services", "settings", "tunnels", "endpoints"], // 可用的命名空间
 
     // 语言检测配置
     detection: {
