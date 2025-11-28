@@ -85,5 +85,9 @@ logs/
 certs/
 gob/
 pkg/
-CLAUDE.md
 nodepassdash
+
+# vibe coding
+CLAUDE.md
+AGENTS.md
+/docs/dev/*
