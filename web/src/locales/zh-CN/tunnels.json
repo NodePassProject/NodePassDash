@@ -150,5 +150,61 @@
     "tunnel": "隧道:",
     "target": "目标:",
     "version": "版本:"
+  },
+  "renameModal": {
+    "title": "修改实例名称",
+    "label": "实例名称",
+    "placeholder": "请输入新的实例名称",
+    "cancel": "取消",
+    "confirm": "确认修改",
+    "toast": {
+      "updateFailed": "修改名称失败",
+      "updateSuccess": "修改成功",
+      "updateSuccessDesc": "实例名称已更新",
+      "updateFailedDesc": "修改失败"
+    }
+  },
+  "groupManagement": {
+    "title": "分组管理",
+    "addButton": "添加",
+    "close": "关闭",
+    "addForm": {
+      "groupName": "分组名称",
+      "placeholder": "请输入分组名称",
+      "save": "保存",
+      "cancel": "取消"
+    },
+    "table": {
+      "groupName": "分组名称",
+      "actions": "操作"
+    },
+    "actions": {
+      "bindInstances": "绑定实例",
+      "edit": "编辑分组",
+      "delete": "删除分组"
+    },
+    "confirmDelete": "确定要删除分组 \"{name}\" 吗？",
+    "empty": {
+      "title": "暂无分组",
+      "description": "点击上方按钮创建第一个分组"
+    },
+    "toast": {
+      "fetchFailed": "错误",
+      "fetchFailedDesc": "获取分组列表失败",
+      "nameRequired": "错误",
+      "nameRequiredDesc": "请输入分组名称",
+      "createSuccess": "成功",
+      "createSuccessDesc": "分组创建成功",
+      "createFailed": "错误",
+      "createFailedDesc": "创建分组失败",
+      "updateSuccess": "成功",
+      "updateSuccessDesc": "分组更新成功",
+      "updateFailed": "错误",
+      "updateFailedDesc": "更新分组失败",
+      "deleteSuccess": "成功",
+      "deleteSuccessDesc": "分组删除成功",
+      "deleteFailed": "错误",
+      "deleteFailedDesc": "删除分组失败"
+    }
   }
 }

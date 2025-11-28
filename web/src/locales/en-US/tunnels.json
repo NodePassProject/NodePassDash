@@ -150,5 +150,61 @@
     "tunnel": "Tunnel:",
     "target": "Target:",
     "version": "Version:"
+  },
+  "renameModal": {
+    "title": "Modify Tunnel Name",
+    "label": "Tunnel Name",
+    "placeholder": "Please enter new tunnel name",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "toast": {
+      "updateFailed": "Failed to modify name",
+      "updateSuccess": "Success",
+      "updateSuccessDesc": "Tunnel name has been updated",
+      "updateFailedDesc": "Modification failed"
+    }
+  },
+  "groupManagement": {
+    "title": "Group Management",
+    "addButton": "Add",
+    "close": "Close",
+    "addForm": {
+      "groupName": "Group Name",
+      "placeholder": "Please enter group name",
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "table": {
+      "groupName": "Group Name",
+      "actions": "Actions"
+    },
+    "actions": {
+      "bindInstances": "Bind Tunnels",
+      "edit": "Edit Group",
+      "delete": "Delete Group"
+    },
+    "confirmDelete": "Are you sure you want to delete group \"{name}\"?",
+    "empty": {
+      "title": "No Groups",
+      "description": "Click the button above to create your first group"
+    },
+    "toast": {
+      "fetchFailed": "Error",
+      "fetchFailedDesc": "Failed to fetch group list",
+      "nameRequired": "Error",
+      "nameRequiredDesc": "Please enter group name",
+      "createSuccess": "Success",
+      "createSuccessDesc": "Group created successfully",
+      "createFailed": "Error",
+      "createFailedDesc": "Failed to create group",
+      "updateSuccess": "Success",
+      "updateSuccessDesc": "Group updated successfully",
+      "updateFailed": "Error",
+      "updateFailedDesc": "Failed to update group",
+      "deleteSuccess": "Success",
+      "deleteSuccessDesc": "Group deleted successfully",
+      "deleteFailed": "Error",
+      "deleteFailedDesc": "Failed to delete group"
+    }
   }
 }
