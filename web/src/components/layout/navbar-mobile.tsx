@@ -1,31 +1,9 @@
 import { NavbarMenuItem, Link } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { useLocation } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { cn } from "@/lib/utils";
-
-const navigationItems = [
-  {
-    href: "/dashboard",
-    label: "仪表盘",
-    icon: "solar:chart-2-bold",
-  },
-  {
-    href: "/services",
-    label: "服务管理",
-    icon: "solar:widget-2-bold",
-  },
-  {
-    href: "/tunnels",
-    label: "实例管理",
-    icon: "solar:transmission-bold",
-  },
-  {
-    href: "/endpoints",
-    label: "主控管理",
-    icon: "solar:server-2-bold",
-  },
-];
 
 interface NavbarMobileProps {
   onSelect?: () => void;
@@ -33,6 +11,30 @@ interface NavbarMobileProps {
 
 export function NavbarMobileMenu({ onSelect }: NavbarMobileProps) {
   const { pathname } = useLocation();
+  const { t } = useTranslation("common");
+
+  const navigationItems = [
+    {
+      href: "/dashboard",
+      label: t("nav.dashboard"),
+      icon: "solar:chart-2-bold",
+    },
+    {
+      href: "/services",
+      label: t("nav.servicesManage"),
+      icon: "solar:widget-2-bold",
+    },
+    {
+      href: "/tunnels",
+      label: t("nav.tunnelsManage"),
+      icon: "solar:transmission-bold",
+    },
+    {
+      href: "/endpoints",
+      label: t("nav.endpointsManage"),
+      icon: "solar:server-2-bold",
+    },
+  ];
 
   const isActive = (href: string) => {
     const normalized = pathname.replace(/\/+$/, "");

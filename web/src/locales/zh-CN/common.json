@@ -6,8 +6,11 @@
   "nav": {
     "dashboard": "仪表盘",
     "tunnels": "隧道",
+    "tunnelsManage": "实例管理",
     "services": "服务",
+    "servicesManage": "服务管理",
     "endpoints": "节点",
+    "endpointsManage": "主控管理",
     "templates": "模板",
     "settings": "设置"
   },
@@ -138,5 +141,17 @@
     "enUS": "English",
     "switch": "切换语言",
     "select": "选择语言"
+  },
+  "logout": {
+    "confirmTitle": "确认退出",
+    "confirmMessage": "您确定要退出登录吗？",
+    "confirm": "确认退出"
+  },
+  "footer": {
+    "copyright": "NodePassDash © 2025",
+    "version": "v",
+    "poweredBy": "由",
+    "poweredByLink": "NodePass",
+    "poweredBySuffix": "驱动"
   }
 }

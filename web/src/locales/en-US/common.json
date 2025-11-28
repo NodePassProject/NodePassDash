@@ -6,8 +6,11 @@
   "nav": {
     "dashboard": "Dashboard",
     "tunnels": "Tunnels",
+    "tunnelsManage": "Instance Management",
     "services": "Services",
+    "servicesManage": "Service Management",
     "endpoints": "Endpoints",
+    "endpointsManage": "Endpoint Management",
     "templates": "Templates",
     "settings": "Settings"
   },
@@ -138,5 +141,17 @@
     "enUS": "English",
     "switch": "Switch Language",
     "select": "Select Language"
+  },
+  "logout": {
+    "confirmTitle": "Confirm Logout",
+    "confirmMessage": "Are you sure you want to log out?",
+    "confirm": "Confirm Logout"
+  },
+  "footer": {
+    "copyright": "NodePassDash © 2025",
+    "version": "v",
+    "poweredBy": "Powered by",
+    "poweredByLink": "NodePass",
+    "poweredBySuffix": ""
   }
 }

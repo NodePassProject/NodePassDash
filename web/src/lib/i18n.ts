@@ -5,8 +5,10 @@ import LanguageDetector from "i18next-browser-languagedetector";
 // 导入翻译资源
 import commonZh from "@/locales/zh-CN/common.json";
 import authZh from "@/locales/zh-CN/auth.json";
+import dashboardZh from "@/locales/zh-CN/dashboard.json";
 import commonEn from "@/locales/en-US/common.json";
 import authEn from "@/locales/en-US/auth.json";
+import dashboardEn from "@/locales/en-US/dashboard.json";
 
 // 定义支持的语言
 export const supportedLanguages = ["zh-CN", "en-US"] as const;
@@ -17,10 +19,12 @@ export const resources = {
   "zh-CN": {
     common: commonZh,
     auth: authZh,
+    dashboard: dashboardZh,
   },
   "en-US": {
     common: commonEn,
     auth: authEn,
+    dashboard: dashboardEn,
   },
 } as const;
 
@@ -32,7 +36,7 @@ i18n
     resources,
     fallbackLng: "zh-CN", // 默认语言为中文
     defaultNS: "common", // 默认命名空间
-    ns: ["common", "auth"], // 可用的命名空间
+    ns: ["common", "auth", "dashboard"], // 可用的命名空间
 
     // 语言检测配置
     detection: {
