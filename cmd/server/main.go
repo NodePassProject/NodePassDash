@@ -9,6 +9,7 @@ import (
 	"NodePassDash/internal/nodepass"
 	"NodePassDash/internal/router"
 	"NodePassDash/internal/servicecache"
+	"NodePassDash/internal/tunnelcache"
 
 	// "NodePassDash/internal/lifecycle"
 	log "NodePassDash/internal/log"
@@ -225,6 +226,13 @@ func initializeServices(sseDebugLog bool) (*gorm.DB, *auth.Service, *endpoint.Se
 	}
 	log.Infof("✅ Service内存缓存初始化成功，已加载 %d 个服务", servicecache.Shared.Count())
 
+	// 初始化Tunnel内存缓存
+	if err := tunnelcache.InitShared(gormDB); err != nil {
+		log.Errorf("初始化Tunnel内存缓存失败: %v", err)
+		return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("初始化Tunnel缓存失败: %v", err)
+	}
+	log.Infof("✅ Tunnel内存缓存初始化成功，已加载 %d 个隧道", tunnelcache.Shared.Count())
+
 	// 初始化其他服务
 	endpointService := endpoint.NewService(gormDB)
 	tunnelService := tunnel.NewService(gormDB)
@@ -328,6 +336,25 @@ func startBackgroundServices(gormDB *gorm.DB, sseService *sse.Service, sseManage
 	}()
 	log.Info("Service缓存定时持久化任务已启动（间隔: 30秒）")
 
+	// 启动Tunnel缓存定时持久化任务（每30秒持久化一次变更）
+	go func() {
+		ticker := time.NewTicker(30 * time.Second)
+		defer ticker.Stop()
+
+		for range ticker.C {
+			if err := tunnelcache.Shared.PersistIfNeeded(gormDB); err != nil {
+				log.Errorf("❌ 持久化Tunnel缓存失败: %v", err)
+			} else {
+				stats := tunnelcache.Shared.GetStats()
+				dirtyCount := stats["dirty_count"].(int)
+				if dirtyCount > 0 {
+					log.Debugf("💾 持久化了 %d 个变更的隧道", dirtyCount)
+				}
+			}
+		}
+	}()
+	log.Info("Tunnel缓存定时持久化任务已启动（间隔: 30秒）")
+
 	// 启动SSE相关服务
 	go func() {
 		sseManager.StartDaemon()
@@ -372,6 +399,14 @@ func gracefulShutdown(server *http.Server, gormDB *gorm.DB, trafficScheduler *da
 		log.Errorf("❌ 关闭Service缓存失败: %v", err)
 	} else {
 		log.Infof("✅ Service缓存已成功关闭并持久化")
+	}
+
+	// 3. 持久化Tunnel缓存（保证数据不丢失）
+	log.Infof("💾 正在持久化Tunnel缓存...")
+	if err := tunnelcache.Shared.Shutdown(gormDB); err != nil {
+		log.Errorf("❌ 关闭Tunnel缓存失败: %v", err)
+	} else {
+		log.Infof("✅ Tunnel缓存已成功关闭并持久化")
 	}
 
 	// 关闭增强系统（暂时注释掉）

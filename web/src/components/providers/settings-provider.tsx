@@ -6,6 +6,7 @@ import { useTheme } from "next-themes";
 // 设置类型定义
 interface Settings {
   theme: "light" | "dark" | "system";
+  language: "zh" | "en";
   isPrivacyMode: boolean;
   isExperimentalMode: boolean;
   autoCheckUpdates: boolean;
@@ -18,6 +19,7 @@ interface Settings {
 // 默认设置
 const defaultSettings: Settings = {
   theme: "system",
+  language: "zh",
   isPrivacyMode: true,
   isExperimentalMode: false,
   autoCheckUpdates: false,
@@ -31,6 +33,7 @@ const defaultSettings: Settings = {
 interface SettingsContextType {
   settings: Settings;
   updateTheme: (theme: "light" | "dark" | "system") => void;
+  updateLanguage: (language: "zh" | "en") => void;
   togglePrivacyMode: () => void;
   toggleExperimentalMode: () => void;
   updateSettings: (newSettings: Partial<Settings>) => void;
@@ -119,6 +122,17 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     setTheme(newTheme);
   };
 
+  // 更新语言
+  const updateLanguage = (newLanguage: "zh" | "en") => {
+    if (settings.language === newLanguage) {
+      return;
+    }
+
+    const newSettings = { ...settings, language: newLanguage };
+
+    setSettings(newSettings);
+    saveSettings(newSettings);
+  };
 
   // 切换隐私模式
   const togglePrivacyMode = () => {
@@ -193,6 +207,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
   const contextValue: SettingsContextType = {
     settings,
     updateTheme,
+    updateLanguage,
     togglePrivacyMode,
     toggleExperimentalMode,
     updateSettings,

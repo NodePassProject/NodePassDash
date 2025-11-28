@@ -250,6 +250,15 @@ func (s *EndpointShared) UpdateTunnelCount(id int64, count int64) {
 		return
 	}
 
+	// 更新隧道计数
+	// var count1 int64
+	// if err := db.Find(&models.Tunnel{}).Where("endpoint_id = ?", id).Count(&count1).Error; err != nil {
+	// 	log.Errorf("[API] 查询端点 %d 隧道计数失败: %v", id, err)
+	// } else {
+	// 	endpointcache.Shared.UpdateTunnelCount(id, count)
+	// 	log.Debugf("[API] 端点 %d 隧道计数已更新为: %d (已缓存)", id, count)
+	// }
+
 	// 只更新隧道数量字段
 	endpoint.TunnelCount = count
 	endpoint.UpdatedAt = time.Now()

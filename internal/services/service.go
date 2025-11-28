@@ -12,6 +12,7 @@ import (
 	"strings"
 	"time"
 
+	"golang.org/x/sync/errgroup"
 	"gorm.io/gorm"
 )
 
@@ -162,28 +163,42 @@ func (s *ServiceImpl) AssembleService(req *AssembleServiceRequest) error {
 	return nil
 }
 
+// controlServiceInstances 并行控制服务的客户端和服务端实例
+// action: "start", "stop", "restart"
+func (s *ServiceImpl) controlServiceInstances(service *models.Services, action string) error {
+	var g errgroup.Group
+
+	// 并行控制客户端实例
+	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
+		g.Go(func() error {
+			if _, err := nodepass.ControlInstance(*service.ClientEndpointId, *service.ClientInstanceId, action); err != nil {
+				return fmt.Errorf("%s客户端实例失败: %w", action, err)
+			}
+			return nil
+		})
+	}
+
+	// 并行控制服务端实例（如果存在）
+	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
+		g.Go(func() error {
+			if _, err := nodepass.ControlInstance(*service.ServerEndpointId, *service.ServerInstanceId, action); err != nil {
+				return fmt.Errorf("%s服务端实例失败: %w", action, err)
+			}
+			return nil
+		})
+	}
+
+	// 等待所有goroutine完成
+	return g.Wait()
+}
+
 // StartService 启动服务（启动 client 和 server 实例）
 func (s *ServiceImpl) StartService(sid string) error {
 	service, err := s.GetServiceByID(sid)
 	if err != nil {
 		return fmt.Errorf("获取服务失败: %w", err)
 	}
-
-	// 启动客户端实例
-	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
-		if _, err := nodepass.ControlInstance(*service.ClientEndpointId, *service.ClientInstanceId, "start"); err != nil {
-			return fmt.Errorf("启动客户端实例失败: %w", err)
-		}
-	}
-
-	// 启动服务端实例（如果存在）
-	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
-		if _, err := nodepass.ControlInstance(*service.ServerEndpointId, *service.ServerInstanceId, "start"); err != nil {
-			return fmt.Errorf("启动服务端实例失败: %w", err)
-		}
-	}
-
-	return nil
+	return s.controlServiceInstances(service, "start")
 }
 
 // StopService 停止服务（停止 client 和 server 实例）
@@ -192,22 +207,7 @@ func (s *ServiceImpl) StopService(sid string) error {
 	if err != nil {
 		return fmt.Errorf("获取服务失败: %w", err)
 	}
-
-	// 停止客户端实例
-	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
-		if _, err := nodepass.ControlInstance(*service.ClientEndpointId, *service.ClientInstanceId, "stop"); err != nil {
-			return fmt.Errorf("停止客户端实例失败: %w", err)
-		}
-	}
-
-	// 停止服务端实例（如果存在）
-	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
-		if _, err := nodepass.ControlInstance(*service.ServerEndpointId, *service.ServerInstanceId, "stop"); err != nil {
-			return fmt.Errorf("停止服务端实例失败: %w", err)
-		}
-	}
-
-	return nil
+	return s.controlServiceInstances(service, "stop")
 }
 
 // RestartService 重启服务（重启 client 和 server 实例）
@@ -216,22 +216,7 @@ func (s *ServiceImpl) RestartService(sid string) error {
 	if err != nil {
 		return fmt.Errorf("获取服务失败: %w", err)
 	}
-
-	// 重启客户端实例
-	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
-		if _, err := nodepass.ControlInstance(*service.ClientEndpointId, *service.ClientInstanceId, "restart"); err != nil {
-			return fmt.Errorf("重启客户端实例失败: %w", err)
-		}
-	}
-
-	// 重启服务端实例（如果存在）
-	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
-		if _, err := nodepass.ControlInstance(*service.ServerEndpointId, *service.ServerInstanceId, "restart"); err != nil {
-			return fmt.Errorf("重启服务端实例失败: %w", err)
-		}
-	}
-
-	return nil
+	return s.controlServiceInstances(service, "restart")
 }
 
 // DeleteService 删除服务（先删除实例再删除服务记录）

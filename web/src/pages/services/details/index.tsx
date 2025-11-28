@@ -1138,7 +1138,7 @@ export default function ServiceDetailsPage() {
                       {((isSingleEndForwarding && clientTunnel) || (!isSingleEndForwarding && serverTunnel)) && (
                         <div className="flex flex-col gap-4 md:gap-6">
                           {/* 数据统计卡片 - 参考 code.html 布局 */}
-                          {!settings.isExperimentalMode && (() => {
+                          { (() => {
                             const tunnel = isSingleEndForwarding ? clientTunnel : serverTunnel;
                             const tcpRx = tunnel?.tcpRx || 0;
                             const tcpTx = tunnel?.tcpTx || 0;
