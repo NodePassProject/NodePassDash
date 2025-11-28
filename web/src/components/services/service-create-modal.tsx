@@ -790,7 +790,7 @@ export default function ScenarioCreateModal({
                 </Tooltip>
               </div>
             }
-            placeholder="192.168.1.1&#10;192.168.1.2"
+            placeholder="192.168.1.1:80&#10;192.168.1.2:80"
             minRows={2}
             value={formData.extendTargetAddresses}
             onValueChange={(v) => handleField("extendTargetAddresses", v)}
@@ -979,7 +979,7 @@ export default function ScenarioCreateModal({
                 </Tooltip>
               </div>
             }
-            placeholder="192.168.1.1&#10;192.168.1.2"
+            placeholder="192.168.1.1:80&#10;192.168.1.2:80"
             minRows={2}
             value={formData.extendTargetAddressesSingle}
             onValueChange={(v) => handleField("extendTargetAddressesSingle", v)}
@@ -1244,7 +1244,7 @@ export default function ScenarioCreateModal({
                 </Tooltip>
               </div>
             }
-            placeholder="192.168.1.1&#10;192.168.1.2"
+            placeholder="192.168.1.1:80&#10;192.168.1.2:80"
             minRows={2}
             value={formData.extendTargetAddresses2}
             onValueChange={(v) => handleField("extendTargetAddresses2", v)}
