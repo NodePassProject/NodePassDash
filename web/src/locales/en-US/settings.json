@@ -1,0 +1,82 @@
+{
+  "drawer": {
+    "title": "Personalization Settings",
+    "description": "Customize your experience",
+    "theme": {
+      "title": "Theme Settings",
+      "description": "Choose your preferred interface theme",
+      "label": "Theme Mode",
+      "light": "Light Theme",
+      "dark": "Dark Theme",
+      "system": "Follow System"
+    },
+    "language": {
+      "title": "Language Settings",
+      "description": "Select your interface language",
+      "label": "Interface Language"
+    },
+    "privacy": {
+      "title": "Privacy Mode",
+      "description": "Protect your privacy and data security",
+      "label": "Enhanced Privacy Protection",
+      "details": "Hide sensitive information, limit data collection, protect user privacy"
+    },
+    "experimental": {
+      "title": "Experimental Features",
+      "description": "Try out new features in testing",
+      "label": "Enable Experimental Features",
+      "details": "Features may be unstable, use with caution in production"
+    },
+    "updates": {
+      "title": "Auto Check for Updates",
+      "description": "Manage software update check strategy",
+      "enable": "Enable Auto Check Updates",
+      "enableDesc": "Periodically check for new versions",
+      "frequency": "Check Frequency",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "never": "Never",
+      "time": "Check Time",
+      "midnight": "Midnight (00:00)",
+      "morning": "Morning (06:00)",
+      "noon": "Noon (12:00)",
+      "evening": "Evening (18:00)",
+      "night": "Night (22:00)",
+      "notifications": "Update Notifications",
+      "silentDownload": "Silent Download"
+    },
+    "save": "Save Settings",
+    "autoSave": "Settings will be automatically saved to local storage"
+  },
+  "system": {
+    "title": "System Settings",
+    "description": "Customize system appearance and behavior preferences",
+    "themeSettings": {
+      "title": "Theme Settings"
+    },
+    "languageSettings": {
+      "title": "Language Settings",
+      "label": "Interface Language"
+    },
+    "behaviorSettings": {
+      "title": "Behavior Settings",
+      "autoSave": {
+        "title": "Auto Save",
+        "description": "Automatically save modified configurations and forms"
+      },
+      "autoUpdate": {
+        "title": "Auto Update",
+        "description": "Automatically check and prompt for updates"
+      },
+      "telemetry": {
+        "title": "Telemetry Data",
+        "description": "Send usage data to help improve the product"
+      }
+    },
+    "actions": {
+      "reset": "Reset",
+      "save": "Save Changes"
+    }
+  }
+}

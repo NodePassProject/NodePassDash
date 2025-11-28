@@ -1,0 +1,82 @@
+{
+  "drawer": {
+    "title": "个性化设置",
+    "description": "自定义您的使用体验",
+    "theme": {
+      "title": "主题设置",
+      "description": "选择您喜欢的界面主题",
+      "label": "主题模式",
+      "light": "浅色主题",
+      "dark": "深色主题",
+      "system": "跟随系统"
+    },
+    "language": {
+      "title": "语言设置",
+      "description": "选择您的界面语言",
+      "label": "界面语言"
+    },
+    "privacy": {
+      "title": "隐私模式",
+      "description": "保护您的隐私数据安全",
+      "label": "增强隐私保护功能",
+      "details": "隐藏敏感信息，限制数据收集，保护用户隐私"
+    },
+    "experimental": {
+      "title": "实验性功能",
+      "description": "尝鲜测试中的新特性",
+      "label": "启用实验性功能",
+      "details": "功能可能不稳定，谨慎在生产环境使用"
+    },
+    "updates": {
+      "title": "自动检查新版本",
+      "description": "管理软件更新检查策略",
+      "enable": "启用自动检查更新",
+      "enableDesc": "定期检查是否有新版本可用",
+      "frequency": "检查频率",
+      "daily": "每日",
+      "weekly": "每周",
+      "monthly": "每月",
+      "never": "从不",
+      "time": "检查时间",
+      "midnight": "午夜 (00:00)",
+      "morning": "早晨 (06:00)",
+      "noon": "中午 (12:00)",
+      "evening": "傍晚 (18:00)",
+      "night": "晚上 (22:00)",
+      "notifications": "更新通知",
+      "silentDownload": "静默下载"
+    },
+    "save": "保存设置",
+    "autoSave": "设置将自动保存到本地存储"
+  },
+  "system": {
+    "title": "系统设置",
+    "description": "自定义系统外观和行为偏好",
+    "themeSettings": {
+      "title": "主题设置"
+    },
+    "languageSettings": {
+      "title": "语言设置",
+      "label": "界面语言"
+    },
+    "behaviorSettings": {
+      "title": "行为设置",
+      "autoSave": {
+        "title": "自动保存",
+        "description": "自动保存修改的配置和表单"
+      },
+      "autoUpdate": {
+        "title": "自动更新",
+        "description": "自动检查并提示更新"
+      },
+      "telemetry": {
+        "title": "遥测数据",
+        "description": "发送使用数据以帮助改进产品"
+      }
+    },
+    "actions": {
+      "reset": "重置",
+      "save": "保存更改"
+    }
+  }
+}

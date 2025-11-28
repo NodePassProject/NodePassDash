@@ -20,6 +20,7 @@ import {
   SelectItem,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import { useTranslation } from "react-i18next";
 
 import { useSettings } from "@/components/providers/settings-provider";
 
@@ -32,6 +33,8 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
   isOpen,
   onClose,
 }) => {
+  const { t } = useTranslation("settings");
+  const { t: tCommon } = useTranslation("common");
   const {
     settings,
     updateTheme,
@@ -59,8 +62,8 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                 />
               </div>
               <div>
-                <h2 className="text-xl font-bold">个性化设置</h2>
-                <p className="text-sm text-default-500">自定义您的使用体验</p>
+                <h2 className="text-xl font-bold">{t("drawer.title")}</h2>
+                <p className="text-sm text-default-500">{t("drawer.description")}</p>
               </div>
             </div>
           </div>
@@ -82,10 +85,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     </div>
                     <div>
                       <span className="font-semibold text-foreground">
-                        主题设置
+                        {t("drawer.theme.title")}
                       </span>
                       <p className="text-xs text-default-500 mt-1">
-                        选择您喜欢的界面主题
+                        {t("drawer.theme.description")}
                       </p>
                     </div>
                   </div>
@@ -93,7 +96,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                 <CardBody className="pt-0 pb-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-default-700">
-                      主题模式
+                      {t("drawer.theme.label")}
                     </span>
                     <Dropdown>
                       <DropdownTrigger>
@@ -106,14 +109,14 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                           variant="flat"
                         >
                           {settings.theme === "system"
-                            ? "跟随系统"
+                            ? t("drawer.theme.system")
                             : settings.theme === "dark"
-                              ? "深色主题"
-                              : "浅色主题"}
+                              ? t("drawer.theme.dark")
+                              : t("drawer.theme.light")}
                         </Button>
                       </DropdownTrigger>
                       <DropdownMenu
-                        aria-label="主题选择"
+                        aria-label={t("drawer.theme.label")}
                         selectedKeys={settings.theme ? [settings.theme] : []}
                         selectionMode="single"
                         onAction={(key) => {
@@ -129,7 +132,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                             <Icon icon="solar:sun-bold" width={16} />
                           }
                         >
-                          浅色主题
+                          {t("drawer.theme.light")}
                         </DropdownItem>
                         <DropdownItem
                           key="dark"
@@ -137,7 +140,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                             <Icon icon="solar:moon-bold" width={16} />
                           }
                         >
-                          深色主题
+                          {t("drawer.theme.dark")}
                         </DropdownItem>
                         <DropdownItem
                           key="system"
@@ -145,7 +148,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                             <Icon icon="lucide:monitor" width={16} />
                           }
                         >
-                          跟随系统
+                          {t("drawer.theme.system")}
                         </DropdownItem>
                       </DropdownMenu>
                     </Dropdown>
@@ -168,10 +171,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     </div>
                     <div>
                       <span className="font-semibold text-foreground">
-                        语言设置
+                        {t("drawer.language.title")}
                       </span>
                       <p className="text-xs text-default-500 mt-1">
-                        选择您的界面语言
+                        {t("drawer.language.description")}
                       </p>
                     </div>
                   </div>
@@ -179,7 +182,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                 <CardBody className="pt-0 pb-4">
                   <div className="flex items-center justify-between">
                     <span className="text-sm font-medium text-default-700">
-                      界面语言
+                      {t("drawer.language.label")}
                     </span>
                     <Dropdown>
                       <DropdownTrigger>
@@ -191,35 +194,35 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                           size="sm"
                           variant="flat"
                         >
-                          {settings.language === "zh" ? "简体中文" : "English"}
+                          {settings.language === "zh-CN" ? tCommon("language.zhCN") : tCommon("language.enUS")}
                         </Button>
                       </DropdownTrigger>
                       <DropdownMenu
-                        aria-label="语言选择"
+                        aria-label={t("drawer.language.label")}
                         selectedKeys={settings.language ? [settings.language] : []}
                         selectionMode="single"
                         onAction={(key) => {
                           console.log("Language selected:", key);
                           if (key) {
-                            updateLanguage(key as "zh" | "en");
+                            updateLanguage(key as "zh-CN" | "en-US");
                           }
                         }}
                       >
                         <DropdownItem
-                          key="zh"
+                          key="zh-CN"
                           startContent={
                             <Icon icon="circle-flags:cn" width={16} />
                           }
                         >
-                          简体中文
+                          {tCommon("language.zhCN")}
                         </DropdownItem>
                         <DropdownItem
-                          key="en"
+                          key="en-US"
                           startContent={
                             <Icon icon="circle-flags:us" width={16} />
                           }
                         >
-                          English
+                          {tCommon("language.enUS")}
                         </DropdownItem>
                       </DropdownMenu>
                     </Dropdown>
@@ -242,10 +245,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     </div>
                     <div>
                       <span className="font-semibold text-foreground">
-                        隐私模式
+                        {t("drawer.privacy.title")}
                       </span>
                       <p className="text-xs text-default-500 mt-1">
-                        保护您的隐私数据安全
+                        {t("drawer.privacy.description")}
                       </p>
                     </div>
                   </div>
@@ -254,10 +257,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-default-700 mb-2 font-medium">
-                        增强隐私保护功能
+                        {t("drawer.privacy.label")}
                       </p>
                       <p className="text-xs text-default-500 leading-relaxed">
-                        隐藏敏感信息，限制数据收集，保护用户隐私
+                        {t("drawer.privacy.details")}
                       </p>
                     </div>
                     <Switch
@@ -288,10 +291,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     </div>
                     <div>
                       <span className="font-semibold text-foreground">
-                        实验性功能
+                        {t("drawer.experimental.title")}
                       </span>
                       <p className="text-xs text-default-500 mt-1">
-                        尝鲜测试中的新特性
+                        {t("drawer.experimental.description")}
                       </p>
                     </div>
                   </div>
@@ -300,10 +303,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-default-700 mb-2 font-medium">
-                        启用实验性功能
+                        {t("drawer.experimental.label")}
                       </p>
                       <p className="text-xs text-default-500 leading-relaxed">
-                        功能可能不稳定，谨慎在生产环境使用
+                        {t("drawer.experimental.details")}
                       </p>
                     </div>
                     <Switch
@@ -334,10 +337,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     </div>
                     <div>
                       <span className="font-semibold text-foreground">
-                        自动检查新版本
+                        {t("drawer.updates.title")}
                       </span>
                       <p className="text-xs text-default-500 mt-1">
-                        管理软件更新检查策略
+                        {t("drawer.updates.description")}
                       </p>
                     </div>
                   </div>
@@ -347,10 +350,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
                       <p className="text-sm text-default-700 mb-2 font-medium">
-                        启用自动检查更新
+                        {t("drawer.updates.enable")}
                       </p>
                       <p className="text-xs text-default-500 leading-relaxed">
-                        定期检查是否有新版本可用
+                        {t("drawer.updates.enableDesc")}
                       </p>
                     </div>
                     <Switch
@@ -370,7 +373,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     <div className="space-y-3 pt-2 border-t border-divider/20">
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-default-700 font-medium">
-                          检查频率
+                          {t("drawer.updates.frequency")}
                         </span>
                         <Select
                           className="w-32"
@@ -386,10 +389,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                             updateSettings({ updateCheckFrequency: frequency });
                           }}
                         >
-                          <SelectItem key="daily">每日</SelectItem>
-                          <SelectItem key="weekly">每周</SelectItem>
-                          <SelectItem key="monthly">每月</SelectItem>
-                          <SelectItem key="never">从不</SelectItem>
+                          <SelectItem key="daily">{t("drawer.updates.daily")}</SelectItem>
+                          <SelectItem key="weekly">{t("drawer.updates.weekly")}</SelectItem>
+                          <SelectItem key="monthly">{t("drawer.updates.monthly")}</SelectItem>
+                          <SelectItem key="never">{t("drawer.updates.never")}</SelectItem>
                         </Select>
                       </div>
 
@@ -397,7 +400,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                       {settings.updateCheckFrequency !== "never" && (
                         <div className="flex items-center justify-between">
                           <span className="text-sm text-default-700 font-medium">
-                            检查时间
+                            {t("drawer.updates.time")}
                           </span>
                           <Select
                             className="w-32"
@@ -409,11 +412,11 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                               updateSettings({ updateCheckTime: time });
                             }}
                           >
-                            <SelectItem key="00:00">午夜 (00:00)</SelectItem>
-                            <SelectItem key="06:00">早晨 (06:00)</SelectItem>
-                            <SelectItem key="12:00">中午 (12:00)</SelectItem>
-                            <SelectItem key="18:00">傍晚 (18:00)</SelectItem>
-                            <SelectItem key="22:00">晚上 (22:00)</SelectItem>
+                            <SelectItem key="00:00">{t("drawer.updates.midnight")}</SelectItem>
+                            <SelectItem key="06:00">{t("drawer.updates.morning")}</SelectItem>
+                            <SelectItem key="12:00">{t("drawer.updates.noon")}</SelectItem>
+                            <SelectItem key="18:00">{t("drawer.updates.evening")}</SelectItem>
+                            <SelectItem key="22:00">{t("drawer.updates.night")}</SelectItem>
                           </Select>
                         </div>
                       )}
@@ -422,10 +425,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
 
                   {/* 更新通知设置 */}
                   {settings.autoCheckUpdates && (
-                    <div className="space-y-3 pt-2 border-t border-divider/20">
+                    <div className="space-y-3 pt-2 border-divider/20">
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-default-700 font-medium">
-                          更新通知
+                          {t("drawer.updates.notifications")}
                         </span>
                         <Switch
                           color="primary"
@@ -437,7 +440,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
 
                       <div className="flex items-center justify-between">
                         <span className="text-sm text-default-700 font-medium">
-                          静默下载
+                          {t("drawer.updates.silentDownload")}
                         </span>
                         <Switch
                           color="primary"
@@ -463,10 +466,10 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
               onPress={onClose}
             >
               <Icon icon="lucide:check" width={18} />
-              保存设置
+              {t("drawer.save")}
             </Button>
             <p className="text-xs text-default-400 text-center">
-              设置将自动保存到本地存储
+              {t("drawer.autoSave")}
             </p>
           </div>
         </DrawerFooter>
