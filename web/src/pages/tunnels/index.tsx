@@ -1886,13 +1886,13 @@ export default function TunnelsPage() {
                     }
                   }}
                 >
-                  <SelectItem key="10" className="text-xs" textValue="10条/页">
+                  <SelectItem key="10" className="text-xs" textValue={t("pagination.rows10")}>
                     10
                   </SelectItem>
-                  <SelectItem key="20" className="text-xs" textValue="20条/页">
+                  <SelectItem key="20" className="text-xs" textValue={t("pagination.rows20")}>
                     20
                   </SelectItem>
-                  <SelectItem key="50" className="text-xs" textValue="50条/页">
+                  <SelectItem key="50" className="text-xs" textValue={t("pagination.rows50")}>
                     50
                   </SelectItem>
                 </Select>
