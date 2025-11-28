@@ -1,0 +1,154 @@
+{
+  "page": {
+    "title": "Tunnel Management",
+    "loading": "Loading...",
+    "loadFailed": "Load Failed",
+    "retry": "Retry",
+    "noData": "No Tunnels",
+    "noDataDesc": "You haven't created any tunnels yet",
+    "refresh": "Refresh",
+    "reset": "Reset"
+  },
+  "table": {
+    "columns": {
+      "type": "Type",
+      "name": "Name",
+      "endpoint": "Endpoint",
+      "tunnelAddress": "Tunnel Address",
+      "targetAddress": "Target Address",
+      "status": "Status",
+      "traffic": "Traffic Stats",
+      "actions": "Actions"
+    },
+    "trafficTooltip": {
+      "line1": "Line 1: ↑ Total Upload Traffic (TCP+UDP)",
+      "line2": "Line 2: ↓ Total Download Traffic (TCP+UDP)"
+    }
+  },
+  "type": {
+    "server": "Server",
+    "client": "Client"
+  },
+  "status": {
+    "all": "All Status",
+    "running": "Running",
+    "stopped": "Stopped",
+    "error": "Error",
+    "offline": "Offline",
+    "unknown": "Unknown"
+  },
+  "filter": {
+    "search": "Search Tunnels",
+    "searchPlaceholder": "Search tunnel name...",
+    "statusFilter": "Status Filter",
+    "endpointFilter": "Endpoint Filter",
+    "allEndpoints": "All Endpoints",
+    "groupFilter": "Group Filter",
+    "all": "All",
+    "selected": "{count} Selected"
+  },
+  "sort": {
+    "label": "Sort",
+    "id": "ID",
+    "sorts": "Weight",
+    "type": "Type",
+    "name": "Name",
+    "endpoint_id": "Endpoint",
+    "status": "Status",
+    "services": "Services"
+  },
+  "pagination": {
+    "rowsPerPage": "Rows per page",
+    "rows10": "10 per page",
+    "rows20": "20 per page",
+    "rows50": "50 per page"
+  },
+  "actions": {
+    "create": "Create",
+    "createInstance": "Create Tunnel",
+    "createOptions": "Create Options",
+    "manualCreate": "Manual Create",
+    "batchCreate": "Batch Create",
+    "scenarioCreate": "Scenario Create",
+    "groupManagement": "Group Management",
+    "view": "View Tunnel",
+    "start": "Start Tunnel",
+    "stop": "Stop Tunnel",
+    "restart": "Restart Tunnel",
+    "edit": "Edit Tunnel",
+    "rename": "Rename",
+    "delete": "Delete Tunnel",
+    "bulkActions": "Bulk Actions",
+    "bulkStart": "Bulk Start",
+    "bulkStop": "Bulk Stop",
+    "bulkRestart": "Bulk Restart",
+    "bulkExport": "Bulk Export",
+    "bulkDelete": "Bulk Delete",
+    "modifyName": "Modify Name"
+  },
+  "delete": {
+    "modalTitle": "Confirm Delete",
+    "confirmMessage": "Are you sure you want to delete tunnel",
+    "confirmMessageEnd": "?",
+    "warning": "⚠️ This action cannot be undone. All configurations and data for this tunnel will be permanently deleted.",
+    "cancel": "Cancel",
+    "confirm": "Confirm Delete",
+    "batchTitle": "Confirm Batch Delete",
+    "batchMessage": "Are you sure you want to delete the selected",
+    "batchMessageEnd": "tunnels?",
+    "batchWarning": "⚠️ This action cannot be undone. All configurations and data for the selected tunnels will be permanently deleted."
+  },
+  "export": {
+    "modalTitle": "Export Configuration Rules",
+    "selectedMessage": "Selected {count} tunnel configuration rules, format complies with batch creation specifications:",
+    "close": "Close",
+    "copy": "Copy Configuration"
+  },
+  "toast": {
+    "fetchError": "Error",
+    "fetchFailed": "Failed to fetch tunnel list",
+    "fetchEndpointsFailed": "Failed to fetch endpoint list",
+    "fetchGroupsFailed": "Failed to fetch group list",
+    "actionSuccess": "Success",
+    "actionSuccessDesc": "Operation successful",
+    "actionFailed": "Operation failed",
+    "deleteSuccess": "Delete successful",
+    "deleteFailed": "Delete failed",
+    "batchDeleteProgress": "Batch deleting...",
+    "batchDeleteProgressDesc": "Deleting selected tunnels, please wait",
+    "batchDeleteSuccess": "Batch Delete Successful",
+    "batchDeleteSuccessDesc": "Deleted {count} tunnels",
+    "batchDeleteFailed": "Batch Delete Failed",
+    "batchStartFailed": "Batch Start Failed",
+    "batchStartFailedDesc": "Please select tunnels to start first",
+    "batchStartNoInstances": "No startable tunnels in selection (stopped status)",
+    "batchStartProgress": "Batch starting...",
+    "batchStartProgressDesc": "Starting {count} tunnels, please wait",
+    "batchStartComplete": "Batch Start Complete",
+    "batchStartCompleteDesc": "Successfully started {success} tunnels{failed}",
+    "batchStopFailed": "Batch Stop Failed",
+    "batchStopFailedDesc": "Please select tunnels to stop first",
+    "batchStopNoInstances": "No stoppable tunnels in selection (running status)",
+    "batchStopProgress": "Batch stopping...",
+    "batchStopProgressDesc": "Stopping {count} tunnels, please wait",
+    "batchStopComplete": "Batch Stop Complete",
+    "batchStopCompleteDesc": "Successfully stopped {success} tunnels{failed}",
+    "batchRestartFailed": "Batch Restart Failed",
+    "batchRestartFailedDesc": "Please select tunnels to restart first",
+    "batchRestartNoInstances": "No restartable tunnels in selection (running status)",
+    "batchRestartProgress": "Batch restarting...",
+    "batchRestartProgressDesc": "Restarting {count} tunnels, please wait",
+    "batchRestartComplete": "Batch Restart Complete",
+    "batchRestartCompleteDesc": "Successfully restarted {success} tunnels{failed}",
+    "failedCount": ", {count} failed",
+    "unknownError": "Unknown error",
+    "missingInstanceId": "This tunnel is missing NodePass ID, cannot perform operation",
+    "copySuccess": "Configuration copied to clipboard"
+  },
+  "mobile": {
+    "endpoint": "Endpoint:",
+    "tunnel": "Tunnel:",
+    "target": "Target:",
+    "version": "Version:"
+  }
+}

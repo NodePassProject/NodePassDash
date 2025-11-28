@@ -73,6 +73,7 @@ import GroupManagementModal from "@/components/tunnels/group-management-modal";
 import RenameTunnelModal from "@/components/tunnels/rename-tunnel-modal";
 import { useSettings } from "@/components/providers/settings-provider";
 import { useIsMobile } from "@/lib/hooks/use-media-query";
+import { useTranslation } from "react-i18next";
 
 // 定义分组类型
 interface Group {
@@ -114,6 +115,7 @@ interface Endpoint {
 }
 
 export default function TunnelsPage() {
+  const { t } = useTranslation("tunnels");
   const navigate = useNavigate();
   const isMobile = useIsMobile();
   const [searchInput, setSearchInput] = useState(""); // 搜索输入框的即时状态
@@ -197,15 +199,18 @@ export default function TunnelsPage() {
   } as unknown as SortDescriptor);
 
   // 排序选项配置
-  const sortOptions = [
-    { key: "id", label: "ID" },
-    { key: "sorts", label: "权重" },
-    { key: "type", label: "类型" },
-    { key: "name", label: "名称" },
-    { key: "endpoint_id", label: "主控" },
-    { key: "status", label: "状态" },
-    { key: "services", label: "服务" },
-  ];
+  const sortOptions = useMemo(
+    () => [
+      { key: "id", label: t("sort.id") },
+      { key: "sorts", label: t("sort.sorts") },
+      { key: "type", label: t("sort.type") },
+      { key: "name", label: t("sort.name") },
+      { key: "endpoint_id", label: t("sort.endpoint_id") },
+      { key: "status", label: t("sort.status") },
+      { key: "services", label: t("sort.services") },
+    ],
+    [t],
+  );
 
   // 排序处理函数
   const handleSortChange = (descriptor: SortDescriptor) => {
@@ -256,7 +261,7 @@ export default function TunnelsPage() {
         buildApiUrl("/api/tunnels") + "?" + params.toString(),
       );
 
-      if (!response.ok) throw new Error("获取实例列表失败");
+      if (!response.ok) throw new Error(t("toast.fetchFailed"));
       const result = await response.json();
 
       // 更新数据和分页信息
@@ -271,9 +276,9 @@ export default function TunnelsPage() {
     } catch (error) {
       console.error("获取实例列表失败:", error);
       addToast({
-        title: "错误",
+        title: t("toast.fetchError"),
         description:
-          error instanceof Error ? error.message : "获取实例列表失败",
+          error instanceof Error ? error.message : t("toast.fetchFailed"),
         color: "danger",
       });
     } finally {
@@ -294,15 +299,15 @@ export default function TunnelsPage() {
     try {
       const response = await fetch(buildApiUrl("/api/endpoints/simple"));
 
-      if (!response.ok) throw new Error("获取主控列表失败");
+      if (!response.ok) throw new Error(t("toast.fetchEndpointsFailed"));
       const data = await response.json();
 
       setEndpoints(data);
     } catch (error) {
       console.error("获取主控列表失败:", error);
       addToast({
-        title: "错误",
-        description: "获取主控列表失败",
+        title: t("toast.fetchError"),
+        description: t("toast.fetchEndpointsFailed"),
         color: "danger",
       });
     } finally {
@@ -315,15 +320,15 @@ export default function TunnelsPage() {
       setGroupsLoading(true);
       const response = await fetch(buildApiUrl("/api/groups"));
 
-      if (!response.ok) throw new Error("获取分组列表失败");
+      if (!response.ok) throw new Error(t("toast.fetchGroupsFailed"));
       const data = await response.json();
 
       setGroups(data.groups || []);
     } catch (error) {
       console.error("获取分组列表失败:", error);
       addToast({
-        title: "错误",
-        description: "获取分组列表失败",
+        title: t("toast.fetchError"),
+        description: t("toast.fetchGroupsFailed"),
         color: "danger",
       });
     } finally {
@@ -334,24 +339,24 @@ export default function TunnelsPage() {
   // 状态选项 - 使用useMemo缓存
   const statusOptions = useMemo(
     () => [
-      { label: "所有状态", value: "all" },
-      { label: "运行中", value: "running" },
-      { label: "已停止", value: "stopped" },
-      { label: "有错误", value: "error" },
-      { label: "已离线", value: "offline" },
+      { label: t("status.all"), value: "all" },
+      { label: t("status.running"), value: "running" },
+      { label: t("status.stopped"), value: "stopped" },
+      { label: t("status.error"), value: "error" },
+      { label: t("status.offline"), value: "offline" },
     ],
-    [],
+    [t],
   );
 
   // 获取选中主控名称 - 使用useMemo缓存
   const selectedEndpointName = useMemo(() => {
-    if (endpointFilter === "all") return "所有主控";
+    if (endpointFilter === "all") return t("filter.allEndpoints");
     const endpoint = endpoints.find(
       (ep) => String(ep.id) === String(endpointFilter),
     );
 
-    return endpoint ? endpoint.name : "所有主控";
-  }, [endpointFilter, endpoints]);
+    return endpoint ? endpoint.name : t("filter.allEndpoints");
+  }, [endpointFilter, endpoints, t]);
 
   // 处理实例操作
   const handleTunnelAction = async (tunnelId: string, action: string) => {
@@ -377,15 +382,15 @@ export default function TunnelsPage() {
       await fetchTunnels();
 
       addToast({
-        title: "成功",
-        description: "操作成功",
+        title: t("toast.actionSuccess"),
+        description: t("toast.actionSuccessDesc"),
         color: "success",
       });
     } catch (error) {
       console.error("实例操作失败:", error);
       addToast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "操作失败",
+        title: t("toast.fetchError"),
+        description: error instanceof Error ? error.message : t("toast.actionFailed"),
         color: "danger",
       });
     }
@@ -408,15 +413,15 @@ export default function TunnelsPage() {
       await fetchTunnels();
 
       addToast({
-        title: "成功",
-        description: "删除成功",
+        title: t("toast.actionSuccess"),
+        description: t("toast.deleteSuccess"),
         color: "success",
       });
     } catch (error) {
       console.error("删除实例失败:", error);
       addToast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "删除失败",
+        title: t("toast.fetchError"),
+        description: error instanceof Error ? error.message : t("toast.deleteFailed"),
         color: "danger",
       });
     }
@@ -457,8 +462,8 @@ export default function TunnelsPage() {
     // 使用 promise 形式的 Toast
     addToast({
       timeout: 1,
-      title: "批量删除中...",
-      description: "正在删除所选实例，请稍候",
+      title: t("toast.batchDeleteProgress"),
+      description: t("toast.batchDeleteProgressDesc"),
       color: "primary",
       promise: fetch(buildApiUrl("/api/tunnels/batch"), {
         method: "DELETE",
@@ -474,13 +479,13 @@ export default function TunnelsPage() {
           const data = await response.json();
 
           if (!response.ok) {
-            throw new Error(data?.error || "批量删除失败");
+            throw new Error(data?.error || t("toast.batchDeleteFailed"));
           }
 
           // 成功提示
           addToast({
-            title: "批量删除成功",
-            description: `已删除 ${data.deleted || ids.length} 个实例`,
+            title: t("toast.batchDeleteSuccess"),
+            description: t("toast.batchDeleteSuccessDesc", { count: data.deleted || ids.length }),
             color: "success",
           });
 
@@ -494,8 +499,8 @@ export default function TunnelsPage() {
         .catch((error) => {
           // 失败提示
           addToast({
-            title: "批量删除失败",
-            description: error instanceof Error ? error.message : "未知错误",
+            title: t("toast.batchDeleteFailed"),
+            description: error instanceof Error ? error.message : t("toast.unknownError"),
             color: "danger",
           });
           throw error;
@@ -510,8 +515,8 @@ export default function TunnelsPage() {
       (selectedKeys instanceof Set && selectedKeys.size === 0)
     ) {
       addToast({
-        title: "批量启动失败",
-        description: "请先选择需要启动的实例",
+        title: t("toast.batchStartFailed"),
+        description: t("toast.batchStartFailedDesc"),
         color: "warning",
       });
 
@@ -536,8 +541,8 @@ export default function TunnelsPage() {
 
     if (stoppedTunnels.length === 0) {
       addToast({
-        title: "批量启动失败",
-        description: "所选实例中没有可启动的实例（已停止状态）",
+        title: t("toast.batchStartFailed"),
+        description: t("toast.batchStartNoInstances"),
         color: "warning",
       });
 
@@ -546,8 +551,8 @@ export default function TunnelsPage() {
 
     // 显示进行中toast
     addToast({
-      title: "批量启动中...",
-      description: `正在启动 ${stoppedTunnels.length} 个实例，请稍候`,
+      title: t("toast.batchStartProgress"),
+      description: t("toast.batchStartProgressDesc", { count: stoppedTunnels.length }),
       color: "primary",
     });
 
@@ -564,7 +569,7 @@ export default function TunnelsPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "批量启动失败");
+        throw new Error(data.error || t("toast.batchStartFailed"));
       }
 
       const succeeded = data.operated || 0;
@@ -572,8 +577,11 @@ export default function TunnelsPage() {
 
       // 显示结果toast
       addToast({
-        title: "批量启动完成",
-        description: `成功启动 ${succeeded} 个实例${failed > 0 ? `，${failed} 个失败` : ""}`,
+        title: t("toast.batchStartComplete"),
+        description: t("toast.batchStartCompleteDesc", {
+          success: succeeded,
+          failed: failed > 0 ? t("toast.failedCount", { count: failed }) : ""
+        }),
         color: failed === 0 ? "success" : "warning",
       });
 
@@ -590,8 +598,8 @@ export default function TunnelsPage() {
       await fetchTunnels();
     } catch (error) {
       addToast({
-        title: "批量启动失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("toast.batchStartFailed"),
+        description: error instanceof Error ? error.message : t("toast.unknownError"),
         color: "danger",
       });
     }
@@ -604,8 +612,8 @@ export default function TunnelsPage() {
       (selectedKeys instanceof Set && selectedKeys.size === 0)
     ) {
       addToast({
-        title: "批量停止失败",
-        description: "请先选择需要停止的实例",
+        title: t("toast.batchStopFailed"),
+        description: t("toast.batchStopFailedDesc"),
         color: "warning",
       });
 
@@ -630,8 +638,8 @@ export default function TunnelsPage() {
 
     if (runningTunnels.length === 0) {
       addToast({
-        title: "批量停止失败",
-        description: "所选实例中没有可停止的实例（运行中状态）",
+        title: t("toast.batchStopFailed"),
+        description: t("toast.batchStopNoInstances"),
         color: "warning",
       });
 
@@ -640,8 +648,8 @@ export default function TunnelsPage() {
 
     // 显示进行中toast
     addToast({
-      title: "批量停止中...",
-      description: `正在停止 ${runningTunnels.length} 个实例，请稍候`,
+      title: t("toast.batchStopProgress"),
+      description: t("toast.batchStopProgressDesc", { count: runningTunnels.length }),
       color: "primary",
     });
 
@@ -658,7 +666,7 @@ export default function TunnelsPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "批量停止失败");
+        throw new Error(data.error || t("toast.batchStopFailed"));
       }
 
       const succeeded = data.operated || 0;
@@ -666,8 +674,11 @@ export default function TunnelsPage() {
 
       // 显示结果toast
       addToast({
-        title: "批量停止完成",
-        description: `成功停止 ${succeeded} 个实例${failed > 0 ? `，${failed} 个失败` : ""}`,
+        title: t("toast.batchStopComplete"),
+        description: t("toast.batchStopCompleteDesc", {
+          success: succeeded,
+          failed: failed > 0 ? t("toast.failedCount", { count: failed }) : ""
+        }),
         color: failed === 0 ? "success" : "warning",
       });
 
@@ -684,8 +695,8 @@ export default function TunnelsPage() {
       await fetchTunnels();
     } catch (error) {
       addToast({
-        title: "批量停止失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("toast.batchStopFailed"),
+        description: error instanceof Error ? error.message : t("toast.unknownError"),
         color: "danger",
       });
     }
@@ -698,8 +709,8 @@ export default function TunnelsPage() {
       (selectedKeys instanceof Set && selectedKeys.size === 0)
     ) {
       addToast({
-        title: "批量重启失败",
-        description: "请先选择需要重启的实例",
+        title: t("toast.batchRestartFailed"),
+        description: t("toast.batchRestartFailedDesc"),
         color: "warning",
       });
 
@@ -724,8 +735,8 @@ export default function TunnelsPage() {
 
     if (runningTunnels.length === 0) {
       addToast({
-        title: "批量重启失败",
-        description: "所选实例中没有可重启的实例（运行中状态）",
+        title: t("toast.batchRestartFailed"),
+        description: t("toast.batchRestartNoInstances"),
         color: "warning",
       });
 
@@ -734,8 +745,8 @@ export default function TunnelsPage() {
 
     // 显示进行中toast
     addToast({
-      title: "批量重启中...",
-      description: `正在重启 ${runningTunnels.length} 个实例，请稍候`,
+      title: t("toast.batchRestartProgress"),
+      description: t("toast.batchRestartProgressDesc", { count: runningTunnels.length }),
       color: "primary",
     });
 
@@ -752,7 +763,7 @@ export default function TunnelsPage() {
       const data = await response.json();
 
       if (!response.ok) {
-        throw new Error(data.error || "批量重启失败");
+        throw new Error(data.error || t("toast.batchRestartFailed"));
       }
 
       const succeeded = data.operated || 0;
@@ -760,8 +771,11 @@ export default function TunnelsPage() {
 
       // 显示结果toast
       addToast({
-        title: "批量重启完成",
-        description: `成功重启 ${succeeded} 个实例${failed > 0 ? `，${failed} 个失败` : ""}`,
+        title: t("toast.batchRestartComplete"),
+        description: t("toast.batchRestartCompleteDesc", {
+          success: succeeded,
+          failed: failed > 0 ? t("toast.failedCount", { count: failed }) : ""
+        }),
         color: failed === 0 ? "success" : "warning",
       });
 
@@ -778,8 +792,8 @@ export default function TunnelsPage() {
       await fetchTunnels();
     } catch (error) {
       addToast({
-        title: "批量重启失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("toast.batchRestartFailed"),
+        description: error instanceof Error ? error.message : t("toast.unknownError"),
         color: "danger",
       });
     }
@@ -837,7 +851,7 @@ export default function TunnelsPage() {
 
   // 复制配置到剪贴板
   const copyExportConfig = async () => {
-    copyToClipboard(exportConfig, "配置已复制到剪贴板", showManualCopyModal);
+    copyToClipboard(exportConfig, t("toast.copySuccess"), showManualCopyModal);
   };
 
   // 格式化地址显示（处理脱敏逻辑）
@@ -868,22 +882,22 @@ export default function TunnelsPage() {
 
   // 类型显示转换函数
   const getTypeDisplayText = (type: "server" | "client"): string => {
-    return type === "server" ? "服务端" : "客户端";
+    return type === "server" ? t("type.server") : t("type.client");
   };
 
   // 根据状态获取状态颜色和文本
   const getStatusInfo = (status: string) => {
     switch (status) {
       case "running":
-        return { type: "success" as const, text: "运行" };
+        return { type: "success" as const, text: t("status.running") };
       case "stopped":
-        return { type: "danger" as const, text: "停止" };
+        return { type: "danger" as const, text: t("status.stopped") };
       case "error":
-        return { type: "warning" as const, text: "错误" };
+        return { type: "warning" as const, text: t("status.error") };
       case "offline":
-        return { type: "default" as const, text: "离线" };
+        return { type: "default" as const, text: t("status.offline") };
       default:
-        return { type: "default" as const, text: "未知" };
+        return { type: "default" as const, text: t("status.unknown") };
     }
   };
 
@@ -926,14 +940,14 @@ export default function TunnelsPage() {
             </div>
             <div className="space-y-1 text-xs text-default-600">
               <div className="flex items-center gap-1">
-                <span>主控:</span>
+                <span>{t("mobile.endpoint")}</span>
                 <Tooltip
                   content={
                     <div className="text-xs">
                       <div className="font-medium">{tunnel.endpoint}</div>
                       {tunnel.version && (
                         <div className="text-default-400">
-                          版本: {tunnel.version}
+                          {t("mobile.version")} {tunnel.version}
                         </div>
                       )}
                     </div>
@@ -947,10 +961,10 @@ export default function TunnelsPage() {
                 </Tooltip>
               </div>
               <div>
-                隧道: {formatAddress(tunnel.tunnelAddress, tunnel.tunnelPort)}
+                {t("mobile.tunnel")} {formatAddress(tunnel.tunnelAddress, tunnel.tunnelPort)}
               </div>
               <div>
-                目标: {formatAddress(tunnel.targetAddress, tunnel.targetPort)}
+                {t("mobile.target")} {formatAddress(tunnel.targetAddress, tunnel.targetPort)}
               </div>
             </div>
           </div>
@@ -998,14 +1012,14 @@ export default function TunnelsPage() {
                   <FontAwesomeIcon className="text-xs" icon={faEllipsisV} />
                 </Button>
               </DropdownTrigger>
-              <DropdownMenu aria-label="操作选项">
+              <DropdownMenu aria-label={t("table.columns.actions")}>
                 <DropdownItem
                   key="restart"
                   isDisabled={tunnel.status !== "running"}
                   startContent={<FontAwesomeIcon icon={faRotateRight} />}
                   onClick={() => handleRestart(tunnel)}
                 >
-                  重启
+                  {t("actions.restart")}
                 </DropdownItem>
                 <DropdownItem
                   key="edit"
@@ -1015,14 +1029,14 @@ export default function TunnelsPage() {
                     setEditModalOpen(true);
                   }}
                 >
-                  编辑
+                  {t("actions.edit")}
                 </DropdownItem>
                 <DropdownItem
                   key="rename"
                   startContent={<FontAwesomeIcon icon={faPen} />}
                   onClick={() => handleEditClick(tunnel)}
                 >
-                  重命名
+                  {t("actions.rename")}
                 </DropdownItem>
                 <DropdownItem
                   key="delete"
@@ -1031,7 +1045,7 @@ export default function TunnelsPage() {
                   startContent={<FontAwesomeIcon icon={faTrash} />}
                   onClick={() => handleDeleteClick(tunnel)}
                 >
-                  删除
+                  {t("actions.delete")}
                 </DropdownItem>
               </DropdownMenu>
             </Dropdown>
@@ -1066,30 +1080,30 @@ export default function TunnelsPage() {
   // 表格列定义 - 使用useMemo缓存
   const columns = useMemo(
     () => [
-      { key: "type", label: "类型", sortable: false },
-      { key: "name", label: "名称", sortable: true },
-      { key: "endpoint", label: "主控", sortable: false },
+      { key: "type", label: t("table.columns.type"), sortable: false },
+      { key: "name", label: t("table.columns.name"), sortable: true },
+      { key: "endpoint", label: t("table.columns.endpoint"), sortable: false },
       {
         key: "tunnelAddress",
-        label: "隧道地址",
+        label: t("table.columns.tunnelAddress"),
         sortable: false,
       },
       {
         key: "targetAddress",
-        label: "目标地址",
+        label: t("table.columns.targetAddress"),
         sortable: false,
       },
-      { key: "status", label: "状态", sortable: false },
+      { key: "status", label: t("table.columns.status"), sortable: false },
       {
         key: "traffic",
         label: (
           <div className="flex items-center gap-1">
-            <span>流量统计</span>
+            <span>{t("table.columns.traffic")}</span>
             <Tooltip
               content={
                 <div className="text-xs">
-                  <div>第一行：↑ 总上传流量 (TCP+UDP)</div>
-                  <div>第二行：↓ 总下载流量 (TCP+UDP)</div>
+                  <div>{t("table.trafficTooltip.line1")}</div>
+                  <div>{t("table.trafficTooltip.line2")}</div>
                 </div>
               }
               size="sm"
@@ -1103,9 +1117,9 @@ export default function TunnelsPage() {
         ),
         sortable: false,
       },
-      { key: "actions", label: "操作", sortable: false },
+      { key: "actions", label: t("table.columns.actions"), sortable: false },
     ],
-    [],
+    [t],
   );
 
   // 更新实例状态的函数
@@ -1130,7 +1144,7 @@ export default function TunnelsPage() {
   // 操作按钮处理函数
   const handleToggleStatus = (tunnel: any) => {
     if (!tunnel.instanceId) {
-      alert("此实例缺少NodePass ID，无法执行操作");
+      alert(t("toast.missingInstanceId"));
 
       return;
     }
@@ -1149,7 +1163,7 @@ export default function TunnelsPage() {
 
   const handleRestart = (tunnel: any) => {
     if (!tunnel.instanceId) {
-      alert("此实例缺少NodePass ID，无法执行操作");
+      alert(t("toast.missingInstanceId"));
 
       return;
     }
@@ -1291,7 +1305,7 @@ export default function TunnelsPage() {
           color={groupFilter === "all" ? "primary" : "default"}
           onClick={() => onGroupFilterChange("all")}
         >
-          所有
+          {t("filter.all")}
         </Chip>
         {groups.map((group) => (
           <Chip
@@ -1342,7 +1356,7 @@ export default function TunnelsPage() {
           <div className="flex md:hidden items-center justify-between w-full">
             {/* 左侧：标题和数量 */}
             <div className="flex items-center gap-3">
-              <h1 className="text-3xl font-semibold ">实例管理</h1>
+              <h1 className="text-3xl font-semibold ">{t("page.title")}</h1>
               {!loading && (
                 <Chip className="text-sm " size="sm" variant="solid">
                   {totalItems}
@@ -1367,7 +1381,7 @@ export default function TunnelsPage() {
                     setQuickCreateOpen(true);
                   }}
                 >
-                  创建
+                  {t("actions.create")}
                 </Button>
                 <Dropdown placement="bottom-end">
                   <DropdownTrigger>
@@ -1376,7 +1390,7 @@ export default function TunnelsPage() {
                     </Button>
                   </DropdownTrigger>
                   <DropdownMenu
-                    aria-label="创建选项"
+                    aria-label={t("actions.createOptions")}
                     onAction={(key) => {
                       switch (key) {
                         case "manual":
@@ -1400,7 +1414,7 @@ export default function TunnelsPage() {
                         <FontAwesomeIcon fixedWidth icon={faHammer} />
                       }
                     >
-                      手搓创建
+                      {t("actions.manualCreate")}
                     </DropdownItem>
                     <DropdownItem
                       key="batch"
@@ -1408,7 +1422,7 @@ export default function TunnelsPage() {
                         <FontAwesomeIcon fixedWidth icon={faCopy} />
                       }
                     >
-                      批量创建
+                      {t("actions.batchCreate")}
                     </DropdownItem>
                     {/* <DropdownItem
                       key="template"
@@ -1416,13 +1430,13 @@ export default function TunnelsPage() {
                         <FontAwesomeIcon icon={faLayerGroup} fixedWidth />
                       }
                     >
-                      场景创建
+                      {t("actions.scenarioCreate")}
                     </DropdownItem> */}
                     <DropdownItem
                       key="group"
                       startContent={<FontAwesomeIcon fixedWidth icon={faTag} />}
                     >
-                      分组管理
+                      {t("actions.groupManagement")}
                     </DropdownItem>
                   </DropdownMenu>
                 </Dropdown>
@@ -1434,7 +1448,7 @@ export default function TunnelsPage() {
           <div className="hidden md:flex items-center justify-between w-full">
             <div className="flex items-center gap-4">
               <span className="text-2xl font-semibold text-foreground">
-                实例管理
+                {t("page.title")}
               </span>
               {!loading && (
                 <Chip
@@ -1454,7 +1468,7 @@ export default function TunnelsPage() {
                 variant="flat"
                 onPress={handleGroupManagement}
               >
-                分组管理
+                {t("actions.groupManagement")}
               </Button>
               {/* 创建按钮组 */}
               <ButtonGroup>
@@ -1466,7 +1480,7 @@ export default function TunnelsPage() {
                     setQuickCreateOpen(true);
                   }}
                 >
-                  创建实例
+                  {t("actions.createInstance")}
                 </Button>
                 <Dropdown placement="bottom-end">
                   <DropdownTrigger>
@@ -1475,7 +1489,7 @@ export default function TunnelsPage() {
                     </Button>
                   </DropdownTrigger>
                   <DropdownMenu
-                    aria-label="创建选项"
+                    aria-label={t("actions.createOptions")}
                     onAction={(key) => {
                       switch (key) {
                         case "manual":
@@ -1493,7 +1507,7 @@ export default function TunnelsPage() {
                         <FontAwesomeIcon fixedWidth icon={faHammer} />
                       }
                     >
-                      手搓创建
+                      {t("actions.manualCreate")}
                     </DropdownItem>
                     <DropdownItem
                       key="batch"
@@ -1501,7 +1515,7 @@ export default function TunnelsPage() {
                         <FontAwesomeIcon fixedWidth icon={faCopy} />
                       }
                     >
-                      批量创建
+                      {t("actions.batchCreate")}
                     </DropdownItem>
                   </DropdownMenu>
                 </Dropdown>
@@ -1530,7 +1544,7 @@ export default function TunnelsPage() {
                   </Button>
                 )
               }
-              placeholder="搜索实例"
+              placeholder={t("filter.search")}
               size="sm"
               startContent={
                 <FontAwesomeIcon className="text-default-400" icon={faSearch} />
@@ -1546,7 +1560,7 @@ export default function TunnelsPage() {
                 trigger: "text-xs",
                 value: "text-xs",
               }}
-              placeholder="状态筛选"
+              placeholder={t("filter.statusFilter")}
               selectedKeys={[statusFilter]}
               size="sm"
               onSelectionChange={(keys) => {
@@ -1569,7 +1583,7 @@ export default function TunnelsPage() {
                 trigger: "text-xs",
                 value: "text-xs",
               }}
-              placeholder="主控筛选"
+              placeholder={t("filter.endpointFilter")}
               selectedKeys={[endpointFilter]}
               size="sm"
               onSelectionChange={(keys) => {
@@ -1579,7 +1593,7 @@ export default function TunnelsPage() {
               }}
             >
               <SelectItem key="all" className="text-xs">
-                所有主控
+                {t("filter.allEndpoints")}
               </SelectItem>
               <>
                 {endpoints.map((endpoint) => (
@@ -1611,7 +1625,7 @@ export default function TunnelsPage() {
                     </Button>
                   )
                 }
-                placeholder="搜索实例名称..."
+                placeholder={t("filter.searchPlaceholder")}
                 size="sm"
                 startContent={
                   <FontAwesomeIcon
@@ -1630,7 +1644,7 @@ export default function TunnelsPage() {
                   trigger: "text-xs",
                   value: "text-xs",
                 }}
-                placeholder="状态筛选"
+                placeholder={t("filter.statusFilter")}
                 selectedKeys={[statusFilter]}
                 size="sm"
                 onSelectionChange={(keys) => {
@@ -1653,7 +1667,7 @@ export default function TunnelsPage() {
                   trigger: "text-xs",
                   value: "text-xs",
                 }}
-                placeholder="主控筛选"
+                placeholder={t("filter.endpointFilter")}
                 selectedKeys={[endpointFilter]}
                 size="sm"
                 onSelectionChange={(keys) => {
@@ -1663,7 +1677,7 @@ export default function TunnelsPage() {
                 }}
               >
                 <SelectItem key="all" className="text-xs">
-                  所有主控
+                  {t("filter.allEndpoints")}
                 </SelectItem>
                 <>
                   {endpoints.map((endpoint) => (
@@ -1707,13 +1721,13 @@ export default function TunnelsPage() {
                     isDisabled={loading}
                   >
                     {sortDescriptor?.column
-                      ? sortOptions.find(opt => opt.key === sortDescriptor.column)?.label || '排序'
-                      : '排序'
+                      ? sortOptions.find(opt => opt.key === sortDescriptor.column)?.label || t("sort.label")
+                      : t("sort.label")
                     }
                   </Button>
                 </DropdownTrigger>
                 <DropdownMenu
-                  aria-label="排序选项"
+                  aria-label={t("sort.label")}
                   onAction={(key) => {
                     const column = key as string;
                     // 如果当前已经是这个字段排序，则切换方向；否则默认降序
@@ -1765,9 +1779,9 @@ export default function TunnelsPage() {
                   setPage(1);
                 }}
                 isDisabled={loading}
-                aria-label="重置筛选条件"
+                aria-label={t("page.reset")}
               >
-                重置
+                {t("page.reset")}
               </Button>
               {/* 刷新按钮 */}
               <Button
@@ -1777,19 +1791,19 @@ export default function TunnelsPage() {
                 // isLoading={loading}
                 startContent={<FontAwesomeIcon icon={faRotateRight} />}
               >
-                刷新
+                {t("page.refresh")}
               </Button>
               {selectedCount > 0 && (
                 <>
                   <Dropdown placement="bottom-end">
                     <DropdownTrigger>
                       <Button size="sm" variant="flat">
-                        批量操作
+                        {t("actions.bulkActions")}
                         <FontAwesomeIcon icon={faChevronDown} />
                       </Button>
                     </DropdownTrigger>
                     <DropdownMenu
-                      aria-label="批量操作"
+                      aria-label={t("actions.bulkActions")}
                       onAction={(key) => handleBulkAction(key as string)}
                     >
                       <DropdownItem
@@ -1799,7 +1813,7 @@ export default function TunnelsPage() {
                           <FontAwesomeIcon fixedWidth icon={faPlay} />
                         }
                       >
-                        批量启动
+                        {t("actions.bulkStart")}
                       </DropdownItem>
                       <DropdownItem
                         key="stop"
@@ -1808,7 +1822,7 @@ export default function TunnelsPage() {
                           <FontAwesomeIcon fixedWidth icon={faStop} />
                         }
                       >
-                        批量停止
+                        {t("actions.bulkStop")}
                       </DropdownItem>
                       <DropdownItem
                         key="restart"
@@ -1817,7 +1831,7 @@ export default function TunnelsPage() {
                           <FontAwesomeIcon fixedWidth icon={faRotateRight} />
                         }
                       >
-                        批量重启
+                        {t("actions.bulkRestart")}
                       </DropdownItem>
                       <DropdownItem
                         key="export"
@@ -1826,7 +1840,7 @@ export default function TunnelsPage() {
                           <FontAwesomeIcon fixedWidth icon={faDownload} />
                         }
                       >
-                        批量导出
+                        {t("actions.bulkExport")}
                       </DropdownItem>
                       <DropdownItem
                         key="delete"
@@ -1835,7 +1849,7 @@ export default function TunnelsPage() {
                           <FontAwesomeIcon fixedWidth icon={faTrash} />
                         }
                       >
-                        批量删除
+                        {t("actions.bulkDelete")}
                       </DropdownItem>
                     </DropdownMenu>
                   </Dropdown>
@@ -1897,7 +1911,7 @@ export default function TunnelsPage() {
                   {loading ? (
                     <div className="flex flex-col items-center gap-4">
                       <Spinner size="lg" />
-                      <p className="text-default-500">加载中...</p>
+                      <p className="text-default-500">{t("page.loading")}</p>
                     </div>
                   ) : error ? (
                     <div className="flex flex-col items-center gap-4">
@@ -1909,7 +1923,7 @@ export default function TunnelsPage() {
                       </div>
                       <div className="space-y-2">
                         <p className="text-danger text-base font-medium">
-                          加载失败
+                          {t("page.loadFailed")}
                         </p>
                         <p className="text-default-400 text-sm">{error}</p>
                       </div>
@@ -1919,7 +1933,7 @@ export default function TunnelsPage() {
                         variant="flat"
                         onClick={fetchTunnels}
                       >
-                        重试
+                        {t("page.retry")}
                       </Button>
                     </div>
                   ) : (
@@ -1932,10 +1946,10 @@ export default function TunnelsPage() {
                       </div>
                       <div className="space-y-2">
                         <p className="text-default-500 text-base font-medium">
-                          暂无实例
+                          {t("page.noData")}
                         </p>
                         <p className="text-default-400 text-sm">
-                          您还没有创建任何实例
+                          {t("page.noDataDesc")}
                         </p>
                       </div>
                     </div>
@@ -2006,7 +2020,7 @@ export default function TunnelsPage() {
                         </div>
                         <div className="space-y-2 text-center">
                           <p className="text-danger text-base font-medium">
-                            加载失败
+                            {t("page.loadFailed")}
                           </p>
                           <p className="text-default-400 text-sm">{error}</p>
                         </div>
@@ -2016,7 +2030,7 @@ export default function TunnelsPage() {
                           variant="flat"
                           onClick={fetchTunnels}
                         >
-                          重试
+                          {t("page.retry")}
                         </Button>
                       </div>
                     ) : (
@@ -2029,10 +2043,10 @@ export default function TunnelsPage() {
                         </div>
                         <div className="space-y-2">
                           <p className="text-default-500 text-base font-medium">
-                            暂无实例
+                            {t("page.noData")}
                           </p>
                           <p className="text-default-400 text-sm">
-                            您还没有创建任何实例
+                            {t("page.noDataDesc")}
                           </p>
                         </div>
                       </div>
@@ -2109,7 +2123,7 @@ export default function TunnelsPage() {
                               style={{ wordBreak: "break-all" }}
                             >
                               {tunnel.name}
-                              <Tooltip content="修改名称" size="sm">
+                              <Tooltip content={t("actions.modifyName")} size="sm">
                                 <FontAwesomeIcon
                                   className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer ml-1 inline align-baseline"
                                   icon={faPen}
@@ -2133,7 +2147,7 @@ export default function TunnelsPage() {
                                 </div>
                                 {tunnel.version && (
                                   <div className="text-default-400">
-                                    版本: {tunnel.version}
+                                    {t("mobile.version")} {tunnel.version}
                                   </div>
                                 )}
                               </div>
@@ -2189,7 +2203,7 @@ export default function TunnelsPage() {
                         {/* 操作列 */}
                         <TableCell className="w-[140px]">
                           <div className="flex justify-center gap-1">
-                            <Tooltip content="查看实例" size="sm">
+                            <Tooltip content={t("actions.view")} size="sm">
                               <Button
                                 isIconOnly
                                 color="primary"
@@ -2209,8 +2223,8 @@ export default function TunnelsPage() {
                             <Tooltip
                               content={
                                 tunnel.status === "running"
-                                  ? "停止实例"
-                                  : "启动实例"
+                                  ? t("actions.stop")
+                                  : t("actions.start")
                               }
                               size="sm"
                             >
@@ -2236,7 +2250,7 @@ export default function TunnelsPage() {
                                 onClick={() => handleToggleStatus(tunnel)}
                               />
                             </Tooltip>
-                            <Tooltip content="重启实例" size="sm">
+                            <Tooltip content={t("actions.restart")} size="sm">
                               <Button
                                 isIconOnly
                                 color="secondary"
@@ -2252,7 +2266,7 @@ export default function TunnelsPage() {
                                 onClick={() => handleRestart(tunnel)}
                               />
                             </Tooltip>
-                            <Tooltip content="编辑实例" size="sm">
+                            <Tooltip content={t("actions.edit")} size="sm">
                               <Button
                                 isIconOnly
                                 color="warning"
@@ -2270,7 +2284,7 @@ export default function TunnelsPage() {
                                 }}
                               />
                             </Tooltip>
-                            <Tooltip content="删除实例" size="sm">
+                            <Tooltip content={t("actions.delete")} size="sm">
                               <Button
                                 isIconOnly
                                 color="danger"
@@ -2304,28 +2318,28 @@ export default function TunnelsPage() {
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <FontAwesomeIcon className="text-danger" icon={faTrash} />
-                  确认删除
+                  {t("delete.modalTitle")}
                 </div>
               </ModalHeader>
               <ModalBody>
                 {deleteModalTunnel && (
                   <>
                     <p className="text-default-600">
-                      您确定要删除实例{" "}
+                      {t("delete.confirmMessage")}{" "}
                       <span className="font-semibold text-foreground">
                         "{deleteModalTunnel.name}"
                       </span>{" "}
-                      吗？
+                      {t("delete.confirmMessageEnd")}
                     </p>
                     <p className="text-small text-warning">
-                      ⚠️ 此操作不可撤销，实例的所有配置和数据都将被永久删除。
+                      {t("delete.warning")}
                     </p>
                   </>
                 )}
               </ModalBody>
               <ModalFooter>
                 <Button color="default" variant="light" onPress={onClose}>
-                  取消
+                  {t("delete.cancel")}
                 </Button>
                 <Button
                   color="danger"
@@ -2335,7 +2349,7 @@ export default function TunnelsPage() {
                     onClose();
                   }}
                 >
-                  确认删除
+                  {t("delete.confirm")}
                 </Button>
               </ModalFooter>
             </>
@@ -2364,31 +2378,31 @@ export default function TunnelsPage() {
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <FontAwesomeIcon className="text-danger" icon={faTrash} />
-                  确认批量删除
+                  {t("delete.batchTitle")}
                 </div>
               </ModalHeader>
               <ModalBody>
                 <p className="text-default-600">
-                  您确定要删除选中的{" "}
+                  {t("delete.batchMessage")}{" "}
                   <span className="font-semibold text-foreground">
                     {selectedCount}
                   </span>{" "}
-                  个实例吗？
+                  {t("delete.batchMessageEnd")}
                 </p>
                 <p className="text-small text-warning">
-                  ⚠️ 此操作不可撤销，选中实例的所有配置和数据都将被永久删除。
+                  {t("delete.batchWarning")}
                 </p>
               </ModalBody>
               <ModalFooter>
                 <Button color="default" variant="light" onPress={onClose}>
-                  取消
+                  {t("delete.cancel")}
                 </Button>
                 <Button
                   color="danger"
                   startContent={<FontAwesomeIcon icon={faTrash} />}
                   onPress={executeBatchDelete}
                 >
-                  确认删除
+                  {t("delete.confirm")}
                 </Button>
               </ModalFooter>
             </>
@@ -2410,14 +2424,13 @@ export default function TunnelsPage() {
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <FontAwesomeIcon className="text-primary" icon={faDownload} />
-                  导出配置规则
+                  {t("export.modalTitle")}
                 </div>
               </ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
                   <p className="text-default-600 text-sm">
-                    已选择 {selectedCount}{" "}
-                    个实例的配置规则，格式符合批量创建规范：
+                    {t("export.selectedMessage", { count: selectedCount })}
                   </p>
                   <Code className="w-full p-4 max-h-96 overflow-auto">
                     <pre className="text-sm whitespace-pre-wrap">
@@ -2428,14 +2441,14 @@ export default function TunnelsPage() {
               </ModalBody>
               <ModalFooter>
                 <Button color="default" variant="light" onPress={onClose}>
-                  关闭
+                  {t("export.close")}
                 </Button>
                 <Button
                   color="primary"
                   startContent={<FontAwesomeIcon icon={faCopy} />}
                   onPress={copyExportConfig}
                 >
-                  复制配置
+                  {t("export.copy")}
                 </Button>
               </ModalFooter>
             </>

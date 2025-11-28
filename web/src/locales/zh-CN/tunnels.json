@@ -1,0 +1,154 @@
+{
+  "page": {
+    "title": "实例管理",
+    "loading": "加载中...",
+    "loadFailed": "加载失败",
+    "retry": "重试",
+    "noData": "暂无实例",
+    "noDataDesc": "您还没有创建任何实例",
+    "refresh": "刷新",
+    "reset": "重置"
+  },
+  "table": {
+    "columns": {
+      "type": "类型",
+      "name": "名称",
+      "endpoint": "主控",
+      "tunnelAddress": "隧道地址",
+      "targetAddress": "目标地址",
+      "status": "状态",
+      "traffic": "流量统计",
+      "actions": "操作"
+    },
+    "trafficTooltip": {
+      "line1": "第一行：↑ 总上传流量 (TCP+UDP)",
+      "line2": "第二行：↓ 总下载流量 (TCP+UDP)"
+    }
+  },
+  "type": {
+    "server": "服务端",
+    "client": "客户端"
+  },
+  "status": {
+    "all": "所有状态",
+    "running": "运行",
+    "stopped": "停止",
+    "error": "错误",
+    "offline": "离线",
+    "unknown": "未知"
+  },
+  "filter": {
+    "search": "搜索实例",
+    "searchPlaceholder": "搜索实例名称...",
+    "statusFilter": "状态筛选",
+    "endpointFilter": "主控筛选",
+    "allEndpoints": "所有主控",
+    "groupFilter": "分组筛选",
+    "all": "所有",
+    "selected": "已选择 {count} 个"
+  },
+  "sort": {
+    "label": "排序",
+    "id": "ID",
+    "sorts": "权重",
+    "type": "类型",
+    "name": "名称",
+    "endpoint_id": "主控",
+    "status": "状态",
+    "services": "服务"
+  },
+  "pagination": {
+    "rowsPerPage": "每页显示",
+    "rows10": "10条/页",
+    "rows20": "20条/页",
+    "rows50": "50条/页"
+  },
+  "actions": {
+    "create": "创建",
+    "createInstance": "创建实例",
+    "createOptions": "创建选项",
+    "manualCreate": "手搓创建",
+    "batchCreate": "批量创建",
+    "scenarioCreate": "场景创建",
+    "groupManagement": "分组管理",
+    "view": "查看实例",
+    "start": "启动实例",
+    "stop": "停止实例",
+    "restart": "重启实例",
+    "edit": "编辑实例",
+    "rename": "重命名",
+    "delete": "删除实例",
+    "bulkActions": "批量操作",
+    "bulkStart": "批量启动",
+    "bulkStop": "批量停止",
+    "bulkRestart": "批量重启",
+    "bulkExport": "批量导出",
+    "bulkDelete": "批量删除",
+    "modifyName": "修改名称"
+  },
+  "delete": {
+    "modalTitle": "确认删除",
+    "confirmMessage": "您确定要删除实例",
+    "confirmMessageEnd": "吗？",
+    "warning": "⚠️ 此操作不可撤销，实例的所有配置和数据都将被永久删除。",
+    "cancel": "取消",
+    "confirm": "确认删除",
+    "batchTitle": "确认批量删除",
+    "batchMessage": "您确定要删除选中的",
+    "batchMessageEnd": "个实例吗？",
+    "batchWarning": "⚠️ 此操作不可撤销，选中实例的所有配置和数据都将被永久删除。"
+  },
+  "export": {
+    "modalTitle": "导出配置规则",
+    "selectedMessage": "已选择 {count} 个实例的配置规则，格式符合批量创建规范：",
+    "close": "关闭",
+    "copy": "复制配置"
+  },
+  "toast": {
+    "fetchError": "错误",
+    "fetchFailed": "获取实例列表失败",
+    "fetchEndpointsFailed": "获取主控列表失败",
+    "fetchGroupsFailed": "获取分组列表失败",
+    "actionSuccess": "成功",
+    "actionSuccessDesc": "操作成功",
+    "actionFailed": "操作失败",
+    "deleteSuccess": "删除成功",
+    "deleteFailed": "删除失败",
+    "batchDeleteProgress": "批量删除中...",
+    "batchDeleteProgressDesc": "正在删除所选实例，请稍候",
+    "batchDeleteSuccess": "批量删除成功",
+    "batchDeleteSuccessDesc": "已删除 {count} 个实例",
+    "batchDeleteFailed": "批量删除失败",
+    "batchStartFailed": "批量启动失败",
+    "batchStartFailedDesc": "请先选择需要启动的实例",
+    "batchStartNoInstances": "所选实例中没有可启动的实例（已停止状态）",
+    "batchStartProgress": "批量启动中...",
+    "batchStartProgressDesc": "正在启动 {count} 个实例，请稍候",
+    "batchStartComplete": "批量启动完成",
+    "batchStartCompleteDesc": "成功启动 {success} 个实例{failed}",
+    "batchStopFailed": "批量停止失败",
+    "batchStopFailedDesc": "请先选择需要停止的实例",
+    "batchStopNoInstances": "所选实例中没有可停止的实例（运行中状态）",
+    "batchStopProgress": "批量停止中...",
+    "batchStopProgressDesc": "正在停止 {count} 个实例，请稍候",
+    "batchStopComplete": "批量停止完成",
+    "batchStopCompleteDesc": "成功停止 {success} 个实例{failed}",
+    "batchRestartFailed": "批量重启失败",
+    "batchRestartFailedDesc": "请先选择需要重启的实例",
+    "batchRestartNoInstances": "所选实例中没有可重启的实例（运行中状态）",
+    "batchRestartProgress": "批量重启中...",
+    "batchRestartProgressDesc": "正在重启 {count} 个实例，请稍候",
+    "batchRestartComplete": "批量重启完成",
+    "batchRestartCompleteDesc": "成功重启 {success} 个实例{failed}",
+    "failedCount": "，{count} 个失败",
+    "unknownError": "未知错误",
+    "missingInstanceId": "此实例缺少NodePass ID，无法执行操作",
+    "copySuccess": "配置已复制到剪贴板"
+  },
+  "mobile": {
+    "endpoint": "主控:",
+    "tunnel": "隧道:",
+    "target": "目标:",
+    "version": "版本:"
+  }
+}

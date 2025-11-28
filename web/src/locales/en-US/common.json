@@ -6,11 +6,11 @@
   "nav": {
     "dashboard": "Dashboard",
     "tunnels": "Tunnels",
-    "tunnelsManage": "Instance Management",
+    "tunnelsManage": "Instance",
     "services": "Services",
-    "servicesManage": "Service Management",
+    "servicesManage": "Service",
     "endpoints": "Endpoints",
-    "endpointsManage": "Endpoint Management",
+    "endpointsManage": "Endpoint",
     "templates": "Templates",
     "settings": "Settings"
   },
