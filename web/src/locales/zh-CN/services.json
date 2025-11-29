@@ -41,8 +41,8 @@
   "confirm": {
     "dissolveTitle": "确认解散服务",
     "deleteTitle": "确认删除服务",
-    "dissolveMessage": "确定要解散服务 \"{name}\" 吗？",
-    "deleteMessage": "确定要删除服务 \"{name}\" 吗？此操作不可撤销！"
+    "dissolveMessage": "确定要解散服务 \"{{name}}\" 吗？",
+    "deleteMessage": "确定要删除服务 \"{{name}}\" 吗？此操作不可撤销！"
   },
   "toast": {
     "fetchError": "获取服务列表失败",
@@ -60,11 +60,11 @@
     "restartError": "重启失败",
     "syncSuccess": "同步成功",
     "syncError": "同步失败",
-    "actionSuccess": "{action}成功",
-    "actionError": "{action}失败",
+    "actionSuccess": "{{action}}成功",
+    "actionError": "{{action}}失败",
     "operationError": "操作失败",
     "unknownError": "未知错误",
-    "serviceActioned": "服务 {name} 已{action}"
+    "serviceActioned": "服务 {{name}} 已{{action}}"
   },
   "details": {
     "stats": {
@@ -146,7 +146,7 @@
     },
     "logLevels": {
       "inherit": "继承主控",
-      "inheritWithValue": "继承 ({level})",
+      "inheritWithValue": "继承 ({{level}})",
       "debug": "Debug",
       "info": "Info",
       "warn": "Warn",
@@ -183,7 +183,7 @@
       "fetchEndpointsFailed": "获取主控失败",
       "cannotFetchEndpoints": "无法获取主控列表",
       "createSuccess": "创建成功",
-      "scenarioCreated": "{scenario}场景已创建",
+      "scenarioCreated": "{{scenario}}场景已创建",
       "createFailed": "创建失败",
       "unknownError": "未知错误"
     }

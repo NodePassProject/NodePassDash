@@ -21,9 +21,9 @@
       "tunnels": "Tunnel Count",
       "actions": "Actions"
     },
-    "instances": "{count} instances",
-    "instancesBracket": "[{count} instances]",
-    "instancesCount": "{count}",
+    "instances": "{{count}} instances",
+    "instancesBracket": "[{{count}} instances]",
+    "instancesCount": "{{count}}",
     "noInstances": "0 instances",
     "urlLabel": "URL Address",
     "apiPrefix": "API Prefix",
@@ -101,7 +101,7 @@
     "statusNo": "No",
     "close": "Close",
     "addEndpoint": "Add Endpoint",
-    "nameMaxLength": "{current}/{max}"
+    "nameMaxLength": "{{current}}/{{max}}"
   },
   "editApiKeyModal": {
     "title": "Edit API Key",
@@ -147,7 +147,7 @@
     "start": "Start Import",
     "checking": "Checking...",
     "validateTitle": "Import Validation Results",
-    "validateDesc": "Found {count} endpoints, please review validation results (drag to reorder):",
+    "validateDesc": "Found {{count}} endpoints, please review validation results (drag to reorder):",
     "validateColumns": {
       "name": "Name",
       "url": "URL",
@@ -168,7 +168,7 @@
     "testFailed": "Connection Test Failed",
     "testFailedDesc": "Connection failed, please check if configuration is correct",
     "addSuccess": "Endpoint Added Successfully",
-    "addSuccessDesc": "{name} has been successfully added to endpoint list",
+    "addSuccessDesc": "{{name}} has been successfully added to endpoint list",
     "addFailed": "Failed to Add Endpoint",
     "addFailedDesc": "Please check input information and try again",
     "importSuccess": "Import Successful",
@@ -208,7 +208,7 @@
     "importDataFailed": "Import Failed",
     "importDataFailedDesc": "An error occurred while importing data",
     "renameSuccess": "Rename Successful",
-    "renameSuccessDesc": "Endpoint name has been updated to \"{name}\"",
+    "renameSuccessDesc": "Endpoint name has been updated to \"{{name}}\"",
     "renameFailed": "Rename Failed",
     "renameFailedDesc": "Please try again later",
     "editApiKeySuccess": "API Key Modified Successfully",

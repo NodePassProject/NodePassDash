@@ -307,8 +307,8 @@
       "viewDetails": "查看详情"
     },
     "alert": {
-      "updateStarted": "更新已开始: {message}\n\n程序将在几秒钟后自动重启，请稍等...",
-      "updateFailed": "更新失败: {error}"
+      "updateStarted": "更新已开始: {{message}}\n\n程序将在几秒钟后自动重启，请稍等...",
+      "updateFailed": "更新失败: {{error}}"
     }
   }
 }

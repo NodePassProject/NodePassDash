@@ -21,9 +21,9 @@
       "tunnels": "隧道数量",
       "actions": "操作"
     },
-    "instances": "{count} 个实例",
-    "instancesBracket": "[{count}实例]",
-    "instancesCount": "{count} 个",
+    "instances": "{{count}} 个实例",
+    "instancesBracket": "[{{count}}实例]",
+    "instancesCount": "{{count}} 个",
     "noInstances": "0 个实例",
     "urlLabel": "URL 地址",
     "apiPrefix": "API 前缀",
@@ -101,7 +101,7 @@
     "statusNo": "否",
     "close": "关闭",
     "addEndpoint": "添加主控",
-    "nameMaxLength": "{current}/{max}"
+    "nameMaxLength": "{{current}}/{{max}}"
   },
   "editApiKeyModal": {
     "title": "修改 API 密钥",
@@ -147,7 +147,7 @@
     "start": "开始导入",
     "checking": "检查中...",
     "validateTitle": "导入验证结果",
-    "validateDesc": "共检测到 {count} 个主控,请查看验证结果(可拖动排序):",
+    "validateDesc": "共检测到 {{count}} 个主控,请查看验证结果(可拖动排序):",
     "validateColumns": {
       "name": "名称",
       "url": "URL",
@@ -168,7 +168,7 @@
     "testFailed": "连接测试失败",
     "testFailedDesc": "连接失败,请检查配置是否正确",
     "addSuccess": "主控添加成功",
-    "addSuccessDesc": "{name} 已成功添加到主控列表",
+    "addSuccessDesc": "{{name}} 已成功添加到主控列表",
     "addFailed": "添加主控失败",
     "addFailedDesc": "请检查输入信息后重试",
     "importSuccess": "导入成功",
@@ -208,7 +208,7 @@
     "importDataFailed": "导入失败",
     "importDataFailedDesc": "导入数据时发生错误",
     "renameSuccess": "重命名成功",
-    "renameSuccessDesc": "主控名称已更新为 \"{name}\"",
+    "renameSuccessDesc": "主控名称已更新为 \"{{name}}\"",
     "renameFailed": "重命名失败",
     "renameFailedDesc": "请稍后重试",
     "editApiKeySuccess": "密钥修改成功",

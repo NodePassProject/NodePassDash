@@ -45,7 +45,7 @@
     "allEndpoints": "All Endpoints",
     "groupFilter": "Group Filter",
     "all": "All",
-    "selected": "{count} Selected"
+    "selected": "{{count}} Selected"
   },
   "sort": {
     "label": "Sort",
@@ -100,7 +100,7 @@
   },
   "export": {
     "modalTitle": "Export Configuration Rules",
-    "selectedMessage": "Selected {count} tunnel configuration rules, format complies with batch creation specifications:",
+    "selectedMessage": "Selected {{count}} tunnel configuration rules, format complies with batch creation specifications:",
     "close": "Close",
     "copy": "Copy Configuration"
   },
@@ -117,30 +117,30 @@
     "batchDeleteProgress": "Batch deleting...",
     "batchDeleteProgressDesc": "Deleting selected tunnels, please wait",
     "batchDeleteSuccess": "Batch Delete Successful",
-    "batchDeleteSuccessDesc": "Deleted {count} tunnels",
+    "batchDeleteSuccessDesc": "Deleted {{count}} tunnels",
     "batchDeleteFailed": "Batch Delete Failed",
     "batchStartFailed": "Batch Start Failed",
     "batchStartFailedDesc": "Please select tunnels to start first",
     "batchStartNoInstances": "No startable tunnels in selection (stopped status)",
     "batchStartProgress": "Batch starting...",
-    "batchStartProgressDesc": "Starting {count} tunnels, please wait",
+    "batchStartProgressDesc": "Starting {{count}} tunnels, please wait",
     "batchStartComplete": "Batch Start Complete",
-    "batchStartCompleteDesc": "Successfully started {success} tunnels{failed}",
+    "batchStartCompleteDesc": "Successfully started {{success}} tunnels{{failed}}",
     "batchStopFailed": "Batch Stop Failed",
     "batchStopFailedDesc": "Please select tunnels to stop first",
     "batchStopNoInstances": "No stoppable tunnels in selection (running status)",
     "batchStopProgress": "Batch stopping...",
-    "batchStopProgressDesc": "Stopping {count} tunnels, please wait",
+    "batchStopProgressDesc": "Stopping {{count}} tunnels, please wait",
     "batchStopComplete": "Batch Stop Complete",
-    "batchStopCompleteDesc": "Successfully stopped {success} tunnels{failed}",
+    "batchStopCompleteDesc": "Successfully stopped {{success}} tunnels{{failed}}",
     "batchRestartFailed": "Batch Restart Failed",
     "batchRestartFailedDesc": "Please select tunnels to restart first",
     "batchRestartNoInstances": "No restartable tunnels in selection (running status)",
     "batchRestartProgress": "Batch restarting...",
-    "batchRestartProgressDesc": "Restarting {count} tunnels, please wait",
+    "batchRestartProgressDesc": "Restarting {{count}} tunnels, please wait",
     "batchRestartComplete": "Batch Restart Complete",
-    "batchRestartCompleteDesc": "Successfully restarted {success} tunnels{failed}",
-    "failedCount": ", {count} failed",
+    "batchRestartCompleteDesc": "Successfully restarted {{success}} tunnels{{failed}}",
+    "failedCount": ", {{count}} failed",
     "unknownError": "Unknown error",
     "missingInstanceId": "This tunnel is missing NodePass ID, cannot perform operation",
     "copySuccess": "Configuration copied to clipboard"
@@ -183,7 +183,7 @@
       "edit": "Edit Group",
       "delete": "Delete Group"
     },
-    "confirmDelete": "Are you sure you want to delete group \"{name}\"?",
+    "confirmDelete": "Are you sure you want to delete group \"{{name}}\"?",
     "empty": {
       "title": "No Groups",
       "description": "Click the button above to create your first group"
@@ -239,15 +239,15 @@
       "nameDesc": "Tunnel name",
       "arrayFormatDesc": "Enter JSON array format, supports batch creation of multiple rules",
       "validationError": "Must be in JSON array format",
-      "validRules": "Detected {count} valid rules",
-      "partialValid": "Valid rules: {valid} / {total}",
+      "validRules": "Detected {{count}} valid rules",
+      "partialValid": "Valid rules: {{valid}} / {{total}}",
       "jsonError": "JSON format error"
     },
     "buttons": {
       "cancel": "Cancel",
       "create": "Batch Create",
       "creating": "Creating...",
-      "createWithCount": "Batch Create ({count})"
+      "createWithCount": "Batch Create ({{count}})"
     },
     "toast": {
       "fetchEndpointsFailed": "Failed to fetch endpoint list",
@@ -259,15 +259,15 @@
       "enterJsonRules": "Please enter JSON rule configuration",
       "jsonMustBeArray": "JSON must be in array format",
       "atLeastOneRule": "Please enter at least one rule",
-      "ruleFormatError": "Rule {index} format error: must contain dest, listen_port and name fields",
+      "ruleFormatError": "Rule {{index}} format error: must contain dest, listen_port and name fields",
       "jsonFormatError": "JSON format error, please check syntax",
       "createComplete": "Batch Creation Complete",
-      "createSuccess": "Successfully created {count} tunnels",
+      "createSuccess": "Successfully created {{count}} tunnels",
       "createFailed": "Batch Creation Failed",
       "createFailedDesc": "Creation failed",
       "networkError": "Network error, please try again later",
       "formatSuccess": "Format Successful",
-      "formatSuccessDesc": "Formatted {count} rules",
+      "formatSuccessDesc": "Formatted {{count}} rules",
       "formatFailed": "Format Failed",
       "formatFailedArray": "JSON must be in array format",
       "formatFailedSyntax": "JSON format error, please check syntax"
@@ -283,7 +283,7 @@
     "tunnelUrl": "<core>://<tunnel_addr>/<target_addr>",
     "buttons": {
       "cancel": "Cancel",
-      "create": "Batch Create ({count})",
+      "create": "Batch Create ({{count}})",
       "creating": "Creating..."
     },
     "toast": {
@@ -291,11 +291,11 @@
       "fetchEndpointsFailedDesc": "Unable to fetch endpoint list",
       "createFailed": "Creation Failed",
       "addTunnelRequired": "Please add at least one tunnel",
-      "selectEndpointRequired": "Rule {index}: Please select an endpoint server",
-      "nameRequired": "Rule {index}: Please enter tunnel name",
-      "urlRequired": "Rule {index}: Please enter tunnel URL",
+      "selectEndpointRequired": "Rule {{index}}: Please select an endpoint server",
+      "nameRequired": "Rule {{index}}: Please enter tunnel name",
+      "urlRequired": "Rule {{index}}: Please enter tunnel URL",
       "createSuccess": "Creation Successful",
-      "createSuccessDesc": "Successfully created {count} tunnels",
+      "createSuccessDesc": "Successfully created {{count}} tunnels",
       "createFailedDesc": "Failed to create tunnels",
       "unknownError": "Unknown error"
     }
@@ -368,7 +368,7 @@
     },
     "tls": {
       "inherit": "Inherit",
-      "inheritWithValue": "Inherit ({mode})",
+      "inheritWithValue": "Inherit ({{mode}})",
       "inheritMaster": "Inherit from Endpoint",
       "mode0": "No TLS",
       "mode1": "Self-signed Certificate",
@@ -379,7 +379,7 @@
     },
     "logLevels": {
       "inherit": "Inherit",
-      "inheritWithValue": "Inherit ({level})",
+      "inheritWithValue": "Inherit ({{level}})",
       "inheritMaster": "Inherit from Endpoint",
       "debug": "Debug",
       "info": "Info",
@@ -511,7 +511,7 @@
       "logLevel": {
         "label": "Log Level",
         "inherit": "Inherit from Endpoint",
-        "inheritWithValue": "Inherit from Endpoint [{level}]",
+        "inheritWithValue": "Inherit from Endpoint [{{level}}]",
         "none": "No Logging [NONE]"
       },
       "pool": {
@@ -642,10 +642,10 @@
       "resetSuccessDesc": "Tunnel traffic information has been reset",
       "resetFailed": "Reset failed",
       "exportSuccess": "Export successful",
-      "exportSuccessDesc": "Log file exported as {filename}",
+      "exportSuccessDesc": "Log file exported as {{filename}}",
       "exportFailed": "Export failed",
       "restartConfigSuccess": "Configuration updated successfully",
-      "restartConfigSuccessDesc": "Auto restart has been {status}",
+      "restartConfigSuccessDesc": "Auto restart has been {{status}}",
       "restartConfigFailed": "Configuration update failed",
       "restartNotSupported": "Current tunnel does not support auto restart feature",
       "unknownError": "Unknown error",

@@ -307,8 +307,8 @@
       "viewDetails": "View Details"
     },
     "alert": {
-      "updateStarted": "Update started: {message}\n\nThe program will automatically restart in a few seconds, please wait...",
-      "updateFailed": "Update failed: {error}"
+      "updateStarted": "Update started: {{message}}\n\nThe program will automatically restart in a few seconds, please wait...",
+      "updateFailed": "Update failed: {{error}}"
     }
   }
 }

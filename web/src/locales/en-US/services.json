@@ -41,8 +41,8 @@
   "confirm": {
     "dissolveTitle": "Confirm Dissolve Service",
     "deleteTitle": "Confirm Delete Service",
-    "dissolveMessage": "Are you sure you want to dissolve service \"{name}\"?",
-    "deleteMessage": "Are you sure you want to delete service \"{name}\"? This action cannot be undone!"
+    "dissolveMessage": "Are you sure you want to dissolve service \"{{name}}\"?",
+    "deleteMessage": "Are you sure you want to delete service \"{{name}}\"? This action cannot be undone!"
   },
   "toast": {
     "fetchError": "Failed to fetch service list",
@@ -60,11 +60,11 @@
     "restartError": "Failed to restart",
     "syncSuccess": "Synced successfully",
     "syncError": "Failed to sync",
-    "actionSuccess": "{action} successful",
-    "actionError": "{action} failed",
+    "actionSuccess": "{{action}} successful",
+    "actionError": "{{action}} failed",
     "operationError": "Operation failed",
     "unknownError": "Unknown error",
-    "serviceActioned": "Service {name} has been {action}"
+    "serviceActioned": "Service {{name}} has been {{action}}"
   },
   "details": {
     "stats": {
@@ -146,7 +146,7 @@
     },
     "logLevels": {
       "inherit": "Inherit from Master",
-      "inheritWithValue": "Inherit ({level})",
+      "inheritWithValue": "Inherit ({{level}})",
       "debug": "Debug",
       "info": "Info",
       "warn": "Warn",
@@ -183,7 +183,7 @@
       "fetchEndpointsFailed": "Failed to fetch endpoints",
       "cannotFetchEndpoints": "Cannot retrieve endpoints list",
       "createSuccess": "Created successfully",
-      "scenarioCreated": "{scenario} scenario created",
+      "scenarioCreated": "{{scenario}} scenario created",
       "createFailed": "Creation failed",
       "unknownError": "Unknown error"
     }

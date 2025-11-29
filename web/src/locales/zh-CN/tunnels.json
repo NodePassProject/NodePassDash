@@ -45,7 +45,7 @@
     "allEndpoints": "所有主控",
     "groupFilter": "分组筛选",
     "all": "所有",
-    "selected": "已选择 {count} 个"
+    "selected": "已选择 {{count}} 个"
   },
   "sort": {
     "label": "排序",
@@ -100,7 +100,7 @@
   },
   "export": {
     "modalTitle": "导出配置规则",
-    "selectedMessage": "已选择 {count} 个实例的配置规则，格式符合批量创建规范：",
+    "selectedMessage": "已选择 {{count}} 个实例的配置规则，格式符合批量创建规范：",
     "close": "关闭",
     "copy": "复制配置"
   },
@@ -117,30 +117,30 @@
     "batchDeleteProgress": "批量删除中...",
     "batchDeleteProgressDesc": "正在删除所选实例，请稍候",
     "batchDeleteSuccess": "批量删除成功",
-    "batchDeleteSuccessDesc": "已删除 {count} 个实例",
+    "batchDeleteSuccessDesc": "已删除 {{count}} 个实例",
     "batchDeleteFailed": "批量删除失败",
     "batchStartFailed": "批量启动失败",
     "batchStartFailedDesc": "请先选择需要启动的实例",
     "batchStartNoInstances": "所选实例中没有可启动的实例（已停止状态）",
     "batchStartProgress": "批量启动中...",
-    "batchStartProgressDesc": "正在启动 {count} 个实例，请稍候",
+    "batchStartProgressDesc": "正在启动 {{count}} 个实例，请稍候",
     "batchStartComplete": "批量启动完成",
-    "batchStartCompleteDesc": "成功启动 {success} 个实例{failed}",
+    "batchStartCompleteDesc": "成功启动 {{success}} 个实例{{failed}}",
     "batchStopFailed": "批量停止失败",
     "batchStopFailedDesc": "请先选择需要停止的实例",
     "batchStopNoInstances": "所选实例中没有可停止的实例（运行中状态）",
     "batchStopProgress": "批量停止中...",
-    "batchStopProgressDesc": "正在停止 {count} 个实例，请稍候",
+    "batchStopProgressDesc": "正在停止 {{count}} 个实例，请稍候",
     "batchStopComplete": "批量停止完成",
-    "batchStopCompleteDesc": "成功停止 {success} 个实例{failed}",
+    "batchStopCompleteDesc": "成功停止 {{success}} 个实例{{failed}}",
     "batchRestartFailed": "批量重启失败",
     "batchRestartFailedDesc": "请先选择需要重启的实例",
     "batchRestartNoInstances": "所选实例中没有可重启的实例（运行中状态）",
     "batchRestartProgress": "批量重启中...",
-    "batchRestartProgressDesc": "正在重启 {count} 个实例，请稍候",
+    "batchRestartProgressDesc": "正在重启 {{count}} 个实例，请稍候",
     "batchRestartComplete": "批量重启完成",
-    "batchRestartCompleteDesc": "成功重启 {success} 个实例{failed}",
-    "failedCount": "，{count} 个失败",
+    "batchRestartCompleteDesc": "成功重启 {{success}} 个实例{{failed}}",
+    "failedCount": "，{{count}} 个失败",
     "unknownError": "未知错误",
     "missingInstanceId": "此实例缺少NodePass ID，无法执行操作",
     "copySuccess": "配置已复制到剪贴板"
@@ -183,7 +183,7 @@
       "edit": "编辑分组",
       "delete": "删除分组"
     },
-    "confirmDelete": "确定要删除分组 \"{name}\" 吗？",
+    "confirmDelete": "确定要删除分组 \"{{name}}\" 吗？",
     "empty": {
       "title": "暂无分组",
       "description": "点击上方按钮创建第一个分组"
@@ -239,15 +239,15 @@
       "nameDesc": "隧道名称",
       "arrayFormatDesc": "输入JSON数组格式，支持多条规则批量创建",
       "validationError": "必须是JSON数组格式",
-      "validRules": "检测到 {count} 条有效规则",
-      "partialValid": "有效规则：{valid} / {total}",
+      "validRules": "检测到 {{count}} 条有效规则",
+      "partialValid": "有效规则：{{valid}} / {{total}}",
       "jsonError": "JSON格式错误"
     },
     "buttons": {
       "cancel": "取消",
       "create": "批量创建",
       "creating": "创建中...",
-      "createWithCount": "批量创建 ({count})"
+      "createWithCount": "批量创建 ({{count}})"
     },
     "toast": {
       "fetchEndpointsFailed": "获取主控列表失败",
@@ -259,15 +259,15 @@
       "enterJsonRules": "请输入JSON规则配置",
       "jsonMustBeArray": "JSON必须是数组格式",
       "atLeastOneRule": "请输入至少一条规则",
-      "ruleFormatError": "第 {index} 条规则格式错误：必须包含 dest、listen_port 和 name 字段",
+      "ruleFormatError": "第 {{index}} 条规则格式错误：必须包含 dest、listen_port 和 name 字段",
       "jsonFormatError": "JSON格式错误，请检查语法",
       "createComplete": "批量创建完成",
-      "createSuccess": "成功创建 {count} 个实例",
+      "createSuccess": "成功创建 {{count}} 个实例",
       "createFailed": "批量创建失败",
       "createFailedDesc": "创建失败",
       "networkError": "网络错误，请稍后重试",
       "formatSuccess": "格式化成功",
-      "formatSuccessDesc": "已格式化 {count} 条规则",
+      "formatSuccessDesc": "已格式化 {{count}} 条规则",
       "formatFailed": "格式化失败",
       "formatFailedArray": "JSON必须是数组格式",
       "formatFailedSyntax": "JSON格式错误，请检查语法"
@@ -283,7 +283,7 @@
     "tunnelUrl": "<core>://<tunnel_addr>/<target_addr>",
     "buttons": {
       "cancel": "取消",
-      "create": "批量创建 ({count})",
+      "create": "批量创建 ({{count}})",
       "creating": "创建中..."
     },
     "toast": {
@@ -291,11 +291,11 @@
       "fetchEndpointsFailedDesc": "无法获取主控列表",
       "createFailed": "创建失败",
       "addTunnelRequired": "请添加至少一条隧道",
-      "selectEndpointRequired": "第 {index} 条规则请选择主控服务器",
-      "nameRequired": "第 {index} 条规则请输入实例名称",
-      "urlRequired": "第 {index} 条规则请输入实例URL",
+      "selectEndpointRequired": "第 {{index}} 条规则请选择主控服务器",
+      "nameRequired": "第 {{index}} 条规则请输入实例名称",
+      "urlRequired": "第 {{index}} 条规则请输入实例URL",
       "createSuccess": "创建成功",
-      "createSuccessDesc": "成功创建 {count} 个实例",
+      "createSuccessDesc": "成功创建 {{count}} 个实例",
       "createFailedDesc": "创建实例失败",
       "unknownError": "未知错误"
     }
@@ -368,7 +368,7 @@
     },
     "tls": {
       "inherit": "继承",
-      "inheritWithValue": "继承 ({mode})",
+      "inheritWithValue": "继承 ({{mode}})",
       "inheritMaster": "继承主控",
       "mode0": "无 TLS",
       "mode1": "自签名证书",
@@ -379,7 +379,7 @@
     },
     "logLevels": {
       "inherit": "继承",
-      "inheritWithValue": "继承 ({level})",
+      "inheritWithValue": "继承 ({{level}})",
       "inheritMaster": "继承主控",
       "debug": "Debug",
       "info": "Info",
@@ -511,7 +511,7 @@
       "logLevel": {
         "label": "日志级别",
         "inherit": "继承主控",
-        "inheritWithValue": "继承主控 [{level}]",
+        "inheritWithValue": "继承主控 [{{level}}]",
         "none": "无日志 [NONE]"
       },
       "pool": {
@@ -642,10 +642,10 @@
       "resetSuccessDesc": "实例流量信息已重置",
       "resetFailed": "重置失败",
       "exportSuccess": "导出成功",
-      "exportSuccessDesc": "日志文件已导出为 {filename}",
+      "exportSuccessDesc": "日志文件已导出为 {{filename}}",
       "exportFailed": "导出失败",
       "restartConfigSuccess": "配置更新成功",
-      "restartConfigSuccessDesc": "自动重启已{status}",
+      "restartConfigSuccessDesc": "自动重启已{{status}}",
       "restartConfigFailed": "配置更新失败",
       "restartNotSupported": "当前实例不支持自动重启功能",
       "unknownError": "未知错误",
