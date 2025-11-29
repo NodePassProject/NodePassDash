@@ -17,6 +17,7 @@ import {
 } from "@heroui/react";
 import React, { useCallback, useEffect, useState, useRef } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { Swiper, SwiperSlide } from "swiper/react";
 import { Navigation, Pagination } from "swiper/modules";
@@ -138,6 +139,7 @@ export default function ServiceDetailsPage() {
   const [refreshLoading, setRefreshLoading] = React.useState(false);
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const { settings } = useSettings();
+  const { t } = useTranslation("services");
 
   // 流量格式化函数
   const formatTrafficValue = (bytes: number) => {
@@ -1159,7 +1161,7 @@ export default function ServiceDetailsPage() {
                                 <Card className="rounded-lg bg-gradient-to-tr from-blue-500/20 dark:from-blue-500/30 to-transparent border-none shadow-sm h-[148px]">
                                   <CardBody className="p-4">
                                     <p className="text-sm font-medium text-blue-500 dark:text-blue-400 mb-2">
-                                      TCP 流量 (发送 / 接收)
+                                      {t("details.stats.tcpTrafficSendReceive")}
                                     </p>
                                     <div className="flex items-baseline gap-4">
                                       <p className="text-2xl font-semibold">
@@ -1178,7 +1180,7 @@ export default function ServiceDetailsPage() {
                                 <Card className="rounded-lg bg-gradient-to-tr from-purple-500/20 dark:from-purple-500/30 to-transparent border-none shadow-sm h-[148px]">
                                   <CardBody className="p-4">
                                     <p className="text-sm font-medium text-purple-500 dark:text-purple-400 mb-2">
-                                      UDP 流量 (发送 / 接收)
+                                      {t("details.stats.udpTrafficSendReceive")}
                                     </p>
                                     <div className="flex items-baseline gap-4">
                                       <p className="text-2xl font-semibold">
@@ -1196,7 +1198,7 @@ export default function ServiceDetailsPage() {
                                 {/* 端内延迟 */}
                                 <Card className="rounded-lg bg-gradient-to-tr from-red-500/20 dark:from-red-500/30 to-transparent border-none shadow-sm h-[148px]">
                                   <CardBody className="p-4">
-                                    <p className="text-sm font-medium text-red-500 dark:text-red-400 mb-2">端内延迟</p>
+                                    <p className="text-sm font-medium text-red-500 dark:text-red-400 mb-2">{t("details.stats.internalLatency")}</p>
                                     <p className="text-3xl font-bold text-red-500 dark:text-red-400">
                                       {ping !== null && ping !== undefined ? ping : 0}{" "}
                                       <span className="text-base font-medium">ms</span>
@@ -1208,7 +1210,7 @@ export default function ServiceDetailsPage() {
                                 <Card className="rounded-lg bg-gradient-to-tr from-green-500/20 dark:from-green-500/30 to-transparent border-none shadow-sm h-[148px]">
                                   <CardBody className="p-4">
                                     <p className="text-sm font-medium text-green-500 dark:text-green-400 mb-2">
-                                      连接数 (TCP/UDP)
+                                      {t("details.stats.connectionsTcpUdp")}
                                     </p>
                                     <div className="flex items-baseline gap-4">
                                       <p className="text-3xl font-bold text-green-500 dark:text-green-400">
@@ -1233,10 +1235,10 @@ export default function ServiceDetailsPage() {
                                 variant="underlined"
                                 onSelectionChange={(key) => setSelectedStatsTab(key as string)}
                               >
-                                <Tab key="traffic" title="流量累计" />
-                                <Tab key="speed" title="传输速率" />
-                                <Tab key="latency" title="端内延迟" />
-                                <Tab key="connections" title="连接数量" />
+                                <Tab key="traffic" title={t("details.tabs.traffic")} />
+                                <Tab key="speed" title={t("details.tabs.speed")} />
+                                <Tab key="latency" title={t("details.tabs.latency")} />
+                                <Tab key="connections" title={t("details.tabs.connections")} />
                               </Tabs>
 
                               <div className="flex items-center justify-between sm:justify-start">
@@ -1246,19 +1248,19 @@ export default function ServiceDetailsPage() {
                                     <>
                                       <div className="flex items-center gap-1.5">
                                         <span className="h-2 w-2 rounded-full bg-blue-500" />
-                                        TCP入
+                                        {t("details.legend.tcpIn")}
                                       </div>
                                       <div className="flex items-center gap-1.5">
                                         <span className="h-2 w-2 rounded-full bg-green-500" />
-                                        TCP出
+                                        {t("details.legend.tcpOut")}
                                       </div>
                                       <div className="flex items-center gap-1.5">
                                         <span className="h-2 w-2 rounded-full bg-purple-500" />
-                                        UDP入
+                                        {t("details.legend.udpIn")}
                                       </div>
                                       <div className="flex items-center gap-1.5">
                                         <span className="h-2 w-2 rounded-full bg-orange-500" />
-                                        UDP出
+                                        {t("details.legend.udpOut")}
                                       </div>
                                     </>
                                   )}
@@ -1266,11 +1268,11 @@ export default function ServiceDetailsPage() {
                                     <>
                                       <div className="flex items-center gap-1.5">
                                         <span className="h-2 w-2 rounded-full bg-blue-500" />
-                                        上传
+                                        {t("details.legend.upload")}
                                       </div>
                                       <div className="flex items-center gap-1.5">
                                         <span className="h-2 w-2 rounded-full bg-purple-500" />
-                                        下载
+                                        {t("details.legend.download")}
                                       </div>
                                     </>
                                   )}
@@ -1278,7 +1280,7 @@ export default function ServiceDetailsPage() {
                                     <>
                                       <div className="flex items-center gap-1.5">
                                         <span className="h-2 w-2 rounded-full bg-pink-500" />
-                                        池
+                                        {t("details.legend.pool")}
                                       </div>
                                       <div className="flex items-center gap-1.5">
                                         <span className="h-2 w-2 rounded-full bg-orange-500" />
@@ -1301,11 +1303,11 @@ export default function ServiceDetailsPage() {
                                   variant="light"
                                   onPress={() => {
                                     const actionMap = {
-                                      traffic: () => openFullscreenChart("traffic", "流量累计"),
-                                      speed: () => openFullscreenChart("speed", "传输速率"),
-                                      latency: () => openFullscreenChart("latency", "端内延迟"),
+                                      traffic: () => openFullscreenChart("traffic", t("details.tabs.traffic")),
+                                      speed: () => openFullscreenChart("speed", t("details.tabs.speed")),
+                                      latency: () => openFullscreenChart("latency", t("details.tabs.latency")),
                                       connections: () =>
-                                        openFullscreenChart("connections", "连接数"),
+                                        openFullscreenChart("connections", t("details.tabs.connections")),
                                     };
 
                                     actionMap[selectedStatsTab as keyof typeof actionMap]?.();

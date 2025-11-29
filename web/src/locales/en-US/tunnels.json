@@ -495,7 +495,9 @@
       "latency": "Internal Latency",
       "pool": "Pool Connections",
       "tcpConnections": "TCP Connections",
-      "udpConnections": "UDP Connections"
+      "udpConnections": "UDP Connections",
+      "tcpTraffic": "TCP Traffic",
+      "udpTraffic": "UDP Traffic"
     },
     "instanceInfo": {
       "title": "Tunnel Information",

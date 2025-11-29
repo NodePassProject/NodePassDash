@@ -1,4 +1,5 @@
 import { Card, CardBody, CardHeader } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 
 interface ConnectionsData {
   pool?: number | null;
@@ -13,6 +14,7 @@ interface ConnectionsStatsCardProps {
 export const ConnectionsStatsCard = ({
   connectionsData,
 }: ConnectionsStatsCardProps) => {
+  const { t } = useTranslation("tunnels");
   // 计算TCP和UDP连接数
   const tcpConnections = connectionsData.tcps || 0;
   const udpConnections = connectionsData.udps || 0;
@@ -51,7 +53,7 @@ export const ConnectionsStatsCard = ({
             />
           </svg>
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold">连接数量</h3>
+            <h3 className="text-base font-semibold">{t("details.statsTabs.connections")}</h3>
           </div>
         </CardHeader>
         <CardBody>
@@ -69,7 +71,7 @@ export const ConnectionsStatsCard = ({
                   {tcpConnections}
                 </div>
                 <div className="text-xs font-medium opacity-90  text-purple-600 dark:text-purple-400">
-                  TCP连接数
+                  {t("details.trafficStats.tcpConnections")}
                 </div>
               </div>
 
@@ -84,7 +86,7 @@ export const ConnectionsStatsCard = ({
                   {udpConnections}
                 </div>
                 <div className="text-xs font-medium opacity-90  text-orange-600 dark:text-orange-400">
-                  UDP连接数
+                  {t("details.trafficStats.udpConnections")}
                 </div>
               </div>
             </div>

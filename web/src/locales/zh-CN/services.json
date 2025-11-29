@@ -65,5 +65,28 @@
     "operationError": "操作失败",
     "unknownError": "未知错误",
     "serviceActioned": "服务 {name} 已{action}"
+  },
+  "details": {
+    "stats": {
+      "tcpTrafficSendReceive": "TCP 流量 (发送 / 接收)",
+      "udpTrafficSendReceive": "UDP 流量 (发送 / 接收)",
+      "internalLatency": "端内延迟",
+      "connectionsTcpUdp": "连接数 (TCP/UDP)"
+    },
+    "tabs": {
+      "traffic": "流量累计",
+      "speed": "传输速率",
+      "latency": "端内延迟",
+      "connections": "连接数量"
+    },
+    "legend": {
+      "tcpIn": "TCP入",
+      "tcpOut": "TCP出",
+      "udpIn": "UDP入",
+      "udpOut": "UDP出",
+      "upload": "上传",
+      "download": "下载",
+      "pool": "池"
+    }
   }
 }

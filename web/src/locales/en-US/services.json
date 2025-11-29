@@ -65,5 +65,28 @@
     "operationError": "Operation failed",
     "unknownError": "Unknown error",
     "serviceActioned": "Service {name} has been {action}"
+  },
+  "details": {
+    "stats": {
+      "tcpTrafficSendReceive": "TCP Traffic (Send / Receive)",
+      "udpTrafficSendReceive": "UDP Traffic (Send / Receive)",
+      "internalLatency": "Internal Latency",
+      "connectionsTcpUdp": "Connections (TCP/UDP)"
+    },
+    "tabs": {
+      "traffic": "Traffic Total",
+      "speed": "Transfer Speed",
+      "latency": "Internal Latency",
+      "connections": "Connections"
+    },
+    "legend": {
+      "tcpIn": "TCP In",
+      "tcpOut": "TCP Out",
+      "udpIn": "UDP In",
+      "udpOut": "UDP Out",
+      "upload": "Upload",
+      "download": "Download",
+      "pool": "Pool"
+    }
   }
 }

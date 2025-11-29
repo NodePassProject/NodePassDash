@@ -495,7 +495,9 @@
       "latency": "端内延迟",
       "pool": "池连接数",
       "tcpConnections": "TCP连接数",
-      "udpConnections": "UDP连接数"
+      "udpConnections": "UDP连接数",
+      "tcpTraffic": "TCP流量",
+      "udpTraffic": "UDP流量"
     },
     "instanceInfo": {
       "title": "实例信息",
