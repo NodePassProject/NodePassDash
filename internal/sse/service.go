@@ -460,7 +460,8 @@ func (s *Service) updateTunnelRuntimeInfo(payload SSEResp) {
 	if payload.Instance.Restart != nil {
 		tunnelcache.Shared.UpdateField(existingTunnel.ID, "restart", *payload.Instance.Restart)
 	}
-	if payload.Instance.Meta.Peer != nil && payload.Instance.Meta.Peer.Alias != nil {
+	// 安全地访问 Meta.Peer（处理 nil 指针）
+	if payload.Instance.Meta != nil && payload.Instance.Meta.Peer != nil && payload.Instance.Meta.Peer.Alias != nil {
 		tunnelcache.Shared.UpdateField(existingTunnel.ID, "alias", *payload.Instance.Meta.Peer.Alias)
 	}
 
