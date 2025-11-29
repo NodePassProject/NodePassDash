@@ -131,6 +131,12 @@
     "rx": "接收",
     "tx": "发送"
   },
+  "latencyQuality": {
+    "excellent": "优秀",
+    "good": "良好",
+    "fair": "一般",
+    "poor": "较差"
+  },
   "theme": {
     "light": "浅色",
     "dark": "深色",

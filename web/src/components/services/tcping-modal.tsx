@@ -23,6 +23,7 @@ import {
   faSignOutAlt,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 interface TcpingTestModalProps {
   isOpen: boolean;
@@ -78,6 +79,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
   clientExtendTargetAddress = [],
   serverExtendTargetAddress = [],
 }) => {
+  const { t } = useTranslation("common");
   const [tcpingTarget, setTcpingTarget] = React.useState("");
   const [tcpingLoading, setTcpingLoading] = React.useState(false);
   const [tcpingResult, setTcpingResult] = React.useState<TcpingResult | null>(null);
@@ -124,11 +126,11 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
 
   // 判断延迟是否优秀的函数
   const getLatencyQuality = (latency: number) => {
-    if (latency < 50) return { text: "优秀", color: "success" } as const;
-    if (latency < 100) return { text: "良好", color: "primary" } as const;
-    if (latency < 200) return { text: "一般", color: "warning" } as const;
+    if (latency < 50) return { text: t("latencyQuality.excellent"), color: "success" } as const;
+    if (latency < 100) return { text: t("latencyQuality.good"), color: "primary" } as const;
+    if (latency < 200) return { text: t("latencyQuality.fair"), color: "warning" } as const;
 
-    return { text: "较差", color: "danger" } as const;
+    return { text: t("latencyQuality.poor"), color: "danger" } as const;
   };
 
   // 获取所有地址选项列表（包含入口和出口）

@@ -131,6 +131,12 @@
     "rx": "Received",
     "tx": "Sent"
   },
+  "latencyQuality": {
+    "excellent": "Excellent",
+    "good": "Good",
+    "fair": "Fair",
+    "poor": "Poor"
+  },
   "theme": {
     "light": "Light",
     "dark": "Dark",

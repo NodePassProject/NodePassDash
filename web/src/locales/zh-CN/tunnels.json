@@ -570,7 +570,9 @@
       },
       "rateLimit": {
         "label": "速率限制",
-        "notSet": "未设置"
+        "notSet": "未设置",
+        "unlimited": "不限制",
+        "default": "(默认)"
       },
       "proxyProtocol": {
         "label": "代理协议",
@@ -613,6 +615,12 @@
       "pool": "连接池统计",
       "connections": "连接数统计",
       "latency": "延迟统计"
+    },
+    "statsTabs": {
+      "traffic": "流量累计",
+      "speed": "传输速率",
+      "latency": "端内延迟",
+      "connections": "连接数量"
     },
     "toast": {
       "fetchFailed": "获取实例详情失败",

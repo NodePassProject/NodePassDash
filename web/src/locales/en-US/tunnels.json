@@ -570,7 +570,9 @@
       },
       "rateLimit": {
         "label": "Rate Limit",
-        "notSet": "Not Set"
+        "notSet": "Not Set",
+        "unlimited": "Unlimited",
+        "default": "(default)"
       },
       "proxyProtocol": {
         "label": "Proxy Protocol",
@@ -613,6 +615,12 @@
       "pool": "Pool Statistics",
       "connections": "Connections Statistics",
       "latency": "Latency Statistics"
+    },
+    "statsTabs": {
+      "traffic": "Traffic Total",
+      "speed": "Transfer Speed",
+      "latency": "Internal Latency",
+      "connections": "Connections"
     },
     "toast": {
       "fetchFailed": "Failed to fetch tunnel details",

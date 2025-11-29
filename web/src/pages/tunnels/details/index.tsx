@@ -2225,10 +2225,10 @@ export default function TunnelDetailPage() {
                         if (numValue === 0) {
                           return (
                             <>
-                              不限制
+                              {t("details.instanceInfo.rateLimit.unlimited")}
                               {isFromConfig && tunnelInfo.config?.rate !== undefined && (
                                 <span className="text-default-400 text-xs ml-1">
-                                  (默认)
+                                  {t("details.instanceInfo.rateLimit.default")}
                                 </span>
                               )}
                             </>
@@ -2240,7 +2240,7 @@ export default function TunnelDetailPage() {
                               <span className="text-default-400 text-xs ml-1">Mbps</span>
                               {isFromConfig && tunnelInfo.config?.rate !== undefined && (
                                 <span className="text-default-400 text-xs ml-1">
-                                  (默认)
+                                  {t("details.instanceInfo.rateLimit.default")}
                                 </span>
                               )}
                             </>
@@ -2925,10 +2925,10 @@ export default function TunnelDetailPage() {
               variant="solid"
               onSelectionChange={(key) => setSelectedStatsTab(key as string)}
             >
-              <Tab key="traffic" title="流量累计" />
-              <Tab key="speed" title="传输速率" />
-              <Tab key="latency" title="端内延迟" />
-              <Tab key="connections" title="连接数量" />
+              <Tab key="traffic" title={t("details.statsTabs.traffic")} />
+              <Tab key="speed" title={t("details.statsTabs.speed")} />
+              <Tab key="latency" title={t("details.statsTabs.latency")} />
+              <Tab key="connections" title={t("details.statsTabs.connections")} />
             </Tabs>
 
             <div className="flex items-center gap-3">
