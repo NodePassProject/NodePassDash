@@ -88,5 +88,139 @@
       "download": "下载",
       "pool": "池"
     }
+  },
+  "createModal": {
+    "title": {
+      "prefix": {
+        "local": "本地",
+        "external": "外部",
+        "balanced": "均衡"
+      },
+      "singleForward": "单端转发",
+      "tunnelForward": "隧道转发",
+      "natPenetration": "内网穿透"
+    },
+    "fields": {
+      "serviceName": "服务名称",
+      "entry": "入口",
+      "exit": "出口",
+      "relay": "中转",
+      "target": "目标",
+      "entryServer": "入口(服务端)",
+      "exitClient": "出口(客户端)",
+      "relayClient": "中转(客户端)",
+      "entryClient": "入口(客户端)",
+      "exitServer": "出口(服务端)",
+      "selectEntryServer": "选择入口服务器",
+      "selectExitServer": "选择出口服务器",
+      "selectRelayServer": "选择中转服务器",
+      "accessPort": "访问端口",
+      "tunnelPort": "隧道端口",
+      "targetAddress": "目标地址",
+      "targetPort": "目标端口",
+      "listenType": "监听类型",
+      "logLevel": "日志级别",
+      "localAddress": "本地地址",
+      "externalAddress": "外部地址",
+      "additionalTargets": "附加目标地址",
+      "relayServer": "中转服务器"
+    },
+    "placeholders": {
+      "serviceName": "服务名称",
+      "port": {
+        "access": "10022",
+        "tunnel": "10101",
+        "service": "22",
+        "relay": "1080",
+        "mysql": "3306"
+      },
+      "address": {
+        "local": "127.0.0.1",
+        "external": "192.168.1.100",
+        "multiline": "192.168.1.1:80\n192.168.1.2:80"
+      }
+    },
+    "tabs": {
+      "localAddress": "本地地址",
+      "externalAddress": "外部地址"
+    },
+    "logLevels": {
+      "inherit": "继承主控",
+      "inheritWithValue": "继承 ({level})",
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warn",
+      "error": "Error",
+      "event": "Event",
+      "none": "None"
+    },
+    "tooltips": {
+      "randomPort": "随机生成端口号",
+      "loadBalance": "通过增加目标地址达到负载均衡的效果",
+      "toggleLoadBalance": "增加目标地址",
+      "disableLoadBalance": "关闭负载均衡"
+    },
+    "preview": {
+      "title": "架构预览",
+      "entry": "入口",
+      "exit": "出口",
+      "loadBalance": "负载均衡",
+      "selectServer": "选择"
+    },
+    "actions": {
+      "cancel": "取消",
+      "create": "创建"
+    },
+    "validation": {
+      "invalidScenario": "无效的场景类型",
+      "reopenModal": "请重新打开模态窗",
+      "emptyName": "请填写实例名称",
+      "nameRequired": "实例名称不能为空",
+      "formValidationFailed": "表单验证失败",
+      "fillRequired": "请填写所有必填字段"
+    },
+    "messages": {
+      "fetchEndpointsFailed": "获取主控失败",
+      "cannotFetchEndpoints": "无法获取主控列表",
+      "createSuccess": "创建成功",
+      "scenarioCreated": "{scenario}场景已创建",
+      "createFailed": "创建失败",
+      "unknownError": "未知错误"
+    }
+  },
+  "assembleModal": {
+    "title": "组装服务",
+    "fields": {
+      "serviceId": "服务ID",
+      "serviceName": "服务名称",
+      "serverInstance": "服务端实例",
+      "clientInstance": "客户端实例"
+    },
+    "placeholders": {
+      "serviceName": "请输入服务名称",
+      "selectServerInstance": "请选择或搜索服务端实例",
+      "selectClientInstance": "请选择或搜索客户端实例"
+    },
+    "types": {
+      "singleForward": "单端转发",
+      "natPenetration": "内网穿透",
+      "tunnelForward": "隧道转发"
+    },
+    "actions": {
+      "cancel": "取消",
+      "assemble": "组装服务"
+    },
+    "validation": {
+      "formValidationFailed": "表单验证失败",
+      "fillServiceIdAndName": "请填写服务ID和服务名称",
+      "selectClientInstance": "请选择客户端实例",
+      "selectServerInstance": "请选择服务端实例"
+    },
+    "messages": {
+      "fetchInstancesFailed": "获取可用实例失败",
+      "assembleSuccess": "组装服务成功",
+      "assembleFailed": "组装服务失败",
+      "unknownError": "未知错误"
+    }
   }
 }

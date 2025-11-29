@@ -88,5 +88,139 @@
       "download": "Download",
       "pool": "Pool"
     }
+  },
+  "createModal": {
+    "title": {
+      "prefix": {
+        "local": "Local",
+        "external": "External",
+        "balanced": "Balanced"
+      },
+      "singleForward": "Single Forward",
+      "tunnelForward": "Tunnel Forward",
+      "natPenetration": "NAT Penetration"
+    },
+    "fields": {
+      "serviceName": "Service Name",
+      "entry": "Entry",
+      "exit": "Exit",
+      "relay": "Relay",
+      "target": "Target",
+      "entryServer": "Entry (Server)",
+      "exitClient": "Exit (Client)",
+      "relayClient": "Relay (Client)",
+      "entryClient": "Entry (Client)",
+      "exitServer": "Exit (Server)",
+      "selectEntryServer": "Select entry server",
+      "selectExitServer": "Select exit server",
+      "selectRelayServer": "Select relay server",
+      "accessPort": "Access Port",
+      "tunnelPort": "Tunnel Port",
+      "targetAddress": "Target Address",
+      "targetPort": "Target Port",
+      "listenType": "Listen Type",
+      "logLevel": "Log Level",
+      "localAddress": "Local Address",
+      "externalAddress": "External Address",
+      "additionalTargets": "Additional Target Addresses",
+      "relayServer": "Relay Server"
+    },
+    "placeholders": {
+      "serviceName": "Service Name",
+      "port": {
+        "access": "10022",
+        "tunnel": "10101",
+        "service": "22",
+        "relay": "1080",
+        "mysql": "3306"
+      },
+      "address": {
+        "local": "127.0.0.1",
+        "external": "192.168.1.100",
+        "multiline": "192.168.1.1:80\n192.168.1.2:80"
+      }
+    },
+    "tabs": {
+      "localAddress": "Local Address",
+      "externalAddress": "External Address"
+    },
+    "logLevels": {
+      "inherit": "Inherit from Master",
+      "inheritWithValue": "Inherit ({level})",
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warn",
+      "error": "Error",
+      "event": "Event",
+      "none": "None"
+    },
+    "tooltips": {
+      "randomPort": "Generate random port number",
+      "loadBalance": "Achieve load balancing by adding target addresses",
+      "toggleLoadBalance": "Add target addresses",
+      "disableLoadBalance": "Disable load balancing"
+    },
+    "preview": {
+      "title": "Architecture Preview",
+      "entry": "Entry",
+      "exit": "Exit",
+      "loadBalance": "Load Balance",
+      "selectServer": "Select"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "create": "Create"
+    },
+    "validation": {
+      "invalidScenario": "Invalid scenario type",
+      "reopenModal": "Please reopen the modal",
+      "emptyName": "Please enter instance name",
+      "nameRequired": "Instance name cannot be empty",
+      "formValidationFailed": "Form validation failed",
+      "fillRequired": "Please fill in all required fields"
+    },
+    "messages": {
+      "fetchEndpointsFailed": "Failed to fetch endpoints",
+      "cannotFetchEndpoints": "Cannot retrieve endpoints list",
+      "createSuccess": "Created successfully",
+      "scenarioCreated": "{scenario} scenario created",
+      "createFailed": "Creation failed",
+      "unknownError": "Unknown error"
+    }
+  },
+  "assembleModal": {
+    "title": "Assemble Service",
+    "fields": {
+      "serviceId": "Service ID",
+      "serviceName": "Service Name",
+      "serverInstance": "Server Instance",
+      "clientInstance": "Client Instance"
+    },
+    "placeholders": {
+      "serviceName": "Enter service name",
+      "selectServerInstance": "Select or search server instance",
+      "selectClientInstance": "Select or search client instance"
+    },
+    "types": {
+      "singleForward": "Single Forward",
+      "natPenetration": "NAT Penetration",
+      "tunnelForward": "Tunnel Forward"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "assemble": "Assemble Service"
+    },
+    "validation": {
+      "formValidationFailed": "Form validation failed",
+      "fillServiceIdAndName": "Please fill in service ID and service name",
+      "selectClientInstance": "Please select client instance",
+      "selectServerInstance": "Please select server instance"
+    },
+    "messages": {
+      "fetchInstancesFailed": "Failed to fetch available instances",
+      "assembleSuccess": "Service assembled successfully",
+      "assembleFailed": "Failed to assemble service",
+      "unknownError": "Unknown error"
+    }
   }
 }
