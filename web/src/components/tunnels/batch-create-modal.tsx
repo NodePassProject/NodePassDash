@@ -19,6 +19,7 @@ import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faCopy, faTrash, faPlus } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 import Editor from "@monaco-editor/react";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -74,6 +75,7 @@ export default function BatchCreateModal({
   onOpenChange,
   onSaved,
 }: BatchCreateModalProps) {
+  const { t } = useTranslation("tunnels");
   const [loading, setLoading] = useState(false);
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [batchItems, setBatchItems] = useState<BatchItem[]>([]);
@@ -112,15 +114,15 @@ export default function BatchCreateModal({
     try {
       const response = await fetch(buildApiUrl("/api/endpoints/simple"));
 
-      if (!response.ok) throw new Error("获取主控列表失败");
+      if (!response.ok) throw new Error(t("batchCreate.toast.fetchEndpointsFailed"));
       const data = await response.json();
 
       setEndpoints(data);
     } catch (error) {
       console.error("获取主控列表失败:", error);
       addToast({
-        title: "错误",
-        description: "获取主控列表失败",
+        title: t("toast.fetchError"),
+        description: t("batchCreate.toast.fetchEndpointsFailed"),
         color: "danger",
       });
     }
@@ -235,8 +237,8 @@ export default function BatchCreateModal({
 
       if (!Array.isArray(parsed)) {
         addToast({
-          title: "格式化失败",
-          description: "JSON必须是数组格式",
+          title: t("batchCreate.toast.formatFailed"),
+          description: t("batchCreate.toast.formatFailedArray"),
           color: "danger",
         });
 
@@ -247,14 +249,14 @@ export default function BatchCreateModal({
 
       setQuickConfig((prev) => ({ ...prev, rulesJson: formatted }));
       addToast({
-        title: "格式化成功",
-        description: `已格式化 ${parsed.length} 条规则`,
+        title: t("batchCreate.toast.formatSuccess"),
+        description: t("batchCreate.toast.formatSuccessDesc", { count: parsed.length }),
         color: "success",
       });
     } catch (error) {
       addToast({
-        title: "格式化失败",
-        description: "JSON格式错误，请检查语法",
+        title: t("batchCreate.toast.formatFailed"),
+        description: t("batchCreate.toast.formatFailedSyntax"),
         color: "danger",
       });
     }
@@ -302,8 +304,8 @@ export default function BatchCreateModal({
       // 标准模式验证
       if (standardConfig.rules.length === 0) {
         addToast({
-          title: "错误",
-          description: "请添加至少一条转发规则",
+          title: t("toast.fetchError"),
+          description: t("batchCreate.toast.addRuleRequired"),
           color: "danger",
         });
 
@@ -313,8 +315,8 @@ export default function BatchCreateModal({
       // 统一入口服务器模式：检查是否选择了统一的入口服务器
       if (standardConfig.unifiedEndpoint && !standardConfig.endpointId) {
         addToast({
-          title: "错误",
-          description: "请选择统一的入口服务器",
+          title: t("toast.fetchError"),
+          description: t("batchCreate.toast.selectUnifiedEndpoint"),
           color: "danger",
         });
 
@@ -329,8 +331,8 @@ export default function BatchCreateModal({
 
         if (missingEndpoint) {
           addToast({
-            title: "错误",
-            description: "请为每条规则选择入口服务器",
+            title: t("toast.fetchError"),
+            description: t("batchCreate.toast.selectEndpointForEachRule"),
             color: "danger",
           });
 
@@ -349,8 +351,8 @@ export default function BatchCreateModal({
 
       if (incompleteRule) {
         addToast({
-          title: "错误",
-          description: "请完善所有转发规则的配置（包括隧道名称）",
+          title: t("toast.fetchError"),
+          description: t("batchCreate.toast.completeAllRules"),
           color: "danger",
         });
 
@@ -360,8 +362,8 @@ export default function BatchCreateModal({
       // 快速模式验证
       if (!quickConfig.endpointId) {
         addToast({
-          title: "错误",
-          description: "请选择主控服务器",
+          title: t("toast.fetchError"),
+          description: t("batchCreate.toast.selectMaster"),
           color: "danger",
         });
 
@@ -370,8 +372,8 @@ export default function BatchCreateModal({
 
       if (!quickConfig.rulesJson.trim()) {
         addToast({
-          title: "错误",
-          description: "请输入JSON规则配置",
+          title: t("toast.fetchError"),
+          description: t("batchCreate.toast.enterJsonRules"),
           color: "danger",
         });
 
@@ -384,8 +386,8 @@ export default function BatchCreateModal({
 
         if (!Array.isArray(rules)) {
           addToast({
-            title: "错误",
-            description: "JSON必须是数组格式",
+            title: t("toast.fetchError"),
+            description: t("batchCreate.toast.jsonMustBeArray"),
             color: "danger",
           });
 
@@ -394,8 +396,8 @@ export default function BatchCreateModal({
 
         if (rules.length === 0) {
           addToast({
-            title: "错误",
-            description: "请输入至少一条规则",
+            title: t("toast.fetchError"),
+            description: t("batchCreate.toast.atLeastOneRule"),
             color: "danger",
           });
 
@@ -408,8 +410,8 @@ export default function BatchCreateModal({
 
           if (!rule.dest || !rule.listen_port || !rule.name) {
             addToast({
-              title: "错误",
-              description: `第 ${i + 1} 条规则格式错误：必须包含 dest、listen_port 和 name 字段`,
+              title: t("toast.fetchError"),
+              description: t("batchCreate.toast.ruleFormatError", { index: i + 1 }),
               color: "danger",
             });
 
@@ -418,8 +420,8 @@ export default function BatchCreateModal({
         }
       } catch (error) {
         addToast({
-          title: "错误",
-          description: "JSON格式错误，请检查语法",
+          title: t("toast.fetchError"),
+          description: t("batchCreate.toast.jsonFormatError"),
           color: "danger",
         });
 
@@ -485,9 +487,9 @@ export default function BatchCreateModal({
       if (response.ok) {
         if (result.success) {
           addToast({
-            title: "批量创建完成",
+            title: t("batchCreate.toast.createComplete"),
             description:
-              result.message || `成功创建 ${result.successCount} 个实例`,
+              result.message || t("batchCreate.toast.createSuccess", { count: result.successCount }),
             color: result.failCount > 0 ? "warning" : "success",
           });
 
@@ -495,20 +497,20 @@ export default function BatchCreateModal({
           onOpenChange(false);
         } else {
           addToast({
-            title: "批量创建失败",
-            description: result.error || "创建失败",
+            title: t("batchCreate.toast.createFailed"),
+            description: result.error || t("batchCreate.toast.createFailedDesc"),
             color: "danger",
           });
         }
       } else {
-        throw new Error(result.error || "网络请求失败");
+        throw new Error(result.error || t("batchCreate.toast.networkError"));
       }
     } catch (error) {
       console.error("批量创建失败:", error);
       addToast({
-        title: "批量创建失败",
+        title: t("batchCreate.toast.createFailed"),
         description:
-          error instanceof Error ? error.message : "网络错误，请稍后重试",
+          error instanceof Error ? error.message : t("batchCreate.toast.networkError"),
         color: "danger",
       });
     } finally {
@@ -530,11 +532,11 @@ export default function BatchCreateModal({
       <ModalContent>
         {(onClose) => (
           <>
-            <ModalHeader>批量创建实例</ModalHeader>
+            <ModalHeader>{t("batchCreate.title")}</ModalHeader>
 
             <ModalBody>
               <Tabs
-                aria-label="批量创建类型"
+                aria-label={t("batchCreate.title")}
                 classNames={{
                   tabList: "bg-default-100 p-1 rounded-lg",
                   cursor: "!bg-primary !text-primary-foreground shadow-sm",
@@ -546,7 +548,7 @@ export default function BatchCreateModal({
                 variant="solid"
                 onSelectionChange={(key) => setActiveTab(key as string)}
               >
-                <Tab key="standard" title="标准模式">
+                <Tab key="standard" title={t("batchCreate.tabs.standard")}>
                   <div className="space-y-6 py-4">
                     <div className="space-y-4">
                       {/* 转发规则区域 */}
@@ -554,13 +556,13 @@ export default function BatchCreateModal({
                         <div className="flex items-center justify-between">
                           <div className="flex items-center gap-4">
                             <h5 className="text-sm font-medium text-foreground">
-                              转发规则
+                              {t("batchCreate.standard.rules")}
                             </h5>
                             {standardConfig.unifiedEndpoint && (
                               <Select
                                 isRequired
                                 className="w-48"
-                                placeholder="选择入口服务器"
+                                placeholder={t("batchCreate.standard.selectEndpoint")}
                                 selectedKeys={
                                   standardConfig.endpointId
                                     ? [standardConfig.endpointId]
@@ -601,7 +603,7 @@ export default function BatchCreateModal({
                                 }}
                               />
                               <span className="text-sm text-default-600">
-                                统一入口服务器
+                                {t("batchCreate.standard.unifiedEndpoint")}
                               </span>
                             </div>
                             <Button
@@ -632,7 +634,7 @@ export default function BatchCreateModal({
                                 }));
                               }}
                             >
-                              添加规则
+                              {t("batchCreate.standard.addRule")}
                             </Button>
                           </div>
                         </div>
@@ -640,13 +642,13 @@ export default function BatchCreateModal({
                         {standardConfig.rules.length === 0 ? (
                           <div className="text-center py-8 border-2 border-dashed border-default-200 rounded-lg">
                             <p className="text-default-500 text-sm">
-                              暂无转发规则，点击"添加规则"开始配置
+                              {t("batchCreate.standard.noRules")}
                             </p>
                           </div>
                         ) : (
                           <div className="max-h-80 overflow-y-auto border border-default-200 rounded-lg">
                             <Listbox
-                              aria-label="转发规则列表"
+                              aria-label={t("batchCreate.standard.rules")}
                               className="p-0"
                               selectionMode="none"
                               variant="flat"
@@ -668,7 +670,7 @@ export default function BatchCreateModal({
                                       {!standardConfig.unifiedEndpoint && (
                                         <Select
                                           isRequired
-                                          placeholder="选择入口服务器"
+                                          placeholder={t("batchCreate.standard.selectEndpointServer")}
                                           selectedKeys={
                                             rule.endpointId
                                               ? [rule.endpointId]
@@ -702,7 +704,7 @@ export default function BatchCreateModal({
                                         </Select>
                                       )}
                                       <Input
-                                        placeholder="隧道名称"
+                                        placeholder={t("batchCreate.standard.tunnelName")}
                                         size="sm"
                                         value={rule.name}
                                         variant="bordered"
@@ -718,7 +720,7 @@ export default function BatchCreateModal({
                                         }
                                       />
                                       <Input
-                                        placeholder="入口端口，如：8000"
+                                        placeholder={t("batchCreate.standard.tunnelPort")}
                                         size="sm"
                                         value={rule.tunnelPort}
                                         variant="bordered"
@@ -734,7 +736,7 @@ export default function BatchCreateModal({
                                         }
                                       />
                                       <Input
-                                        placeholder="目标IP，如：192.168.1.100"
+                                        placeholder={t("batchCreate.standard.targetIP")}
                                         size="sm"
                                         value={rule.targetAddress}
                                         variant="bordered"
@@ -750,7 +752,7 @@ export default function BatchCreateModal({
                                         }
                                       />
                                       <Input
-                                        placeholder="目标端口：10000"
+                                        placeholder={t("batchCreate.standard.targetPort")}
                                         size="sm"
                                         value={rule.targetPort}
                                         variant="bordered"
@@ -796,15 +798,15 @@ export default function BatchCreateModal({
                   </div>
                 </Tab>
 
-                <Tab key="quick" title="配置模式">
+                <Tab key="quick" title={t("batchCreate.tabs.quick")}>
                   <div className="space-y-6 py-4">
                     <div className="space-y-4">
                       {/* 主控选择器 */}
                       <div className="grid grid-cols-1 gap-4">
                         <Select
                           isRequired
-                          label="选择主控服务器"
-                          placeholder="请选择要使用的主控服务器"
+                          label={t("batchCreate.quick.selectMaster")}
+                          placeholder={t("batchCreate.quick.selectMasterPlaceholder")}
                           selectedKeys={
                             quickConfig.endpointId
                               ? [quickConfig.endpointId]
@@ -831,7 +833,7 @@ export default function BatchCreateModal({
                       <div className="space-y-3">
                         <div className="flex items-center justify-between">
                           <h5 className="text-sm font-medium text-foreground">
-                            批量规则配置
+                            {t("batchCreate.quick.batchRules")}
                           </h5>
                           <div className="flex items-center gap-2">
                             <Button
@@ -840,7 +842,7 @@ export default function BatchCreateModal({
                               variant="light"
                               onClick={resetJsonContent}
                             >
-                              复位
+                              {t("batchCreate.quick.reset")}
                             </Button>
                             <Button
                               className="text-xs h-6 px-2 min-w-unit-12"
@@ -848,7 +850,7 @@ export default function BatchCreateModal({
                               variant="light"
                               onClick={formatJsonContent}
                             >
-                              格式化
+                              {t("batchCreate.quick.format")}
                             </Button>
                             <Button
                               className="text-xs h-6 px-2 min-w-unit-12"
@@ -856,10 +858,10 @@ export default function BatchCreateModal({
                               variant="light"
                               onClick={addExampleRule}
                             >
-                              添加示例
+                              {t("batchCreate.quick.addExample")}
                             </Button>
                             <div className="text-xs text-default-500">
-                              JSON格式输入
+                              {t("batchCreate.quick.jsonFormat")}
                             </div>
                           </div>
                         </div>
@@ -892,7 +894,7 @@ export default function BatchCreateModal({
                         {/* 格式说明 */}
                         <div className="bg-default-50 rounded-lg p-4">
                           <h6 className="text-sm font-medium text-default-700 mb-2">
-                            格式说明：
+                            {t("batchCreate.quick.formatDescription")}
                           </h6>
                           <ul className="text-xs text-default-600 space-y-1">
                             <li>
@@ -900,23 +902,23 @@ export default function BatchCreateModal({
                               <code className="bg-default-100 px-1 rounded">
                                 dest
                               </code>
-                              : 目标地址，格式为 "IP:端口"
+                              : {t("batchCreate.quick.destDesc")}
                             </li>
                             <li>
                               •{" "}
                               <code className="bg-default-100 px-1 rounded">
                                 listen_port
                               </code>
-                              : 监听端口号
+                              : {t("batchCreate.quick.listenPortDesc")}
                             </li>
                             <li>
                               •{" "}
                               <code className="bg-default-100 px-1 rounded">
                                 name
                               </code>
-                              : 隧道名称
+                              : {t("batchCreate.quick.nameDesc")}
                             </li>
-                            <li>• 输入JSON数组格式，支持多条规则批量创建</li>
+                            <li>• {t("batchCreate.quick.arrayFormatDesc")}</li>
                           </ul>
                         </div>
 
@@ -933,7 +935,7 @@ export default function BatchCreateModal({
                                   return (
                                     <div className="text-danger-600 flex items-center gap-1">
                                       <span>✗</span>
-                                      <span>必须是JSON数组格式</span>
+                                      <span>{t("batchCreate.quick.validationError")}</span>
                                     </div>
                                   );
                                 }
@@ -951,7 +953,7 @@ export default function BatchCreateModal({
                                     <div className="text-success-600 flex items-center gap-1">
                                       <span>✓</span>
                                       <span>
-                                        检测到 {validCount} 条有效规则
+                                        {t("batchCreate.quick.validRules", { count: validCount })}
                                       </span>
                                     </div>
                                   );
@@ -960,7 +962,7 @@ export default function BatchCreateModal({
                                     <div className="text-warning-600 flex items-center gap-1">
                                       <span>⚠</span>
                                       <span>
-                                        有效规则：{validCount} / {rules.length}
+                                        {t("batchCreate.quick.partialValid", { valid: validCount, total: rules.length })}
                                       </span>
                                     </div>
                                   );
@@ -969,7 +971,7 @@ export default function BatchCreateModal({
                                 return (
                                   <div className="text-danger-600 flex items-center gap-1">
                                     <span>✗</span>
-                                    <span>JSON格式错误</span>
+                                    <span>{t("batchCreate.quick.jsonError")}</span>
                                   </div>
                                 );
                               }
@@ -990,7 +992,7 @@ export default function BatchCreateModal({
                 variant="light"
                 onPress={onClose}
               >
-                取消
+                {t("batchCreate.buttons.cancel")}
               </Button>
               <Button
                 color="primary"
@@ -1021,9 +1023,9 @@ export default function BatchCreateModal({
                 onPress={handleSubmit}
               >
                 {loading
-                  ? "创建中..."
+                  ? t("batchCreate.buttons.creating")
                   : activeTab === "standard"
-                    ? `批量创建 (${standardConfig.rules.length})`
+                    ? t("batchCreate.buttons.createWithCount", { count: standardConfig.rules.length })
                     : activeTab === "quick"
                       ? (() => {
                           try {
@@ -1032,13 +1034,13 @@ export default function BatchCreateModal({
                             );
 
                             return Array.isArray(rules)
-                              ? `批量创建 (${rules.length})`
-                              : "批量创建";
+                              ? t("batchCreate.buttons.createWithCount", { count: rules.length })
+                              : t("batchCreate.buttons.create");
                           } catch {
-                            return "批量创建";
+                            return t("batchCreate.buttons.create");
                           }
                         })()
-                      : "批量创建"}
+                      : t("batchCreate.buttons.create")}
               </Button>
             </ModalFooter>
           </>

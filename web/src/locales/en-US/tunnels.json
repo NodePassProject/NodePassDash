@@ -207,6 +207,72 @@
       "deleteFailedDesc": "Failed to delete group"
     }
   },
+  "batchCreate": {
+    "title": "Batch Create Tunnels",
+    "tabs": {
+      "standard": "Standard Mode",
+      "quick": "Config Mode"
+    },
+    "standard": {
+      "rules": "Forward Rules",
+      "selectEndpoint": "Select Entry Server",
+      "unifiedEndpoint": "Unified Entry Server",
+      "addRule": "Add Rule",
+      "noRules": "No forwarding rules, click \"Add Rule\" to start configuration",
+      "selectEndpointServer": "Select Entry Server",
+      "tunnelName": "Tunnel Name",
+      "tunnelPort": "Entry Port, e.g.: 8000",
+      "targetIP": "Target IP, e.g.: 192.168.1.100",
+      "targetPort": "Target Port: 10000"
+    },
+    "quick": {
+      "selectMaster": "Select Master Server",
+      "selectMasterPlaceholder": "Please select the master server to use",
+      "batchRules": "Batch Rules Configuration",
+      "reset": "Reset",
+      "format": "Format",
+      "addExample": "Add Example",
+      "jsonFormat": "JSON Format Input",
+      "formatDescription": "Format Description:",
+      "destDesc": "Target address, format: \"IP:port\"",
+      "listenPortDesc": "Listen port number",
+      "nameDesc": "Tunnel name",
+      "arrayFormatDesc": "Enter JSON array format, supports batch creation of multiple rules",
+      "validationError": "Must be in JSON array format",
+      "validRules": "Detected {count} valid rules",
+      "partialValid": "Valid rules: {valid} / {total}",
+      "jsonError": "JSON format error"
+    },
+    "buttons": {
+      "cancel": "Cancel",
+      "create": "Batch Create",
+      "creating": "Creating...",
+      "createWithCount": "Batch Create ({count})"
+    },
+    "toast": {
+      "fetchEndpointsFailed": "Failed to fetch endpoint list",
+      "addRuleRequired": "Please add at least one forwarding rule",
+      "selectUnifiedEndpoint": "Please select a unified entry server",
+      "selectEndpointForEachRule": "Please select an entry server for each rule",
+      "completeAllRules": "Please complete all forwarding rule configurations (including tunnel name)",
+      "selectMaster": "Please select a master server",
+      "enterJsonRules": "Please enter JSON rule configuration",
+      "jsonMustBeArray": "JSON must be in array format",
+      "atLeastOneRule": "Please enter at least one rule",
+      "ruleFormatError": "Rule {index} format error: must contain dest, listen_port and name fields",
+      "jsonFormatError": "JSON format error, please check syntax",
+      "createComplete": "Batch Creation Complete",
+      "createSuccess": "Successfully created {count} tunnels",
+      "createFailed": "Batch Creation Failed",
+      "createFailedDesc": "Creation failed",
+      "networkError": "Network error, please try again later",
+      "formatSuccess": "Format Successful",
+      "formatSuccessDesc": "Formatted {count} rules",
+      "formatFailed": "Format Failed",
+      "formatFailedArray": "JSON must be in array format",
+      "formatFailedSyntax": "JSON format error, please check syntax"
+    }
+  },
   "details": {
     "timeRange": {
       "1h": "1 Hour",

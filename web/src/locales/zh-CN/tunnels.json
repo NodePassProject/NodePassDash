@@ -207,6 +207,72 @@
       "deleteFailedDesc": "删除分组失败"
     }
   },
+  "batchCreate": {
+    "title": "批量创建实例",
+    "tabs": {
+      "standard": "标准模式",
+      "quick": "配置模式"
+    },
+    "standard": {
+      "rules": "转发规则",
+      "selectEndpoint": "选择入口服务器",
+      "unifiedEndpoint": "统一入口服务器",
+      "addRule": "添加规则",
+      "noRules": "暂无转发规则，点击\"添加规则\"开始配置",
+      "selectEndpointServer": "选择入口服务器",
+      "tunnelName": "隧道名称",
+      "tunnelPort": "入口端口，如：8000",
+      "targetIP": "目标IP，如：192.168.1.100",
+      "targetPort": "目标端口：10000"
+    },
+    "quick": {
+      "selectMaster": "选择主控服务器",
+      "selectMasterPlaceholder": "请选择要使用的主控服务器",
+      "batchRules": "批量规则配置",
+      "reset": "复位",
+      "format": "格式化",
+      "addExample": "添加示例",
+      "jsonFormat": "JSON格式输入",
+      "formatDescription": "格式说明：",
+      "destDesc": "目标地址，格式为 \"IP:端口\"",
+      "listenPortDesc": "监听端口号",
+      "nameDesc": "隧道名称",
+      "arrayFormatDesc": "输入JSON数组格式，支持多条规则批量创建",
+      "validationError": "必须是JSON数组格式",
+      "validRules": "检测到 {count} 条有效规则",
+      "partialValid": "有效规则：{valid} / {total}",
+      "jsonError": "JSON格式错误"
+    },
+    "buttons": {
+      "cancel": "取消",
+      "create": "批量创建",
+      "creating": "创建中...",
+      "createWithCount": "批量创建 ({count})"
+    },
+    "toast": {
+      "fetchEndpointsFailed": "获取主控列表失败",
+      "addRuleRequired": "请添加至少一条转发规则",
+      "selectUnifiedEndpoint": "请选择统一的入口服务器",
+      "selectEndpointForEachRule": "请为每条规则选择入口服务器",
+      "completeAllRules": "请完善所有转发规则的配置（包括隧道名称）",
+      "selectMaster": "请选择主控服务器",
+      "enterJsonRules": "请输入JSON规则配置",
+      "jsonMustBeArray": "JSON必须是数组格式",
+      "atLeastOneRule": "请输入至少一条规则",
+      "ruleFormatError": "第 {index} 条规则格式错误：必须包含 dest、listen_port 和 name 字段",
+      "jsonFormatError": "JSON格式错误，请检查语法",
+      "createComplete": "批量创建完成",
+      "createSuccess": "成功创建 {count} 个实例",
+      "createFailed": "批量创建失败",
+      "createFailedDesc": "创建失败",
+      "networkError": "网络错误，请稍后重试",
+      "formatSuccess": "格式化成功",
+      "formatSuccessDesc": "已格式化 {count} 条规则",
+      "formatFailed": "格式化失败",
+      "formatFailedArray": "JSON必须是数组格式",
+      "formatFailedSyntax": "JSON格式错误，请检查语法"
+    }
+  },
   "details": {
     "timeRange": {
       "1h": "1小时",
