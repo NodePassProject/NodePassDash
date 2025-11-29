@@ -300,6 +300,135 @@
       "unknownError": "未知错误"
     }
   },
+  "simpleCreate": {
+    "modalTitle": {
+      "create": "创建实例",
+      "edit": "编辑实例"
+    },
+    "tabs": {
+      "server": "服务端",
+      "client": "客户端"
+    },
+    "fields": {
+      "selectEndpoint": "选择主控",
+      "instanceName": "实例名称",
+      "instanceNamePlaceholder": "xxx-tunnel",
+      "runMode": "运行模式",
+      "listenType": "监听类型",
+      "tunnelAddress": "隧道地址",
+      "tunnelAddressPlaceholder": "0.0.0.0/[2001:db8::1]",
+      "tunnelPort": "隧道端口",
+      "tunnelPortPlaceholder": "0-65535",
+      "targetAddress": "目标地址",
+      "targetAddressPlaceholder": "0.0.0.0/[2001:db8::1]",
+      "targetPort": "目标端口",
+      "targetPortPlaceholder": "0-65535",
+      "logLevel": "日志级别",
+      "tlsMode": "TLS 模式",
+      "certPath": "证书路径",
+      "certPathPlaceholder": "/path/to/cert.pem",
+      "keyPath": "密钥路径",
+      "keyPathPlaceholder": "/path/to/cert.key",
+      "tunnelPassword": "隧道密码",
+      "tunnelPasswordPlaceholder": "连接密码认证",
+      "poolMinCapacity": "连接池最小容量",
+      "poolMinPlaceholder": "64(默认值)",
+      "poolMaxCapacity": "连接池最大容量",
+      "poolMaxPlaceholder": "1024(默认值)",
+      "readTimeout": "数据读取超时",
+      "readTimeoutPlaceholder": "1h0m0s",
+      "rateLimit": "速率限制",
+      "rateLimitPlaceholder": "100",
+      "rateLimitUnit": "Mbps",
+      "maxConnections": "最大连接数限制",
+      "maxConnectionsPlaceholder": "100",
+      "proxyProtocol": "Proxy Protocol",
+      "enableQuic": "启用 QUIC",
+      "weight": "权重(越大越前)",
+      "weightPlaceholder": "0",
+      "outboundIP": "出站源IP",
+      "outboundIPPlaceholder": "auto",
+      "dnsTTL": "DNS TTL",
+      "dnsTTLPlaceholder": "5m",
+      "extendedTargets": "附加目标地址",
+      "extendedTargetsPlaceholder": "192.168.1.1:80&#10;192.168.1.2:80",
+      "extendedTargetsTooltip": "通过增加目标地址达到负载均衡的效果"
+    },
+    "modes": {
+      "auto": "自动",
+      "reverse": "反向",
+      "forward": "正向",
+      "single": "单端",
+      "dual": "双端"
+    },
+    "listenTypes": {
+      "all": "ALL",
+      "tcp": "TCP",
+      "udp": "UDP"
+    },
+    "tls": {
+      "inherit": "继承",
+      "inheritWithValue": "继承 ({mode})",
+      "inheritMaster": "继承主控",
+      "mode0": "无 TLS",
+      "mode1": "自签名证书",
+      "mode2": "自定义证书",
+      "mode0Full": "模式0：无 TLS",
+      "mode1Full": "模式1：自签名证书",
+      "mode2Full": "模式2：自定义证书"
+    },
+    "logLevels": {
+      "inherit": "继承",
+      "inheritWithValue": "继承 ({level})",
+      "inheritMaster": "继承主控",
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warn",
+      "error": "Error",
+      "event": "Event",
+      "none": "None"
+    },
+    "switch": {
+      "on": "开启",
+      "off": "关闭",
+      "enable": "启用",
+      "disable": "关闭"
+    },
+    "optional": {
+      "title": "可选配置",
+      "resetTraffic": "保存后重置流量统计"
+    },
+    "tooltips": {
+      "randomPort": "随机生成端口号",
+      "toggleLoadBalancing": "增加目标地址",
+      "disableLoadBalancing": "关闭负载均衡"
+    },
+    "buttons": {
+      "cancel": "取消",
+      "create": "创建",
+      "update": "更新"
+    },
+    "validation": {
+      "requiredFields": "请填写必填字段",
+      "requiredFieldsDesc": "主控/名称/端口不能为空",
+      "invalidClientMode": "请选择有效的客户端模式",
+      "invalidClientModeDesc": "客户端模式必须为模式1或模式2",
+      "invalidPort": "端口不合法",
+      "invalidPortDesc": "端口需 0-65535",
+      "missingCert": "缺少证书",
+      "missingCertDesc": "TLS 模式2 需填写证书与密钥路径"
+    },
+    "toast": {
+      "loadDataFailed": "加载数据失败",
+      "getTunnelDetailsFailed": "获取隧道详情失败",
+      "getEndpointsFailed": "获取主控失败",
+      "createSuccess": "创建成功",
+      "createFailed": "创建失败",
+      "updateSuccess": "更新成功",
+      "updateFailed": "更新失败",
+      "unknownError": "未知错误"
+    }
+  },
   "details": {
     "timeRange": {
       "1h": "1小时",

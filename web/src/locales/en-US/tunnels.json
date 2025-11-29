@@ -300,6 +300,135 @@
       "unknownError": "Unknown error"
     }
   },
+  "simpleCreate": {
+    "modalTitle": {
+      "create": "Create Tunnel",
+      "edit": "Edit Tunnel"
+    },
+    "tabs": {
+      "server": "Server",
+      "client": "Client"
+    },
+    "fields": {
+      "selectEndpoint": "Select Endpoint",
+      "instanceName": "Tunnel Name",
+      "instanceNamePlaceholder": "xxx-tunnel",
+      "runMode": "Run Mode",
+      "listenType": "Listen Type",
+      "tunnelAddress": "Tunnel Address",
+      "tunnelAddressPlaceholder": "0.0.0.0/[2001:db8::1]",
+      "tunnelPort": "Tunnel Port",
+      "tunnelPortPlaceholder": "0-65535",
+      "targetAddress": "Target Address",
+      "targetAddressPlaceholder": "0.0.0.0/[2001:db8::1]",
+      "targetPort": "Target Port",
+      "targetPortPlaceholder": "0-65535",
+      "logLevel": "Log Level",
+      "tlsMode": "TLS Mode",
+      "certPath": "Certificate Path",
+      "certPathPlaceholder": "/path/to/cert.pem",
+      "keyPath": "Key Path",
+      "keyPathPlaceholder": "/path/to/cert.key",
+      "tunnelPassword": "Tunnel Password",
+      "tunnelPasswordPlaceholder": "Connection password authentication",
+      "poolMinCapacity": "Pool Min Capacity",
+      "poolMinPlaceholder": "64 (default)",
+      "poolMaxCapacity": "Pool Max Capacity",
+      "poolMaxPlaceholder": "1024 (default)",
+      "readTimeout": "Read Timeout",
+      "readTimeoutPlaceholder": "1h0m0s",
+      "rateLimit": "Rate Limit",
+      "rateLimitPlaceholder": "100",
+      "rateLimitUnit": "Mbps",
+      "maxConnections": "Max Connections Limit",
+      "maxConnectionsPlaceholder": "100",
+      "proxyProtocol": "Proxy Protocol",
+      "enableQuic": "Enable QUIC",
+      "weight": "Weight (higher first)",
+      "weightPlaceholder": "0",
+      "outboundIP": "Outbound Source IP",
+      "outboundIPPlaceholder": "auto",
+      "dnsTTL": "DNS TTL",
+      "dnsTTLPlaceholder": "5m",
+      "extendedTargets": "Extended Target Addresses",
+      "extendedTargetsPlaceholder": "192.168.1.1:80&#10;192.168.1.2:80",
+      "extendedTargetsTooltip": "Achieve load balancing by adding target addresses"
+    },
+    "modes": {
+      "auto": "Auto",
+      "reverse": "Reverse",
+      "forward": "Forward",
+      "single": "Single",
+      "dual": "Dual"
+    },
+    "listenTypes": {
+      "all": "ALL",
+      "tcp": "TCP",
+      "udp": "UDP"
+    },
+    "tls": {
+      "inherit": "Inherit",
+      "inheritWithValue": "Inherit ({mode})",
+      "inheritMaster": "Inherit from Endpoint",
+      "mode0": "No TLS",
+      "mode1": "Self-signed Certificate",
+      "mode2": "Custom Certificate",
+      "mode0Full": "Mode 0: No TLS",
+      "mode1Full": "Mode 1: Self-signed Certificate",
+      "mode2Full": "Mode 2: Custom Certificate"
+    },
+    "logLevels": {
+      "inherit": "Inherit",
+      "inheritWithValue": "Inherit ({level})",
+      "inheritMaster": "Inherit from Endpoint",
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warn",
+      "error": "Error",
+      "event": "Event",
+      "none": "None"
+    },
+    "switch": {
+      "on": "On",
+      "off": "Off",
+      "enable": "Enable",
+      "disable": "Disable"
+    },
+    "optional": {
+      "title": "Optional Configuration",
+      "resetTraffic": "Reset traffic statistics after save"
+    },
+    "tooltips": {
+      "randomPort": "Generate random port number",
+      "toggleLoadBalancing": "Add target address",
+      "disableLoadBalancing": "Disable load balancing"
+    },
+    "buttons": {
+      "cancel": "Cancel",
+      "create": "Create",
+      "update": "Update"
+    },
+    "validation": {
+      "requiredFields": "Please fill in required fields",
+      "requiredFieldsDesc": "Endpoint/Name/Port cannot be empty",
+      "invalidClientMode": "Please select a valid client mode",
+      "invalidClientModeDesc": "Client mode must be mode 1 or mode 2",
+      "invalidPort": "Invalid port",
+      "invalidPortDesc": "Port must be 0-65535",
+      "missingCert": "Missing certificate",
+      "missingCertDesc": "TLS mode 2 requires certificate and key path"
+    },
+    "toast": {
+      "loadDataFailed": "Failed to load data",
+      "getTunnelDetailsFailed": "Failed to get tunnel details",
+      "getEndpointsFailed": "Failed to get endpoints",
+      "createSuccess": "Created successfully",
+      "createFailed": "Creation failed",
+      "updateSuccess": "Updated successfully",
+      "updateFailed": "Update failed",
+      "unknownError": "Unknown error"
+    }
+  },
   "details": {
     "timeRange": {
       "1h": "1 Hour",
