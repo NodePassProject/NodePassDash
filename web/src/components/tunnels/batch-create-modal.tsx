@@ -95,7 +95,7 @@ export default function BatchCreateModal({
   {
     "dest": "1.1.1.1:55495",
     "listen_port": 55495,
-    "name": "美国"
+    "name": "Tunnel Name"
   }
 ]`, // JSON格式的批量规则，设置默认内容
   });
@@ -140,7 +140,7 @@ export default function BatchCreateModal({
   {
     "dest": "1.1.1.1:55495",
     "listen_port": 55495,
-    "name": "美国"
+    "name": "Tunnel Name"
   }
 ]`,
     });
@@ -219,7 +219,7 @@ export default function BatchCreateModal({
   {
     "dest": "1.1.1.1:55495",
     "listen_port": 55495,
-    "name": "美国"
+    "name": "Tunnel Name"
   }
 ]`,
     }));
