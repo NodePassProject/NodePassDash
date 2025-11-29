@@ -188,6 +188,46 @@
       "unknownError": "Unknown error"
     }
   },
+  "tcpingModal": {
+    "title": "Network Diagnostics",
+    "loading": {
+      "testing": "Running connectivity test...",
+      "targetAddress": "Target Address"
+    },
+    "result": {
+      "targetAddress": "Target Address",
+      "connectionStatus": "Connection Status",
+      "connected": "✓ Connected",
+      "disconnected": "✗ Disconnected",
+      "packetLoss": "Packet Loss",
+      "networkQuality": "Network Quality"
+    },
+    "analysis": {
+      "title": "Response Time Analysis",
+      "fastest": "Fastest",
+      "average": "Average",
+      "slowest": "Slowest"
+    },
+    "addressList": {
+      "selectHint": "Click any address to start connectivity test",
+      "entryAddress": "Entry Address",
+      "exitAddress": "Exit Address",
+      "exitAddressN": "Exit Address {{n}}"
+    },
+    "modes": {
+      "singleForward": "Single Forward Mode",
+      "natPenetration": "NAT Penetration Mode",
+      "tunnelForward": "Tunnel Forward Mode"
+    },
+    "actions": {
+      "close": "Close",
+      "retest": "Retest"
+    },
+    "toast": {
+      "testFailed": "Diagnostics test failed",
+      "unknownError": "Unknown error"
+    }
+  },
   "assembleModal": {
     "title": "Assemble Service",
     "fields": {

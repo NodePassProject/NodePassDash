@@ -652,5 +652,49 @@
       "enabled": "开启",
       "disabled": "关闭"
     }
+  },
+  "tcpingModal": {
+    "title": "网络诊断测试",
+    "loading": {
+      "testing": "正在进行连通性测试...",
+      "targetAddress": "目标地址"
+    },
+    "result": {
+      "title": "测试结果",
+      "targetAddress": "目标地址",
+      "connectionStatus": "连接状态",
+      "connected": "✓ 连接成功",
+      "disconnected": "✗ 连接失败",
+      "packetLoss": "丢包率",
+      "networkQuality": "网络质量"
+    },
+    "analysis": {
+      "fastest": "最快响应",
+      "average": "平均响应",
+      "slowest": "最慢响应"
+    },
+    "latencyQuality": {
+      "excellent": "优秀",
+      "good": "良好",
+      "fair": "一般",
+      "poor": "较差"
+    },
+    "addressSelection": {
+      "title": "ℹ️ 检测到多个目标地址",
+      "description": "此隧道配置了负载均衡，请选择要测试的目标地址，然后点击测试按钮开始诊断。",
+      "mainTarget": "主目标地址",
+      "extendedTarget": "扩展地址 #{{n}}"
+    },
+    "actions": {
+      "close": "关闭",
+      "retest": "重新测试",
+      "startTest": "开始测试"
+    },
+    "toast": {
+      "testFailed": "诊断测试失败",
+      "unknownError": "未知错误",
+      "selectAddress": "请选择目标地址",
+      "selectAddressDesc": "请先选择一个目标地址后再进行测试"
+    }
   }
 }

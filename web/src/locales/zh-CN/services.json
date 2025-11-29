@@ -188,6 +188,46 @@
       "unknownError": "未知错误"
     }
   },
+  "tcpingModal": {
+    "title": "网络诊断测试",
+    "loading": {
+      "testing": "正在进行连通性测试...",
+      "targetAddress": "目标地址"
+    },
+    "result": {
+      "targetAddress": "目标地址",
+      "connectionStatus": "连接状态",
+      "connected": "✓ 连接成功",
+      "disconnected": "✗ 连接失败",
+      "packetLoss": "丢包率",
+      "networkQuality": "网络质量"
+    },
+    "analysis": {
+      "title": "响应时间分析",
+      "fastest": "最快响应",
+      "average": "平均响应",
+      "slowest": "最慢响应"
+    },
+    "addressList": {
+      "selectHint": "点击任意地址开始测试连通性",
+      "entryAddress": "入口地址",
+      "exitAddress": "出口地址",
+      "exitAddressN": "出口地址 {{n}}"
+    },
+    "modes": {
+      "singleForward": "单端转发模式",
+      "natPenetration": "NAT穿透模式",
+      "tunnelForward": "隧道转发模式"
+    },
+    "actions": {
+      "close": "关闭",
+      "retest": "重新测试"
+    },
+    "toast": {
+      "testFailed": "诊断测试失败",
+      "unknownError": "未知错误"
+    }
+  },
   "assembleModal": {
     "title": "组装服务",
     "fields": {

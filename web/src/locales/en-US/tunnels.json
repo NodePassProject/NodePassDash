@@ -652,5 +652,49 @@
       "enabled": "enabled",
       "disabled": "disabled"
     }
+  },
+  "tcpingModal": {
+    "title": "Network Diagnostics",
+    "loading": {
+      "testing": "Running connectivity test...",
+      "targetAddress": "Target Address"
+    },
+    "result": {
+      "title": "Test Result",
+      "targetAddress": "Target Address",
+      "connectionStatus": "Connection Status",
+      "connected": "✓ Connected",
+      "disconnected": "✗ Disconnected",
+      "packetLoss": "Packet Loss",
+      "networkQuality": "Network Quality"
+    },
+    "analysis": {
+      "fastest": "Fastest",
+      "average": "Average",
+      "slowest": "Slowest"
+    },
+    "latencyQuality": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor"
+    },
+    "addressSelection": {
+      "title": "ℹ️ Multiple target addresses detected",
+      "description": "This tunnel has load balancing configured. Please select the target address to test, then click the test button to start diagnostics.",
+      "mainTarget": "Main Target Address",
+      "extendedTarget": "Extended Address #{{n}}"
+    },
+    "actions": {
+      "close": "Close",
+      "retest": "Retest",
+      "startTest": "Start Test"
+    },
+    "toast": {
+      "testFailed": "Diagnostics test failed",
+      "unknownError": "Unknown error",
+      "selectAddress": "Please select target address",
+      "selectAddressDesc": "Please select a target address before running the test"
+    }
   }
 }
