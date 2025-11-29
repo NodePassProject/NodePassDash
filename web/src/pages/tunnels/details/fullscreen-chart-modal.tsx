@@ -10,6 +10,7 @@ import {
 } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faRefresh } from "@fortawesome/free-solid-svg-icons";
+import { useTranslation } from "react-i18next";
 
 import { TrafficUsageChart } from "@/components/ui/traffic-usage-chart";
 import { SpeedChart } from "@/components/ui/speed-chart";
@@ -65,13 +66,7 @@ interface FullscreenChartModalProps {
   onRefresh?: () => void;
 }
 
-// 时间范围选项
-const timeRanges = [
-  { key: "1h", title: "1小时" },
-  { key: "6h", title: "6小时" },
-  { key: "12h", title: "12小时" },
-  { key: "24h", title: "24小时" },
-];
+// 时间范围选项 - moved to component to access t function
 
 // 根据时间范围过滤数据
 const filterDataByTimeRange = (data: any[], timeRange: string) => {
@@ -94,7 +89,7 @@ const filterDataByTimeRange = (data: any[], timeRange: string) => {
 
       return !isNaN(itemTime.getTime()) && itemTime >= cutoffTime;
     } catch (error) {
-      console.error(`时间解析错误: ${item.timeStamp}`, error);
+      console.error(`Time parsing error: ${item.timeStamp}`, error);
 
       return false;
     }
@@ -115,7 +110,16 @@ export const FullscreenChartModal: React.FC<FullscreenChartModalProps> = ({
   error,
   onRefresh,
 }) => {
+  const { t } = useTranslation("tunnels");
   const [timeRange, setTimeRange] = React.useState<string>("24h");
+
+  // 时间范围选项
+  const timeRanges = [
+    { key: "1h", title: t("details.timeRange.1h") },
+    { key: "6h", title: t("details.timeRange.6h") },
+    { key: "12h", title: t("details.timeRange.12h") },
+    { key: "24h", title: t("details.timeRange.24h") },
+  ];
 
   // 根据图表类型获取对应的数据
   const getCurrentData = () => {

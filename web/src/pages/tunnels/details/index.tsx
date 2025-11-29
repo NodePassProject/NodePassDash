@@ -51,6 +51,7 @@ import { addToast } from "@heroui/toast";
 import { useSearchParams } from "react-router-dom";
 import { parseDate } from "@internationalized/date";
 import { Icon } from "@iconify/react";
+import { useTranslation } from "react-i18next";
 
 import { FullscreenChartModal } from "./fullscreen-chart-modal";
 import CellValue from "./cell-value";
@@ -76,21 +77,7 @@ import { useMetricsTrend } from "@/lib/hooks/use-metrics-trend";
 import TunnelStatsCharts from "@/components/ui/tunnel-stats-charts";
 import { useSettings } from "@/components/providers/settings-provider";
 
-// 状态映射函数
-const getStatusText = (status: string): string => {
-  switch (status) {
-    case "success":
-      return "运行中";
-    case "warning":
-      return "有错误";
-    case "danger":
-      return "已停止";
-    case "default":
-      return "已离线";
-    default:
-      return "未知";
-  }
-};
+// Status mapping function - moved inside component to access t()
 
 interface TunnelInfo {
   id: number;
@@ -242,50 +229,8 @@ const getBestUnit = (values: number[]) => {
   };
 };
 
-// 将主控的TLS数字转换为对应的模式文案
-const getTLSModeText = (tlsValue: string): string => {
-  switch (tlsValue) {
-    case "0":
-      return "无 TLS 加密";
-    case "1":
-      return "自签名证书";
-    case "2":
-      return "自定义证书";
-    default:
-      return tlsValue; // 如果不是数字，直接返回原值
-  }
-};
-
-// 将隧道模式数字转换为对应的模式文案
-const getTunnelModeText = (type: string, modeValue?: number | null): string => {
-  if (modeValue == null) return "未设置";
-
-  if (type === "client") {
-    switch (modeValue) {
-      case 0:
-        return "自动模式";
-      case 1:
-        return "单端转发";
-      case 2:
-        return "双端转发";
-      default:
-        return `未知模式(${modeValue})`;
-    }
-  } else if (type === "server") {
-    switch (modeValue) {
-      case 0:
-        return "自动检测";
-      case 1:
-        return "反向转发";
-      case 2:
-        return "正向转发";
-      default:
-        return `未知模式(${modeValue})`;
-    }
-  }
-
-  return `未知模式(${modeValue})`;
-};
+// TLS mode mapping function - moved inside component to access t()
+// Tunnel mode mapping function - moved inside component to access t()
 
 // 添加流量历史记录类型
 interface TrafficMetrics {
@@ -309,6 +254,7 @@ export default function TunnelDetailPage() {
   const navigate = useNavigate();
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
   const { settings } = useSettings();
+  const { t } = useTranslation("tunnels");
   const [tunnelInfo, setTunnelInfo] = React.useState<TunnelInfo | null>(null);
   const [loading, setLoading] = React.useState(true);
   const [trafficData, setTrafficData] = React.useState<FlowTrafficData[]>([]);
@@ -335,13 +281,13 @@ export default function TunnelDetailPage() {
       const response = await fetch(`/api/tunnels/${resolvedId}/details`);
 
       if (!response.ok) {
-        throw new Error("获取实例详情失败");
+        throw new Error("Failed to fetch tunnel details");
       }
 
       const data = await response.json();
 
-      // 设置基本信息
-      console.log("[隧道详情] 接收到的数据:", data);
+      // Set basic info
+      console.log("[Tunnel Details] Received data:", data);
       setTunnelInfo({
         ...data,
         instanceTags: data.tags || {}, // 现在是map格式
@@ -349,16 +295,16 @@ export default function TunnelDetailPage() {
 
       setInitialDataLoaded(true);
     } catch (error) {
-      console.error("获取实例详情失败:", error);
+      console.error("Failed to fetch tunnel details:", error);
       addToast({
-        title: "获取实例详情失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("details.toast.fetchFailed"),
+        description: error instanceof Error ? error.message : t("details.toast.unknownError"),
         color: "danger",
       });
     } finally {
       setLoading(false);
     }
-  }, [resolvedId]);
+  }, [resolvedId, t]);
 
   // 使用统一的 metrics 趋势 hook (15秒轮询)
   const {
@@ -421,6 +367,65 @@ export default function TunnelDetailPage() {
     null,
   );
 
+  // Helper functions using i18n
+  const getStatusText = (status: string): string => {
+    switch (status) {
+      case "success":
+        return t("details.status.running");
+      case "warning":
+        return t("details.status.error");
+      case "danger":
+        return t("details.status.stopped");
+      case "default":
+        return t("details.status.offline");
+      default:
+        return t("details.status.unknown");
+    }
+  };
+
+  const getTLSModeText = (tlsValue: string): string => {
+    switch (tlsValue) {
+      case "0":
+        return t("details.tlsMode.none");
+      case "1":
+        return t("details.tlsMode.selfsigned");
+      case "2":
+        return t("details.tlsMode.custom");
+      default:
+        return tlsValue;
+    }
+  };
+
+  const getTunnelModeText = (type: string, modeValue?: number | null): string => {
+    if (modeValue == null) return t("details.tunnelMode.notSet");
+
+    if (type === "client") {
+      switch (modeValue) {
+        case 0:
+          return t("details.tunnelMode.auto");
+        case 1:
+          return t("details.tunnelMode.singleForward");
+        case 2:
+          return t("details.tunnelMode.dualForward");
+        default:
+          return t("details.tunnelMode.unknown");
+      }
+    } else if (type === "server") {
+      switch (modeValue) {
+        case 0:
+          return t("details.tunnelMode.autoDetect");
+        case 1:
+          return t("details.tunnelMode.reverse");
+        case 2:
+          return t("details.tunnelMode.forward");
+        default:
+          return t("details.tunnelMode.unknown");
+      }
+    }
+
+    return t("details.tunnelMode.unknown");
+  };
+
   // 打开全屏图表的函数
   const openFullscreenChart = (
     type: "traffic" | "speed" | "pool" | "connections" | "latency",
@@ -470,7 +475,7 @@ export default function TunnelDetailPage() {
 
             return false;
           } catch (error) {
-            console.error(`时间解析错误: ${timeStr}`, error);
+            console.error(`Time parsing error: ${timeStr}`, error);
 
             return false;
           }
@@ -519,7 +524,7 @@ export default function TunnelDetailPage() {
 
           return false;
         } catch (error) {
-          console.error(`ping数据时间解析错误: ${timeStr}`, error);
+          console.error(`Ping data time parsing error: ${timeStr}`, error);
 
           return false;
         }
@@ -568,7 +573,7 @@ export default function TunnelDetailPage() {
 
           return false;
         } catch (error) {
-          console.error(`连接池数据时间解析错误: ${timeStr}`, error);
+          console.error(`Connection pool data time parsing error: ${timeStr}`, error);
 
           return false;
         }
@@ -729,8 +734,8 @@ export default function TunnelDetailPage() {
   }, []);
 
   const handleLogClear = React.useCallback(() => {
-    // 清空完成后的回调
-    console.log("文件日志已清空");
+    // Callback after clearing
+    console.log("File logs cleared");
   }, []);
 
   // 导出日志和SSE记录的函数
@@ -756,7 +761,7 @@ export default function TunnelDetailPage() {
       );
 
       if (!response.ok) {
-        throw new Error("导出失败");
+        throw new Error("Export failed");
       }
 
       // 获取文件名，默认使用实例名称
@@ -774,15 +779,15 @@ export default function TunnelDetailPage() {
       tempAnchor.click();
 
       addToast({
-        title: "导出成功",
-        description: `日志文件已导出为 ${filename}`,
+        title: t("details.toast.exportSuccess"),
+        description: t("details.toast.exportSuccessDesc", { filename }),
         color: "success",
       });
     } catch (error) {
-      console.error("导出日志失败:", error);
+      console.error("Failed to export logs:", error);
       addToast({
-        title: "导出失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("details.toast.exportFailed"),
+        description: error instanceof Error ? error.message : t("details.toast.unknownError"),
         color: "danger",
       });
     } finally {
@@ -795,7 +800,7 @@ export default function TunnelDetailPage() {
       }
       setExportLoading(false);
     }
-  }, [exportLoading, tunnelInfo]);
+  }, [exportLoading, tunnelInfo, t]);
 
   // 手动刷新页面数据的函数 - 优化防抖和依赖
   const handleRefresh = React.useCallback(async () => {
@@ -813,16 +818,16 @@ export default function TunnelDetailPage() {
       // 刷新文件日志 - 直接更新trigger而不依赖handleLogRefresh
       setLogRefreshTrigger((prev) => prev + 1);
     } catch (error) {
-      console.error("[前端手动刷新] 刷新数据失败:", error);
+      console.error("[Manual refresh] Failed to refresh data:", error);
       addToast({
-        title: "刷新失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("details.toast.refreshFailed"),
+        description: error instanceof Error ? error.message : t("details.toast.unknownError"),
         color: "danger",
       });
     } finally {
       setRefreshLoading(false);
     }
-  }, [refreshLoading, refreshMetrics, fetchTunnelDetails]);
+  }, [refreshLoading, refreshMetrics, fetchTunnelDetails, t]);
 
   // 使用共用的实例操作 hook
   const { toggleStatus, restart, deleteTunnel } = useTunnelActions();
@@ -899,11 +904,11 @@ export default function TunnelDetailPage() {
   // SSE事件处理器 - 使用useMemo优化
   const sseOnMessage = React.useCallback(
     (data: any) => {
-      console.log("[隧道详情] 收到SSE事件:", data);
+      console.log("[Tunnel Details] Received SSE event:", data);
 
       // 处理log事件 - 拼接到日志末尾
       if (data.type === "log" && data.logs) {
-        console.log("[隧道详情] 收到日志事件，追加到日志末尾:", data.logs);
+        console.log("[Tunnel Details] Received log event, appending to log end:", data.logs);
         // 通过window对象调用FileLogViewer的方法追加日志
         if (
           (window as any).fileLogViewerRef &&
@@ -911,13 +916,13 @@ export default function TunnelDetailPage() {
         ) {
           (window as any).fileLogViewerRef.appendLog(data.logs);
         } else {
-          console.warn("[隧道详情] FileLogViewer引用不存在，无法追加日志");
+          console.warn("[Tunnel Details] FileLogViewer reference does not exist, cannot append logs");
         }
       }
 
       // 处理update事件 - 优化：只更新必要的状态，避免重复API调用
       if (data.type === "update") {
-        console.log("[隧道详情] 收到update事件，更新本地状态");
+        console.log("[Tunnel Details] Received update event, updating local state");
 
         // 只在非实时模式下刷新日志（通过触发器），避免重复调用fetchTunnelDetails
         if (!isRealtimeLogging) {
@@ -968,7 +973,7 @@ export default function TunnelDetailPage() {
   );
 
   const sseOnError = React.useCallback((error: any) => {
-    console.error("[隧道详情] SSE连接错误:", error);
+    console.error("[Tunnel Details] SSE connection error:", error);
   }, []);
 
   // SSE监听逻辑 - 使用优化的事件处理器，只有在实时日志开启时才连接
@@ -1076,19 +1081,19 @@ export default function TunnelDetailPage() {
         );
 
         addToast({
-          title: "配置更新成功",
+          title: t("details.toast.restartConfigSuccess"),
           description:
-            data.message || `自动重启已${newRestartValue ? "开启" : "关闭"}`,
+            data.message || t("details.toast.restartConfigSuccessDesc", { status: newRestartValue ? t("details.toast.enabled") : t("details.toast.disabled") }),
           color: "success",
         });
       } else {
-        throw new Error(data.error || "更新失败");
+        throw new Error(data.error || "Update failed");
       }
     } catch (error) {
-      console.error("更新重启配置失败:", error);
+      console.error("Failed to update restart configuration:", error);
 
       // 检查是否为404错误或不支持错误，表示当前实例不支持自动重启功能
-      let errorMessage = "未知错误";
+      let errorMessage = t("details.toast.unknownError");
 
       if (error instanceof Error) {
         errorMessage = error.message;
@@ -1100,12 +1105,12 @@ export default function TunnelDetailPage() {
           errorMessage.includes("unsupported") ||
           errorMessage.includes("当前实例不支持自动重启功能")
         ) {
-          errorMessage = "当前实例不支持自动重启功能";
+          errorMessage = t("details.toast.restartNotSupported");
         }
       }
 
       addToast({
-        title: "配置更新失败",
+        title: t("details.toast.restartConfigFailed"),
         description: errorMessage,
         color: "danger",
       });
@@ -1173,18 +1178,18 @@ export default function TunnelDetailPage() {
 
       if (response.ok && data.success) {
         addToast({
-          title: "重置成功",
-          description: "实例流量信息已重置",
+          title: t("details.toast.resetSuccess"),
+          description: t("details.toast.resetSuccessDesc"),
           color: "success",
         });
         fetchTunnelDetails();
       } else {
-        throw new Error(data.error || "重置失败");
+        throw new Error(data.error || "Reset failed");
       }
     } catch (error) {
       addToast({
-        title: "重置失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("details.toast.resetFailed"),
+        description: error instanceof Error ? error.message : t("details.toast.unknownError"),
         color: "danger",
       });
     } finally {
@@ -1212,7 +1217,7 @@ export default function TunnelDetailPage() {
           <div className="flex justify-center">
             <Spinner color="primary" size="lg" />
           </div>
-          <p className="text-default-500 animate-pulse">加载中...</p>
+          <p className="text-default-500 animate-pulse">{t("details.loading")}</p>
         </div>
       </div>
     );
@@ -1226,7 +1231,7 @@ export default function TunnelDetailPage() {
           <div className="flex justify-center">
             <Spinner color="primary" size="lg" />
           </div>
-          <p className="text-default-500 animate-pulse">刷新数据中...</p>
+          <p className="text-default-500 animate-pulse">{t("details.refreshing")}</p>
         </div>
       </div>
     );
@@ -1253,7 +1258,7 @@ export default function TunnelDetailPage() {
               color={tunnelInfo.type === "server" ? "primary" : "secondary"}
               variant="flat"
             >
-              {tunnelInfo.type === "server" ? "服务端" : "客户端"}
+              {tunnelInfo.type === "server" ? t("type.server") : t("type.client")}
             </Chip>
             <Chip
               className="flex-shrink-0"
@@ -1279,7 +1284,7 @@ export default function TunnelDetailPage() {
               variant="flat"
               onPress={handleToggleStatus}
             >
-              {tunnelInfo.status === "success" ? "停止" : "启动"}
+              {tunnelInfo.status === "success" ? t("details.buttons.stop") : t("details.buttons.start")}
             </Button>
             <Button
               className="flex-shrink-0"
@@ -1289,7 +1294,7 @@ export default function TunnelDetailPage() {
               variant="flat"
               onPress={handleRestart}
             >
-              重启
+              {t("details.buttons.restart")}
             </Button>
             <Button
               className="flex-shrink-0"
@@ -1298,7 +1303,7 @@ export default function TunnelDetailPage() {
               variant="flat"
               onPress={handleDeleteClick}
             >
-              删除
+              {t("details.buttons.delete")}
             </Button>
             <Button
               className="flex-shrink-0"
@@ -1308,7 +1313,7 @@ export default function TunnelDetailPage() {
               variant="flat"
               onPress={() => setResetModalOpen(true)}
             >
-              重置
+              {t("details.buttons.reset")}
             </Button>
             <Button
               className="flex-shrink-0"
@@ -1318,7 +1323,7 @@ export default function TunnelDetailPage() {
               variant="flat"
               onPress={handleRefresh}
             >
-              刷新
+              {t("details.buttons.refresh")}
             </Button>
           </div>
           {/* 操作按钮组 - 移动端显示 */}
@@ -1337,7 +1342,7 @@ export default function TunnelDetailPage() {
               variant="flat"
               onClick={handleToggleStatus}
             >
-              {tunnelInfo.status === "success" ? "停止" : "启动"}
+              {tunnelInfo.status === "success" ? t("details.buttons.stop") : t("details.buttons.start")}
             </Button>
             <Button
               className="flex-shrink-0"
@@ -1348,7 +1353,7 @@ export default function TunnelDetailPage() {
               variant="flat"
               onClick={handleRestart}
             >
-              重启
+              {t("details.buttons.restart")}
             </Button>
             <Button
               className="flex-shrink-0"
@@ -1358,7 +1363,7 @@ export default function TunnelDetailPage() {
               variant="flat"
               onClick={handleDeleteClick}
             >
-              删除
+              {t("details.buttons.delete")}
             </Button>
             <Button
               className="flex-shrink-0"
@@ -1369,7 +1374,7 @@ export default function TunnelDetailPage() {
               variant="flat"
               onClick={handleRefresh}
             >
-              刷新
+              {t("details.buttons.refresh")}
             </Button>
           </div>
         </div>
@@ -1382,19 +1387,15 @@ export default function TunnelDetailPage() {
                 <ModalHeader className="flex flex-col gap-1">
                   <div className="flex items-center gap-2">
                     <FontAwesomeIcon className="text-danger" icon={faTrash} />
-                    确认删除
+                    {t("details.deleteModal.title")}
                   </div>
                 </ModalHeader>
                 <ModalBody>
                   <p className="text-default-600 text-sm md:text-base">
-                    您确定要删除实例{" "}
-                    <span className="font-semibold text-foreground">
-                      "{tunnelInfo.name}"
-                    </span>{" "}
-                    吗？
+                    {t("details.deleteModal.message", { name: tunnelInfo.name })}
                   </p>
                   <p className="text-xs md:text-small text-warning">
-                    ⚠️ 此操作不可撤销，实例的所有配置和数据都将被永久删除。
+                    {t("details.deleteModal.warning")}
                   </p>
                 </ModalBody>
                 <ModalFooter>
@@ -1404,7 +1405,7 @@ export default function TunnelDetailPage() {
                     variant="light"
                     onPress={onClose}
                   >
-                    取消
+                    {t("details.buttons.cancel")}
                   </Button>
                   <Button
                     color="danger"
@@ -1416,7 +1417,7 @@ export default function TunnelDetailPage() {
                       setMoveToRecycle(false);
                     }}
                   >
-                    确认删除
+                    {t("details.deleteModal.confirmButton")}
                   </Button>
                 </ModalFooter>
               </>
@@ -1439,19 +1440,15 @@ export default function TunnelDetailPage() {
                       className="text-secondary"
                       icon={faRecycle}
                     />
-                    确认重置
+                    {t("details.resetModal.title")}
                   </div>
                 </ModalHeader>
                 <ModalBody>
                   <p className="text-default-600 text-sm md:text-base">
-                    您确定要重置实例{" "}
-                    <span className="font-semibold text-foreground">
-                      "{tunnelInfo.name}"
-                    </span>{" "}
-                    的流量信息吗？
+                    {t("details.resetModal.message", { name: tunnelInfo.name })}
                   </p>
                   <p className="text-xs md:text-small text-warning">
-                    ⚠️ 此操作仅重置流量统计，不影响其他配置。
+                    {t("details.resetModal.warning")}
                   </p>
                 </ModalBody>
                 <ModalFooter>
@@ -1461,7 +1458,7 @@ export default function TunnelDetailPage() {
                     variant="light"
                     onPress={onClose}
                   >
-                    取消
+                    {t("details.buttons.cancel")}
                   </Button>
 
                   <Button
@@ -1471,7 +1468,7 @@ export default function TunnelDetailPage() {
                     startContent={<FontAwesomeIcon icon={faRecycle} />}
                     onPress={handleReset}
                   >
-                    确认重置
+                    {t("details.resetModal.confirmButton")}
                   </Button>
                 </ModalFooter>
               </>
@@ -1670,9 +1667,9 @@ export default function TunnelDetailPage() {
         <Card className="p-2">
           <CardHeader className="flex items-center  justify-between pb-0">
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold">实例信息</h3>
+              <h3 className="text-lg font-semibold">{t("details.instanceInfo.title")}</h3>
             </div>
-            <Tooltip content="编辑实例" placement="top">
+            <Tooltip content={t("details.instanceInfo.editTooltip")} placement="top">
               <Button
                 isIconOnly
                 color="default"
@@ -1698,7 +1695,7 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="实例ID"
+                  label={t("details.instanceInfo.instanceId")}
                   value={tunnelInfo.instanceId}
                 />
 
@@ -1712,7 +1709,7 @@ export default function TunnelDetailPage() {
                         width={18}
                       />
                     }
-                    label="模式"
+                    label={t("details.instanceInfo.mode")}
                     value={
                       <Chip color="primary" size="sm" variant="flat">
                         {getTunnelModeText(
@@ -1733,7 +1730,7 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="主控"
+                  label={t("details.instanceInfo.endpoint")}
                   value={tunnelInfo.endpoint.name}
                 />
 
@@ -1746,7 +1743,7 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="版本号"
+                  label={t("details.instanceInfo.version")}
                   value={
                     <Chip color="secondary" size="sm" variant="flat">
                       {tunnelInfo.endpoint.version || "< v1.4.0"}
@@ -1763,7 +1760,7 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="隧道地址"
+                  label={t("details.instanceInfo.tunnelAddress")}
                   value={
                     <div className="overflow-hidden">
                       <Tooltip
@@ -1786,7 +1783,7 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="目标地址"
+                  label={t("details.instanceInfo.targetAddress")}
                   value={
                     <div className="flex items-center gap-2 overflow-hidden">
                       <Tooltip
@@ -1801,7 +1798,7 @@ export default function TunnelDetailPage() {
                         <Tooltip
                           content={
                             <div className="space-y-2">
-                              <p className="text-sm font-semibold">扩展目标地址</p>
+                              <p className="text-sm font-semibold">{t("details.instanceInfo.extendedTargets")}</p>
                               <div className="space-y-1 max-h-48 overflow-y-auto">
                                 {tunnelInfo.extendTargetAddress.map((addr, index) => (
                                   <div key={index} className="font-mono text-xs break-all">
@@ -1836,7 +1833,7 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="日志级别"
+                  label={t("details.instanceInfo.logLevel.label")}
                   value={
                     <div className="flex items-center gap-2">
                       <Chip
@@ -1853,10 +1850,10 @@ export default function TunnelDetailPage() {
                         {tunnelInfo.logLevel === "inherit" ||
                           tunnelInfo.logLevel === ""
                           ? tunnelInfo.endpoint.log
-                            ? `继承主控 [${tunnelInfo.endpoint.log.toUpperCase()}]`
-                            : "继承主控"
+                            ? `${t("details.instanceInfo.logLevel.inherit")} [${tunnelInfo.endpoint.log.toUpperCase()}]`
+                            : t("details.instanceInfo.logLevel.inherit")
                           : tunnelInfo.logLevel === "none"
-                            ? "无日志 [NONE]"
+                            ? t("details.instanceInfo.logLevel.none")
                             : tunnelInfo.logLevel.toUpperCase()}
                       </Chip>
                     </div>
@@ -1874,7 +1871,7 @@ export default function TunnelDetailPage() {
                         width={18}
                       />
                     }
-                    label="池最小值"
+                    label={t("details.instanceInfo.pool.min")}
                     value={(() => {
                       const hasValue = tunnelInfo.min !== undefined && tunnelInfo.min !== null;
                       const configValue = tunnelInfo.config?.min;
@@ -1892,7 +1889,7 @@ export default function TunnelDetailPage() {
                           </span>
                           {!hasValue && configValue && (
                             <span className="text-default-400 text-xs ml-1">
-                              (默认)
+                              {t("details.instanceInfo.pool.default")}
                             </span>
                           )}
                         </span>
@@ -1910,7 +1907,7 @@ export default function TunnelDetailPage() {
                         width={18}
                       />
                     }
-                    label="池最大值"
+                    label={t("details.instanceInfo.pool.max")}
                     value={(() => {
                       const hasValue = tunnelInfo.max !== undefined && tunnelInfo.max !== null;
                       const configValue = tunnelInfo.config?.max;
@@ -1928,7 +1925,7 @@ export default function TunnelDetailPage() {
                           </span>
                           {!hasValue && configValue && (
                             <span className="text-default-400 text-xs ml-1">
-                              (默认)
+                              {t("details.instanceInfo.pool.default")}
                             </span>
                           )}
                         </span>
@@ -1946,7 +1943,7 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="最大连接数限制"
+                  label={t("details.instanceInfo.maxConnections.label")}
                   value={
                     <span className="font-mono text-sm">
                       {tunnelInfo.slot !== undefined && tunnelInfo.slot !== null
@@ -1956,11 +1953,11 @@ export default function TunnelDetailPage() {
                             <>
                               {tunnelInfo.config.slot}
                               <span className="text-default-400 text-xs ml-1">
-                                (默认)
+                                {t("details.instanceInfo.pool.default")}
                               </span>
                             </>
                           )
-                          : "未设置"}
+                          : t("details.instanceInfo.maxConnections.notSet")}
                     </span>
                   }
                 />
@@ -2009,7 +2006,7 @@ export default function TunnelDetailPage() {
                           width={18}
                         />
                       }
-                      label="TLS 设置"
+                      label={t("details.instanceInfo.tls.label")}
                       value={
                         <div className="flex items-center">
                           <Chip
@@ -2026,14 +2023,14 @@ export default function TunnelDetailPage() {
                             {tunnelInfo.tlsMode === "inherit" || tunnelInfo.tlsMode === ""
                               ? (
                                 <>
-                                  继承主控
+                                  {t("details.instanceInfo.logLevel.inherit")}
                                 </>
                               )
                               : tunnelInfo.tlsMode === "0"
-                                ? "无 TLS 加密"
+                                ? t("details.tlsMode.none")
                                 : tunnelInfo.tlsMode === "1"
-                                  ? "自签名证书"
-                                  : "自定义证书"}
+                                  ? t("details.tlsMode.selfsigned")
+                                  : t("details.tlsMode.custom")}
                           </Chip>
                           {(tunnelInfo.tlsMode === "inherit" || tunnelInfo.tlsMode === "") && tunnelInfo.endpoint.tls && (
                             <span className="text-default-400 text-xs ml-1">
@@ -2053,7 +2050,7 @@ export default function TunnelDetailPage() {
                           width={18}
                         />
                       }
-                      label="证书路径"
+                      label={t("details.instanceInfo.tls.certPath")}
                       value={
                         (tunnelInfo.tlsMode === "2" && tunnelInfo.certPath) ? (
                           <div className="overflow-hidden">
@@ -2095,7 +2092,7 @@ export default function TunnelDetailPage() {
                           width={18}
                         />
                       }
-                      label="密钥路径"
+                      label={t("details.instanceInfo.tls.keyPath")}
                       value={
                         (tunnelInfo.tlsMode === "2" && tunnelInfo.keyPath)
                           ? (
@@ -2140,7 +2137,7 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="隧道密码"
+                  label={t("details.instanceInfo.password.label")}
                   value={
                     <div className="flex items-center gap-2">
                       <span className="font-mono text-xs md:text-sm break-all text-default-500">
@@ -2157,7 +2154,7 @@ export default function TunnelDetailPage() {
                                   </span>
                                 </>
                               )
-                              : "未设置"}
+                              : t("details.instanceInfo.maxConnections.notSet")}
                       </span>
                       {(tunnelInfo.password || tunnelInfo.config?.password) &&
                         !(tunnelInfo.type === "client" && tunnelInfo.mode === 1) && (
@@ -2182,7 +2179,7 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="读取超时"
+                  label={t("details.instanceInfo.readTimeout.label")}
                   value={
                     <span className="font-mono text-sm text-default-600">
                       {tunnelInfo.read
@@ -2196,7 +2193,7 @@ export default function TunnelDetailPage() {
                               </span>
                             </>
                           )
-                          : "未设置"}
+                          : t("details.instanceInfo.readTimeout.notSet")}
                     </span>
                   }
                 />
@@ -2210,7 +2207,7 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="速率限制"
+                  label={t("details.instanceInfo.rateLimit.label")}
                   value={
                     <span className="font-mono text-sm text-default-600">
                       {(() => {
@@ -2220,7 +2217,7 @@ export default function TunnelDetailPage() {
                         const isFromConfig = tunnelInfo.rate === undefined || tunnelInfo.rate === null;
 
                         if (rateValue === undefined || rateValue === null) {
-                          return "未设置";
+                          return t("details.instanceInfo.rateLimit.notSet");
                         }
 
                         const numValue = typeof rateValue === 'string' ? parseFloat(rateValue) : rateValue;
@@ -2264,7 +2261,7 @@ export default function TunnelDetailPage() {
                   }
                   label="Proxy Protocol"
                   value={
-                    tunnelInfo.proxyProtocol === true ? "开启" : "关闭"
+                    tunnelInfo.proxyProtocol === true ? t("details.instanceInfo.proxyProtocol.on") : t("details.instanceInfo.proxyProtocol.off")
                   }
                 />
                 <CellValue
@@ -2276,7 +2273,7 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="监听类型"
+                  label={t("details.instanceInfo.listenType")}
                   value={
                     (() => {
                       const listenType = tunnelInfo?.listenType || "ALL";
@@ -2318,9 +2315,9 @@ export default function TunnelDetailPage() {
                         width={18}
                       />
                     }
-                    label="启用 QUIC"
+                    label={t("details.instanceInfo.quic.label")}
                     value={
-                      tunnelInfo?.quic ? "启用" : "关闭"
+                      tunnelInfo?.quic ? t("details.instanceInfo.quic.enabled") : t("details.instanceInfo.quic.disabled")
                     }
                   />
                 )}
@@ -2333,7 +2330,7 @@ export default function TunnelDetailPage() {
                       width={20}
                     />
                   }
-                  label="出站源IP"
+                  label={t("details.instanceInfo.outboundIP")}
                   value={
                     (() => {
                       const hasValue = tunnelInfo.dial !== undefined && tunnelInfo.dial !== null;
@@ -2367,10 +2364,10 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="自动重启"
+                  label={t("details.instanceInfo.autoRestart.label")}
                   value={
                     <span className="font-mono text-sm text-default-600">
-                      {tunnelInfo.restart ? "开启" : "禁用"}
+                      {tunnelInfo.restart ? t("details.instanceInfo.compression.enabled") : t("details.instanceInfo.autoRestart.disabled")}
                     </span>
                   }
                   onPress={() =>
@@ -2391,12 +2388,12 @@ export default function TunnelDetailPage() {
                   onPress={() => {
                     navigate(`/services/details?sid=${tunnelInfo.peer?.sid}&type=${tunnelInfo.peer?.type}`);
                   }}
-                  label="绑定服务"
+                  label={t("details.instanceInfo.bindService.label")}
                   value={
                     tunnelInfo?.peer && tunnelInfo?.peer?.sid != ""
                       ? (() => {
                         const peer = tunnelInfo.peer;
-                        const displayText = peer?.alias || peer?.sid || "未知服务";
+                        const displayText = peer?.alias || peer?.sid || t("details.instanceInfo.bindService.unknown");
                         return (
                           <div className="overflow-hidden">
                             <Tooltip
@@ -2429,13 +2426,13 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="标签"
+                  label={t("details.instanceInfo.tags.label")}
                   value={
                     tunnelInfo?.instanceTags &&
                       typeof tunnelInfo.instanceTags === 'object' &&
                       Object.keys(tunnelInfo.instanceTags).length > 0
-                      ? "已设置"
-                      : "未设置"
+                      ? t("details.instanceInfo.tags.manage")
+                      : t("details.instanceInfo.tags.noTags")
                   }
                   onPress={handleInstanceTagClick}
                   isInteractive={true}
@@ -2449,8 +2446,8 @@ export default function TunnelDetailPage() {
                       width={18}
                     />
                   }
-                  label="测试网络"
-                  value={"点击测试连通性"}
+                  label={t("details.instanceInfo.tcping.label")}
+                  value={t("details.instanceInfo.tcping.test")}
                   onPress={() => setTcpingModalOpen(true)}
                   isInteractive={true}
                 />
@@ -2462,7 +2459,7 @@ export default function TunnelDetailPage() {
               <div className="flex gap-2 items-center">
                 {tunnelInfo.configLine && (
                   <Tooltip
-                    content={showConfigLine ? "切换显示命令URL" : "切换显示配置URL"}
+                    content={showConfigLine ? t("details.instanceInfo.toggleUrl.showCommand") : t("details.instanceInfo.toggleUrl.showConfig")}
                     placement="top"
                   >
                     <Button
@@ -2596,7 +2593,7 @@ export default function TunnelDetailPage() {
                         size="sm"
                         variant="flat"
                       >
-                        {isUnlimited ? "无限期" : `${remainingDays} 天`}
+                        {isUnlimited ? t("details.instanceInfo.expiry.unlimited") : `${remainingDays} ${t("details.instanceInfo.expiry.days")}`}
                       </Chip>
                     </div>
                   )}
@@ -2730,7 +2727,7 @@ export default function TunnelDetailPage() {
                   {/* 自动重启配置 */}
                   {tunnelInfo.endpoint.version && (
                     <OriginalCellValue
-                      label="自动重启"
+                      label={t("details.instanceInfo.autoRestart.label")}
                       value={
                         <div className="flex items-center justify-center">
                           <Switch
@@ -2752,7 +2749,7 @@ export default function TunnelDetailPage() {
                             }}
                             endContent={
                               <span className="text-xs text-default-600">
-                                禁用
+                                {t("details.instanceInfo.autoRestart.disabled")}
                               </span>
                             }
                             isDisabled={isUpdatingRestart}
@@ -2760,7 +2757,7 @@ export default function TunnelDetailPage() {
                             size="sm"
                             startContent={
                               <span className="text-xs text-default-600">
-                                启用
+                                {t("details.instanceInfo.compression.enabled")}
                               </span>
                             }
                             onValueChange={handleRestartToggle}
@@ -2794,14 +2791,14 @@ export default function TunnelDetailPage() {
                           }}
                           endContent={
                             <span className="text-xs text-default-600">
-                              关闭
+                              {t("common.status.disabled")}
                             </span>
                           }
                           isSelected={isMetricsAutoRefreshEnabled}
                           size="sm"
                           startContent={
                             <span className="text-xs text-default-600">
-                              开启
+                              {t("common.status.enabled")}
                             </span>
                           }
                           onValueChange={toggleMetricsAutoRefresh}
@@ -2834,7 +2831,7 @@ export default function TunnelDetailPage() {
                           }}
                           endContent={
                             <span className="text-xs text-default-600">
-                              关闭
+                              {t("common.status.disabled")}
                             </span>
                           }
                           isDisabled={true}
@@ -2842,7 +2839,7 @@ export default function TunnelDetailPage() {
                           size="sm"
                           startContent={
                             <span className="text-xs text-default-600">
-                              开启
+                              {t("common.status.enabled")}
                             </span>
                           }
                         />
@@ -3215,7 +3212,7 @@ export default function TunnelDetailPage() {
               {/* 操作按钮组 */}
               <div className="flex items-center gap-1 flex-shrink-0">
                 {/* 刷新按钮 */}
-                <Tooltip content="刷新日志" placement="top">
+                <Tooltip content={t("details.logs.refresh")} placement="top">
                   <Button
                     isIconOnly
                     className="h-7 w-7 sm:h-8 sm:w-8 min-w-0"

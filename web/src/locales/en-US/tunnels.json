@@ -206,5 +206,208 @@
       "deleteFailed": "Error",
       "deleteFailedDesc": "Failed to delete group"
     }
+  },
+  "details": {
+    "timeRange": {
+      "1h": "1 Hour",
+      "6h": "6 Hours",
+      "12h": "12 Hours",
+      "24h": "24 Hours"
+    },
+    "status": {
+      "running": "Running",
+      "error": "Error",
+      "stopped": "Stopped",
+      "offline": "Offline",
+      "unknown": "Unknown"
+    },
+    "tlsMode": {
+      "none": "No TLS Encryption",
+      "selfsigned": "Self-Signed Certificate",
+      "custom": "Custom Certificate"
+    },
+    "tunnelMode": {
+      "auto": "Auto Mode",
+      "singleForward": "Single Forward",
+      "dualForward": "Dual Forward",
+      "autoDetect": "Auto Detect",
+      "reverse": "Reverse Forward",
+      "forward": "Forward",
+      "unknown": "Unknown Mode",
+      "notSet": "Not Set"
+    },
+    "loading": "Loading...",
+    "refreshing": "Refreshing data...",
+    "buttons": {
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "delete": "Delete",
+      "reset": "Reset",
+      "refresh": "Refresh",
+      "edit": "Edit Tunnel",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "close": "Close",
+      "copy": "Copy"
+    },
+    "deleteModal": {
+      "title": "Confirm Delete",
+      "message": "Are you sure you want to delete tunnel",
+      "messageEnd": "?",
+      "warning": "⚠️ This action cannot be undone. All configurations and data for this tunnel will be permanently deleted.",
+      "confirmButton": "Confirm Delete"
+    },
+    "resetModal": {
+      "title": "Confirm Reset",
+      "message": "Are you sure you want to reset traffic information for tunnel",
+      "messageEnd": "?",
+      "warning": "⚠️ This operation only resets traffic statistics and does not affect other configurations.",
+      "confirmButton": "Confirm Reset"
+    },
+    "trafficStats": {
+      "tcpReceive": "TCP Receive",
+      "tcpSend": "TCP Send",
+      "udpReceive": "UDP Receive",
+      "udpSend": "UDP Send",
+      "latency": "Internal Latency",
+      "pool": "Pool Connections",
+      "tcpConnections": "TCP Connections",
+      "udpConnections": "UDP Connections"
+    },
+    "instanceInfo": {
+      "title": "Tunnel Information",
+      "instanceId": "Tunnel ID",
+      "mode": "Mode",
+      "endpoint": "Endpoint",
+      "version": "Version",
+      "tunnelAddress": "Tunnel Address",
+      "targetAddress": "Target Address",
+      "extendedTargets": "Extended Target Addresses",
+      "logLevel": {
+        "label": "Log Level",
+        "inherit": "Inherit from Endpoint",
+        "inheritWithValue": "Inherit from Endpoint [{level}]",
+        "none": "No Logging [NONE]"
+      },
+      "pool": {
+        "min": "Pool Min",
+        "max": "Pool Max",
+        "default": "(default)"
+      },
+      "maxConnections": {
+        "label": "Max Connections Limit",
+        "notSet": "Not Set",
+        "default": "(default)"
+      },
+      "tls": {
+        "label": "TLS Settings",
+        "inherit": "Inherit from Endpoint",
+        "certPath": "Certificate Path",
+        "keyPath": "Key Path",
+        "default": "(default)"
+      },
+      "password": {
+        "label": "Tunnel Password",
+        "notSet": "Not Set",
+        "hasPassword": "Password Set",
+        "clickToCopy": "Click to copy password",
+        "default": "(default)"
+      },
+      "compression": {
+        "label": "Compression",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "default": "(default)"
+      },
+      "encryption": {
+        "label": "Encryption",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "default": "(default)"
+      },
+      "autoRestart": {
+        "label": "Auto Restart",
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "tcping": {
+        "label": "TCPing",
+        "test": "Test",
+        "default": "(default)"
+      },
+      "tags": {
+        "label": "Tags",
+        "manage": "Manage Tags",
+        "noTags": "No Tags"
+      },
+      "configLine": "Config Line",
+      "readTimeout": {
+        "label": "Read Timeout",
+        "notSet": "Not Set"
+      },
+      "rateLimit": {
+        "label": "Rate Limit",
+        "notSet": "Not Set"
+      },
+      "proxyProtocol": {
+        "label": "Proxy Protocol",
+        "on": "On",
+        "off": "Off"
+      },
+      "listenType": "Listen Type",
+      "quic": {
+        "label": "Enable QUIC",
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "outboundIP": "Outbound Source IP",
+      "bindService": {
+        "label": "Bind Service",
+        "unknown": "Unknown Service"
+      },
+      "toggleUrl": {
+        "showCommand": "Toggle Command URL Display",
+        "showConfig": "Toggle Config URL Display"
+      },
+      "expiry": {
+        "unlimited": "Unlimited",
+        "days": "days"
+      },
+      "editTooltip": "Edit Tunnel"
+    },
+    "logs": {
+      "title": "Tunnel Logs",
+      "realtime": "Realtime Logs",
+      "selectDate": "Select Date",
+      "export": "Export Logs",
+      "clear": "Clear",
+      "cleared": "File logs cleared",
+      "timeError": "Time parsing error"
+    },
+    "charts": {
+      "traffic": "Traffic Statistics",
+      "speed": "Speed Statistics",
+      "pool": "Pool Statistics",
+      "connections": "Connections Statistics",
+      "latency": "Latency Statistics"
+    },
+    "toast": {
+      "fetchFailed": "Failed to fetch tunnel details",
+      "refreshFailed": "Refresh failed",
+      "resetSuccess": "Reset successful",
+      "resetSuccessDesc": "Tunnel traffic information has been reset",
+      "resetFailed": "Reset failed",
+      "exportSuccess": "Export successful",
+      "exportSuccessDesc": "Log file exported as {filename}",
+      "exportFailed": "Export failed",
+      "restartConfigSuccess": "Configuration updated successfully",
+      "restartConfigSuccessDesc": "Auto restart has been {status}",
+      "restartConfigFailed": "Configuration update failed",
+      "restartNotSupported": "Current tunnel does not support auto restart feature",
+      "unknownError": "Unknown error",
+      "enabled": "enabled",
+      "disabled": "disabled"
+    }
   }
 }

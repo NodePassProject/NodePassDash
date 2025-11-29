@@ -206,5 +206,208 @@
       "deleteFailed": "错误",
       "deleteFailedDesc": "删除分组失败"
     }
+  },
+  "details": {
+    "timeRange": {
+      "1h": "1小时",
+      "6h": "6小时",
+      "12h": "12小时",
+      "24h": "24小时"
+    },
+    "status": {
+      "running": "运行中",
+      "error": "有错误",
+      "stopped": "已停止",
+      "offline": "已离线",
+      "unknown": "未知"
+    },
+    "tlsMode": {
+      "none": "无 TLS 加密",
+      "selfsigned": "自签名证书",
+      "custom": "自定义证书"
+    },
+    "tunnelMode": {
+      "auto": "自动模式",
+      "singleForward": "单端转发",
+      "dualForward": "双端转发",
+      "autoDetect": "自动检测",
+      "reverse": "反向转发",
+      "forward": "正向转发",
+      "unknown": "未知模式",
+      "notSet": "未设置"
+    },
+    "loading": "加载中...",
+    "refreshing": "刷新数据中...",
+    "buttons": {
+      "start": "启动",
+      "stop": "停止",
+      "restart": "重启",
+      "delete": "删除",
+      "reset": "重置",
+      "refresh": "刷新",
+      "edit": "编辑实例",
+      "cancel": "取消",
+      "confirm": "确认",
+      "close": "关闭",
+      "copy": "复制"
+    },
+    "deleteModal": {
+      "title": "确认删除",
+      "message": "您确定要删除实例",
+      "messageEnd": "吗？",
+      "warning": "⚠️ 此操作不可撤销，实例的所有配置和数据都将被永久删除。",
+      "confirmButton": "确认删除"
+    },
+    "resetModal": {
+      "title": "确认重置",
+      "message": "您确定要重置实例",
+      "messageEnd": "的流量信息吗？",
+      "warning": "⚠️ 此操作仅重置流量统计，不影响其他配置。",
+      "confirmButton": "确认重置"
+    },
+    "trafficStats": {
+      "tcpReceive": "TCP 接收",
+      "tcpSend": "TCP 发送",
+      "udpReceive": "UDP 接收",
+      "udpSend": "UDP 发送",
+      "latency": "端内延迟",
+      "pool": "池连接数",
+      "tcpConnections": "TCP连接数",
+      "udpConnections": "UDP连接数"
+    },
+    "instanceInfo": {
+      "title": "实例信息",
+      "instanceId": "实例ID",
+      "mode": "模式",
+      "endpoint": "主控",
+      "version": "版本号",
+      "tunnelAddress": "隧道地址",
+      "targetAddress": "目标地址",
+      "extendedTargets": "扩展目标地址",
+      "logLevel": {
+        "label": "日志级别",
+        "inherit": "继承主控",
+        "inheritWithValue": "继承主控 [{level}]",
+        "none": "无日志 [NONE]"
+      },
+      "pool": {
+        "min": "池最小值",
+        "max": "池最大值",
+        "default": "(默认)"
+      },
+      "maxConnections": {
+        "label": "最大连接数限制",
+        "notSet": "未设置",
+        "default": "(默认)"
+      },
+      "tls": {
+        "label": "TLS 设置",
+        "inherit": "继承主控",
+        "certPath": "证书路径",
+        "keyPath": "密钥路径",
+        "default": "(默认)"
+      },
+      "password": {
+        "label": "隧道密码",
+        "notSet": "未设置",
+        "hasPassword": "已设置密码",
+        "clickToCopy": "点击复制密码",
+        "default": "(默认)"
+      },
+      "compression": {
+        "label": "压缩",
+        "enabled": "已启用",
+        "disabled": "未启用",
+        "default": "(默认)"
+      },
+      "encryption": {
+        "label": "加密",
+        "enabled": "已启用",
+        "disabled": "未启用",
+        "default": "(默认)"
+      },
+      "autoRestart": {
+        "label": "自动重启",
+        "enabled": "已启用",
+        "disabled": "已禁用"
+      },
+      "tcping": {
+        "label": "TCPing",
+        "test": "测试",
+        "default": "(默认)"
+      },
+      "tags": {
+        "label": "标签",
+        "manage": "管理标签",
+        "noTags": "暂无标签"
+      },
+      "configLine": "配置行",
+      "readTimeout": {
+        "label": "读取超时",
+        "notSet": "未设置"
+      },
+      "rateLimit": {
+        "label": "速率限制",
+        "notSet": "未设置"
+      },
+      "proxyProtocol": {
+        "label": "代理协议",
+        "on": "开启",
+        "off": "关闭"
+      },
+      "listenType": "监听类型",
+      "quic": {
+        "label": "启用 QUIC",
+        "enabled": "启用",
+        "disabled": "关闭"
+      },
+      "outboundIP": "出站源IP",
+      "bindService": {
+        "label": "绑定服务",
+        "unknown": "未知服务"
+      },
+      "toggleUrl": {
+        "showCommand": "切换显示命令URL",
+        "showConfig": "切换显示配置URL"
+      },
+      "expiry": {
+        "unlimited": "无限期",
+        "days": "天"
+      },
+      "editTooltip": "编辑实例"
+    },
+    "logs": {
+      "title": "实例日志",
+      "realtime": "实时日志",
+      "selectDate": "选择日期",
+      "export": "导出日志",
+      "clear": "清空",
+      "cleared": "文件日志已清空",
+      "timeError": "时间解析错误"
+    },
+    "charts": {
+      "traffic": "流量统计",
+      "speed": "速度统计",
+      "pool": "连接池统计",
+      "connections": "连接数统计",
+      "latency": "延迟统计"
+    },
+    "toast": {
+      "fetchFailed": "获取实例详情失败",
+      "refreshFailed": "刷新失败",
+      "resetSuccess": "重置成功",
+      "resetSuccessDesc": "实例流量信息已重置",
+      "resetFailed": "重置失败",
+      "exportSuccess": "导出成功",
+      "exportSuccessDesc": "日志文件已导出为 {filename}",
+      "exportFailed": "导出失败",
+      "restartConfigSuccess": "配置更新成功",
+      "restartConfigSuccessDesc": "自动重启已{status}",
+      "restartConfigFailed": "配置更新失败",
+      "restartNotSupported": "当前实例不支持自动重启功能",
+      "unknownError": "未知错误",
+      "enabled": "开启",
+      "disabled": "关闭"
+    }
   }
 }
