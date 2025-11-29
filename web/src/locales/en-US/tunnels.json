@@ -604,12 +604,23 @@
     },
     "logs": {
       "title": "Tunnel Logs",
+      "logTitle": "Logs",
       "realtime": "Realtime Logs",
+      "realtimeShort": "Realtime",
+      "realtimeOutput": "Realtime Output",
       "selectDate": "Select Date",
       "export": "Export Logs",
+      "exportFile": "Export Log File",
       "clear": "Clear",
       "cleared": "File logs cleared",
-      "timeError": "Time parsing error"
+      "timeError": "Time parsing error",
+      "refresh": "Refresh",
+      "scrollToBottom": "Scroll to Bottom",
+      "confirmClear": "Confirm Clear Logs",
+      "clearRealtimeWarning": "This will clear the current realtime output.",
+      "clearFileWarning": "This will clear the displayed content and all saved log files, and cannot be undone.",
+      "confirmClearButton": "Confirm Clear",
+      "cancel": "Cancel"
     },
     "charts": {
       "traffic": "Traffic Statistics",

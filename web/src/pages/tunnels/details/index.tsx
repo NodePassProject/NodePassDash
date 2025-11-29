@@ -1529,7 +1529,7 @@ export default function TunnelDetailPage() {
               <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
                 <div className="text-center">
                   <p className="text-xs text-blue-600 dark:text-blue-400 mb-1">
-                    TCP 接收
+                    {t("details.trafficStats.tcpReceive")}
                   </p>
                   <p className="text-xs md:text-sm lg:text-lg font-bold text-blue-700 dark:text-blue-300">
                     {(() => {
@@ -1548,7 +1548,7 @@ export default function TunnelDetailPage() {
               <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
                 <div className="text-center">
                   <p className="text-xs text-green-600 dark:text-green-400 mb-1">
-                    TCP 发送
+                    {t("details.trafficStats.tcpSend")}
                   </p>
                   <p className="text-xs md:text-sm lg:text-lg font-bold text-green-700 dark:text-green-300">
                     {(() => {
@@ -1567,7 +1567,7 @@ export default function TunnelDetailPage() {
               <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
                 <div className="text-center">
                   <p className="text-xs text-purple-600 dark:text-purple-400 mb-1">
-                    UDP 接收
+                    {t("details.trafficStats.udpReceive")}
                   </p>
                   <p className="text-xs md:text-sm lg:text-lg font-bold text-purple-700 dark:text-purple-300">
                     {(() => {
@@ -1586,7 +1586,7 @@ export default function TunnelDetailPage() {
               <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
                 <div className="text-center">
                   <p className="text-xs text-orange-600 dark:text-orange-400 mb-1">
-                    UDP 发送
+                    {t("details.trafficStats.udpSend")}
                   </p>
                   <p className="text-xs md:text-sm lg:text-lg font-bold text-orange-700 dark:text-orange-300">
                     {(() => {
@@ -1606,7 +1606,7 @@ export default function TunnelDetailPage() {
                 <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
                   <div className="text-center">
                     <p className="text-xs text-pink-600 dark:text-pink-400 mb-1">
-                      端内延迟
+                      {t("details.trafficStats.latency")}
                     </p>
                     <p className="text-xs md:text-sm lg:text-lg font-bold text-pink-700 dark:text-pink-300">
                       {tunnelInfo.ping}ms
@@ -1621,7 +1621,7 @@ export default function TunnelDetailPage() {
                 <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
                   <div className="text-center">
                     <p className="text-xs text-cyan-600 dark:text-cyan-400 mb-1">
-                      池连接数
+                      {t("details.trafficStats.pool")}
                     </p>
                     <p className="text-xs md:text-sm lg:text-lg font-bold text-cyan-700 dark:text-cyan-300">
                       {tunnelInfo.pool}
@@ -1636,7 +1636,7 @@ export default function TunnelDetailPage() {
                 <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
                   <div className="text-center">
                     <p className="text-xs text-amber-600 dark:text-amber-400 mb-1">
-                      TCP连接数
+                      {t("details.trafficStats.tcpConnections")}
                     </p>
                     <p className="text-xs md:text-sm lg:text-lg font-bold text-amber-700 dark:text-amber-300">
                       {tunnelInfo.tcps}
@@ -1651,7 +1651,7 @@ export default function TunnelDetailPage() {
                 <CardBody className="p-1 md:p-2 lg:p-3 flex items-center justify-center">
                   <div className="text-center">
                     <p className="text-xs text-teal-600 dark:text-teal-400 mb-1">
-                      UDP连接数
+                      {t("details.trafficStats.udpConnections")}
                     </p>
                     <p className="text-xs md:text-sm lg:text-lg font-bold text-teal-700 dark:text-teal-300">
                       {tunnelInfo.udps}
@@ -3157,7 +3157,7 @@ export default function TunnelDetailPage() {
             {/* 第一行：标题和实时开关 */}
             <div className="flex items-center justify-between sm:justify-start gap-3">
               <div className="flex items-center gap-2">
-                <h3 className="text-lg font-semibold">日志</h3>
+                <h3 className="text-lg font-semibold">{t("details.logs.logTitle")}</h3>
                 {/* <Chip variant="flat" color="primary" size="sm">
                   {logCount} 条记录 {logDate ? `(${logDate})` : ''}
                 </Chip> */}
@@ -3165,7 +3165,7 @@ export default function TunnelDetailPage() {
 
               {/* 实时日志开关 - 移动端第一行，桌面端第二行 */}
               <div className="flex items-center gap-2 sm:hidden">
-                <span className="text-xs text-default-600">实时</span>
+                <span className="text-xs text-default-600">{t("details.logs.realtimeShort")}</span>
                 <Switch
                   color="primary"
                   isSelected={isRealtimeLogging}
@@ -3179,7 +3179,7 @@ export default function TunnelDetailPage() {
             <div className="flex items-center justify-start sm:justify-end gap-2 overflow-x-auto">
               {/* 实时日志开关 - 桌面端显示 */}
               <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
-                <span className="text-sm text-default-600">实时输出</span>
+                <span className="text-sm text-default-600">{t("details.logs.realtimeOutput")}</span>
                 <Switch
                   color="primary"
                   isSelected={isRealtimeLogging}
@@ -3227,7 +3227,7 @@ export default function TunnelDetailPage() {
                 </Tooltip>
 
                 {/* 滚动到底部按钮 */}
-                <Tooltip content="滚动到底部" placement="top">
+                <Tooltip content={t("details.logs.scrollToBottom")} placement="top">
                   <Button
                     isIconOnly
                     className="h-7 w-7 sm:h-8 sm:w-8 min-w-0"
@@ -3244,7 +3244,7 @@ export default function TunnelDetailPage() {
                 </Tooltip>
 
                 {/* 导出按钮 */}
-                <Tooltip content="导出日志文件" placement="top">
+                <Tooltip content={t("details.logs.exportFile")} placement="top">
                   <Button
                     isIconOnly
                     className="h-7 w-7 sm:h-8 sm:w-8 min-w-0"
@@ -3279,11 +3279,11 @@ export default function TunnelDetailPage() {
                   </PopoverTrigger>
                   <PopoverContent className="p-3">
                     <div className="space-y-3">
-                      <p className="text-sm font-medium">确认清空日志</p>
+                      <p className="text-sm font-medium">{t("details.logs.confirmClear")}</p>
                       <p className="text-xs text-default-500">
                         {isRealtimeLogging
-                          ? "此操作将清空当前实时输出的内容。"
-                          : "此操作将清空页面显示和所有已保存的日志文件，且不可撤销。"}
+                          ? t("details.logs.clearRealtimeWarning")
+                          : t("details.logs.clearFileWarning")}
                       </p>
                       <div className="flex gap-2">
                         <Button
@@ -3303,7 +3303,7 @@ export default function TunnelDetailPage() {
                             setClearPopoverOpen(false); // 关闭Popover
                           }}
                         >
-                          确认清空
+                          {t("details.logs.confirmClearButton")}
                         </Button>
                         <Button
                           className="flex-1"
@@ -3311,7 +3311,7 @@ export default function TunnelDetailPage() {
                           variant="flat"
                           onPress={() => setClearPopoverOpen(false)} // 关闭Popover
                         >
-                          取消
+                          {t("details.logs.cancel")}
                         </Button>
                       </div>
                     </div>

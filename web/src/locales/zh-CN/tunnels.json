@@ -604,12 +604,23 @@
     },
     "logs": {
       "title": "实例日志",
+      "logTitle": "日志",
       "realtime": "实时日志",
+      "realtimeShort": "实时",
+      "realtimeOutput": "实时输出",
       "selectDate": "选择日期",
       "export": "导出日志",
+      "exportFile": "导出日志文件",
       "clear": "清空",
       "cleared": "文件日志已清空",
-      "timeError": "时间解析错误"
+      "timeError": "时间解析错误",
+      "refresh": "刷新",
+      "scrollToBottom": "滚动到底部",
+      "confirmClear": "确认清空日志",
+      "clearRealtimeWarning": "此操作将清空当前实时输出的内容。",
+      "clearFileWarning": "此操作将清空页面显示和所有已保存的日志文件，且不可撤销。",
+      "confirmClearButton": "确认清空",
+      "cancel": "取消"
     },
     "charts": {
       "traffic": "流量统计",
