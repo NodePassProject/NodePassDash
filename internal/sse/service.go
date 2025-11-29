@@ -245,11 +245,17 @@ func buildTunnel(payload SSEResp) *models.Tunnel {
 	tunnel.LastEventTime = models.NullTime{Time: payload.TimeStamp, Valid: true}
 	tunnel.EnableLogStore = true
 	tunnel.Restart = payload.Instance.Restart
-	tunnel.Name = *payload.Instance.Alias
+	// 安全地设置 Alias（处理 nil 指针）
+	if payload.Instance.Alias != nil {
+		tunnel.Name = *payload.Instance.Alias
+	}
 	tunnel.Status = models.TunnelStatus(payload.Instance.Status)
 	tunnel.ProxyProtocol = payload.Instance.ProxyProtocol
-	tunnel.Tags = payload.Instance.Meta.Tags
-	tunnel.Peer = payload.Instance.Meta.Peer
+	// 安全地访问 Meta 字段（处理 nil 指针）
+	if payload.Instance.Meta != nil {
+		tunnel.Tags = payload.Instance.Meta.Tags
+		tunnel.Peer = payload.Instance.Meta.Peer
+	}
 
 	// 同步设置 service_sid 字段
 	if tunnel.Peer != nil && tunnel.Peer.SID != nil && *tunnel.Peer.SID != "" {
