@@ -273,6 +273,33 @@
       "formatFailedSyntax": "JSON format error, please check syntax"
     }
   },
+  "batchUrlCreate": {
+    "title": "Batch URL Create Tunnels",
+    "addButton": "Add",
+    "noRules": "No tunnel rules yet, click \"Add\" in the upper right corner to start configuration",
+    "rulesList": "Tunnel Rules List",
+    "selectEndpoint": "Select Endpoint",
+    "tunnelName": "Tunnel Name",
+    "tunnelUrl": "<core>://<tunnel_addr>/<target_addr>",
+    "buttons": {
+      "cancel": "Cancel",
+      "create": "Batch Create ({count})",
+      "creating": "Creating..."
+    },
+    "toast": {
+      "fetchEndpointsFailed": "Failed to fetch endpoints",
+      "fetchEndpointsFailedDesc": "Unable to fetch endpoint list",
+      "createFailed": "Creation Failed",
+      "addTunnelRequired": "Please add at least one tunnel",
+      "selectEndpointRequired": "Rule {index}: Please select an endpoint server",
+      "nameRequired": "Rule {index}: Please enter tunnel name",
+      "urlRequired": "Rule {index}: Please enter tunnel URL",
+      "createSuccess": "Creation Successful",
+      "createSuccessDesc": "Successfully created {count} tunnels",
+      "createFailedDesc": "Failed to create tunnels",
+      "unknownError": "Unknown error"
+    }
+  },
   "details": {
     "timeRange": {
       "1h": "1 Hour",

@@ -273,6 +273,33 @@
       "formatFailedSyntax": "JSON格式错误，请检查语法"
     }
   },
+  "batchUrlCreate": {
+    "title": "批量URL创建实例",
+    "addButton": "添加",
+    "noRules": "暂无隧道规则，点击右上角\"添加\"开始配置",
+    "rulesList": "隧道规则列表",
+    "selectEndpoint": "选择主控",
+    "tunnelName": "隧道名称",
+    "tunnelUrl": "<core>://<tunnel_addr>/<target_addr>",
+    "buttons": {
+      "cancel": "取消",
+      "create": "批量创建 ({count})",
+      "creating": "创建中..."
+    },
+    "toast": {
+      "fetchEndpointsFailed": "获取主控失败",
+      "fetchEndpointsFailedDesc": "无法获取主控列表",
+      "createFailed": "创建失败",
+      "addTunnelRequired": "请添加至少一条隧道",
+      "selectEndpointRequired": "第 {index} 条规则请选择主控服务器",
+      "nameRequired": "第 {index} 条规则请输入实例名称",
+      "urlRequired": "第 {index} 条规则请输入实例URL",
+      "createSuccess": "创建成功",
+      "createSuccessDesc": "成功创建 {count} 个实例",
+      "createFailedDesc": "创建实例失败",
+      "unknownError": "未知错误"
+    }
+  },
   "details": {
     "timeRange": {
       "1h": "1小时",
