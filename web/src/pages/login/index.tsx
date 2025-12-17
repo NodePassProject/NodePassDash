@@ -38,7 +38,8 @@ export default function LoginPage() {
 
   // OAuth2 配置状态
   const [oauthProviders, setOauthProviders] = useState<{
-    provider?: "github" | "cloudflare";
+    provider?: "github" | "cloudflare" | "custom";
+    displayName?: string;
     config?: any;
   }>({});
   // 是否禁用用户名密码登录
@@ -58,7 +59,7 @@ export default function LoginPage() {
      */
     const fetchCurrentProvider = async () => {
       try {
-        const res = await fetch("/api/auth/oauth2"); // 仅返回 provider 和 disableLogin
+        const res = await fetch("/api/auth/oauth2"); // 仅返回 provider、disableLogin 和 displayName（custom 时）
         const data = await res.json();
 
         if (data.success) {
@@ -66,9 +67,12 @@ export default function LoginPage() {
           const loginDisabled = data.disableLogin === true;
 
           if (data.provider) {
-            const cur = data.provider as "github" | "cloudflare";
+            const cur = data.provider as "github" | "cloudflare" | "custom";
 
-            setOauthProviders({ provider: cur });
+            setOauthProviders({
+              provider: cur,
+              displayName: data.displayName || undefined,
+            });
           }
 
           // 设置是否禁用用户名密码登录
@@ -324,6 +328,20 @@ export default function LoginPage() {
                         }}
                       >
                         使用 Cloudflare 登录
+                      </Button>
+                    )}
+                    {oauthProviders.provider === "custom" && (
+                      <Button
+                        color="default"
+                        startContent={
+                          <Icon icon="solar:key-bold" width={20} />
+                        }
+                        variant="bordered"
+                        onPress={() => {
+                          window.location.href = "/api/oauth2/login";
+                        }}
+                      >
+                        使用 {oauthProviders.displayName || "OIDC"} 登录
                       </Button>
                     )}
                   </div>
