@@ -1,6 +1,4 @@
 import {
-  Accordion,
-  AccordionItem,
   Button,
   Card,
   CardBody,
@@ -1174,31 +1172,19 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
               </ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
-                  {/* Discovery URL + 发现按钮 */}
-                  <div className="flex gap-2">
-                    <Input
-                      className="flex-1"
-                      label="Discovery URL"
-                      placeholder="https://auth.example.com/.well-known/openid-configuration"
-                      description="OIDC 发现端点的完整地址"
-                      value={customConfig.issuerUrl}
-                      onChange={(e) =>
-                        setCustomConfig((prev) => ({
-                          ...prev,
-                          issuerUrl: e.target.value,
-                        }))
-                      }
-                    />
-                    <Button
-                      className="mt-6 h-14 min-w-[72px]"
-                      color="primary"
-                      variant="flat"
-                      isLoading={isDiscovering}
-                      onPress={handleDiscoverOIDC}
-                    >
-                      发现
-                    </Button>
-                  </div>
+                  {/* Discovery URL */}
+                  <Input
+                    label="Discovery URL"
+                    placeholder="https://auth.example.com/.well-known/openid-configuration"
+                    description="OIDC 发现端点的完整地址，点击「发现」自动填充下方端点"
+                    value={customConfig.issuerUrl}
+                    onChange={(e) =>
+                      setCustomConfig((prev) => ({
+                        ...prev,
+                        issuerUrl: e.target.value,
+                      }))
+                    }
+                  />
 
                   <Divider />
 
@@ -1243,10 +1229,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
                   <Divider />
 
-                  {/* OIDC 端点（通常由发现自动填充） */}
-                  <p className="text-sm text-default-500">
-                    以下端点通常由「发现」自动填充，也可手动修改
-                  </p>
+                  {/* OIDC 端点 */}
                   <Input
                     label="Auth URL"
                     placeholder="授权端点 (authorization_endpoint)"
@@ -1281,69 +1264,65 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     }
                   />
 
-                  {/* 高级配置 */}
-                  <Accordion variant="bordered" className="px-0">
-                    <AccordionItem
-                      key="advanced"
-                      aria-label="高级配置"
-                      title={
-                        <span className="text-sm font-medium">高级配置</span>
-                      }
-                      subtitle={
-                        <span className="text-xs text-default-400">
-                          Scopes、用户字段映射等
-                        </span>
-                      }
-                    >
-                      <div className="space-y-4 pb-2">
-                        <Input
-                          label="Scopes"
-                          placeholder="openid profile email"
-                          description="OAuth2 作用域，多个用空格分隔"
-                          value={(customConfig.scopes || []).join(" ")}
-                          onChange={(e) => {
-                            const scopesStr = e.target.value;
-                            const scopesArr = scopesStr
-                              .split(/\s+/)
-                              .filter((s) => s.length > 0);
-                            setCustomConfig((prev) => ({
-                              ...prev,
-                              scopes: scopesArr.length > 0 ? scopesArr : ["openid", "profile", "email"],
-                            }));
-                          }}
-                        />
-                        <Input
-                          label="User ID Path"
-                          placeholder="sub"
-                          description="从用户信息中提取用户 ID 的字段路径，支持点号路径如 user.id"
-                          value={customConfig.userIdPath}
-                          onChange={(e) =>
-                            setCustomConfig((prev) => ({
-                              ...prev,
-                              userIdPath: e.target.value || "sub",
-                            }))
-                          }
-                        />
-                        <Input
-                          label="Username Path"
-                          placeholder="preferred_username"
-                          description="从用户信息中提取用户名的字段路径，支持点号路径如 user.name"
-                          value={customConfig.usernamePath}
-                          onChange={(e) =>
-                            setCustomConfig((prev) => ({
-                              ...prev,
-                              usernamePath: e.target.value || "preferred_username",
-                            }))
-                          }
-                        />
-                      </div>
-                    </AccordionItem>
-                  </Accordion>
+                  <Divider />
+
+                  {/* Scopes 和字段映射 */}
+                  <Input
+                    label="Scopes"
+                    placeholder="openid profile email"
+                    description="OAuth2 作用域，多个用空格分隔"
+                    value={(customConfig.scopes || []).join(" ")}
+                    onChange={(e) => {
+                      const scopesStr = e.target.value;
+                      const scopesArr = scopesStr
+                        .split(/\s+/)
+                        .filter((s) => s.length > 0);
+                      setCustomConfig((prev) => ({
+                        ...prev,
+                        scopes:
+                          scopesArr.length > 0
+                            ? scopesArr
+                            : ["openid", "profile", "email"],
+                      }));
+                    }}
+                  />
+                  <Input
+                    label="User ID Path"
+                    placeholder="sub"
+                    description="从用户信息中提取用户 ID 的字段路径，支持点号路径如 user.id"
+                    value={customConfig.userIdPath}
+                    onChange={(e) =>
+                      setCustomConfig((prev) => ({
+                        ...prev,
+                        userIdPath: e.target.value || "sub",
+                      }))
+                    }
+                  />
+                  <Input
+                    label="Username Path"
+                    placeholder="preferred_username"
+                    description="从用户信息中提取用户名的字段路径，支持点号路径如 user.name"
+                    value={customConfig.usernamePath}
+                    onChange={(e) =>
+                      setCustomConfig((prev) => ({
+                        ...prev,
+                        usernamePath: e.target.value || "preferred_username",
+                      }))
+                    }
+                  />
                 </div>
               </ModalBody>
               <ModalFooter>
                 <Button color="default" variant="light" onPress={onClose}>
                   取消
+                </Button>
+                <Button
+                  color="primary"
+                  variant="flat"
+                  isLoading={isDiscovering}
+                  onPress={handleDiscoverOIDC}
+                >
+                  发现
                 </Button>
                 <Button
                   color="primary"
