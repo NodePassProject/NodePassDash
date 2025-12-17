@@ -1175,22 +1175,16 @@ func (h *AuthHandler) HandleOAuth2Provider(c *gin.Context) {
 }
 
 // HandleOIDCDiscover 处理 OIDC Discovery 请求
-// GET /api/oauth2/discover?issuer=https://auth.example.com
+// GET /api/oauth2/discover?url=https://auth.example.com/.well-known/openid-configuration
 func (h *AuthHandler) HandleOIDCDiscover(c *gin.Context) {
-	issuerURL := c.Query("issuer")
-	if issuerURL == "" {
+	discoveryURL := c.Query("url")
+	if discoveryURL == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   "缺少 issuer 参数",
+			"error":   "缺少 url 参数",
 		})
 		return
 	}
-
-	// 确保 issuerURL 不以 / 结尾
-	issuerURL = strings.TrimSuffix(issuerURL, "/")
-
-	// 构建 well-known 地址
-	discoveryURL := issuerURL + "/.well-known/openid-configuration"
 
 	// 使用支持代理的 HTTP 客户端
 	proxyClient := h.createProxyClient()
@@ -1199,7 +1193,7 @@ func (h *AuthHandler) HandleOIDCDiscover(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   "无效的 Issuer URL",
+			"error":   "无效的 Discovery URL",
 		})
 		return
 	}
