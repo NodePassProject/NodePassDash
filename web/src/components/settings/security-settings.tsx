@@ -1227,6 +1227,15 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     }
                   />
 
+                  {/* Callback URL (只读) */}
+                  <Input
+                    label="Callback URL"
+                    description="请将此地址填写到 OIDC 客户端的回调 URL / Redirect URI 配置中"
+                    value={`${window.location.origin}/api/oauth2/callback`}
+                    isReadOnly
+                    variant="flat"
+                  />
+
                   <Divider />
 
                   {/* OIDC 端点 */}
