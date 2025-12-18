@@ -2,7 +2,6 @@ package api
 
 import (
 	"NodePassDash/internal/auth"
-	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -400,6 +399,8 @@ func (h *AuthHandler) HandleOAuth2Callback(c *gin.Context) {
 		h.handleGitHubOAuth(c, code)
 	case "cloudflare":
 		h.handleCloudflareOAuth(c, code)
+	case "custom":
+		h.handleCustomOIDC(c, code)
 	default:
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
@@ -425,7 +426,10 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 		RedirectURI  string `json:"redirectUri"`
 	}
 	var cfg ghCfg
-	_ = json.Unmarshal([]byte(cfgStr), &cfg)
+	if err := auth.UnmarshalConfig(cfgStr, &cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("配置解析失败: %v", err)})
+		return
+	}
 
 	if cfg.ClientID == "" || cfg.ClientSecret == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "GitHub OAuth2 配置不完整"})
@@ -452,7 +456,12 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 		cfg.ClientID, redirectURI, cfg.TokenURL)
 	fmt.Printf("🔍 请求体: %s\n", form.Encode())
 
-	tokenReq, _ := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
+	tokenReq, err := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		fmt.Printf("❌ GitHub Token 请求创建失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建 Token 请求失败"})
+		return
+	}
 	tokenReq.Header.Set("Accept", "application/json")
 	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -467,13 +476,23 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		bodyBytes, _ := ioutil.ReadAll(resp.Body)
+		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Printf("❌ GitHub Token 读取响应失败: %v\n", err)
+			c.JSON(http.StatusBadGateway, gin.H{"error": "读取 GitHub Token 响应失败"})
+			return
+		}
 		fmt.Printf("❌ GitHub Token 错误 %d: %s\n", resp.StatusCode, string(bodyBytes))
 		c.JSON(http.StatusBadGateway, gin.H{"error": "GitHub Token 接口返回错误"})
 		return
 	}
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("❌ GitHub Token 读取响应失败: %v\n", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "读取 GitHub Token 响应失败"})
+		return
+	}
 	fmt.Printf("🔑 GitHub Token 响应: %s\n", string(body))
 
 	var tokenRes struct {
@@ -481,14 +500,22 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 		Scope       string `json:"scope"`
 		TokenType   string `json:"token_type"`
 	}
-	_ = json.Unmarshal(body, &tokenRes)
+	if err := auth.UnmarshalBytes(body, &tokenRes); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "解析 Token 响应失败"})
+		return
+	}
 	if tokenRes.AccessToken == "" {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "获取 AccessToken 失败"})
 		return
 	}
 
 	// 获取用户信息
-	userReq, _ := http.NewRequest("GET", cfg.UserInfoURL, nil)
+	userReq, err := http.NewRequest("GET", cfg.UserInfoURL, nil)
+	if err != nil {
+		fmt.Printf("❌ GitHub 用户信息请求创建失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户信息请求失败"})
+		return
+	}
 	userReq.Header.Set("Authorization", "token "+tokenRes.AccessToken)
 	userReq.Header.Set("Accept", "application/json")
 
@@ -499,11 +526,19 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 		return
 	}
 	defer userResp.Body.Close()
-	userBody, _ := ioutil.ReadAll(userResp.Body)
+	userBody, err := ioutil.ReadAll(userResp.Body)
+	if err != nil {
+		fmt.Printf("❌ GitHub 用户信息读取失败: %v\n", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "读取 GitHub 用户信息失败"})
+		return
+	}
 	fmt.Printf("👤 GitHub 用户信息: %s\n", string(userBody))
 
 	var userData map[string]interface{}
-	_ = json.Unmarshal(userBody, &userData)
+	if err := auth.UnmarshalBytes(userBody, &userData); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "解析用户信息失败"})
+		return
+	}
 	providerID := fmt.Sprintf("%v", userData["id"])
 	login := fmt.Sprintf("%v", userData["login"])
 
@@ -580,7 +615,10 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 		RedirectURI  string `json:"redirectUri"`
 	}
 	var cfg cfCfg
-	_ = json.Unmarshal([]byte(cfgStr), &cfg)
+	if err := auth.UnmarshalConfig(cfgStr, &cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("配置解析失败: %v", err)})
+		return
+	}
 
 	if cfg.ClientID == "" || cfg.ClientSecret == "" {
 		c.JSON(http.StatusBadRequest, gin.H{"error": "Cloudflare OAuth2 配置不完整"})
@@ -604,7 +642,12 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 	}
 	form.Set("redirect_uri", redirectURI)
 
-	tokenReq, _ := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
+	tokenReq, err := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		fmt.Printf("❌ Cloudflare Token 请求创建失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建 Token 请求失败"})
+		return
+	}
 	tokenReq.Header.Set("Accept", "application/json")
 	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -618,13 +661,23 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 	defer resp.Body.Close()
 
 	if resp.StatusCode >= 400 {
-		bodyBytes, _ := ioutil.ReadAll(resp.Body)
+		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Printf("❌ Cloudflare Token 读取响应失败: %v\n", err)
+			c.JSON(http.StatusBadGateway, gin.H{"error": "读取 Cloudflare Token 响应失败"})
+			return
+		}
 		fmt.Printf("❌ Cloudflare Token 错误 %d: %s\n", resp.StatusCode, string(bodyBytes))
 		c.JSON(http.StatusBadGateway, gin.H{"error": "Cloudflare Token 接口返回错误"})
 		return
 	}
 
-	body, _ := ioutil.ReadAll(resp.Body)
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("❌ Cloudflare Token 读取响应失败: %v\n", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "读取 Cloudflare Token 响应失败"})
+		return
+	}
 	fmt.Printf("🔑 Cloudflare Token 响应: %s\n", string(body))
 
 	var tokenRes struct {
@@ -633,42 +686,48 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 		Scope       string `json:"scope"`
 		TokenType   string `json:"token_type"`
 	}
-	_ = json.Unmarshal(body, &tokenRes)
+	if err := auth.UnmarshalBytes(body, &tokenRes); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "解析 Token 响应失败"})
+		return
+	}
 	if tokenRes.AccessToken == "" {
 		c.JSON(http.StatusBadGateway, gin.H{"error": "获取 AccessToken 失败"})
 		return
 	}
 
+	// 获取用户信息
+	if cfg.UserInfoURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cloudflare OAuth2 配置缺少 userInfoUrl"})
+		return
+	}
+
+	userReq, err := http.NewRequest("GET", cfg.UserInfoURL, nil)
+	if err != nil {
+		fmt.Printf("❌ Cloudflare 用户信息请求创建失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户信息请求失败"})
+		return
+	}
+	userReq.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
+	userReq.Header.Set("Accept", "application/json")
+
+	// 使用支持代理的HTTP客户端
+	userResp, err := proxyClient.Do(userReq)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "获取 Cloudflare 用户信息失败"})
+		return
+	}
+	defer userResp.Body.Close()
+	bodyBytes, err := ioutil.ReadAll(userResp.Body)
+	if err != nil {
+		fmt.Printf("❌ Cloudflare 用户信息读取失败: %v\n", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "读取 Cloudflare 用户信息失败"})
+		return
+	}
+	fmt.Printf("👤 Cloudflare 用户信息: %s\n", string(bodyBytes))
+
 	var userData map[string]interface{}
-
-	if cfg.UserInfoURL != "" {
-		// 调用用户信息端点
-		userReq, _ := http.NewRequest("GET", cfg.UserInfoURL, nil)
-		userReq.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
-		userReq.Header.Set("Accept", "application/json")
-
-		// 使用支持代理的HTTP客户端
-		userResp, err := proxyClient.Do(userReq)
-		if err == nil {
-			defer userResp.Body.Close()
-			bodyBytes, _ := ioutil.ReadAll(userResp.Body)
-			_ = json.Unmarshal(bodyBytes, &userData)
-			fmt.Printf("👤 Cloudflare 用户信息: %s\n", string(bodyBytes))
-		}
-	}
-
-	// 若未获取到用户信息且 id_token 存在，则解析 id_token
-	if len(userData) == 0 && tokenRes.IdToken != "" {
-		parts := strings.Split(tokenRes.IdToken, ".")
-		if len(parts) >= 2 {
-			payload, _ := base64.RawURLEncoding.DecodeString(parts[1])
-			_ = json.Unmarshal(payload, &userData)
-			fmt.Printf("👤 Cloudflare id_token payload: %s\n", string(payload))
-		}
-	}
-
-	if len(userData) == 0 {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "无法获取 Cloudflare 用户信息"})
+	if err := auth.UnmarshalBytes(bodyBytes, &userData); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "解析 Cloudflare 用户信息失败"})
 		return
 	}
 
@@ -801,6 +860,13 @@ func (h *AuthHandler) HandleOAuth2Config(c *gin.Context) {
 		c.JSON(http.StatusOK, resp)
 
 	case http.MethodPost:
+		// 1. 验证会话（仅管理员可配置）
+		sessionID, err := c.Cookie("session")
+		if err != nil || !h.authService.ValidateSession(sessionID) {
+			c.JSON(http.StatusUnauthorized, gin.H{"error": "需要管理员权限"})
+			return
+		}
+
 		var req OAuth2ConfigRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid body"})
@@ -810,6 +876,42 @@ func (h *AuthHandler) HandleOAuth2Config(c *gin.Context) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": "missing provider"})
 			return
 		}
+
+		// 2. Custom OIDC 执行 discovery
+		if req.Provider == "custom" {
+			issuerURL, ok := req.Config["issuerUrl"].(string)
+			if !ok || issuerURL == "" {
+				c.JSON(http.StatusBadRequest, gin.H{"error": "缺少 issuerUrl"})
+				return
+			}
+
+			// 3. Discovery（强制使用 HTTPS，支持内网 IP）
+			validator := &auth.URLValidator{
+				AllowPrivateIP: true, // 支持内网 IP（使用 HTTPS）
+			}
+
+			discoveredConfig, err := auth.SecureDiscoverOIDC(issuerURL, validator)
+			if err != nil {
+				c.JSON(http.StatusBadGateway, gin.H{
+					"success": false,
+					"error":   fmt.Sprintf("OIDC Discovery 失败: %v", err),
+				})
+				return
+			}
+
+			// 4. 自动填充端点
+			req.Config["authUrl"] = discoveredConfig.AuthorizationEndpoint
+			req.Config["tokenUrl"] = discoveredConfig.TokenEndpoint
+			req.Config["userInfoUrl"] = discoveredConfig.UserinfoEndpoint
+			req.Config["issuer"] = discoveredConfig.Issuer
+		}
+
+		// 5. 添加 redirectUri
+		scheme := "http"
+		if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+			scheme = "https"
+		}
+		req.Config["redirectUri"] = fmt.Sprintf("%s://%s/api/oauth2/callback", scheme, c.Request.Host)
 
 		cfgBytes, _ := json.Marshal(req.Config)
 		if err := h.authService.SetSystemConfig("oauth2_config", string(cfgBytes)); err != nil {
@@ -896,7 +998,8 @@ func (h *AuthHandler) HandleOAuth2Login(c *gin.Context) {
 		q.Set("scope", scopes)
 	}
 
-	if provider == "cloudflare" {
+	// Cloudflare 和 Custom OIDC 需要设置 response_type=code（OIDC 标准）
+	if provider == "cloudflare" || provider == "custom" {
 		q.Set("response_type", "code")
 	}
 
@@ -906,14 +1009,292 @@ func (h *AuthHandler) HandleOAuth2Login(c *gin.Context) {
 	c.Redirect(http.StatusFound, loginURL)
 }
 
+// handleCustomOIDC 处理 Custom OIDC 回调
+func (h *AuthHandler) handleCustomOIDC(c *gin.Context, code string) {
+	// 读取配置
+	cfgStr, err := h.authService.GetSystemConfig("oauth2_config")
+	if err != nil || cfgStr == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Custom OIDC 未配置"})
+		return
+	}
+
+	type customCfg struct {
+		ClientID     string   `json:"clientId"`
+		ClientSecret string   `json:"clientSecret"`
+		AuthURL      string   `json:"authUrl"`
+		TokenURL     string   `json:"tokenUrl"`
+		UserInfoURL  string   `json:"userInfoUrl"`
+		RedirectURI  string   `json:"redirectUri"`
+		Scopes       []string `json:"scopes"`
+		UserIDPath   string   `json:"userIdPath"`
+		UsernamePath string   `json:"usernamePath"`
+		DisplayName  string   `json:"displayName"`
+	}
+	var cfg customCfg
+	if err := auth.UnmarshalConfig(cfgStr, &cfg); err != nil {
+		c.JSON(http.StatusBadRequest, gin.H{"error": fmt.Sprintf("配置解析失败: %v", err)})
+		return
+	}
+
+	if cfg.ClientID == "" || cfg.ClientSecret == "" || cfg.TokenURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Custom OIDC 配置不完整"})
+		return
+	}
+
+	// 设置默认值
+	if cfg.UserIDPath == "" {
+		cfg.UserIDPath = "sub"
+	}
+	if cfg.UsernamePath == "" {
+		cfg.UsernamePath = "preferred_username"
+	}
+	if cfg.DisplayName == "" {
+		cfg.DisplayName = "OIDC"
+	}
+
+	// 交换 access token
+	form := url.Values{}
+	form.Set("client_id", cfg.ClientID)
+	form.Set("client_secret", cfg.ClientSecret)
+	form.Set("code", code)
+	form.Set("grant_type", "authorization_code")
+
+	// 设置 redirect_uri
+	redirectURI := cfg.RedirectURI
+	if redirectURI == "" {
+		baseURL := fmt.Sprintf("%s://%s", "http", c.Request.Host)
+		redirectURI = baseURL + "/api/oauth2/callback"
+	}
+	form.Set("redirect_uri", redirectURI)
+
+	fmt.Printf("🔍 Custom OIDC Token 请求: token_url=%s, redirect_uri=%s\n", cfg.TokenURL, redirectURI)
+
+	tokenReq, err := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		fmt.Printf("❌ Custom OIDC Token 请求创建失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建 Token 请求失败"})
+		return
+	}
+	tokenReq.Header.Set("Accept", "application/json")
+	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
+
+	// 使用支持代理的HTTP客户端
+	proxyClient := h.createProxyClient()
+	resp, err := proxyClient.Do(tokenReq)
+	if err != nil {
+		fmt.Printf("❌ Custom OIDC Token 请求错误: %v\n", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "请求 OIDC Token 失败"})
+		return
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode >= 400 {
+		bodyBytes, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Printf("❌ Custom OIDC Token 读取响应失败: %v\n", err)
+			c.JSON(http.StatusBadGateway, gin.H{"error": "读取 OIDC Token 响应失败"})
+			return
+		}
+		fmt.Printf("❌ Custom OIDC Token 错误 %d: %s\n", resp.StatusCode, string(bodyBytes))
+		c.JSON(http.StatusBadGateway, gin.H{"error": "OIDC Token 接口返回错误"})
+		return
+	}
+
+	body, err := ioutil.ReadAll(resp.Body)
+	if err != nil {
+		fmt.Printf("❌ Custom OIDC Token 读取响应失败: %v\n", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "读取 OIDC Token 响应失败"})
+		return
+	}
+	fmt.Printf("🔑 Custom OIDC Token 响应: %s\n", string(body))
+
+	var tokenRes struct {
+		AccessToken string `json:"access_token"`
+		IdToken     string `json:"id_token"`
+		Scope       string `json:"scope"`
+		TokenType   string `json:"token_type"`
+	}
+	if err := auth.UnmarshalBytes(body, &tokenRes); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "解析 Token 响应失败"})
+		return
+	}
+	if tokenRes.AccessToken == "" {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "获取 AccessToken 失败"})
+		return
+	}
+
+	// 获取用户信息
+	if cfg.UserInfoURL == "" {
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Custom OIDC 配置缺少 userInfoUrl"})
+		return
+	}
+
+	userReq, err := http.NewRequest("GET", cfg.UserInfoURL, nil)
+	if err != nil {
+		fmt.Printf("❌ Custom OIDC 用户信息请求创建失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户信息请求失败"})
+		return
+	}
+	userReq.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
+	userReq.Header.Set("Accept", "application/json")
+
+	userResp, err := proxyClient.Do(userReq)
+	if err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "获取 OIDC 用户信息失败"})
+		return
+	}
+	defer userResp.Body.Close()
+	bodyBytes, err := ioutil.ReadAll(userResp.Body)
+	if err != nil {
+		fmt.Printf("❌ Custom OIDC 用户信息读取失败: %v\n", err)
+		c.JSON(http.StatusBadGateway, gin.H{"error": "读取 OIDC 用户信息失败"})
+		return
+	}
+	fmt.Printf("👤 Custom OIDC 用户信息: %s\n", string(bodyBytes))
+
+	var userData map[string]interface{}
+	if err := auth.UnmarshalBytes(bodyBytes, &userData); err != nil {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "解析 OIDC 用户信息失败"})
+		return
+	}
+
+	// 提取用户 ID（使用配置的 userIdPath）
+	providerID := h.extractFieldFromUserData(userData, cfg.UserIDPath)
+	if providerID == "" {
+		// 回退到常用字段
+		providerID = h.extractFieldFromUserData(userData, "sub")
+		if providerID == "" {
+			providerID = h.extractFieldFromUserData(userData, "id")
+		}
+	}
+
+	if providerID == "" {
+		c.JSON(http.StatusBadGateway, gin.H{"error": "无法获取 OIDC 用户唯一标识"})
+		return
+	}
+
+	// 提取用户名（使用配置的 usernamePath）
+	login := h.extractFieldFromUserData(userData, cfg.UsernamePath)
+	if login == "" {
+		// 回退到常用字段
+		login = h.extractFieldFromUserData(userData, "preferred_username")
+		if login == "" {
+			login = h.extractFieldFromUserData(userData, "email")
+		}
+		if login == "" {
+			login = h.extractFieldFromUserData(userData, "name")
+		}
+		if login == "" {
+			login = providerID // 最后回退到使用 providerID
+		}
+	}
+
+	username := "custom:" + login
+
+	// 保存用户信息
+	dataJSON, _ := json.Marshal(userData)
+	if err := h.authService.SaveOAuthUser("custom", providerID, username, string(dataJSON)); err != nil {
+		fmt.Printf("❌ 保存 Custom OIDC 用户失败: %v\n", err)
+		// 重定向到错误页面
+		baseURL := ""
+		if cfg.RedirectURI != "" {
+			baseURL = strings.Replace(cfg.RedirectURI, "/api/oauth2/callback", "", 1)
+		} else {
+			scheme := "http"
+			if c.Request.TLS != nil || c.GetHeader("X-Forwarded-Proto") == "https" {
+				scheme = "https"
+			}
+			baseURL = fmt.Sprintf("%s://%s", scheme, c.Request.Host)
+		}
+		errorURL := fmt.Sprintf("%s/oauth-error?error=%s&provider=custom",
+			baseURL, url.QueryEscape(err.Error()))
+		c.Redirect(http.StatusFound, errorURL)
+		return
+	}
+
+	// 创建会话 (24小时有效期)
+	sessionID, err := h.authService.CreateSession(username, 24*time.Hour)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
+		return
+	}
+
+	// 设置 cookie
+	c.SetCookie("session", sessionID, 24*60*60, "/", "", false, true)
+
+	// 重定向到 dashboard
+	redirectURL := c.Query("redirect")
+	if redirectURL == "" {
+		redirectURL = strings.Replace(cfg.RedirectURI, "/api/oauth2/callback", "/dashboard", 1)
+	}
+
+	accept := c.GetHeader("Accept")
+	if strings.Contains(accept, "text/html") || strings.Contains(accept, "application/xhtml+xml") || redirectURL != "" {
+		c.Redirect(http.StatusFound, redirectURL)
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":  true,
+		"provider": "custom",
+		"username": username,
+		"message":  "登录成功",
+	})
+}
+
+// extractFieldFromUserData 从用户数据中提取字段（支持简单的点号路径）
+func (h *AuthHandler) extractFieldFromUserData(data map[string]interface{}, path string) string {
+	if path == "" {
+		return ""
+	}
+
+	parts := strings.Split(path, ".")
+	current := data
+
+	for i, part := range parts {
+		if val, ok := current[part]; ok {
+			if i == len(parts)-1 {
+				// 最后一个部分，转换为字符串
+				return fmt.Sprintf("%v", val)
+			}
+			// 不是最后一个部分，继续深入
+			if nested, ok := val.(map[string]interface{}); ok {
+				current = nested
+			} else {
+				return ""
+			}
+		} else {
+			return ""
+		}
+	}
+	return ""
+}
+
 // HandleOAuth2Provider 仅返回当前绑定的 OAuth2 provider（用于登录页）
 func (h *AuthHandler) HandleOAuth2Provider(c *gin.Context) {
 	provider, _ := h.authService.GetSystemConfig("oauth2_provider")
 	disableLogin, _ := h.authService.GetSystemConfig("disable_login")
 
-	c.JSON(http.StatusOK, gin.H{
+	resp := gin.H{
 		"success":      true,
 		"provider":     provider,
 		"disableLogin": disableLogin == "true",
-	})
+	}
+
+	// 如果是 custom provider，返回 displayName
+	if provider == "custom" {
+		cfgStr, _ := h.authService.GetSystemConfig("oauth2_config")
+		if cfgStr != "" {
+			var cfg map[string]interface{}
+			if err := auth.UnmarshalConfig(cfgStr, &cfg); err == nil {
+				displayName := auth.SafeStringAssert(cfg["displayName"], "")
+				if displayName != "" {
+					resp["displayName"] = displayName
+				}
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, resp)
 }
+

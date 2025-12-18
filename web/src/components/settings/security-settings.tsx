@@ -39,6 +39,17 @@ const securitySettingsSchema = z.object({
 
 type SecuritySettingsForm = z.infer<typeof securitySettingsSchema>;
 
+// 辅助函数: 根据配置状态返回当前 OAuth Provider
+const getCurrentProvider = (
+  isGitHub: boolean,
+  isCloudflare: boolean,
+): "github" | "cloudflare" | "custom" => {
+  if (isGitHub) return "github";
+  if (isCloudflare) return "cloudflare";
+
+  return "custom";
+};
+
 // OAuth2 配置类型
 interface OAuth2Config {
   clientId: string;
@@ -115,18 +126,43 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
     scopes: ["openid", "profile"],
   });
 
+  // Custom OIDC 配置
+  interface CustomOIDCConfig extends OAuth2Config {
+    issuerUrl: string;
+    displayName: string;
+    usernamePath: string;
+  }
+
+  const [customConfig, setCustomConfig] = useState<CustomOIDCConfig>({
+    issuerUrl: "",
+    clientId: "",
+    clientSecret: "",
+    userIdPath: "sub",
+    usernamePath: "preferred_username",
+    scopes: ["openid", "profile", "email"],
+    displayName: "",
+  });
+
   // 模拟的配置状态（实际应该从后端获取）
   const [isGitHubConfigured, setIsGitHubConfigured] = useState(false);
   const [isCloudflareConfigured, setIsCloudflareConfigured] = useState(false);
+  const [isCustomConfigured, setIsCustomConfigured] = useState(false);
 
   // 在 state 部分添加 selectedProvider 和 provider select disclosure
   const [selectedProvider, setSelectedProvider] = useState<
-    "github" | "cloudflare" | null
+    "github" | "cloudflare" | "custom" | null
   >(null);
   const {
     isOpen: isSelectOpen,
     onOpen: onSelectOpen,
     onOpenChange: onSelectOpenChange,
+  } = useDisclosure();
+
+  // Custom OIDC 配置模态框
+  const {
+    isOpen: isCustomOpen,
+    onOpen: onCustomOpen,
+    onOpenChange: onCustomOpenChange,
   } = useDisclosure();
 
   // 初始化表单
@@ -150,7 +186,11 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
         if (!data.success) return;
 
-        const curProvider = data.provider as "github" | "cloudflare" | "";
+        const curProvider = data.provider as
+          | "github"
+          | "cloudflare"
+          | "custom"
+          | "";
 
         if (!curProvider) return; // 未绑定
 
@@ -162,6 +202,9 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         } else if (curProvider === "cloudflare") {
           setCloudflareConfig((prev: any) => ({ ...prev, ...cfgData.config }));
           setIsCloudflareConfigured(true);
+        } else if (curProvider === "custom") {
+          setCustomConfig((prev: any) => ({ ...prev, ...cfgData.config }));
+          setIsCustomConfigured(true);
         }
       } catch (e) {
         console.error("初始化 OAuth2 配置失败", e);
@@ -404,8 +447,94 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
     }
   };
 
+  // Custom OIDC 配置保存
+  const handleSaveCustomConfig = async () => {
+    // 验证必填字段
+    if (!customConfig.issuerUrl) {
+      addToast({
+        title: "配置不完整",
+        description: "请填写 Issuer URL",
+        color: "warning",
+      });
+      return;
+    }
+
+    if (!customConfig.clientId || !customConfig.clientSecret) {
+      addToast({
+        title: "配置不完整",
+        description: "请填写 Client ID 和 Client Secret",
+        color: "warning",
+      });
+      return;
+    }
+
+    if (!customConfig.displayName) {
+      addToast({
+        title: "配置不完整",
+        description: "请填写显示名称（如 Keycloak、Authentik 等）",
+        color: "warning",
+      });
+      return;
+    }
+
+    try {
+      setIsSubmitting(true);
+
+      // 只发送用户配置的字段，端点由后端自动填充
+      const payload = {
+        provider: "custom",
+        config: {
+          issuerUrl: customConfig.issuerUrl,
+          clientId: customConfig.clientId,
+          clientSecret: customConfig.clientSecret,
+          displayName: customConfig.displayName,
+          userIdPath: customConfig.userIdPath || "sub",
+          usernamePath: customConfig.usernamePath || "preferred_username",
+          scopes: customConfig.scopes || ["openid", "profile", "email"],
+        },
+      };
+
+      const res = await fetch(buildApiUrl("/api/oauth2/config"), {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify(payload),
+      });
+
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "保存失败");
+      }
+
+      addToast({
+        title: "配置保存成功",
+        description: `${customConfig.displayName} OIDC 配置已成功保存`,
+        color: "success",
+      });
+
+      setIsCustomConfigured(true);
+      onCustomOpenChange();
+    } catch (error) {
+      console.error("保存 Custom OIDC 配置失败:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "无法连接到 OIDC 服务器，请检查 Issuer URL";
+
+      addToast({
+        title: "保存失败",
+        description: errorMessage,
+        color: "danger",
+      });
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   // 解绑处理
-  const handleUnbindProvider = async (provider: "github" | "cloudflare") => {
+  const handleUnbindProvider = async (
+    provider: "github" | "cloudflare" | "custom",
+  ) => {
     try {
       setIsSubmitting(true);
       const res = await fetch(buildApiUrl("/api/oauth2/config"), {
@@ -419,7 +548,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         color: "success",
       });
       if (provider === "github") setIsGitHubConfigured(false);
-      else setIsCloudflareConfigured(false);
+      else if (provider === "cloudflare") setIsCloudflareConfigured(false);
+      else if (provider === "custom") setIsCustomConfigured(false);
     } catch (e) {
       console.error("解绑失败", e);
       addToast({
@@ -675,7 +805,9 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         </CardHeader>
         <Divider />
         <CardBody className="p-4">
-          {isGitHubConfigured || isCloudflareConfigured ? (
+          {isGitHubConfigured ||
+          isCloudflareConfigured ||
+          isCustomConfigured ? (
             // 已绑定状态
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -702,6 +834,15 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     <span className="font-medium">Cloudflare</span>{" "}
                   </>
                 )}
+                {isCustomConfigured && (
+                  <>
+                    {" "}
+                    <Icon height={24} icon="solar:key-bold" width={24} />{" "}
+                    <span className="font-medium">
+                      {customConfig.displayName || "Custom OIDC"}
+                    </span>{" "}
+                  </>
+                )}
                 <Chip color="success" size="sm" variant="flat">
                   已绑定
                 </Chip>
@@ -715,6 +856,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     // 打开对应配置模态框
                     if (isGitHubConfigured) onGitHubOpen();
                     else if (isCloudflareConfigured) onCloudflareOpen();
+                    else if (isCustomConfigured) onCustomOpen();
                   }}
                 >
                   配置
@@ -728,7 +870,10 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   }
                   onPress={() =>
                     handleUnbindProvider(
-                      isGitHubConfigured ? "github" : "cloudflare",
+                      getCurrentProvider(
+                        isGitHubConfigured,
+                        isCloudflareConfigured,
+                      ),
                     )
                   }
                 >
@@ -794,6 +939,18 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     }}
                   >
                     Cloudflare
+                  </Button>
+                  <Button
+                    fullWidth
+                    startContent={<Icon icon="solar:key-bold" width={20} />}
+                    variant="bordered"
+                    onPress={() => {
+                      setSelectedProvider("custom");
+                      onCustomOpen();
+                      onClose();
+                    }}
+                  >
+                    Custom OIDC
                   </Button>
                 </div>
               </ModalBody>
@@ -966,6 +1123,153 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   color="primary"
                   isLoading={isSubmitting}
                   onPress={handleSaveCloudflareConfig}
+                >
+                  保存配置
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* Custom OIDC 配置模态框 */}
+      <Modal
+        backdrop="blur"
+        isOpen={isCustomOpen}
+        placement="center"
+        scrollBehavior="inside"
+        size="2xl"
+        onOpenChange={onCustomOpenChange}
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex items-center w-full">
+                <span>Custom OIDC 配置</span>
+              </ModalHeader>
+              <ModalBody>
+                <div className="space-y-4">
+                  {/* Issuer URL */}
+                  <Input
+                    description="OIDC Provider 的 Issuer URL（仅支持 HTTPS，支持内网 IP），保存时自动发现端点配置"
+                    label="Issuer URL"
+                    placeholder="https://auth.example.com 或 https://192.168.1.100:8443"
+                    value={customConfig.issuerUrl}
+                    onChange={(e) =>
+                      setCustomConfig((prev) => ({
+                        ...prev,
+                        issuerUrl: e.target.value,
+                      }))
+                    }
+                  />
+
+                  <Divider />
+
+                  {/* 显示名称 */}
+                  <Input
+                    description="将显示在登录按钮上"
+                    label="显示名称"
+                    placeholder="如 Keycloak、Authentik、Authelia 等"
+                    value={customConfig.displayName}
+                    onChange={(e) =>
+                      setCustomConfig((prev) => ({
+                        ...prev,
+                        displayName: e.target.value,
+                      }))
+                    }
+                  />
+
+                  {/* Client ID / Secret */}
+                  <Input
+                    label="Client ID"
+                    placeholder="OIDC 客户端 ID"
+                    value={customConfig.clientId}
+                    onChange={(e) =>
+                      setCustomConfig((prev) => ({
+                        ...prev,
+                        clientId: e.target.value,
+                      }))
+                    }
+                  />
+                  <Input
+                    label="Client Secret"
+                    placeholder="OIDC 客户端密钥"
+                    type="password"
+                    value={customConfig.clientSecret}
+                    onChange={(e) =>
+                      setCustomConfig((prev) => ({
+                        ...prev,
+                        clientSecret: e.target.value,
+                      }))
+                    }
+                  />
+
+                  {/* Callback URL (只读) */}
+                  <Input
+                    isReadOnly
+                    description="请将此地址填写到 OIDC 客户端的回调 URL / Redirect URI 配置中"
+                    label="Callback URL"
+                    value={`${window.location.origin}/api/oauth2/callback`}
+                    variant="flat"
+                  />
+
+                  <Divider />
+
+                  {/* Scopes 和字段映射 */}
+                  <Input
+                    description="OAuth2 作用域，多个用空格分隔"
+                    label="Scopes"
+                    placeholder="openid profile email"
+                    value={(customConfig.scopes || []).join(" ")}
+                    onChange={(e) => {
+                      const scopesStr = e.target.value;
+                      const scopesArr = scopesStr
+                        .split(/\s+/)
+                        .filter((s) => s.length > 0);
+
+                      setCustomConfig((prev) => ({
+                        ...prev,
+                        scopes:
+                          scopesArr.length > 0
+                            ? scopesArr
+                            : ["openid", "profile", "email"],
+                      }));
+                    }}
+                  />
+                  <Input
+                    description="从用户信息中提取用户 ID 的字段路径，支持点号路径如 user.id"
+                    label="User ID Path"
+                    placeholder="sub"
+                    value={customConfig.userIdPath}
+                    onChange={(e) =>
+                      setCustomConfig((prev) => ({
+                        ...prev,
+                        userIdPath: e.target.value || "sub",
+                      }))
+                    }
+                  />
+                  <Input
+                    description="从用户信息中提取用户名的字段路径，支持点号路径如 user.name"
+                    label="Username Path"
+                    placeholder="preferred_username"
+                    value={customConfig.usernamePath}
+                    onChange={(e) =>
+                      setCustomConfig((prev) => ({
+                        ...prev,
+                        usernamePath: e.target.value || "preferred_username",
+                      }))
+                    }
+                  />
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button color="default" variant="light" onPress={onClose}>
+                  取消
+                </Button>
+                <Button
+                  color="primary"
+                  isLoading={isSubmitting}
+                  onPress={handleSaveCustomConfig}
                 >
                   保存配置
                 </Button>
