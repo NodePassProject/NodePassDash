@@ -456,7 +456,12 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 		cfg.ClientID, redirectURI, cfg.TokenURL)
 	fmt.Printf("🔍 请求体: %s\n", form.Encode())
 
-	tokenReq, _ := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
+	tokenReq, err := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		fmt.Printf("❌ GitHub Token 请求创建失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建 Token 请求失败"})
+		return
+	}
 	tokenReq.Header.Set("Accept", "application/json")
 	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -505,7 +510,12 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 	}
 
 	// 获取用户信息
-	userReq, _ := http.NewRequest("GET", cfg.UserInfoURL, nil)
+	userReq, err := http.NewRequest("GET", cfg.UserInfoURL, nil)
+	if err != nil {
+		fmt.Printf("❌ GitHub 用户信息请求创建失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户信息请求失败"})
+		return
+	}
 	userReq.Header.Set("Authorization", "token "+tokenRes.AccessToken)
 	userReq.Header.Set("Accept", "application/json")
 
@@ -632,7 +642,12 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 	}
 	form.Set("redirect_uri", redirectURI)
 
-	tokenReq, _ := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
+	tokenReq, err := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		fmt.Printf("❌ Cloudflare Token 请求创建失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建 Token 请求失败"})
+		return
+	}
 	tokenReq.Header.Set("Accept", "application/json")
 	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -686,7 +701,12 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 		return
 	}
 
-	userReq, _ := http.NewRequest("GET", cfg.UserInfoURL, nil)
+	userReq, err := http.NewRequest("GET", cfg.UserInfoURL, nil)
+	if err != nil {
+		fmt.Printf("❌ Cloudflare 用户信息请求创建失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户信息请求失败"})
+		return
+	}
 	userReq.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
 	userReq.Header.Set("Accept", "application/json")
 
@@ -865,10 +885,9 @@ func (h *AuthHandler) HandleOAuth2Config(c *gin.Context) {
 				return
 			}
 
-			// 3. Discovery（仅允许 HTTPS，支持内网 IP）
+			// 3. Discovery（强制使用 HTTPS，支持内网 IP）
 			validator := &auth.URLValidator{
-				AllowHTTP:      false, // 仅允许 HTTPS
-				AllowPrivateIP: true,  // 支持内网 IP（需 HTTPS）
+				AllowPrivateIP: true, // 支持内网 IP（使用 HTTPS）
 			}
 
 			discoveredConfig, err := auth.SecureDiscoverOIDC(issuerURL, validator)
@@ -1050,7 +1069,12 @@ func (h *AuthHandler) handleCustomOIDC(c *gin.Context, code string) {
 
 	fmt.Printf("🔍 Custom OIDC Token 请求: token_url=%s, redirect_uri=%s\n", cfg.TokenURL, redirectURI)
 
-	tokenReq, _ := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
+	tokenReq, err := http.NewRequest("POST", cfg.TokenURL, strings.NewReader(form.Encode()))
+	if err != nil {
+		fmt.Printf("❌ Custom OIDC Token 请求创建失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建 Token 请求失败"})
+		return
+	}
 	tokenReq.Header.Set("Accept", "application/json")
 	tokenReq.Header.Set("Content-Type", "application/x-www-form-urlencoded")
 
@@ -1105,7 +1129,12 @@ func (h *AuthHandler) handleCustomOIDC(c *gin.Context, code string) {
 		return
 	}
 
-	userReq, _ := http.NewRequest("GET", cfg.UserInfoURL, nil)
+	userReq, err := http.NewRequest("GET", cfg.UserInfoURL, nil)
+	if err != nil {
+		fmt.Printf("❌ Custom OIDC 用户信息请求创建失败: %v\n", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建用户信息请求失败"})
+		return
+	}
 	userReq.Header.Set("Authorization", "Bearer "+tokenRes.AccessToken)
 	userReq.Header.Set("Accept", "application/json")
 

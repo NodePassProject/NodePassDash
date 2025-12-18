@@ -516,9 +516,14 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
       onCustomOpenChange();
     } catch (error) {
       console.error("保存 Custom OIDC 配置失败:", error);
+      const errorMessage =
+        error instanceof Error
+          ? error.message
+          : "无法连接到 OIDC 服务器，请检查 Issuer URL";
+
       addToast({
         title: "保存失败",
-        description: error.message || "无法连接到 OIDC 服务器，请检查 Issuer URL",
+        description: errorMessage,
         color: "danger",
       });
     } finally {

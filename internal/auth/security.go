@@ -13,8 +13,7 @@ import (
 
 // URLValidator URL 验证器
 type URLValidator struct {
-	AllowHTTP      bool // 是否允许 HTTP (默认允许,支持内网部署)
-	AllowPrivateIP bool // 是否允许私有 IP (默认允许,支持内网部署)
+	AllowPrivateIP bool // 是否允许私有 IP (默认为 false,即仅允许公网 IP)
 }
 
 // ValidateURL 验证 URL 的安全性
@@ -25,15 +24,10 @@ func (v *URLValidator) ValidateURL(rawURL string) error {
 		return fmt.Errorf("无效的 URL 格式: %w", err)
 	}
 
-	// 检查 scheme
+	// 检查 scheme，强制使用 HTTPS
 	scheme := strings.ToLower(parsedURL.Scheme)
-	if scheme != "http" && scheme != "https" {
-		return fmt.Errorf("不支持的协议 %s, 仅允许 HTTP/HTTPS", scheme)
-	}
-
-	// 如果不允许 HTTP,则强制 HTTPS
-	if !v.AllowHTTP && scheme == "http" {
-		return fmt.Errorf("不允许使用 HTTP 协议,请使用 HTTPS")
+	if scheme != "https" {
+		return fmt.Errorf("仅允许 HTTPS 协议，当前协议: %s", scheme)
 	}
 
 	// 检查 host 是否为空
@@ -81,7 +75,11 @@ func (v *URLValidator) isPrivateIP(ip net.IP) bool {
 	}
 
 	for _, cidr := range privateRanges {
-		_, ipnet, _ := net.ParseCIDR(cidr)
+		_, ipnet, err := net.ParseCIDR(cidr)
+		if err != nil {
+			// 硬编码的 CIDR 不应该失败,但为了安全起见还是检查
+			continue
+		}
 		if ipnet.Contains(ip) {
 			return true
 		}
