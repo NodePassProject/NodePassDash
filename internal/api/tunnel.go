@@ -1,6 +1,7 @@
 package api
 
 import (
+	"NodePassDash/internal/auth"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/metrics"
 	"NodePassDash/internal/models"
@@ -2390,11 +2391,11 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(c *gin.Context) {
 				}()
 
 				sortedPoints = append(sortedPoints, TrafficPoint{
-					EventTime: record["eventTime"].(string),
-					TcpRx:     record["tcpRx"].(int64),
-					TcpTx:     record["tcpTx"].(int64),
-					UdpRx:     record["udpRx"].(int64),
-					UdpTx:     record["udpTx"].(int64),
+					EventTime: auth.SafeStringAssert(record["eventTime"], ""),
+					TcpRx:     auth.SafeInt64Assert(record["tcpRx"], 0),
+					TcpTx:     auth.SafeInt64Assert(record["tcpTx"], 0),
+					UdpRx:     auth.SafeInt64Assert(record["udpRx"], 0),
+					UdpTx:     auth.SafeInt64Assert(record["udpTx"], 0),
 					Pool:      poolVal,
 					Ping:      pingVal,
 				})

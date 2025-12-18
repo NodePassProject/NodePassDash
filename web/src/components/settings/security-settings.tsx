@@ -39,6 +39,17 @@ const securitySettingsSchema = z.object({
 
 type SecuritySettingsForm = z.infer<typeof securitySettingsSchema>;
 
+// 辅助函数: 根据配置状态返回当前 OAuth Provider
+const getCurrentProvider = (
+  isGitHub: boolean,
+  isCloudflare: boolean,
+): "github" | "cloudflare" | "custom" => {
+  if (isGitHub) return "github";
+  if (isCloudflare) return "cloudflare";
+
+  return "custom";
+};
+
 // OAuth2 配置类型
 interface OAuth2Config {
   clientId: string;
@@ -126,9 +137,6 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
     issuerUrl: "",
     clientId: "",
     clientSecret: "",
-    authUrl: "",
-    tokenUrl: "",
-    userInfoUrl: "",
     userIdPath: "sub",
     usernamePath: "preferred_username",
     scopes: ["openid", "profile", "email"],
@@ -139,9 +147,6 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
   const [isGitHubConfigured, setIsGitHubConfigured] = useState(false);
   const [isCloudflareConfigured, setIsCloudflareConfigured] = useState(false);
   const [isCustomConfigured, setIsCustomConfigured] = useState(false);
-
-  // OIDC Discovery 加载状态
-  const [isDiscovering, setIsDiscovering] = useState(false);
 
   // 在 state 部分添加 selectedProvider 和 provider select disclosure
   const [selectedProvider, setSelectedProvider] = useState<
@@ -181,7 +186,11 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
         if (!data.success) return;
 
-        const curProvider = data.provider as "github" | "cloudflare" | "custom" | "";
+        const curProvider = data.provider as
+          | "github"
+          | "cloudflare"
+          | "custom"
+          | "";
 
         if (!curProvider) return; // 未绑定
 
@@ -438,71 +447,22 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
     }
   };
 
-  // OIDC Discovery 函数
-  const handleDiscoverOIDC = async () => {
+  // Custom OIDC 配置保存
+  const handleSaveCustomConfig = async () => {
+    // 验证必填字段
     if (!customConfig.issuerUrl) {
       addToast({
-        title: "请输入 Discovery URL",
-        description: "Discovery URL 不能为空",
+        title: "配置不完整",
+        description: "请填写 Issuer URL",
         color: "warning",
       });
       return;
     }
 
-    setIsDiscovering(true);
-    try {
-      const res = await fetch(
-        buildApiUrl(`/api/oauth2/discover?url=${encodeURIComponent(customConfig.issuerUrl)}`)
-      );
-      const data = await res.json();
-
-      if (data.success) {
-        setCustomConfig((prev) => ({
-          ...prev,
-          authUrl: data.authorizationEndpoint || "",
-          tokenUrl: data.tokenEndpoint || "",
-          userInfoUrl: data.userinfoEndpoint || "",
-        }));
-        addToast({
-          title: "发现成功",
-          description: "已自动填充 OIDC 端点配置",
-          color: "success",
-        });
-      } else {
-        addToast({
-          title: "发现失败",
-          description: data.error || "无法获取 OIDC 配置",
-          color: "danger",
-        });
-      }
-    } catch (e) {
-      console.error("OIDC Discovery 失败:", e);
-      addToast({
-        title: "发现失败",
-        description: "无法连接到 OIDC 服务器",
-        color: "danger",
-      });
-    } finally {
-      setIsDiscovering(false);
-    }
-  };
-
-  // Custom OIDC 配置保存
-  const handleSaveCustomConfig = async () => {
-    // 验证必填字段
     if (!customConfig.clientId || !customConfig.clientSecret) {
       addToast({
         title: "配置不完整",
         description: "请填写 Client ID 和 Client Secret",
-        color: "warning",
-      });
-      return;
-    }
-
-    if (!customConfig.authUrl || !customConfig.tokenUrl) {
-      addToast({
-        title: "配置不完整",
-        description: "请先使用「发现」按钮获取 OIDC 端点，或手动填写 Auth URL 和 Token URL",
         color: "warning",
       });
       return;
@@ -520,12 +480,17 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
     try {
       setIsSubmitting(true);
 
-      const redirectUri = `${window.location.origin}/api/oauth2/callback`;
+      // 只发送用户配置的字段，端点由后端自动填充
       const payload = {
         provider: "custom",
         config: {
-          ...customConfig,
-          redirectUri,
+          issuerUrl: customConfig.issuerUrl,
+          clientId: customConfig.clientId,
+          clientSecret: customConfig.clientSecret,
+          displayName: customConfig.displayName,
+          userIdPath: customConfig.userIdPath || "sub",
+          usernamePath: customConfig.usernamePath || "preferred_username",
+          scopes: customConfig.scopes || ["openid", "profile", "email"],
         },
       };
 
@@ -535,7 +500,11 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         body: JSON.stringify(payload),
       });
 
-      if (!res.ok) throw new Error("保存失败");
+      const data = await res.json();
+
+      if (!res.ok) {
+        throw new Error(data.error || "保存失败");
+      }
 
       addToast({
         title: "配置保存成功",
@@ -549,7 +518,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
       console.error("保存 Custom OIDC 配置失败:", error);
       addToast({
         title: "保存失败",
-        description: "保存 Custom OIDC 配置时发生错误",
+        description: error.message || "无法连接到 OIDC 服务器，请检查 Issuer URL",
         color: "danger",
       });
     } finally {
@@ -558,7 +527,9 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
   };
 
   // 解绑处理
-  const handleUnbindProvider = async (provider: "github" | "cloudflare" | "custom") => {
+  const handleUnbindProvider = async (
+    provider: "github" | "cloudflare" | "custom",
+  ) => {
     try {
       setIsSubmitting(true);
       const res = await fetch(buildApiUrl("/api/oauth2/config"), {
@@ -829,7 +800,9 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         </CardHeader>
         <Divider />
         <CardBody className="p-4">
-          {isGitHubConfigured || isCloudflareConfigured || isCustomConfigured ? (
+          {isGitHubConfigured ||
+          isCloudflareConfigured ||
+          isCustomConfigured ? (
             // 已绑定状态
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
@@ -859,12 +832,10 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                 {isCustomConfigured && (
                   <>
                     {" "}
-                    <Icon
-                      height={24}
-                      icon="solar:key-bold"
-                      width={24}
-                    />{" "}
-                    <span className="font-medium">{customConfig.displayName || "Custom OIDC"}</span>{" "}
+                    <Icon height={24} icon="solar:key-bold" width={24} />{" "}
+                    <span className="font-medium">
+                      {customConfig.displayName || "Custom OIDC"}
+                    </span>{" "}
                   </>
                 )}
                 <Chip color="success" size="sm" variant="flat">
@@ -894,7 +865,10 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   }
                   onPress={() =>
                     handleUnbindProvider(
-                      isGitHubConfigured ? "github" : isCloudflareConfigured ? "cloudflare" : "custom",
+                      getCurrentProvider(
+                        isGitHubConfigured,
+                        isCloudflareConfigured,
+                      ),
                     )
                   }
                 >
@@ -963,9 +937,7 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                   </Button>
                   <Button
                     fullWidth
-                    startContent={
-                      <Icon icon="solar:key-bold" width={20} />
-                    }
+                    startContent={<Icon icon="solar:key-bold" width={20} />}
                     variant="bordered"
                     onPress={() => {
                       setSelectedProvider("custom");
@@ -1160,8 +1132,8 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
         backdrop="blur"
         isOpen={isCustomOpen}
         placement="center"
-        size="2xl"
         scrollBehavior="inside"
+        size="2xl"
         onOpenChange={onCustomOpenChange}
       >
         <ModalContent>
@@ -1172,11 +1144,11 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
               </ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
-                  {/* Discovery URL */}
+                  {/* Issuer URL */}
                   <Input
-                    label="Discovery URL"
-                    placeholder="https://auth.example.com/.well-known/openid-configuration"
-                    description="OIDC 发现端点的完整地址，点击「发现」自动填充下方端点"
+                    description="OIDC Provider 的 Issuer URL（仅支持 HTTPS，支持内网 IP），保存时自动发现端点配置"
+                    label="Issuer URL"
+                    placeholder="https://auth.example.com 或 https://192.168.1.100:8443"
                     value={customConfig.issuerUrl}
                     onChange={(e) =>
                       setCustomConfig((prev) => ({
@@ -1190,9 +1162,9 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
                   {/* 显示名称 */}
                   <Input
+                    description="将显示在登录按钮上"
                     label="显示名称"
                     placeholder="如 Keycloak、Authentik、Authelia 等"
-                    description="将显示在登录按钮上"
                     value={customConfig.displayName}
                     onChange={(e) =>
                       setCustomConfig((prev) => ({
@@ -1229,63 +1201,27 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
 
                   {/* Callback URL (只读) */}
                   <Input
-                    label="Callback URL"
-                    description="请将此地址填写到 OIDC 客户端的回调 URL / Redirect URI 配置中"
-                    value={`${window.location.origin}/api/oauth2/callback`}
                     isReadOnly
+                    description="请将此地址填写到 OIDC 客户端的回调 URL / Redirect URI 配置中"
+                    label="Callback URL"
+                    value={`${window.location.origin}/api/oauth2/callback`}
                     variant="flat"
-                  />
-
-                  <Divider />
-
-                  {/* OIDC 端点 */}
-                  <Input
-                    label="Auth URL"
-                    placeholder="授权端点 (authorization_endpoint)"
-                    value={customConfig.authUrl}
-                    onChange={(e) =>
-                      setCustomConfig((prev) => ({
-                        ...prev,
-                        authUrl: e.target.value,
-                      }))
-                    }
-                  />
-                  <Input
-                    label="Token URL"
-                    placeholder="Token 端点 (token_endpoint)"
-                    value={customConfig.tokenUrl}
-                    onChange={(e) =>
-                      setCustomConfig((prev) => ({
-                        ...prev,
-                        tokenUrl: e.target.value,
-                      }))
-                    }
-                  />
-                  <Input
-                    label="User Info URL"
-                    placeholder="用户信息端点 (userinfo_endpoint)，可选"
-                    value={customConfig.userInfoUrl}
-                    onChange={(e) =>
-                      setCustomConfig((prev) => ({
-                        ...prev,
-                        userInfoUrl: e.target.value,
-                      }))
-                    }
                   />
 
                   <Divider />
 
                   {/* Scopes 和字段映射 */}
                   <Input
+                    description="OAuth2 作用域，多个用空格分隔"
                     label="Scopes"
                     placeholder="openid profile email"
-                    description="OAuth2 作用域，多个用空格分隔"
                     value={(customConfig.scopes || []).join(" ")}
                     onChange={(e) => {
                       const scopesStr = e.target.value;
                       const scopesArr = scopesStr
                         .split(/\s+/)
                         .filter((s) => s.length > 0);
+
                       setCustomConfig((prev) => ({
                         ...prev,
                         scopes:
@@ -1296,9 +1232,9 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     }}
                   />
                   <Input
+                    description="从用户信息中提取用户 ID 的字段路径，支持点号路径如 user.id"
                     label="User ID Path"
                     placeholder="sub"
-                    description="从用户信息中提取用户 ID 的字段路径，支持点号路径如 user.id"
                     value={customConfig.userIdPath}
                     onChange={(e) =>
                       setCustomConfig((prev) => ({
@@ -1308,9 +1244,9 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
                     }
                   />
                   <Input
+                    description="从用户信息中提取用户名的字段路径，支持点号路径如 user.name"
                     label="Username Path"
                     placeholder="preferred_username"
-                    description="从用户信息中提取用户名的字段路径，支持点号路径如 user.name"
                     value={customConfig.usernamePath}
                     onChange={(e) =>
                       setCustomConfig((prev) => ({
@@ -1324,14 +1260,6 @@ const SecuritySettings = forwardRef<SecuritySettingsRef, {}>((props, ref) => {
               <ModalFooter>
                 <Button color="default" variant="light" onPress={onClose}>
                   取消
-                </Button>
-                <Button
-                  color="primary"
-                  variant="flat"
-                  isLoading={isDiscovering}
-                  onPress={handleDiscoverOIDC}
-                >
-                  发现
                 </Button>
                 <Button
                   color="primary"
