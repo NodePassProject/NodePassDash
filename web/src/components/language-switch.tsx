@@ -48,9 +48,11 @@ export const LanguageSwitch: React.FC<LanguageSwitchProps> = ({
     <Dropdown placement="bottom-end">
       <DropdownTrigger>
         <Button
+            isIconOnly
           aria-label={t("language.switch")}
-          className={`text-default-600 hover:text-primary ${className}`}
+          className={`text-default-600 hover:text-primary bg-default-100/50 hover:bg-default-200/50 backdrop-blur-sm ${className}`}
           size="sm"
+            radius="full"
           startContent={
             <Icon icon={currentLangConfig.icon} width={16} />
           }

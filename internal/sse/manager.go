@@ -1,9 +1,7 @@
 package sse
 
 import (
-	"NodePassDash/internal/endpointcache"
 	log "NodePassDash/internal/log"
-	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
 	"context"
 	"crypto/tls"
@@ -525,29 +523,45 @@ func (m *Manager) hasActiveTunnels(endpointID int64) bool {
 	return count > 0
 }
 
-// markEndpointFail 更新端点状态为 FAIL（只更新缓存，延迟持久化）
+// markEndpointFail 更新端点状态为 FAIL
 func (m *Manager) markEndpointFail(endpointID int64) {
-	// ✅ 只更新缓存，不直接写数据库（30秒后自动持久化）
-	endpointcache.Shared.UpdateStatus(endpointID, models.EndpointStatusFail)
+	// 更新端点状态为 FAIL，避免重复写
+	res, err := m.db.Exec(`UPDATE endpoints SET status = 'FAIL', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'FAIL'`, endpointID)
+	if err != nil {
+		// 更新失败直接返回
+		log.Errorf("[Master-%d#SSE]更新状态为 FAIL 失败 %v", endpointID, err)
+		return
+	}
 
-	log.Infof("[Master-%d#SSE] 更新状态为 FAIL (已缓存)", endpointID)
+	// 仅当确实修改了行时再打印成功日志
+	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
+		log.Infof("[Master-%d#SSE]更新状态为 FAIL", endpointID)
 
-	// 将该端点下的所有隧道标记为离线
-	if err := m.setTunnelsOfflineForEndpoint(endpointID); err != nil {
-		log.Errorf("[Master-%d#SSE]设置隧道离线状态失败: %v", endpointID, err)
+		// 将该端点下的所有隧道标记为离线
+		if err := m.setTunnelsOfflineForEndpoint(endpointID); err != nil {
+			log.Errorf("[Master-%d#SSE]设置隧道离线状态失败: %v", endpointID, err)
+		}
 	}
 }
 
-// markEndpointDisconnect 更新端点状态为 DISCONNECT（只更新缓存，延迟持久化）
+// markEndpointDisconnect 更新端点状态为 DISCONNECT
 func (m *Manager) markEndpointDisconnect(endpointID int64) {
-	// ✅ 只更新缓存，不直接写数据库（30秒后自动持久化）
-	endpointcache.Shared.UpdateStatus(endpointID, models.EndpointStatusDisconnect)
+	// 更新端点状态为 DISCONNECT，避免重复写
+	res, err := m.db.Exec(`UPDATE endpoints SET status = 'DISCONNECT', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'DISCONNECT'`, endpointID)
+	if err != nil {
+		// 更新失败直接返回
+		log.Errorf("[Master-%d#SSE]更新状态为 DISCONNECT 失败 %v", endpointID, err)
+		return
+	}
 
-	log.Infof("[Master-%d#SSE] 更新状态为 DISCONNECT (已缓存)", endpointID)
+	// 仅当确实修改了行时再打印成功日志
+	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
+		log.Infof("[Master-%d#SSE]更新状态为 DISCONNECT", endpointID)
 
-	// 将该端点下的所有隧道标记为离线
-	if err := m.setTunnelsOfflineForEndpoint(endpointID); err != nil {
-		log.Errorf("[Master-%d#SSE]设置隧道离线状态失败: %v", endpointID, err)
+		// 将该端点下的所有隧道标记为离线
+		if err := m.setTunnelsOfflineForEndpoint(endpointID); err != nil {
+			log.Errorf("[Master-%d#SSE]设置隧道离线状态失败: %v", endpointID, err)
+		}
 	}
 }
 
@@ -572,12 +586,21 @@ func (m *Manager) setTunnelsOfflineForEndpoint(endpointID int64) error {
 	return nil
 }
 
-// markEndpointOnline 更新端点状态为 ONLINE（只更新缓存，延迟持久化）
+// markEndpointOnline 更新端点状态为 ONLINE
 func (m *Manager) markEndpointOnline(endpointID int64) {
-	// ✅ 只更新缓存，不直接写数据库（30秒后自动持久化）
-	endpointcache.Shared.UpdateStatus(endpointID, models.EndpointStatusOnline)
+	// 尝试更新状态为 ONLINE
+	res, err := m.db.Exec(`UPDATE endpoints SET status = 'ONLINE', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'ONLINE'`, endpointID)
+	if err != nil {
+		// 更新失败，记录错误并返回
+		log.Errorf("[Master-%d#SSE]更新状态为 ONLINE 失败 %v", endpointID, err)
+		return
+	}
 
-	log.Infof("[Master-%d#SSE] 更新状态为 ONLINE (已缓存)", endpointID)
+	// 更新成功才输出成功日志
+	// 仅当确实修改了行时再打印成功日志
+	if rows, err := res.RowsAffected(); err == nil && rows > 0 {
+		log.Infof("[Master-%d#SSE]更新状态为 ONLINE", endpointID)
+	}
 }
 
 // StartWorkers 启动固定数量的后台 worker 处理事件

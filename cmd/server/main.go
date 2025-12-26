@@ -273,28 +273,8 @@ func startBackgroundServices(gormDB *gorm.DB, sseService *sse.Service, sseManage
 		log.Info("流量数据优化调度器已启动")
 	}()
 
-	// 启动Endpoint缓存定时持久化任务（每30秒持久化一次变更）
-	go func() {
-		ticker := time.NewTicker(30 * time.Second)
-		defer ticker.Stop()
-
-		for range ticker.C {
-			if err := endpointcache.Shared.PersistIfNeeded(gormDB); err != nil {
-				log.Errorf("❌ 持久化Endpoint缓存失败: %v", err)
-			} else {
-				stats := endpointcache.Shared.GetStats()
-				dirtyCount := stats["dirty_count"].(int)
-				if dirtyCount > 0 {
-					log.Debugf("💾 持久化了 %d 个变更的端点", dirtyCount)
-				}
-			}
-		}
-	}()
-	log.Info("Endpoint缓存定时持久化任务已启动（间隔: 30秒）")
-
 	// 启动SSE相关服务
 	go func() {
-		sseService.StartStoreWorkers(4) // 减少worker数量
 		sseManager.StartDaemon()
 
 		// 初始化SSE系统

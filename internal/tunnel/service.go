@@ -2,11 +2,9 @@ package tunnel
 
 import (
 	"NodePassDash/internal/db"
-	"NodePassDash/internal/endpointcache"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
-	"NodePassDash/internal/tunnelcache"
 	"database/sql"
 	"errors"
 	"fmt"
@@ -344,7 +342,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 	// 添加到缓存
 	var createdTunnel models.Tunnel
 	if err := s.db.Where("id = ?", tunnel.ID).First(&createdTunnel).Error; err == nil {
-		tunnelcache.Shared.Add(&createdTunnel)
+		// tunnelcache.Shared.Add(&createdTunnel)
 		log.Debugf("[API] 隧道已添加到缓存: ID=%d, Name=%s", createdTunnel.ID, createdTunnel.Name)
 	} else {
 		log.Warnf("[API] 查询新创建的隧道失败，无法添加到缓存: %v", err)
@@ -405,9 +403,6 @@ func (s *Service) DeleteTunnel(instanceID string) error {
 		log.Infof("[API] 隧道 %s 可能已被SSE推送先删除，算作删除成功", instanceID)
 	}
 
-	// 从缓存中删除
-	tunnelcache.Shared.DeleteByInstanceID(instanceID)
-
 	// 异步更新端点隧道计数（避免死锁）
 	go func(endpointID int64) {
 		time.Sleep(50 * time.Millisecond)
@@ -433,9 +428,6 @@ func (s *Service) UpdateTunnelStatus(instanceID string, status TunnelStatus) err
 	if result.RowsAffected == 0 {
 		return errors.New("隧道不存在")
 	}
-
-	// 同步更新缓存
-	tunnelcache.Shared.UpdateStatusByInstanceID(instanceID, models.TunnelStatus(status))
 
 	return nil
 }
@@ -715,9 +707,6 @@ func (s *Service) UpdateTunnel(req UpdateTunnelRequest) error {
 		}
 	}
 
-	// 同步更新缓存
-	tunnelcache.Shared.UpdateFullTunnel(&tunnelWithEndpoint)
-
 	return nil
 }
 
@@ -769,10 +758,13 @@ func (s *Service) GetOperationLogs(limit int) ([]OperationLog, error) {
 
 // GetInstanceIDByTunnelID 根据隧道数据库ID获取对应的实例ID (instanceId)
 func (s *Service) GetInstanceIDByTunnelID(id int64) (string, error) {
-	// 优先从缓存获取
-	tunnel := tunnelcache.Shared.Get(id)
-	if tunnel == nil {
-		return "", errors.New("隧道不存在")
+	var tunnel models.Tunnel
+	err := s.db.Select("instance_id").Where("id = ?", id).First(&tunnel).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return "", errors.New("隧道不存在")
+		}
+		return "", err
 	}
 	if tunnel.InstanceID == nil || *tunnel.InstanceID == "" {
 		return "", errors.New("隧道没有关联的实例ID")
@@ -782,30 +774,36 @@ func (s *Service) GetInstanceIDByTunnelID(id int64) (string, error) {
 
 // GetEndpointIDByTunnelID 根据隧道数据库ID获取对应的端点ID
 func (s *Service) GetEndpointIDByTunnelID(id int64) (int64, error) {
-	// 优先从缓存获取
-	tunnel := tunnelcache.Shared.Get(id)
-	if tunnel == nil {
-		return 0, errors.New("隧道不存在")
+	var tunnel models.Tunnel
+	err := s.db.Select("endpoint_id").Where("id = ?", id).First(&tunnel).Error
+	if err != nil {
+		return 0, err
 	}
 	return tunnel.EndpointID, nil
 }
 
 // GetEndpointIDByInstanceID 根据实例ID获取对应的端点ID
 func (s *Service) GetEndpointIDByInstanceID(instanceID string) (int64, error) {
-	// 优先从缓存获取
-	tunnel := tunnelcache.Shared.GetByInstanceID(instanceID)
-	if tunnel == nil {
-		return 0, errors.New("实例不存在")
+	var tunnel models.Tunnel
+	err := s.db.Select("endpoint_id").Where("instance_id = ?", instanceID).First(&tunnel).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return 0, errors.New("实例不存在")
+		}
+		return 0, err
 	}
 	return tunnel.EndpointID, nil
 }
 
 // GetTunnelNameByID 根据隧道数据库ID获取隧道名称
 func (s *Service) GetTunnelNameByID(id int64) (string, error) {
-	// 优先从缓存获取
-	tunnel := tunnelcache.Shared.Get(id)
-	if tunnel == nil {
-		return "", errors.New("隧道不存在")
+	var tunnel models.Tunnel
+	err := s.db.Select("name").Where("id = ?", id).First(&tunnel).Error
+	if err != nil {
+		if err == gorm.ErrRecordNotFound {
+			return "", errors.New("隧道不存在")
+		}
+		return "", err
 	}
 	return tunnel.Name, nil
 }
@@ -879,10 +877,6 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 		log.Infof("[API] 隧道 %s 可能已被SSE推送先删除，算作删除成功", instanceID)
 		return nil
 	}
-
-	// 从缓存中删除
-	tunnelcache.Shared.DeleteByInstanceID(instanceID)
-	log.Debugf("[API] 隧道已从缓存删除（超时删除）: InstanceID=%s", instanceID)
 
 	// 异步更新端点隧道计数（避免死锁）
 	go func(endpointID int64) {
@@ -972,10 +966,6 @@ func (s *Service) DeleteTunnelIdAndWait(timeout time.Duration, id *int64) error 
 		log.Infof("[API] 隧道 %s 可能已被SSE推送先删除，算作删除成功", *tunnelWithEndpoint.InstanceID)
 		return nil
 	}
-
-	// 从缓存中删除
-	tunnelcache.Shared.Delete(tunnelWithEndpoint.ID)
-	log.Debugf("[API] 隧道已从缓存删除: ID=%d", tunnelWithEndpoint.ID)
 
 	// 异步更新端点隧道计数（避免死锁）
 	go func(endpointID int64) {
@@ -1156,13 +1146,6 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		err = s.db.Model(&models.Tunnel{}).Where("id = ?", tunnelID).Updates(updateFields).Error
 		if err != nil {
 			log.Warnf("[API] 更新隧道名称失败: %v", err)
-		} else {
-			// 同步更新缓存 - 查询完整的隧道数据并更新缓存
-			var updatedTunnel models.Tunnel
-			if err := s.db.Where("id = ?", tunnelID).First(&updatedTunnel).Error; err == nil {
-				tunnelcache.Shared.UpdateFullTunnel(&updatedTunnel)
-				log.Debugf("[API] 隧道缓存已更新: ID=%d", tunnelID)
-			}
 		}
 
 		// 记录操作日志
@@ -1291,10 +1274,6 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 			return nil, err
 		}
 		existingID = newTunnel.ID
-
-		// 添加到缓存
-		tunnelcache.Shared.Add(&newTunnel)
-		log.Debugf("[API] 隧道已添加到缓存（超时回退）: ID=%d", newTunnel.ID)
 	} else {
 		// 已存在，仅更新名称
 		err := s.db.Model(&models.Tunnel{}).Where("id = ?", existingID).Updates(map[string]interface{}{
@@ -1304,10 +1283,6 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		if err != nil {
 			return nil, err
 		}
-
-		// 同步更新缓存中的名称
-		tunnelcache.Shared.UpdateField(existingID, "name", req.Name)
-		log.Debugf("[API] 隧道名称已更新到缓存（超时回退）: ID=%d", existingID)
 	}
 
 	// 记录操作日志
@@ -1442,13 +1417,6 @@ func (s *Service) NewCreateTunnelAndWait(req Tunnel, timeout time.Duration) (*Tu
 		err = s.db.Model(&models.Tunnel{}).Where("id = ?", tunnelID).Updates(updateFields).Error
 		if err != nil {
 			log.Warnf("[API] 更新隧道名称失败: %v", err)
-		} else {
-			// 同步更新缓存 - 查询完整的隧道数据并更新缓存
-			var updatedTunnel models.Tunnel
-			if err := s.db.Where("id = ?", tunnelID).First(&updatedTunnel).Error; err == nil {
-				tunnelcache.Shared.UpdateFullTunnel(&updatedTunnel)
-				log.Debugf("[API] 隧道缓存已更新: ID=%d", tunnelID)
-			}
 		}
 
 		// 记录操作日志
@@ -1498,10 +1466,6 @@ func (s *Service) NewCreateTunnelAndWait(req Tunnel, timeout time.Duration) (*Tu
 			return nil, err
 		}
 		existingID = req.ID
-
-		// 添加到缓存
-		tunnelcache.Shared.Add(&req)
-		log.Debugf("[API] 隧道已添加到缓存（超时回退）: ID=%d", req.ID)
 	} else {
 		// 已存在，仅更新名称
 		err := s.db.Model(&models.Tunnel{}).Where("id = ?", existingID).Updates(map[string]interface{}{
@@ -1511,10 +1475,6 @@ func (s *Service) NewCreateTunnelAndWait(req Tunnel, timeout time.Duration) (*Tu
 		if err != nil {
 			return nil, err
 		}
-
-		// 同步更新缓存中的名称
-		tunnelcache.Shared.UpdateField(existingID, "name", req.Name)
-		log.Debugf("[API] 隧道名称已更新到缓存（超时回退）: ID=%d", existingID)
 	}
 
 	// 记录操作日志
@@ -1596,11 +1556,6 @@ func (s *Service) PatchTunnel(id int64, updates map[string]interface{}) error {
 		err = s.db.Model(&models.Tunnel{}).Where("id = ?", id).Updates(localUpdates).Error
 		if err != nil {
 			return err
-		}
-
-		// 同步更新缓存
-		if aliasStr, ok := localUpdates["name"].(string); ok {
-			tunnelcache.Shared.UpdateField(id, "name", aliasStr)
 		}
 	}
 
@@ -1704,9 +1659,6 @@ func (s *Service) RenameTunnel(id int64, newName string) error {
 		return errors.New("隧道不存在")
 	}
 
-	// 同步更新缓存中的隧道名称
-	tunnelcache.Shared.UpdateField(id, "name", newName)
-
 	// 记录操作日志
 	renameMessage := "重命名成功"
 	operationLog := models.TunnelOperationLog{
@@ -1752,9 +1704,6 @@ func (s *Service) UpdateTunnelSort(id int64, sorts *int) error {
 	if result.RowsAffected == 0 {
 		return errors.New("隧道不存在")
 	}
-
-	// 同步更新缓存
-	tunnelcache.Shared.UpdateField(id, "sorts", int64(sortValue))
 
 	log.Infof("[API] 隧道权重更新成功: ID=%d, Sorts=%d", id, sortValue)
 
@@ -2389,9 +2338,6 @@ func (s *Service) SetTunnelRestart(tunnelID int64, restart bool) error {
 		return fmt.Errorf("数据库更新重启策略失败: %v", err)
 	}
 
-	// 同步更新缓存
-	tunnelcache.Shared.UpdateField(tunnelID, "restart", restart)
-
 	log.Infof("[API] 隧道重启策略设置成功: tunnelID=%d, restart=%t", tunnelID, restart)
 	return nil
 }
@@ -2451,11 +2397,6 @@ func (s *Service) ResetTunnelTraffic(tunnelID int64) error {
 		log.Errorf("[API] 数据库重置流量统计失败: %v", err)
 		return fmt.Errorf("数据库重置流量统计失败: %v", err)
 	}
-
-	// 同步重置缓存中的流量统计
-	tunnelcache.Shared.UpdateTraffic(tunnelID, 0, 0, 0, 0)
-	var nilPtr *int64
-	tunnelcache.Shared.UpdateMetrics(tunnelID, nilPtr, nilPtr, nilPtr, nilPtr)
 
 	// 记录操作日志
 	resetMessage := "重置流量统计信息"
@@ -2517,11 +2458,6 @@ func (s *Service) ResetTunnelTrafficByInstanceID(instanceID string) error {
 		return fmt.Errorf("数据库重置流量统计失败: %v", err)
 	}
 
-	// 同步重置缓存中的流量统计
-	tunnelcache.Shared.UpdateTrafficByInstanceID(instanceID, 0, 0, 0, 0)
-	var nilPtr *int64
-	tunnelcache.Shared.UpdateMetricsByInstanceID(instanceID, nilPtr, nilPtr, nilPtr, nilPtr)
-
 	// 记录操作日志
 	resetMessage2 := "重置流量统计信息"
 	operationLog := models.TunnelOperationLog{
@@ -2541,18 +2477,20 @@ func (s *Service) ResetTunnelTrafficByInstanceID(instanceID string) error {
 	return nil
 }
 
-// updateEndpointTunnelCount 更新端点的隧道计数（直接使用缓存）
+// updateEndpointTunnelCount 更新端点的隧道计数，使用重试机制避免死锁
 func (s *Service) updateEndpointTunnelCount(endpointID int64) {
-	// 查询当前的隧道数量
-	var count int64
-	if err := s.db.Model(&models.Tunnel{}).Where("endpoint_id = ?", endpointID).Count(&count).Error; err != nil {
-		log.Errorf("[隧道服务] 查询端点 %d 隧道计数失败: %v", endpointID, err)
-		return
-	}
+	err := db.ExecuteWithRetry(func(db *gorm.DB) error {
+		return db.Model(&models.Endpoint{}).Where("id = ?", endpointID).
+			Update("tunnel_count", db.Model(&models.Tunnel{}).
+				Where("endpoint_id = ?", endpointID).
+				Select("count(*)")).Error
+	})
 
-	// 直接更新缓存（30秒后自动持久化）
-	endpointcache.Shared.UpdateTunnelCount(endpointID, count)
-	log.Debugf("[隧道服务] 端点 %d 隧道计数已更新为: %d (已缓存)", endpointID, count)
+	if err != nil {
+		log.Errorf("[API] 更新端点 %d 隧道计数失败: %v", endpointID, err)
+	} else {
+		log.Debugf("[API] 端点 %d 隧道计数已更新", endpointID)
+	}
 }
 
 // GetTunnelsWithPagination 获取带分页和筛选的隧道列表（优化版本）
@@ -3007,9 +2945,6 @@ func (s *Service) UpdateTunnelsSorts(id, sorts int64) error {
 		return errors.New("隧道不存在")
 	}
 
-	// 同步更新缓存
-	tunnelcache.Shared.UpdateField(id, "sorts", sorts)
-
 	log.Infof("[API] 隧道排序更新成功: ID=%d, Sorts=%d", id, sorts)
 
 	return nil
@@ -3143,10 +3078,6 @@ func (s *Service) QuickCreateTunnelDirectURL(endpointID int64, rawURL string, na
 		}).Error
 		if err != nil {
 			log.Warnf("[API] 更新隧道名称失败: %v", err)
-		} else {
-			// 同步更新缓存
-			tunnelcache.Shared.UpdateField(tunnelID, "name", finalName)
-			log.Debugf("[API] 隧道名称已更新到缓存（直接URL模式）: ID=%d", tunnelID)
 		}
 
 		// 7. 记录操作日志

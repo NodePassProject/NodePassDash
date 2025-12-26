@@ -18,7 +18,6 @@ import { NavbarMobileMenu } from "./layout/navbar-mobile";
 import { SettingsButton } from "./layout/settings-button";
 
 import { ThemeSwitch } from "@/components/theme-switch";
-import { LanguageSwitch } from "@/components/language-switch";
 
 /**
  * 主导航栏组件
@@ -68,9 +67,6 @@ export const Navbar = () => {
           {/* 社交链接 */}
           <NavbarSocial />
 
-          {/* 语言切换 */}
-          <LanguageSwitch />
-
           {/* 个性化设置按钮 */}
           <SettingsButton />
 
@@ -81,8 +77,7 @@ export const Navbar = () => {
 
       {/* 右侧工具栏 - 移动端 */}
       <NavbarContent className="sm:hidden basis-1 pl-4" justify="end">
-        <LanguageSwitch />
-        <ThemeSwitch />
+        <SettingsButton />
         <NavbarActions />
       </NavbarContent>
 

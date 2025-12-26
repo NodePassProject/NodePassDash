@@ -136,6 +136,10 @@ func (h *ServicesHandler) handleSingleMode(c *gin.Context, req *ServiceCreateReq
 			tunnelURL += "&noudp=0"
 		}
 	}
+	// 添加扩展目标地址（负载均衡）
+	if len(req.ExtendTargetAddress) > 0 {
+		tunnelURL += "&extend_target_address=" + url.QueryEscape(strings.Join(req.ExtendTargetAddress, ","))
+	}
 	// 生成隧道名称 - 优先使用用户提供的名称，否则自动生成
 	var tunnelName string
 	if req.TunnelName != "" {
@@ -329,6 +333,10 @@ func (h *ServicesHandler) handleBothwayMode(c *gin.Context, req *ServiceCreateRe
 			clientURL += "&notcp=0"
 			clientURL += "&noudp=0"
 		}
+	}
+	// 添加扩展目标地址（负载均衡）到server端URL
+	if len(req.ExtendTargetAddress) > 0 {
+		serverURL += "&extend_target_address=" + url.QueryEscape(strings.Join(req.ExtendTargetAddress, ","))
 	}
 	// 生成隧道名称 - 优先使用用户提供的名称，否则自动生成
 	var serverTunnelName, clientTunnelName string
@@ -562,6 +570,10 @@ func (h *ServicesHandler) handleIntranetMode(c *gin.Context, req *ServiceCreateR
 			clientURL += "&notcp=0"
 			clientURL += "&noudp=0"
 		}
+	}
+	// 添加扩展目标地址（负载均衡）到client端URL
+	if len(req.ExtendTargetAddress) > 0 {
+		clientURL += "&extend_target_address=" + url.QueryEscape(strings.Join(req.ExtendTargetAddress, ","))
 	}
 
 	// 生成隧道名称 - 优先使用用户提供的名称，否则自动生成

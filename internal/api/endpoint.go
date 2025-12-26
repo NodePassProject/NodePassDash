@@ -1,8 +1,8 @@
 package api
 
 import (
+	"NodePassDash/internal/db"
 	"NodePassDash/internal/endpoint"
-	"NodePassDash/internal/endpointcache"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
@@ -65,23 +65,19 @@ func SetupEndpointRoutes(rg *gin.RouterGroup, endpointService *endpoint.Service,
 	rg.POST("/endpoints/:id/test-connection", endpointHandler.HandleTestConnection)
 }
 
-// HandleGetEndpoints 获取端点列表（从缓存读取）
+// HandleGetEndpoints 获取端点列表
 func (h *EndpointHandler) HandleGetEndpoints(c *gin.Context) {
-	// ✅ 新方案：直接从缓存读取，耗时 < 1ms
-	endpoints := endpointcache.Shared.GetSortedList()
-
-	// ❌ 旧方案：从数据库查询，耗时 10-50ms
-	// endpoints, err := h.endpointService.GetEndpoints()
-	// if err != nil {
-	// 	c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{
-	// 		Success: false,
-	// 		Error:   "获取端点列表失败: " + err.Error(),
-	// 	})
-	// 	return
-	// }
+	endpoints, err := h.endpointService.GetEndpoints()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{
+			Success: false,
+			Error:   "获取端点列表失败: " + err.Error(),
+		})
+		return
+	}
 
 	if endpoints == nil {
-		endpoints = []*models.Endpoint{}
+		endpoints = []endpoint.EndpointWithStats{}
 	}
 	c.JSON(http.StatusOK, endpoints)
 }
@@ -112,7 +108,6 @@ func (h *EndpointHandler) HandleCreateEndpoint(c *gin.Context) {
 		return
 	}
 
-	// 1. 先写数据库
 	newEndpoint, err := h.endpointService.CreateEndpoint(req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
@@ -122,17 +117,7 @@ func (h *EndpointHandler) HandleCreateEndpoint(c *gin.Context) {
 		return
 	}
 
-	// 2. ✅ 立即更新缓存
-	endpointcache.Shared.Add(newEndpoint)
-
-	// 3. 更新nodepass缓存（用于API调用）
-	nodepass.GetCache().Set(
-		fmt.Sprintf("%d", newEndpoint.ID),
-		newEndpoint.URL+newEndpoint.APIPath,
-		newEndpoint.APIKey,
-	)
-
-	// 4. 创建成功后，异步启动 SSE 监听
+	// 创建成功后，异步启动 SSE 监听
 	if h.sseManager != nil && newEndpoint != nil {
 		go func(ep *endpoint.Endpoint) {
 			log.Infof("[Master-%v] 创建成功，准备启动 SSE 监听", ep.ID)
@@ -190,7 +175,6 @@ func (h *EndpointHandler) HandleUpdateEndpoint(c *gin.Context) {
 		APIKey:  body.APIKey,
 	}
 
-	// 1. 更新数据库
 	updatedEndpoint, err := h.endpointService.UpdateEndpoint(req)
 	if err != nil {
 		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
@@ -198,33 +182,6 @@ func (h *EndpointHandler) HandleUpdateEndpoint(c *gin.Context) {
 			Error:   err.Error(),
 		})
 		return
-	}
-
-	// 2. ✅ 更新缓存中的对应字段
-	if req.Name != "" {
-		endpointcache.Shared.UpdateField(req.ID, "name", req.Name)
-	}
-	if req.URL != "" {
-		endpointcache.Shared.UpdateField(req.ID, "url", req.URL)
-		// 提取hostname并更新
-		if hostname := extractIPFromURL(req.URL); hostname != "" {
-			endpointcache.Shared.UpdateField(req.ID, "hostname", hostname)
-		}
-	}
-	if req.APIPath != "" {
-		endpointcache.Shared.UpdateField(req.ID, "api_path", req.APIPath)
-	}
-	if req.APIKey != "" {
-		endpointcache.Shared.UpdateField(req.ID, "api_key", req.APIKey)
-	}
-
-	// 3. 更新nodepass缓存
-	if req.URL != "" || req.APIKey != "" {
-		nodepass.GetCache().Update(
-			fmt.Sprintf("%d", updatedEndpoint.ID),
-			updatedEndpoint.URL+updatedEndpoint.APIPath,
-			updatedEndpoint.APIKey,
-		)
 	}
 
 	c.JSON(http.StatusOK, endpoint.EndpointResponse{
@@ -277,12 +234,6 @@ func (h *EndpointHandler) HandleDeleteEndpoint(c *gin.Context) {
 		})
 		return
 	}
-
-	// 3. ✅ 从缓存删除
-	endpointcache.Shared.Delete(id)
-
-	// 4. 清理nodepass缓存
-	nodepass.GetCache().Delete(fmt.Sprintf("%d", id))
 
 	// 清理所有相关的文件日志
 	if h.sseManager != nil && h.sseManager.GetFileLogger() != nil {
@@ -351,14 +302,10 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 			Action: "rename",
 			Name:   name,
 		}
-		// 1. 更新数据库
 		if _, err := h.endpointService.UpdateEndpoint(req); err != nil {
 			c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{Success: false, Error: err.Error()})
 			return
 		}
-		// 2. ✅ 更新缓存
-		endpointcache.Shared.UpdateField(id, "name", name)
-
 		c.JSON(http.StatusOK, endpoint.EndpointResponse{
 			Success: true,
 			Message: "端点名称已更新",
@@ -412,7 +359,7 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 		}
 		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "实例同步完成"})
 	case "updateConfig":
-		// 修改配置：更新数据库和缓存
+		// 修改配置：直接更新配置和缓存，SSE会自动使用新的缓存配置
 		var req endpoint.UpdateEndpointRequest
 		req.ID = id
 		req.Action = "updateConfig"
@@ -433,37 +380,11 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 			req.APIKey = strings.TrimSpace(apiKey)
 		}
 
-		// 1. 更新数据库配置
+		// 更新数据库配置（UpdateEndpoint内部会自动更新缓存）
 		updatedEndpoint, err := h.endpointService.UpdateEndpoint(req)
 		if err != nil {
 			c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{Success: false, Error: err.Error()})
 			return
-		}
-
-		// 2. ✅ 更新缓存
-		if req.Name != "" {
-			endpointcache.Shared.UpdateField(id, "name", req.Name)
-		}
-		if req.URL != "" {
-			endpointcache.Shared.UpdateField(id, "url", req.URL)
-			if hostname := extractIPFromURL(req.URL); hostname != "" {
-				endpointcache.Shared.UpdateField(id, "hostname", hostname)
-			}
-		}
-		if req.APIPath != "" {
-			endpointcache.Shared.UpdateField(id, "api_path", req.APIPath)
-		}
-		if req.APIKey != "" {
-			endpointcache.Shared.UpdateField(id, "api_key", req.APIKey)
-		}
-
-		// 3. 更新nodepass缓存
-		if req.URL != "" || req.APIPath != "" || req.APIKey != "" {
-			nodepass.GetCache().Update(
-				fmt.Sprintf("%d", id),
-				updatedEndpoint.URL+updatedEndpoint.APIPath,
-				updatedEndpoint.APIKey,
-			)
 		}
 
 		log.Infof("[Master-%v] 配置更新成功，缓存已更新: URL=%s, APIPath=%s", id, updatedEndpoint.URL, updatedEndpoint.APIPath)
@@ -473,49 +394,19 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 	}
 }
 
-// HandleGetSimpleEndpoints GET /api/endpoints/simple（从缓存读取）
+// HandleGetSimpleEndpoints GET /api/endpoints/simple
 func (h *EndpointHandler) HandleGetSimpleEndpoints(c *gin.Context) {
 	excludeFailed := c.Query("excludeFailed") == "true"
-
-	// ✅ 从缓存读取所有端点
-	allEndpoints := endpointcache.Shared.GetSortedList()
-
-	// 过滤和转换为SimpleEndpoint
-	var result []endpoint.SimpleEndpoint
-	for _, ep := range allEndpoints {
-		// 可选：排除失败状态的端点
-		if excludeFailed && (ep.Status == models.EndpointStatusFail || ep.Status == models.EndpointStatusDisconnect) {
-			continue
-		}
-
-		result = append(result, endpoint.SimpleEndpoint{
-			ID:          ep.ID,
-			Name:        ep.Name,
-			URL:         ep.Hostname,
-			APIPath:     ep.APIPath,
-			Status:      ep.Status,
-			TunnelCount: int(ep.TunnelCount),
-			Ver:         ptrToString(ep.Ver),
-			TLS:         ptrToString(ep.TLS),
-			Log:         ptrToString(ep.Log),
-			Crt:         ptrToString(ep.Crt),
-			KeyPath:     ptrToString(ep.KeyPath),
-			Uptime:      ep.Uptime,
-		})
+	endpoints, err := h.endpointService.GetSimpleEndpoints(excludeFailed)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{Success: false, Error: err.Error()})
+		return
 	}
 
-	if result == nil {
-		result = []endpoint.SimpleEndpoint{}
+	if endpoints == nil {
+		endpoints = []endpoint.SimpleEndpoint{}
 	}
-	c.JSON(http.StatusOK, result)
-}
-
-// ptrToString 辅助函数：将指针转为字符串
-func ptrToString(ptr *string) string {
-	if ptr == nil {
-		return ""
-	}
-	return *ptr
+	c.JSON(http.StatusOK, endpoints)
 }
 
 // TestConnectionRequest 测试端点连接请求
@@ -677,6 +568,55 @@ func (h *EndpointHandler) HandleEndpointLogs(c *gin.Context) {
 	})
 }
 
+// HandleSearchEndpointLogs GET /api/endpoints/{id}/logs/search
+// 支持查询条件: level, instanceId, start, end, page, size
+// DEPRECATED: EndpointSSE 模型已移除 Logs 字段
+func (h *EndpointHandler) HandleSearchEndpointLogs(c *gin.Context) {
+	c.JSON(http.StatusOK, map[string]interface{}{
+		"error": "此功能已废弃，EndpointSSE 模型不再支持 Logs 字段",
+	})
+}
+
+// HandleRecycleList 获取指定端点回收站隧道 (GET /api/endpoints/{id}/recycle)
+// DEPRECATED: TunnelRecycle 模型已移除
+func (h *EndpointHandler) HandleRecycleList(c *gin.Context) {
+	c.JSON(http.StatusOK, map[string]interface{}{
+		"error": "此功能已废弃，TunnelRecycle 模型已移除",
+	})
+}
+
+// HandleRecycleCount 获取回收站数量 (GET /api/endpoints/{id}/recycle/count)
+// DEPRECATED: TunnelRecycle 模型已移除
+func (h *EndpointHandler) HandleRecycleCount(c *gin.Context) {
+	c.JSON(http.StatusOK, map[string]interface{}{
+		"error": "此功能已废弃，TunnelRecycle 模型已移除",
+	})
+}
+
+// HandleRecycleDelete 删除回收站记录并清空相关 SSE (DELETE /api/endpoints/{endpointId}/recycle/{recycleId})
+// DEPRECATED: TunnelRecycle 模型已移除
+func (h *EndpointHandler) HandleRecycleDelete(c *gin.Context) {
+	c.JSON(http.StatusOK, map[string]interface{}{
+		"error": "此功能已废弃，TunnelRecycle 模型已移除",
+	})
+}
+
+// HandleRecycleListAll 获取全部端点的回收站隧道 (GET /api/recycle)
+// DEPRECATED: TunnelRecycle 模型已移除
+func (h *EndpointHandler) HandleRecycleListAll(c *gin.Context) {
+	c.JSON(http.StatusOK, map[string]interface{}{
+		"error": "此功能已废弃，TunnelRecycle 模型已移除",
+	})
+}
+
+// HandleRecycleClearAll 清空全部回收站记录 (DELETE /api/recycle)
+// DEPRECATED: TunnelRecycle 模型已移除
+func (h *EndpointHandler) HandleRecycleClearAll(c *gin.Context) {
+	c.JSON(http.StatusOK, map[string]interface{}{
+		"error": "此功能已废弃,TunnelRecycle 模型已移除",
+	})
+}
+
 // buildTunnelFromInstance 从实例数据构建隧道模型，类似 sse/service.go 的 buildTunnel
 func buildTunnelFromInstance(endpointID int64, inst nodepass.InstanceResult) *models.Tunnel {
 	// 使用 nodepass.ParseTunnelURL 解析 URL 获取基本信息
@@ -813,13 +753,7 @@ func (h *EndpointHandler) refreshTunnels(endpointID int64) error {
 			time.Sleep(50 * time.Millisecond)
 
 			// 更新隧道计数
-			var count int64
-			if err := h.endpointService.DB().Model(&models.Tunnel{}).Where("endpoint_id = ?", id).Count(&count).Error; err != nil {
-				log.Errorf("[API] 查询端点 %d 隧道计数失败: %v", id, err)
-			} else {
-				endpointcache.Shared.UpdateTunnelCount(id, count)
-				log.Debugf("[API] 端点 %d 隧道计数已更新为: %d (已缓存)", id, count)
-			}
+			updateEndpointTunnelCount(id)
 
 			// 获取并更新主控信息
 			h.fetchAndUpdateEndpointInfo(id)
@@ -1269,6 +1203,20 @@ func (h *EndpointHandler) calculateDirStats(dirPath string) (int, int64) {
 	})
 
 	return fileCount, totalSize
+}
+
+// updateEndpointTunnelCount 更新端点的隧道计数，使用重试机制避免死锁
+func updateEndpointTunnelCount(endpointID int64) {
+	err := db.ExecuteWithRetry(func(db *gorm.DB) error {
+		return db.Model(&models.Endpoint{}).Where("id = ?", endpointID).
+			Update("tunnel_count", gorm.Expr("(SELECT COUNT(*) FROM tunnels WHERE endpoint_id = ?)", endpointID)).Error
+	})
+
+	if err != nil {
+		log.Errorf("[API]更新端点 %d 隧道计数失败: %v", endpointID, err)
+	} else {
+		log.Debugf("[API]端点 %d 隧道计数已更新", endpointID)
+	}
 }
 
 // fetchAndUpdateEndpointInfo 获取并更新端点系统信息和hostname
