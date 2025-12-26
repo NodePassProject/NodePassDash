@@ -73,5 +73,24 @@
     "addEndpointFailed": "Add Failed",
     "addEndpointError": "Failed to add endpoint",
     "addEndpointErrorDesc": "Error occurred while adding endpoint"
+  },
+  "scenarioSelection": {
+    "title": "Select Network Scenario",
+    "subtitle": "Choose the appropriate network forwarding scenario",
+    "scenarios": {
+      "singleForward": {
+        "title": "Single Forward",
+        "description": "Single forward mode is suitable for simple port forwarding needs. Users connect to the specified client port, and traffic is forwarded to the target service through a lightweight connection pool"
+      },
+      "natPenetration": {
+        "title": "NAT Penetration",
+        "description": "NAT penetration mode is suitable for secure penetration needs. Users connect to the specified server port, and traffic is forwarded to the target service through a complete connection pool"
+      },
+      "tunnelForward": {
+        "title": "Tunnel Forward",
+        "description": "Tunnel forward mode is suitable for secure relay needs. Users connect to the specified client port, and traffic is forwarded to the target service through a complete connection pool"
+      }
+    },
+    "select": "Select"
   }
 }

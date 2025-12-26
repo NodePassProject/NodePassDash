@@ -696,5 +696,87 @@
       "selectAddress": "Please select target address",
       "selectAddressDesc": "Please select a target address before running the test"
     }
+  },
+  "scenarioCreate": {
+    "scenarios": {
+      "singleForward": "Single Forward",
+      "tunnelForward": "Tunnel Forward",
+      "natPenetration": "NAT Penetration"
+    },
+    "common": {
+      "instanceName": "Instance Name",
+      "instanceNamePlaceholder": "Instance name",
+      "server": "Server",
+      "listenPort": "Listen Port",
+      "tunnelPort": "Tunnel Port",
+      "servicePort": "Service Port",
+      "tlsMode": "TLS Mode",
+      "certPath": "Cert Path",
+      "keyPath": "Key Path",
+      "preview": "Preview",
+      "unnamed": "Unnamed"
+    },
+    "nat": {
+      "publicServer": "Public Server (with public IP)",
+      "selectPublicServer": "Select public server",
+      "publicListenPort": "10022",
+      "publicTunnelPort": "10101",
+      "localServer": "Local Server (behind NAT)",
+      "selectLocalServer": "Select local server",
+      "localServicePort": "22"
+    },
+    "single": {
+      "relayServer": "Relay Server",
+      "selectRelayServer": "Select relay server",
+      "relayListenPort": "1080",
+      "targetServer": "Target Server",
+      "targetAddress": "Target Address",
+      "targetAddressDesc": "IP address of target server",
+      "targetAddressPlaceholder": "192.168.1.100",
+      "targetPort": "Target Port",
+      "targetPortPlaceholder": "3306",
+      "selectText": "Select"
+    },
+    "tunnel": {
+      "instanceName": "Instance Name",
+      "instanceNamePlaceholder": "tunnel-forward-tunnel",
+      "relayServer": "Relay Server",
+      "listenPort": "Listen Port",
+      "listenPortPlaceholder": "10022",
+      "tunnelPort": "Tunnel Port",
+      "tunnelPortPlaceholder": "10101",
+      "targetServer": "Target Server",
+      "servicePort": "Service Port",
+      "servicePortPlaceholder": "1080",
+      "tlsType": "TLS Type",
+      "certKey": "CertKey",
+      "certKeyPlaceholder": "/path/to/cert.pem",
+      "pathKey": "PathKey",
+      "pathKeyPlaceholder": "/path/to/key.pem",
+      "selectRelayServer": "Select relay server",
+      "selectTargetServer": "Select target server"
+    },
+    "tls": {
+      "noEncryption": "No Encryption",
+      "selfSigned": "Self-Signed Certificate",
+      "custom": "Custom Certificate"
+    },
+    "buttons": {
+      "cancel": "Cancel",
+      "create": "Create"
+    },
+    "toast": {
+      "invalidScenario": "Invalid scenario type",
+      "invalidScenarioDesc": "Please reopen the modal",
+      "nameRequired": "Please enter instance name",
+      "nameRequiredDesc": "Instance name cannot be empty",
+      "validationFailed": "Form validation failed",
+      "validationFailedDesc": "Please fill in all required fields",
+      "createSuccess": "Created successfully",
+      "createSuccessDesc": "{{scenario}} scenario created",
+      "createFailed": "Creation failed",
+      "fetchEndpointsFailed": "Failed to fetch endpoints",
+      "fetchEndpointsFailedDesc": "Unable to fetch endpoint list"
+    }
   }
 }

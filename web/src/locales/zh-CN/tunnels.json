@@ -696,5 +696,87 @@
       "selectAddress": "请选择目标地址",
       "selectAddressDesc": "请先选择一个目标地址后再进行测试"
     }
+  },
+  "scenarioCreate": {
+    "scenarios": {
+      "singleForward": "单端转发",
+      "tunnelForward": "双端转发",
+      "natPenetration": "NAT穿透"
+    },
+    "common": {
+      "instanceName": "实例名称",
+      "instanceNamePlaceholder": "实例名称",
+      "server": "服务器",
+      "listenPort": "监听端口",
+      "tunnelPort": "隧道端口",
+      "servicePort": "服务端口",
+      "tlsMode": "TLS模式",
+      "certPath": "Cert路径",
+      "keyPath": "Key路径",
+      "preview": "预览",
+      "unnamed": "未命名"
+    },
+    "nat": {
+      "publicServer": "公网服务器（拥有公网IP）",
+      "selectPublicServer": "选择公网服务器",
+      "publicListenPort": "10022",
+      "publicTunnelPort": "10101",
+      "localServer": "本地服务器（受到NAT限制）",
+      "selectLocalServer": "选择本地服务器",
+      "localServicePort": "22"
+    },
+    "single": {
+      "relayServer": "中转服务器",
+      "selectRelayServer": "选择中转服务器",
+      "relayListenPort": "1080",
+      "targetServer": "目标服务器",
+      "targetAddress": "目标地址",
+      "targetAddressDesc": "目标服务器的IP地址",
+      "targetAddressPlaceholder": "192.168.1.100",
+      "targetPort": "目标端口",
+      "targetPortPlaceholder": "3306",
+      "selectText": "选择"
+    },
+    "tunnel": {
+      "instanceName": "实例名称",
+      "instanceNamePlaceholder": "tunnel-forward-tunnel",
+      "relayServer": "中转服务器",
+      "listenPort": "监听端口",
+      "listenPortPlaceholder": "10022",
+      "tunnelPort": "隧道端口",
+      "tunnelPortPlaceholder": "10101",
+      "targetServer": "目标服务器",
+      "servicePort": "服务端口",
+      "servicePortPlaceholder": "1080",
+      "tlsType": "TLS Type",
+      "certKey": "CertKey",
+      "certKeyPlaceholder": "/path/to/cert.pem",
+      "pathKey": "PathKey",
+      "pathKeyPlaceholder": "/path/to/key.pem",
+      "selectRelayServer": "选择中转服务器",
+      "selectTargetServer": "选择目标服务器"
+    },
+    "tls": {
+      "noEncryption": "不加密",
+      "selfSigned": "自签名证书",
+      "custom": "自定义证书"
+    },
+    "buttons": {
+      "cancel": "取消",
+      "create": "创建"
+    },
+    "toast": {
+      "invalidScenario": "无效的场景类型",
+      "invalidScenarioDesc": "请重新打开模态窗",
+      "nameRequired": "请填写实例名称",
+      "nameRequiredDesc": "实例名称不能为空",
+      "validationFailed": "表单验证失败",
+      "validationFailedDesc": "请填写所有必填字段",
+      "createSuccess": "创建成功",
+      "createSuccessDesc": "{{scenario}}场景已创建",
+      "createFailed": "创建失败",
+      "fetchEndpointsFailed": "获取主控失败",
+      "fetchEndpointsFailedDesc": "无法获取主控列表"
+    }
   }
 }

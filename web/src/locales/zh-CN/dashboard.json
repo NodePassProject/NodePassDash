@@ -73,5 +73,24 @@
     "addEndpointFailed": "添加失败",
     "addEndpointError": "添加主控失败",
     "addEndpointErrorDesc": "添加主控时发生错误"
+  },
+  "scenarioSelection": {
+    "title": "选择网络场景",
+    "subtitle": "Select Network Scenario",
+    "scenarios": {
+      "singleForward": {
+        "title": "单端转发",
+        "description": "单端转发模式适用于简单的端口转发需求，用户连接到客户端指定端口，流量通过轻量连接池转发至目标服务"
+      },
+      "natPenetration": {
+        "title": "内网穿透",
+        "description": "内网穿透模式适用于安全要求的穿透需求，用户连接到服务端指定端口，流量通过完整连接池转发至目标服务"
+      },
+      "tunnelForward": {
+        "title": "隧道转发",
+        "description": "隧道转发模式适用于安全要求的中转需求，用户连接到客户端指定端口，流量通过完整连接池转发至目标服务"
+      }
+    },
+    "select": "选择"
   }
 }

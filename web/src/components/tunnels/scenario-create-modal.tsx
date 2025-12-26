@@ -21,6 +21,7 @@ import {
   faArrowRight,
   faShield,
 } from "@fortawesome/free-solid-svg-icons";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 // 从 URL 中提取主机地址的辅助函数
@@ -83,15 +84,12 @@ interface ScenarioCreateModalProps {
 // 场景配置预设
 const scenarioConfigs = {
   "single-forward": {
-    title: "单端转发",
     icon: faArrowRight,
   },
   "tunnel-forward": {
-    title: "双端转发",
     icon: faExchangeAlt,
   },
   "nat-penetration": {
-    title: "NAT穿透",
     icon: faShield,
   },
 } as const;
@@ -105,6 +103,7 @@ export default function ScenarioCreateModal({
   onSaved,
   scenarioType,
 }: ScenarioCreateModalProps) {
+  const { t } = useTranslation("tunnels");
   const [endpoints, setEndpoints] = useState<EndpointSimple[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -170,8 +169,8 @@ export default function ScenarioCreateModal({
         }
       } catch (err) {
         addToast({
-          title: "获取主控失败",
-          description: "无法获取主控列表",
+          title: t("scenarioCreate.toast.fetchEndpointsFailed"),
+          description: t("scenarioCreate.toast.fetchEndpointsFailedDesc"),
           color: "danger",
         });
       } finally {
@@ -311,8 +310,8 @@ export default function ScenarioCreateModal({
   const handleSubmit = async () => {
     if (!selectedScenario) {
       addToast({
-        title: "无效的场景类型",
-        description: "请重新打开模态窗",
+        title: t("scenarioCreate.toast.invalidScenario"),
+        description: t("scenarioCreate.toast.invalidScenarioDesc"),
         color: "warning",
       });
 
@@ -323,8 +322,8 @@ export default function ScenarioCreateModal({
 
     if (!tunnelName.trim()) {
       addToast({
-        title: "请填写实例名称",
-        description: "实例名称不能为空",
+        title: t("scenarioCreate.toast.nameRequired"),
+        description: t("scenarioCreate.toast.nameRequiredDesc"),
         color: "warning",
       });
 
@@ -335,8 +334,8 @@ export default function ScenarioCreateModal({
 
     if (!requestData) {
       addToast({
-        title: "表单验证失败",
-        description: "请填写所有必填字段",
+        title: t("scenarioCreate.toast.validationFailed"),
+        description: t("scenarioCreate.toast.validationFailedDesc"),
         color: "warning",
       });
 
@@ -355,12 +354,18 @@ export default function ScenarioCreateModal({
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "创建失败");
+        throw new Error(data.error || t("scenarioCreate.toast.createFailed"));
       }
 
+      const scenarioTitle = t(
+        `scenarioCreate.scenarios.${selectedScenario === "single-forward" ? "singleForward" : selectedScenario === "tunnel-forward" ? "tunnelForward" : "natPenetration"}`,
+      );
+
       addToast({
-        title: "创建成功",
-        description: `${scenarioConfigs[selectedScenario].title}场景已创建`,
+        title: t("scenarioCreate.toast.createSuccess"),
+        description: t("scenarioCreate.toast.createSuccessDesc", {
+          scenario: scenarioTitle,
+        }),
         color: "success",
       });
 
@@ -368,8 +373,8 @@ export default function ScenarioCreateModal({
       onSaved?.();
     } catch (err) {
       addToast({
-        title: "创建失败",
-        description: err instanceof Error ? err.message : "未知错误",
+        title: t("scenarioCreate.toast.createFailed"),
+        description: err instanceof Error ? err.message : t("toast.unknownError"),
         color: "danger",
       });
     } finally {
@@ -382,7 +387,7 @@ export default function ScenarioCreateModal({
     <div className="space-y-4">
       <Input
         isRequired
-        placeholder="实例名称"
+        placeholder={t("scenarioCreate.common.instanceNamePlaceholder")}
         value={formData.tunnelName}
         onValueChange={(v) => handleField("tunnelName", v)}
       />
@@ -390,13 +395,13 @@ export default function ScenarioCreateModal({
       {/* 公网服务器 */}
       <div className="space-y-3">
         <h4 className="text-sm font-medium text-default-700">
-          公网服务器（拥有公网IP）
+          {t("scenarioCreate.nat.publicServer")}
         </h4>
         <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
           <Select
             isRequired
-            label="服务器"
-            placeholder="选择公网服务器"
+            label={t("scenarioCreate.common.server")}
+            placeholder={t("scenarioCreate.nat.selectPublicServer")}
             selectedKeys={
               formData.publicServerEndpoint
                 ? [formData.publicServerEndpoint]
@@ -412,16 +417,16 @@ export default function ScenarioCreateModal({
           </Select>
           <Input
             isRequired
-            label="监听端口"
-            placeholder="10022"
+            label={t("scenarioCreate.common.listenPort")}
+            placeholder={t("scenarioCreate.nat.publicListenPort")}
             type="number"
             value={formData.publicListenPort}
             onValueChange={(v) => handleField("publicListenPort", v)}
           />
           <Input
             isRequired
-            label="隧道端口"
-            placeholder="10101"
+            label={t("scenarioCreate.common.tunnelPort")}
+            placeholder={t("scenarioCreate.nat.publicTunnelPort")}
             type="number"
             value={formData.publicTunnelPort}
             onValueChange={(v) => handleField("publicTunnelPort", v)}
@@ -432,13 +437,13 @@ export default function ScenarioCreateModal({
       {/* 本地服务器 */}
       <div className="space-y-3">
         <h4 className="text-sm font-medium text-default-700">
-          本地服务器（受到NAT限制）
+          {t("scenarioCreate.nat.localServer")}
         </h4>
         <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
           <Select
             isRequired
-            label="服务器"
-            placeholder="选择本地服务器"
+            label={t("scenarioCreate.common.server")}
+            placeholder={t("scenarioCreate.nat.selectLocalServer")}
             selectedKeys={
               formData.localServerEndpoint ? [formData.localServerEndpoint] : []
             }
@@ -452,8 +457,8 @@ export default function ScenarioCreateModal({
           </Select>
           <Input
             isRequired
-            label="服务端口"
-            placeholder="22"
+            label={t("scenarioCreate.common.servicePort")}
+            placeholder={t("scenarioCreate.nat.localServicePort")}
             type="number"
             value={formData.localServicePort}
             onValueChange={(v) => handleField("localServicePort", v)}
@@ -464,27 +469,27 @@ export default function ScenarioCreateModal({
       {/* TLS配置 */}
       <div className="space-y-3">
         <Select
-          label="TLS模式"
+          label={t("scenarioCreate.common.tlsMode")}
           selectedKeys={[formData.natTlsType]}
           onSelectionChange={(keys) =>
             handleField("natTlsType", Array.from(keys)[0] as string)
           }
         >
-          <SelectItem key="0">不加密</SelectItem>
-          <SelectItem key="1">自签名证书</SelectItem>
-          <SelectItem key="2">自定义证书</SelectItem>
+          <SelectItem key="0">{t("scenarioCreate.tls.noEncryption")}</SelectItem>
+          <SelectItem key="1">{t("scenarioCreate.tls.selfSigned")}</SelectItem>
+          <SelectItem key="2">{t("scenarioCreate.tls.custom")}</SelectItem>
         </Select>
 
         {formData.natTlsType === "2" && (
           <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
             <Input
-              label="Cert路径"
+              label={t("scenarioCreate.common.certPath")}
               placeholder="/path/to/cert.pem"
               value={formData.natCertPath}
               onValueChange={(v) => handleField("natCertPath", v)}
             />
             <Input
-              label="Key路径"
+              label={t("scenarioCreate.common.keyPath")}
               placeholder="/path/to/key.pem"
               value={formData.natKeyPath}
               onValueChange={(v) => handleField("natKeyPath", v)}
