@@ -892,7 +892,7 @@ export default function EndpointDetailPage() {
   }, [endpointDetail, onQrCodeOpen]);
 
   return (
-    <div className="space-y-6 p-4 md:p-6">
+    <div className="space-y-6 ">
       {/* 顶部返回按钮和主控信息 */}
       <div className="flex flex-col md:flex-row md:items-center gap-3 md:justify-between">
         <div className="flex items-center gap-3">

@@ -30,7 +30,10 @@ export const Navbar = () => {
     <HeroUINavbar
       isBordered
       isMenuOpen={isMenuOpen}
-      maxWidth="xl"
+      maxWidth="full"
+      classNames={{
+        wrapper: "max-w-[1400px]"
+      }}
       onMenuOpenChange={setIsMenuOpen}
     >
       {/* 左侧内容 - 移动端汉堡菜单 + Logo */}
