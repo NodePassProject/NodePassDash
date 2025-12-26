@@ -29,7 +29,7 @@ import { Footer } from "@/components/layout/footer";
 
 export default function LoginPage() {
   const navigate = useNavigate();
-  const { checkAuth, setUserDirectly } = useAuth();
+  const { checkAuth, setUserDirectly, setToken } = useAuth();
   const { t } = useTranslation("auth");
   const [formData, setFormData] = useState({
     username: "",
@@ -111,7 +111,18 @@ export default function LoginPage() {
 
         console.log("📋 登录响应数据", result);
 
-        console.log("✅ 登录成功，设置用户状态并持久化");
+        // 检查是否返回了 token
+        if (!result.token) {
+          console.error("❌ 登录响应缺少 token");
+          setError(t("error.loginFailed"));
+          return;
+        }
+
+        console.log("✅ 登录成功，保存 token 和用户状态");
+
+        // 保存 JWT token
+        setToken(result.token, result.expiresAt);
+
         // 登录成功后设置用户状态并持久化
         const loginUser = { username: formData.username };
 

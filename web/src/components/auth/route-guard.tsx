@@ -8,7 +8,7 @@ interface RouteGuardProps {
 }
 
 // 公开路由列表（不需要身份验证）
-const RAW_PUBLIC_ROUTES = ["/login", "/oauth-error", "/setup-guide"];
+const RAW_PUBLIC_ROUTES = ["/login", "/oauth-error", "/oauth-success", "/setup-guide"];
 
 /**
  * 规范化路径，去除末尾斜杠（根路径 `/` 除外）

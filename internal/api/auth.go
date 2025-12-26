@@ -2,6 +2,7 @@ package api
 
 import (
 	"NodePassDash/internal/auth"
+	"NodePassDash/internal/middleware"
 	"encoding/base64"
 	"encoding/json"
 	"fmt"
@@ -31,25 +32,29 @@ func SetupAuthRoutes(rg *gin.RouterGroup, authService *auth.Service) {
 	// 创建AuthHandler实例
 	authHandler := NewAuthHandler(authService)
 
-	// 认证路由
+	// 公开路由（无需认证）
 	rg.POST("/auth/login", authHandler.HandleLogin)
-	rg.POST("/auth/logout", authHandler.HandleLogout)
-	rg.GET("/auth/validate", authHandler.HandleValidateSession)
-	rg.GET("/auth/me", authHandler.HandleGetMe)
 	rg.POST("/auth/init", authHandler.HandleInitSystem)
-	rg.POST("/auth/change-password", authHandler.HandleChangePassword)
-	rg.POST("/auth/change-username", authHandler.HandleChangeUsername)
-	rg.POST("/auth/update-security", authHandler.HandleUpdateSecurity)
 	rg.GET("/auth/check-default-credentials", authHandler.HandleCheckDefaultCredentials)
 	rg.GET("/auth/oauth2", authHandler.HandleOAuth2Provider)
-
-	// OAuth2 回调
 	rg.GET("/oauth2/callback", authHandler.HandleOAuth2Callback)
 	rg.GET("/oauth2/login", authHandler.HandleOAuth2Login)
-	// OAuth2 配置读写
-	rg.GET("/oauth2/config", authHandler.HandleOAuth2Config)
-	rg.POST("/oauth2/config", authHandler.HandleOAuth2Config)
-	rg.DELETE("/oauth2/config", authHandler.HandleOAuth2Config)
+
+	// 受保护的路由（需要 JWT 认证）
+	authMiddleware := middleware.AuthMiddleware(authService)
+
+	// 认证相关的受保护路由
+	rg.POST("/auth/logout", authMiddleware, authHandler.HandleLogout)
+	rg.GET("/auth/validate", authMiddleware, authHandler.HandleValidateSession)
+	rg.GET("/auth/me", authMiddleware, authHandler.HandleGetMe)
+	rg.POST("/auth/change-password", authMiddleware, authHandler.HandleChangePassword)
+	rg.POST("/auth/change-username", authMiddleware, authHandler.HandleChangeUsername)
+	rg.POST("/auth/update-security", authMiddleware, authHandler.HandleUpdateSecurity)
+
+	// OAuth2 配置的受保护路由
+	rg.GET("/oauth2/config", authMiddleware, authHandler.HandleOAuth2Config)
+	rg.POST("/oauth2/config", authMiddleware, authHandler.HandleOAuth2Config)
+	rg.DELETE("/oauth2/config", authMiddleware, authHandler.HandleOAuth2Config)
 }
 
 // createProxyClient 创建支持系统代理的HTTP客户端
@@ -102,26 +107,25 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 		return
 	}
 
-	// 创建用户会话 (24小时有效期)
-	sessionID, err := h.authService.CreateSession(req.Username, 24*time.Hour)
+	// 生成 JWT token
+	token, expiresAt, err := h.authService.GenerateToken(req.Username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, auth.LoginResponse{
 			Success: false,
-			Error:   "创建会话失败",
+			Error:   "生成 token 失败",
 		})
 		return
 	}
 
-	// 设置会话 cookie
-	c.SetCookie("session", sessionID, 24*60*60, "/", "", false, true)
-
 	// 检查是否是默认账号密码
 	isDefaultCredentials := h.authService.IsDefaultCredentials()
 
-	// 返回成功响应
+	// 返回成功响应，包含 JWT token
 	response := map[string]interface{}{
 		"success":              true,
 		"message":              "登录成功",
+		"token":                token,
+		"expiresAt":            expiresAt.Format(time.RFC3339),
 		"isDefaultCredentials": isDefaultCredentials,
 	}
 
@@ -192,26 +196,19 @@ func (h *AuthHandler) HandleInitSystem(c *gin.Context) {
 }
 
 // HandleGetMe 获取当前登录用户信息
+// 注意：此接口需要应用 AuthMiddleware，由中间件负责验证 JWT token
 func (h *AuthHandler) HandleGetMe(c *gin.Context) {
-	sessionID, err := c.Cookie("session")
-	if err != nil {
+	// 从 context 中获取用户名（由 AuthMiddleware 注入）
+	username, exists := c.Get("username")
+	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"error": "未登录",
 		})
 		return
 	}
 
-	session, ok := h.authService.GetSession(sessionID)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "会话失效",
-		})
-		return
-	}
-
 	c.JSON(http.StatusOK, gin.H{
-		"username":  session.Username,
-		"expiresAt": session.ExpiresAt,
+		"username": username.(string),
 	})
 }
 
@@ -532,22 +529,26 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 		return
 	}
 
-	// 创建会话 (24小时有效期)
-	sessionID, err := h.authService.CreateSession(username, 24*time.Hour)
+	// 生成 JWT token
+	token, expiresAt, err := h.authService.GenerateToken(username)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成 token 失败"})
 		return
 	}
-
-	// 设置 cookie
-	c.SetCookie("session", sessionID, 24*60*60, "/", "", false, true)
 
 	// 如果请求携带 redirect 参数或 Accept text/html，则执行页面跳转；否则返回 JSON
 	redirectURL := c.Query("redirect")
 	if redirectURL == "" {
-		// 直接使用配置的 redirectUri 替换 /api/oauth2/callback 为 /dashboard
-		redirectURL = strings.Replace(cfg.RedirectURI, "/api/oauth2/callback", "/dashboard", 1)
+		// 直接使用配置的 redirectUri 替换 /api/oauth2/callback 为 /oauth-success
+		redirectURL = strings.Replace(cfg.RedirectURI, "/api/oauth2/callback", "/oauth-success", 1)
 	}
+
+	// 将 token 和过期时间作为 URL 参数传递
+	redirectURL = fmt.Sprintf("%s?token=%s&expiresAt=%s&username=%s",
+		redirectURL,
+		url.QueryEscape(token),
+		url.QueryEscape(expiresAt.Format(time.RFC3339)),
+		url.QueryEscape(username))
 
 	accept := c.GetHeader("Accept")
 	if strings.Contains(accept, "text/html") || strings.Contains(accept, "application/xhtml+xml") || redirectURL != "" {
@@ -556,10 +557,12 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success":  true,
-		"provider": "github",
-		"username": username,
-		"message":  "登录成功",
+		"success":   true,
+		"provider":  "github",
+		"username":  username,
+		"message":   "登录成功",
+		"token":     token,
+		"expiresAt": expiresAt.Format(time.RFC3339),
 	})
 }
 
@@ -723,22 +726,26 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 		return
 	}
 
-	// 创建会话 (24小时有效期)
-	sessionID, err := h.authService.CreateSession(username, 24*time.Hour)
+	// 生成 JWT token
+	token, expiresAt, err := h.authService.GenerateToken(username)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "创建会话失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成 token 失败"})
 		return
 	}
-
-	// 设置 cookie
-	c.SetCookie("session", sessionID, 24*60*60, "/", "", false, true)
 
 	// 如果请求携带 redirect 参数或 Accept text/html，则执行页面跳转；否则返回 JSON
 	redirectURL := c.Query("redirect")
 	if redirectURL == "" {
-		// 直接使用配置的 redirectUri 替换 /api/oauth2/callback 为 /dashboard
-		redirectURL = strings.Replace(cfg.RedirectURI, "/api/oauth2/callback", "/dashboard", 1)
+		// 直接使用配置的 redirectUri 替换 /api/oauth2/callback 为 /oauth-success
+		redirectURL = strings.Replace(cfg.RedirectURI, "/api/oauth2/callback", "/oauth-success", 1)
 	}
+
+	// 将 token 和过期时间作为 URL 参数传递
+	redirectURL = fmt.Sprintf("%s?token=%s&expiresAt=%s&username=%s",
+		redirectURL,
+		url.QueryEscape(token),
+		url.QueryEscape(expiresAt.Format(time.RFC3339)),
+		url.QueryEscape(username))
 
 	accept := c.GetHeader("Accept")
 	if strings.Contains(accept, "text/html") || strings.Contains(accept, "application/xhtml+xml") || redirectURL != "" {
@@ -747,10 +754,12 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{
-		"success":  true,
-		"provider": "cloudflare",
-		"username": username,
-		"message":  "登录成功",
+		"success":   true,
+		"provider":  "cloudflare",
+		"username":  username,
+		"message":   "登录成功",
+		"token":     token,
+		"expiresAt": expiresAt.Format(time.RFC3339),
 	})
 }
 

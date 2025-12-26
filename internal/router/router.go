@@ -7,6 +7,7 @@ import (
 	"NodePassDash/internal/endpoint"
 	"NodePassDash/internal/group"
 	"NodePassDash/internal/metrics"
+	"NodePassDash/internal/middleware"
 	"NodePassDash/internal/services"
 	"NodePassDash/internal/sse"
 	"NodePassDash/internal/tunnel"
@@ -58,18 +59,28 @@ func setupAPIRoutes(r *gin.Engine, db *gorm.DB, sseService *sse.Service, sseMana
 		metricsAggregator := metrics.NewMetricsAggregator(db)
 		sseProcessor := metrics.NewSSEProcessor(metricsAggregator)
 
-		// 设置各模块的路由
+		// 设置认证路由（包含公开和受保护的路由）
 		api.SetupAuthRoutes(apiGroup, authService)
-		api.SetupEndpointRoutes(apiGroup, endpointService, sseManager)
-		api.SetupTunnelRoutes(apiGroup, tunnelService, sseManager, sseProcessor)
-		api.SetupSSERoutes(apiGroup, sseService, sseManager)
-		api.SetupWebSocketRoutes(apiGroup, wsService)
-		api.SetupDashboardRoutes(apiGroup, dashboardService)
-		api.SetupDataRoutes(apiGroup, db, sseManager, endpointService, tunnelService)
-		api.SetupGroupRoutes(apiGroup, groupService)
-		api.SetupServicesRoutes(apiGroup, servicesService, tunnelService)
-		api.SetupVersionRoutes(apiGroup, version)
-		api.SetupDebugRoutes(apiGroup)
+
+		// 创建认证中间件
+		authMiddleware := middleware.AuthMiddleware(authService)
+
+		// 创建受保护的路由组（所有业务 API 都需要认证）
+		protectedGroup := apiGroup.Group("")
+		protectedGroup.Use(authMiddleware)
+		{
+			// 设置各模块的受保护路由
+			api.SetupEndpointRoutes(protectedGroup, endpointService, sseManager)
+			api.SetupTunnelRoutes(protectedGroup, tunnelService, sseManager, sseProcessor)
+			api.SetupSSERoutes(protectedGroup, sseService, sseManager)
+			api.SetupWebSocketRoutes(protectedGroup, wsService)
+			api.SetupDashboardRoutes(protectedGroup, dashboardService)
+			api.SetupDataRoutes(protectedGroup, db, sseManager, endpointService, tunnelService)
+			api.SetupGroupRoutes(protectedGroup, groupService)
+			api.SetupServicesRoutes(protectedGroup, servicesService, tunnelService)
+			api.SetupVersionRoutes(protectedGroup, version)
+			api.SetupDebugRoutes(protectedGroup)
+		}
 	}
 }
 

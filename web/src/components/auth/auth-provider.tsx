@@ -19,6 +19,8 @@ interface AuthContextType {
   logout: () => Promise<void>;
   checkAuth: (forceCheck?: boolean) => Promise<void>;
   setUserDirectly: (user: User | null) => void;
+  getToken: () => string | null;
+  setToken: (token: string, expiresAt?: string) => void;
 }
 
 const AuthContext = createContext<AuthContextType | undefined>(undefined);
@@ -42,6 +44,32 @@ export function AuthProvider({ children }: AuthProviderProps) {
   const [loading, setLoading] = useState(true);
   const [lastCheckTime, setLastCheckTime] = useState<number>(0);
   const navigate = useNavigate();
+
+  // 获取 token
+  const getToken = () => {
+    if (typeof window !== "undefined") {
+      return localStorage.getItem("nodepass.token");
+    }
+    return null;
+  };
+
+  // 设置 token
+  const setToken = (token: string, expiresAt?: string) => {
+    if (typeof window !== "undefined") {
+      localStorage.setItem("nodepass.token", token);
+      if (expiresAt) {
+        localStorage.setItem("nodepass.tokenExpiresAt", expiresAt);
+      }
+    }
+  };
+
+  // 清除 token
+  const clearToken = () => {
+    if (typeof window !== "undefined") {
+      localStorage.removeItem("nodepass.token");
+      localStorage.removeItem("nodepass.tokenExpiresAt");
+    }
+  };
 
   // 初始挂载时，尝试从 localStorage 读取用户信息，提供"乐观"登录体验，防止刷新立刻跳登录页
   useEffect(() => {
@@ -87,10 +115,24 @@ export function AuthProvider({ children }: AuthProviderProps) {
       return;
     }
 
+    // 检查 token 是否存在
+    const token = getToken();
+    if (!token) {
+      console.log("❌ 没有找到 token，清除用户状态");
+      setUser(null);
+      setLoading(false);
+      return;
+    }
+
     setLoading(true);
 
     try {
-      const response = await fetch(buildApiUrl("/api/auth/me"));
+      // 使用 JWT token 进行认证
+      const response = await fetch(buildApiUrl("/api/auth/me"), {
+        headers: {
+          Authorization: `Bearer ${token}`,
+        },
+      });
 
       console.log("🔍 身份验证检查响应", {
         status: response.status,
@@ -124,13 +166,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
         } else {
           // 格式异常视为未登录
           setUser(null);
+          clearToken();
           if (typeof window !== "undefined") {
             localStorage.removeItem("nodepass.user");
           }
         }
       } else {
-        console.log("❌ 身份验证失败，清除用户状态");
+        console.log("❌ 身份验证失败，清除用户状态和 token");
         setUser(null);
+        clearToken();
 
         if (typeof window !== "undefined") {
           localStorage.removeItem("nodepass.user");
@@ -140,6 +184,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     } catch (error) {
       console.error("🚨 验证身份失败:", error);
       setUser(null);
+      clearToken();
     } finally {
       setLoading(false);
     }
@@ -151,15 +196,22 @@ export function AuthProvider({ children }: AuthProviderProps) {
     setLoading(true);
 
     try {
+      const token = getToken();
       await fetch(buildApiUrl("/api/auth/logout"), {
         method: "POST",
+        headers: token
+          ? {
+              Authorization: `Bearer ${token}`,
+            }
+          : {},
       });
       console.log("✅ 登出请求完成");
     } catch (error) {
       console.error("🚨 登出请求失败:", error);
     } finally {
-      // 清除用户状态和本地存储
+      // 清除用户状态、token 和本地存储
       setUser(null);
+      clearToken();
       if (typeof window !== "undefined") {
         localStorage.removeItem("nodepass.user");
       }
@@ -183,7 +235,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
   return (
     <AuthContext.Provider
-      value={{ user, loading, logout, checkAuth, setUserDirectly: setUser }}
+      value={{
+        user,
+        loading,
+        logout,
+        checkAuth,
+        setUserDirectly: setUser,
+        getToken,
+        setToken,
+      }}
     >
       {children}
     </AuthContext.Provider>
