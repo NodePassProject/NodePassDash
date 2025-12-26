@@ -22,7 +22,7 @@ export default function DefaultLayout({ children }: DefaultLayoutProps) {
     // 其他页面：完整布局，包含导航栏
     <div className="relative flex flex-col h-screen">
       <Navbar />
-      <main className="container mx-auto max-w-7xl pt-8 px-6 flex-grow">
+      <main className="container mx-auto max-w-[1400px] pt-8 px-6 flex-grow">
         {children}
       </main>
       <Footer />
