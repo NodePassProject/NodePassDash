@@ -35,6 +35,7 @@ const (
 	ConfigKeyIsInitialized = "system_initialized"
 	ConfigKeyAdminUsername = "admin_username"
 	ConfigKeyAdminPassword = "admin_password_hash"
+	ConfigKeyCurrentTokenJTI = "current_token_jti" // 当前有效的 JWT ID，用于实现 token 互踢
 )
 
 // 默认账号密码常量

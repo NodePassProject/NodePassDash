@@ -70,13 +70,21 @@ window.fetch = async function (
   // 调用原始 fetch
   const response = await originalFetch(input, init);
 
-  // 如果返回 401，token 可能已过期，清除本地存储
+  // 如果返回 401，token 可能已过期或被踢出，清除本地存储并跳转到登录页
   if (response.status === 401 && !isPublicEndpoint(input)) {
-    console.warn("🚨 Token 已过期或无效，清除本地存储");
+    console.warn("🚨 Token 已过期或被踢出，清除本地存储并跳转到登录页");
     if (typeof window !== "undefined") {
       localStorage.removeItem("nodepass.token");
       localStorage.removeItem("nodepass.tokenExpiresAt");
       localStorage.removeItem("nodepass.user");
+
+      // 延迟跳转，避免在请求过程中跳转导致问题
+      setTimeout(() => {
+        // 只在非登录页时跳转
+        if (!window.location.pathname.includes("/login")) {
+          window.location.href = "/login";
+        }
+      }, 100);
     }
   }
 

@@ -108,11 +108,20 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 	}
 
 	// 生成 JWT token
-	token, expiresAt, err := h.authService.GenerateToken(req.Username)
+	token, expiresAt, jti, err := h.authService.GenerateToken(req.Username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, auth.LoginResponse{
 			Success: false,
 			Error:   "生成 token 失败",
+		})
+		return
+	}
+
+	// 保存 JTI 到数据库（实现 token 互踢：新登录会踢掉旧 token）
+	if err := h.authService.SetSystemConfig(auth.ConfigKeyCurrentTokenJTI, jti); err != nil {
+		c.JSON(http.StatusInternalServerError, auth.LoginResponse{
+			Success: false,
+			Error:   "保存 token 失败",
 		})
 		return
 	}
@@ -135,12 +144,15 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 
 // HandleLogout 处理登出请求
 func (h *AuthHandler) HandleLogout(c *gin.Context) {
-	// 获取会话 cookie
+	// 获取会话 cookie（兼容旧版本）
 	sessionID, err := c.Cookie("session")
 	if err == nil {
 		// 销毁会话
 		h.authService.DestroySession(sessionID)
 	}
+
+	// 清除数据库中的 JTI，使所有 token 失效
+	_ = h.authService.DeleteSystemConfig(auth.ConfigKeyCurrentTokenJTI)
 
 	// 清除 cookie
 	c.SetCookie("session", "", -1, "/", "", false, true)
@@ -530,9 +542,15 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 	}
 
 	// 生成 JWT token
-	token, expiresAt, err := h.authService.GenerateToken(username)
+	token, expiresAt, jti, err := h.authService.GenerateToken(username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成 token 失败"})
+		return
+	}
+
+	// 保存 JTI 到数据库（实现 token 互踢）
+	if err := h.authService.SetSystemConfig(auth.ConfigKeyCurrentTokenJTI, jti); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存 token 失败"})
 		return
 	}
 
@@ -727,9 +745,15 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 	}
 
 	// 生成 JWT token
-	token, expiresAt, err := h.authService.GenerateToken(username)
+	token, expiresAt, jti, err := h.authService.GenerateToken(username)
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成 token 失败"})
+		return
+	}
+
+	// 保存 JTI 到数据库（实现 token 互踢）
+	if err := h.authService.SetSystemConfig(auth.ConfigKeyCurrentTokenJTI, jti); err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存 token 失败"})
 		return
 	}
 

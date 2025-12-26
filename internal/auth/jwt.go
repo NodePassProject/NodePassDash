@@ -6,6 +6,7 @@ import (
 	"time"
 
 	"github.com/golang-jwt/jwt/v5"
+	"github.com/google/uuid"
 )
 
 var (
@@ -32,13 +33,15 @@ func getJWTSecret() string {
 	return secret
 }
 
-// GenerateToken 生成 JWT token
-func (s *Service) GenerateToken(username string) (string, time.Time, error) {
+// GenerateToken 生成 JWT token，返回 token 字符串、过期时间和 JTI
+func (s *Service) GenerateToken(username string) (tokenString string, expiresAt time.Time, jti string, err error) {
 	expirationTime := time.Now().Add(jwtExpiration)
+	jti = uuid.New().String() // 生成唯一的 JWT ID
 
 	claims := &JWTClaims{
 		Username: username,
 		RegisteredClaims: jwt.RegisteredClaims{
+			ID:        jti, // 添加 jti claim
 			ExpiresAt: jwt.NewNumericDate(expirationTime),
 			IssuedAt:  jwt.NewNumericDate(time.Now()),
 			Issuer:    "nodepass-dash",
@@ -46,15 +49,16 @@ func (s *Service) GenerateToken(username string) (string, time.Time, error) {
 	}
 
 	token := jwt.NewWithClaims(jwt.SigningMethodHS256, claims)
-	tokenString, err := token.SignedString(jwtSecretKey)
+	tokenString, err = token.SignedString(jwtSecretKey)
 	if err != nil {
-		return "", time.Time{}, err
+		return "", time.Time{}, "", err
 	}
 
-	return tokenString, expirationTime, nil
+	return tokenString, expirationTime, jti, nil
 }
 
 // ValidateToken 验证 JWT token 并返回用户名
+// 验证包括：签名、过期时间、以及 JTI 是否与数据库中的当前有效 JTI 匹配（防止 token 互踢）
 func (s *Service) ValidateToken(tokenString string) (string, error) {
 	claims := &JWTClaims{}
 
@@ -74,15 +78,27 @@ func (s *Service) ValidateToken(tokenString string) (string, error) {
 		return "", errors.New("invalid token")
 	}
 
+	// 验证 JTI 是否与数据库中的当前有效 JTI 匹配（实现 token 互踢）
+	currentJTI, err := s.GetSystemConfig(ConfigKeyCurrentTokenJTI)
+	if err != nil {
+		// 如果数据库中没有 JTI 配置，说明所有 token 都已失效
+		return "", errors.New("token has been invalidated")
+	}
+
+	if claims.ID != currentJTI {
+		// JTI 不匹配，说明有新的登录，此 token 已被踢出
+		return "", errors.New("token has been replaced by a new login")
+	}
+
 	return claims.Username, nil
 }
 
 // RefreshToken 刷新 token（验证旧 token 并生成新 token）
-func (s *Service) RefreshToken(oldToken string) (string, time.Time, error) {
+func (s *Service) RefreshToken(oldToken string) (tokenString string, expiresAt time.Time, jti string, err error) {
 	// 验证旧 token
-	username, err := s.ValidateToken(oldToken)
-	if err != nil {
-		return "", time.Time{}, errors.New("invalid token, cannot refresh")
+	username, validateErr := s.ValidateToken(oldToken)
+	if validateErr != nil {
+		return "", time.Time{}, "", errors.New("invalid token, cannot refresh")
 	}
 
 	// 生成新 token

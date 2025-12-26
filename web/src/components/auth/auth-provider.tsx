@@ -90,9 +90,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }
   }, []);
 
-  // 验证当前用户会话
+  // 验证当前用户会话（简化版：仅检查 localStorage 和 token 是否存在）
+  // 实际的认证验证由后端 JWT 中间件处理，401 响应会由 fetch 拦截器自动清理
   const checkAuth = async (forceCheck = false) => {
-    console.log("🔍 开始检查身份验证状态", {
+    console.log("🔍 检查本地认证状态", {
       forceCheck,
       user: user?.username,
       loading,
@@ -100,89 +101,58 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
     // 如果正在加载中且不是强制检查，则跳过
     if (loading && !forceCheck) {
-      console.log("⚡ 跳过身份验证检查（正在加载中）");
-
-      return;
-    }
-
-    // 避免频繁检查，30秒内不重复检查（除非强制检查）
-    const now = Date.now();
-
-    if (!forceCheck && now - lastCheckTime < 30000) {
-      console.log("⏭️ 跳过身份验证检查（30秒内已检查）");
-      setLoading(false);
-
-      return;
-    }
-
-    // 检查 token 是否存在
-    const token = getToken();
-    if (!token) {
-      console.log("❌ 没有找到 token，清除用户状态");
-      setUser(null);
-      setLoading(false);
+      console.log("⚡ 跳过检查（正在加载中）");
       return;
     }
 
     setLoading(true);
 
     try {
-      // 使用 JWT token 进行认证
-      const response = await fetch(buildApiUrl("/api/auth/me"), {
-        headers: {
-          Authorization: `Bearer ${token}`,
-        },
-      });
-
-      console.log("🔍 身份验证检查响应", {
-        status: response.status,
-        ok: response.ok,
-      });
-
-      if (response.ok) {
-        const userData = await response.json();
-
-        console.log("✅ 身份验证成功", userData);
-
-        // 兼容两种返回格式：{ user: { username: "" } } 或 { username: "" }
-        let extractedUser: User | null = null;
-
-        if (userData.user && userData.user.username) {
-          extractedUser = userData.user as User;
-        } else if (userData.username) {
-          extractedUser = { username: userData.username } as User;
+      // 检查 token 是否存在
+      const token = getToken();
+      if (!token) {
+        console.log("❌ 没有找到 token，清除用户状态");
+        setUser(null);
+        clearToken();
+        if (typeof window !== "undefined") {
+          localStorage.removeItem("nodepass.user");
         }
+        return;
+      }
 
-        if (extractedUser) {
-          setUser(extractedUser);
-
-          // 同步到 localStorage
-          if (typeof window !== "undefined") {
-            localStorage.setItem(
-              "nodepass.user",
-              JSON.stringify(extractedUser),
-            );
-          }
-        } else {
-          // 格式异常视为未登录
+      // 检查 token 是否过期（本地验证）
+      const expiresAtStr = localStorage.getItem("nodepass.tokenExpiresAt");
+      if (expiresAtStr) {
+        const expiresAt = new Date(expiresAtStr);
+        if (new Date() > expiresAt) {
+          console.log("❌ Token 已过期，清除用户状态");
           setUser(null);
           clearToken();
           if (typeof window !== "undefined") {
             localStorage.removeItem("nodepass.user");
           }
-        }
-      } else {
-        console.log("❌ 身份验证失败，清除用户状态和 token");
-        setUser(null);
-        clearToken();
-
-        if (typeof window !== "undefined") {
-          localStorage.removeItem("nodepass.user");
+          return;
         }
       }
-      setLastCheckTime(now);
+
+      // Token 存在且未过期，从 localStorage 恢复用户信息（如果还没有）
+      if (!user && typeof window !== "undefined") {
+        const stored = localStorage.getItem("nodepass.user");
+        if (stored) {
+          try {
+            const storedUser = JSON.parse(stored) as User;
+            setUser(storedUser);
+            console.log("✅ 从 localStorage 恢复用户状态", storedUser);
+          } catch (e) {
+            console.error("读取本地用户失败", e);
+            localStorage.removeItem("nodepass.user");
+          }
+        }
+      }
+
+      setLastCheckTime(Date.now());
     } catch (error) {
-      console.error("🚨 验证身份失败:", error);
+      console.error("🚨 检查认证状态失败:", error);
       setUser(null);
       clearToken();
     } finally {
