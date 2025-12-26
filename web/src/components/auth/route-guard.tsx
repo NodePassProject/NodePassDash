@@ -1,5 +1,6 @@
 import { ReactNode, useEffect, useRef } from "react";
 import { useLocation, useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { useAuth } from "./auth-provider";
 
@@ -22,6 +23,7 @@ function normalizePath(path: string): string {
 const PUBLIC_ROUTES = RAW_PUBLIC_ROUTES.map(normalizePath);
 
 export function RouteGuard({ children }: RouteGuardProps) {
+  const { t } = useTranslation("auth");
   const { user, loading } = useAuth();
   const navigate = useNavigate();
   const location = useLocation();
@@ -94,7 +96,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
           <div className="relative w-8 h-8 mx-auto mb-4">
             <div className="absolute inset-0 rounded-full border-4 border-default-200 border-t-primary animate-spin" />
           </div>
-          <p className="text-default-500">正在验证身份...</p>
+          <p className="text-default-500">{t("loading.verifying")}</p>
         </div>
       </div>
     );
@@ -118,7 +120,7 @@ export function RouteGuard({ children }: RouteGuardProps) {
           <div className="relative w-8 h-8 mx-auto mb-4">
             <div className="absolute inset-0 rounded-full border-4 border-default-200 border-t-primary animate-spin" />
           </div>
-          <p className="text-default-500">正在跳转...</p>
+          <p className="text-default-500">{t("loading.redirecting")}</p>
         </div>
       </div>
     );

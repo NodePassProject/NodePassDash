@@ -1,0 +1,89 @@
+{
+  "page": {
+    "title": "调试工具",
+    "subtitle": "系统环境信息与SSE连接测试"
+  },
+  "systemInfo": {
+    "title": "系统环境信息",
+    "os": "操作系统",
+    "installType": "安装方式",
+    "ipv6Support": "IPv6 支持",
+    "goVersion": "Go 版本",
+    "nodeVersion": "Node.js 版本",
+    "dockerVersion": "Docker 版本",
+    "installTypes": {
+      "docker": "Docker 容器",
+      "binary": "二进制文件",
+      "unknown": "未知"
+    },
+    "ipv6": {
+      "supported": "支持",
+      "notSupported": "不支持"
+    },
+    "error": "无法获取系统信息"
+  },
+  "sseTest": {
+    "title": "SSE连接测试",
+    "description": "测试NodePass服务器SSE端点连通性和认证",
+    "testing": "正在测试SSE连接...",
+    "connected": "连接成功",
+    "disconnected": "连接失败",
+    "responseTime": "响应时间",
+    "statusCode": "状态码",
+    "modal": {
+      "title": "NodePass SSE连接测试",
+      "nodepassUrl": "NodePass URL",
+      "nodepassUrlPlaceholder": "https://your-nodepass.com",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "请输入API密钥"
+    }
+  },
+  "telnetTest": {
+    "title": "Telnet测试",
+    "description": "测试TCP端口连通性,检查目标主机端口是否开放",
+    "testing": "正在测试端口连通性...",
+    "connected": "连接成功",
+    "disconnected": "连接失败",
+    "responseTime": "响应时间",
+    "modal": {
+      "title": "Telnet连通性测试",
+      "host": "目标主机",
+      "hostPlaceholder": "例如: google.com 或 192.168.1.1",
+      "port": "端口号",
+      "portPlaceholder": "例如: 80, 443, 22"
+    }
+  },
+  "pingTest": {
+    "title": "Ping测试",
+    "description": "测试网络连通性和延迟,检查目标主机是否可达",
+    "testing": "正在测试网络连通性...",
+    "packetLoss": "丢包",
+    "testFailed": "测试失败",
+    "sent": "发送",
+    "received": "接收",
+    "average": "平均",
+    "max": "最大",
+    "modal": {
+      "title": "Ping网络测试",
+      "host": "目标主机",
+      "hostPlaceholder": "例如: google.com 或 8.8.8.8",
+      "count": "测试次数",
+      "countPlaceholder": "默认 4 次,最多 10 次"
+    }
+  },
+  "buttons": {
+    "startTest": "开始测试",
+    "cancel": "取消"
+  },
+  "toast": {
+    "systemInfoFailed": "系统信息获取失败",
+    "systemInfoError": "获取系统信息失败",
+    "sseTestFailed": "SSE测试失败",
+    "sseTestError": "网络错误",
+    "telnetTestFailed": "Telnet测试失败",
+    "telnetTestError": "网络错误",
+    "pingTestFailed": "Ping测试失败",
+    "pingTestError": "网络错误",
+    "unknownError": "未知错误"
+  }
+}

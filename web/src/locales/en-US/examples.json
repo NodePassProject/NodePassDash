@@ -1,0 +1,17 @@
+{
+  "page": {
+    "title": "NodePass Documentation",
+    "subtitle": "Complete documentation and user guide for NodePass tunnel management tool"
+  },
+  "tabs": {
+    "examples": "Examples",
+    "usage": "Usage Guide",
+    "configuration": "Configuration",
+    "troubleshooting": "Troubleshooting"
+  },
+  "loading": "Loading documentation...",
+  "error": {
+    "title": "Load Failed",
+    "fetchFailed": "Failed to fetch documentation"
+  }
+}

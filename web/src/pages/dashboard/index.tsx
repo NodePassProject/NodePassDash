@@ -907,6 +907,7 @@ export default function DashboardPage() {
             color="primary"
             formatBytes={formatBytes}
             loading={trafficLoading}
+            loadingText={t("loading")}
             title={t("traffic.weeklyStats")}
           />
         </div>
@@ -940,6 +941,7 @@ export default function DashboardPage() {
             color="success"
             formatBytes={formatBytes}
             loading={trafficLoading}
+            loadingText={t("loading")}
             title={t("traffic.todayTraffic")}
             total={todayTrafficData.total}
             unitTitle="Total"

@@ -1,46 +1,48 @@
 "use client";
 
 import { Card, CardBody, CardHeader, Spinner, Tabs, Tab } from "@heroui/react";
-import { useState, useEffect } from "react";
+import { useState, useEffect, useMemo } from "react";
 import ReactMarkdown from "react-markdown";
+import { useTranslation } from "react-i18next";
 
 interface DocConfig {
   key: string;
-  title: string;
   url: string;
 }
-
-const docs: DocConfig[] = [
-  {
-    key: "examples",
-    title: "使用示例",
-    url: "/docs-proxy/yosebyte/nodepass/refs/heads/main/docs/zh/examples.md",
-  },
-  {
-    key: "usage",
-    title: "使用指南",
-    url: "/docs-proxy/yosebyte/nodepass/refs/heads/main/docs/zh/usage.md",
-  },
-  {
-    key: "configuration",
-    title: "配置说明",
-    url: "/docs-proxy/yosebyte/nodepass/refs/heads/main/docs/zh/configuration.md",
-  },
-  {
-    key: "troubleshooting",
-    title: "故障排除",
-    url: "/docs-proxy/yosebyte/nodepass/refs/heads/main/docs/zh/troubleshooting.md",
-  },
-];
 
 /**
  * Docs 页面 - 展示NodePass文档
  */
 export default function ExamplesPage() {
+  const { t, i18n } = useTranslation("examples");
   const [selectedTab, setSelectedTab] = useState<string>("examples");
   const [docsContent, setDocsContent] = useState<Record<string, string>>({});
   const [loading, setLoading] = useState<Record<string, boolean>>({});
   const [errors, setErrors] = useState<Record<string, string>>({});
+
+  // 根据当前语言生成文档配置
+  const docs: DocConfig[] = useMemo(() => {
+    const lang = i18n.language === "zh-CN" ? "zh" : "en";
+
+    return [
+      {
+        key: "examples",
+        url: `/docs-proxy/yosebyte/nodepass/refs/heads/main/docs/${lang}/examples.md`,
+      },
+      {
+        key: "usage",
+        url: `/docs-proxy/yosebyte/nodepass/refs/heads/main/docs/${lang}/usage.md`,
+      },
+      {
+        key: "configuration",
+        url: `/docs-proxy/yosebyte/nodepass/refs/heads/main/docs/${lang}/configuration.md`,
+      },
+      {
+        key: "troubleshooting",
+        url: `/docs-proxy/yosebyte/nodepass/refs/heads/main/docs/${lang}/troubleshooting.md`,
+      },
+    ];
+  }, [i18n.language]);
 
   // 获取指定文档的内容
   const fetchDoc = async (docKey: string, url: string) => {
@@ -54,7 +56,7 @@ export default function ExamplesPage() {
 
       if (!response.ok) {
         throw new Error(
-          `获取文档失败: ${response.status} ${response.statusText}`,
+          `${t("error.fetchFailed")}: ${response.status} ${response.statusText}`,
         );
       }
 
@@ -64,21 +66,23 @@ export default function ExamplesPage() {
     } catch (err) {
       setErrors((prev) => ({
         ...prev,
-        [docKey]: err instanceof Error ? err.message : "获取文档时发生未知错误",
+        [docKey]: err instanceof Error ? err.message : t("error.fetchFailed"),
       }));
     } finally {
       setLoading((prev) => ({ ...prev, [docKey]: false }));
     }
   };
 
-  // 当选择的tab变化时加载对应文档
+  // 当选择的tab变化或语言变化时加载对应文档
   useEffect(() => {
     const selectedDoc = docs.find((doc) => doc.key === selectedTab);
 
     if (selectedDoc) {
+      // 语言切换时清空已加载的内容，重新获取
+      setDocsContent({});
       fetchDoc(selectedDoc.key, selectedDoc.url);
     }
-  }, [selectedTab]);
+  }, [selectedTab, i18n.language, docs]);
 
   // 渲染markdown内容的组件
   const renderMarkdownContent = (content: string) => (
@@ -222,10 +226,10 @@ export default function ExamplesPage() {
         <CardHeader className="pb-3 px-0">
           <div className="flex flex-col items-start gap-1 w-full">
             <h1 className="text-lg font-semibold text-foreground">
-              NodePass 文档
+              {t("page.title")}
             </h1>
             <p className="text-sm text-default-500">
-              NodePass 隧道管理工具的完整文档和使用指南
+              {t("page.subtitle")}
             </p>
           </div>
         </CardHeader>
@@ -243,13 +247,13 @@ export default function ExamplesPage() {
             onSelectionChange={(key) => setSelectedTab(key as string)}
           >
             {docs.map((doc) => (
-              <Tab key={doc.key} title={doc.title}>
+              <Tab key={doc.key} title={t(`tabs.${doc.key}`)}>
                 <div className="py-4">
                   {loading[doc.key] && (
                     <div className="flex justify-center items-center py-8">
                       <div className="flex items-center gap-2">
                         <Spinner size="sm" />
-                        <span className="text-default-500">加载文档中...</span>
+                        <span className="text-default-500">{t("loading")}</span>
                       </div>
                     </div>
                   )}
@@ -257,7 +261,7 @@ export default function ExamplesPage() {
                   {errors[doc.key] && (
                     <div className="flex justify-center items-center py-8">
                       <div className="text-center">
-                        <p className="text-danger mb-2">加载失败</p>
+                        <p className="text-danger mb-2">{t("error.title")}</p>
                         <p className="text-sm text-default-500">
                           {errors[doc.key]}
                         </p>

@@ -1,0 +1,89 @@
+{
+  "page": {
+    "title": "Debug Tools",
+    "subtitle": "System environment information and SSE connection testing"
+  },
+  "systemInfo": {
+    "title": "System Information",
+    "os": "Operating System",
+    "installType": "Installation Type",
+    "ipv6Support": "IPv6 Support",
+    "goVersion": "Go Version",
+    "nodeVersion": "Node.js Version",
+    "dockerVersion": "Docker Version",
+    "installTypes": {
+      "docker": "Docker Container",
+      "binary": "Binary File",
+      "unknown": "Unknown"
+    },
+    "ipv6": {
+      "supported": "Supported",
+      "notSupported": "Not Supported"
+    },
+    "error": "Unable to retrieve system information"
+  },
+  "sseTest": {
+    "title": "SSE Connection Test",
+    "description": "Test NodePass server SSE endpoint connectivity and authentication",
+    "testing": "Testing SSE connection...",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "responseTime": "Response Time",
+    "statusCode": "Status Code",
+    "modal": {
+      "title": "NodePass SSE Connection Test",
+      "nodepassUrl": "NodePass URL",
+      "nodepassUrlPlaceholder": "https://your-nodepass.com",
+      "apiKey": "API Key",
+      "apiKeyPlaceholder": "Please enter API key"
+    }
+  },
+  "telnetTest": {
+    "title": "Telnet Test",
+    "description": "Test TCP port connectivity to check if the target host port is open",
+    "testing": "Testing port connectivity...",
+    "connected": "Connected",
+    "disconnected": "Disconnected",
+    "responseTime": "Response Time",
+    "modal": {
+      "title": "Telnet Connectivity Test",
+      "host": "Target Host",
+      "hostPlaceholder": "e.g.: google.com or 192.168.1.1",
+      "port": "Port Number",
+      "portPlaceholder": "e.g.: 80, 443, 22"
+    }
+  },
+  "pingTest": {
+    "title": "Ping Test",
+    "description": "Test network connectivity and latency to check if the target host is reachable",
+    "testing": "Testing network connectivity...",
+    "packetLoss": "packet loss",
+    "testFailed": "Test Failed",
+    "sent": "Sent",
+    "received": "Received",
+    "average": "Average",
+    "max": "Max",
+    "modal": {
+      "title": "Ping Network Test",
+      "host": "Target Host",
+      "hostPlaceholder": "e.g.: google.com or 8.8.8.8",
+      "count": "Test Count",
+      "countPlaceholder": "Default 4 times, max 10 times"
+    }
+  },
+  "buttons": {
+    "startTest": "Start Test",
+    "cancel": "Cancel"
+  },
+  "toast": {
+    "systemInfoFailed": "Failed to retrieve system information",
+    "systemInfoError": "Failed to retrieve system information",
+    "sseTestFailed": "SSE test failed",
+    "sseTestError": "Network error",
+    "telnetTestFailed": "Telnet test failed",
+    "telnetTestError": "Network error",
+    "pingTestFailed": "Ping test failed",
+    "pingTestError": "Network error",
+    "unknownError": "Unknown error"
+  }
+}

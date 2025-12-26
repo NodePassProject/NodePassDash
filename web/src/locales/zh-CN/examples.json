@@ -1,0 +1,17 @@
+{
+  "page": {
+    "title": "NodePass 文档",
+    "subtitle": "NodePass 隧道管理工具的完整文档和使用指南"
+  },
+  "tabs": {
+    "examples": "使用示例",
+    "usage": "使用指南",
+    "configuration": "配置说明",
+    "troubleshooting": "故障排除"
+  },
+  "loading": "加载文档中...",
+  "error": {
+    "title": "加载失败",
+    "fetchFailed": "获取文档失败"
+  }
+}

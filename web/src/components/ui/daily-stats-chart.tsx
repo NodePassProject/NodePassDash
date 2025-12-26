@@ -29,6 +29,7 @@ type DailyStatsChartProps = {
   unitTitle?: string;
   total?: number;
   loading?: boolean;
+  loadingText?: string;
   formatBytes?: (bytes: number) => string;
 };
 
@@ -56,6 +57,7 @@ function DailyStatsChartComponent({
   unitTitle = "Total",
   total = 0,
   loading = false,
+  loadingText = "加载中...",
   formatBytes = (bytes: number) => `${bytes} B`,
 }: DailyStatsChartProps) {
   return (
@@ -73,7 +75,7 @@ function DailyStatsChartComponent({
         <div className="flex h-[200px] items-center justify-center">
           <div className="text-center">
             <div className="mb-2 h-8 w-8 mx-auto animate-spin rounded-full border-2 border-primary border-r-transparent" />
-            <span className="text-sm text-default-500">加载中...</span>
+            <span className="text-sm text-default-500">{loadingText}</span>
           </div>
         </div>
       ) : chartData.length === 0 ? (

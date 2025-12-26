@@ -92,5 +92,6 @@
       }
     },
     "select": "Select"
-  }
+  },
+  "loading": "Loading..."
 }
