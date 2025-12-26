@@ -62,6 +62,7 @@ interface EndpointDetail {
   url: string;
   apiPath: string;
   apiKey: string;
+  hostname?: string;
   status: string;
   color?: string;
   os?: string;
@@ -157,6 +158,7 @@ export default function EndpointDetailPage() {
     name: "", // 主控名称，留空表示不修改
     url: "", // 完整URL（包含API路径），留空表示不修改
     apiKey: "", // API密钥，留空表示不修改
+    hostname: "", // 连接IP
   });
 
   // 二维码状态
@@ -689,6 +691,7 @@ export default function EndpointDetailPage() {
       name: endpointDetail.name,
       url: fullUrl,
       apiKey: "", // API密钥留空，表示不修改
+      hostname: endpointDetail.hostname || "", // 连接IP
     });
     onEditConfigOpen();
   };
@@ -757,6 +760,7 @@ export default function EndpointDetailPage() {
           action: "updateConfig",
           name: configForm.name.trim(),
           url: configForm.url.trim(),
+          hostname: configForm.hostname.trim(), // 传递连接IP
         };
 
         // 只有当填写了新密钥时才传送
@@ -1645,6 +1649,16 @@ export default function EndpointDetailPage() {
                     value={configForm.apiKey}
                     onValueChange={(value) =>
                       setConfigForm((prev) => ({ ...prev, apiKey: value }))
+                    }
+                  />
+
+                  <Input
+                    description="用于实例连接的地址"
+                    label="连接 IP"
+                    placeholder="例如：192.168.1.1"
+                    value={configForm.hostname}
+                    onValueChange={(value) =>
+                      setConfigForm((prev) => ({ ...prev, hostname: value }))
                     }
                   />
                 </div>

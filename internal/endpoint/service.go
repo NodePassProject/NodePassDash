@@ -122,14 +122,17 @@ func (s *Service) CreateEndpoint(req CreateEndpointRequest) (*Endpoint, error) {
 		return nil, errors.New("该URL已存在")
 	}
 
-	// 从URL中提取IP地址
-	extractedIP := extractIPFromURL(req.URL)
+	// 确定连接IP：优先使用请求中的hostname，如果为空则从URL中提取
+	hostname := req.Hostname
+	if hostname == "" {
+		hostname = extractIPFromURL(req.URL)
+	}
 
 	// 创建新端点
 	endpoint := &models.Endpoint{
 		Name:      req.Name,
 		URL:       req.URL,
-		Hostname:  extractedIP, // 填充提取的IP地址
+		Hostname:  hostname, // 使用指定的或提取的IP地址
 		APIPath:   req.APIPath,
 		APIKey:    req.APIKey,
 		Status:    StatusOffline,
@@ -196,10 +199,6 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 		}
 		if req.URL != "" {
 			updates["url"] = req.URL
-			// 如果URL更新了，同时更新IP字段
-			if extractedIP := extractIPFromURL(req.URL); extractedIP != "" {
-				updates["hostname"] = extractedIP
-			}
 		}
 		if req.APIPath != "" {
 			updates["api_path"] = req.APIPath
@@ -207,6 +206,18 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 		if req.APIKey != "" {
 			updates["api_key"] = req.APIKey
 		}
+
+		// 处理 Hostname：优先使用传递的值，如果为空则从URL提取
+		if req.Hostname != "" {
+			// 用户明确指定了 hostname，直接使用
+			updates["hostname"] = req.Hostname
+		} else if req.URL != "" {
+			// Hostname 为空但 URL 有更新，从 URL 中提取
+			if extractedIP := extractIPFromURL(req.URL); extractedIP != "" {
+				updates["hostname"] = extractedIP
+			}
+		}
+
 		updates["updated_at"] = time.Now()
 
 		if err := s.db.Model(&endpoint).Updates(updates).Error; err != nil {
@@ -224,7 +235,7 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 		}
 
 	case "updateConfig":
-		// 修改配置：更新名称、URL、API路径，可选的API密钥
+		// 修改配置：更新名称、URL、API路径、Hostname、可选的API密钥
 		updates := make(map[string]interface{})
 		needUpdateCache := false
 
@@ -240,6 +251,7 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 			updates["name"] = req.Name
 		}
 
+		urlChanged := false
 		if req.URL != "" && req.URL != endpoint.URL {
 			// 检查URL是否重复
 			var count int64
@@ -250,11 +262,19 @@ func (s *Service) UpdateEndpoint(req UpdateEndpointRequest) (*Endpoint, error) {
 				return nil, errors.New("该URL已存在")
 			}
 			updates["url"] = req.URL
-			// 更新IP字段
+			urlChanged = true
+			needUpdateCache = true
+		}
+
+		// 处理 Hostname：优先使用传递的值，如果为空则从URL提取
+		if req.Hostname != "" {
+			// 用户明确指定了 hostname，直接使用
+			updates["hostname"] = req.Hostname
+		} else if urlChanged {
+			// Hostname 为空但 URL 有更新，从新 URL 中提取
 			if extractedIP := extractIPFromURL(req.URL); extractedIP != "" {
 				updates["hostname"] = extractedIP
 			}
-			needUpdateCache = true
 		}
 
 		if req.APIPath != "" && req.APIPath != endpoint.APIPath {

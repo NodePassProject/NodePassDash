@@ -1349,7 +1349,7 @@ export default function TunnelsPage() {
 
   return (
     <>
-      <div className="max-w-7xl ">
+      <div >
         {/* 标题栏 */}
         <div className="flex items-center justify-between mb-4">
           {/* 移动端布局 */}

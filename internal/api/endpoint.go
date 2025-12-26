@@ -98,6 +98,7 @@ func (h *EndpointHandler) HandleCreateEndpoint(c *gin.Context) {
 	req.URL = strings.TrimSpace(req.URL)
 	req.APIPath = strings.TrimSpace(req.APIPath)
 	req.APIKey = strings.TrimSpace(req.APIKey)
+	req.Hostname = strings.TrimSpace(req.Hostname)
 
 	// 验证请求数据
 	if req.Name == "" || req.URL == "" || req.APIPath == "" || req.APIKey == "" {
@@ -378,6 +379,9 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 		}
 		if apiKey, ok := body["apiKey"].(string); ok {
 			req.APIKey = strings.TrimSpace(apiKey)
+		}
+		if hostname, ok := body["hostname"].(string); ok {
+			req.Hostname = strings.TrimSpace(hostname)
 		}
 
 		// 更新数据库配置（UpdateEndpoint内部会自动更新缓存）
