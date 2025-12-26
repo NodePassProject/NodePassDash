@@ -20,6 +20,7 @@ import {
   faExchangeAlt,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -61,6 +62,7 @@ export default function AssembleServiceModal({
   onOpenChange,
   onSaved,
 }: AssembleServiceModalProps) {
+  const { t } = useTranslation("services");
   const [serviceId, setServiceId] = useState("");
   const [serviceName, setServiceName] = useState("");
   const [serviceType, setServiceType] = useState<string>("0");
@@ -107,7 +109,7 @@ export default function AssembleServiceModal({
       );
 
       if (!response.ok) {
-        throw new Error("获取可用实例失败");
+        throw new Error(t("assembleModal.messages.fetchInstancesFailed"));
       }
 
       const data = await response.json();
@@ -121,8 +123,8 @@ export default function AssembleServiceModal({
     } catch (error) {
       console.error("获取可用实例失败:", error);
       addToast({
-        title: "获取可用实例失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("assembleModal.messages.fetchInstancesFailed"),
+        description: error instanceof Error ? error.message : t("assembleModal.messages.unknownError"),
         color: "danger",
       });
       setClientInstances([]);
@@ -180,8 +182,8 @@ export default function AssembleServiceModal({
     // 验证表单
     if (!serviceId || !serviceName) {
       addToast({
-        title: "表单验证失败",
-        description: "请填写服务ID和服务名称",
+        title: t("assembleModal.validation.formValidationFailed"),
+        description: t("assembleModal.validation.fillServiceIdAndName"),
         color: "warning",
       });
 
@@ -190,8 +192,8 @@ export default function AssembleServiceModal({
 
     if (!selectedClientInstance) {
       addToast({
-        title: "表单验证失败",
-        description: "请选择客户端实例",
+        title: t("assembleModal.validation.formValidationFailed"),
+        description: t("assembleModal.validation.selectClientInstance"),
         color: "warning",
       });
 
@@ -200,8 +202,8 @@ export default function AssembleServiceModal({
 
     if (serviceType !== "0" && !selectedServerInstance) {
       addToast({
-        title: "表单验证失败",
-        description: "请选择服务端实例",
+        title: t("assembleModal.validation.formValidationFailed"),
+        description: t("assembleModal.validation.selectServerInstance"),
         color: "warning",
       });
 
@@ -233,11 +235,11 @@ export default function AssembleServiceModal({
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.error || "组装服务失败");
+        throw new Error(error.error || t("assembleModal.messages.assembleFailed"));
       }
 
       addToast({
-        title: "组装服务成功",
+        title: t("assembleModal.messages.assembleSuccess"),
         color: "success",
       });
 
@@ -246,8 +248,8 @@ export default function AssembleServiceModal({
     } catch (error) {
       console.error("组装服务失败:", error);
       addToast({
-        title: "组装服务失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("assembleModal.messages.assembleFailed"),
+        description: error instanceof Error ? error.message : t("assembleModal.messages.unknownError"),
         color: "danger",
       });
     } finally {
@@ -293,13 +295,13 @@ export default function AssembleServiceModal({
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1">
-              组装服务
+              {t("assembleModal.title")}
             </ModalHeader>
             <ModalBody>
               {/* 服务ID */}
               <Input
                 isReadOnly
-                label="服务ID"
+                label={t("assembleModal.fields.serviceId")}
                 className="flex-1"
                 value={serviceId}
                 endContent={
@@ -316,8 +318,8 @@ export default function AssembleServiceModal({
               />
               {/* 服务名称 */}
               <Input
-                label="服务名称"
-                placeholder="请输入服务名称"
+                label={t("assembleModal.fields.serviceName")}
+                placeholder={t("assembleModal.placeholders.serviceName")}
                 value={serviceName}
                 onValueChange={setServiceName}
               />
@@ -339,7 +341,7 @@ export default function AssembleServiceModal({
                     title={
                       <div className="flex items-center gap-2">
                         <FontAwesomeIcon icon={faArrowRight} />
-                        <span>单端转发</span>
+                        <span>{t("assembleModal.types.singleForward")}</span>
                       </div>
                     }
                   />
@@ -348,7 +350,7 @@ export default function AssembleServiceModal({
                     title={
                       <div className={`flex items-center gap-2 ${serviceType === "1" ? "text-white" : ""}`}>
                         <FontAwesomeIcon icon={faShield} />
-                        <span>内网穿透</span>
+                        <span>{t("assembleModal.types.natPenetration")}</span>
                       </div>
                     }
                   />
@@ -357,7 +359,7 @@ export default function AssembleServiceModal({
                     title={
                       <div className="flex items-center gap-2">
                         <FontAwesomeIcon icon={faExchangeAlt} />
-                        <span>隧道转发</span>
+                        <span>{t("assembleModal.types.tunnelForward")}</span>
                       </div>
                     }
                   />
@@ -367,9 +369,9 @@ export default function AssembleServiceModal({
               {serviceType !== "0" && (
                 <div className="space-y-2">
                   <Autocomplete
-                    label="服务端实例"
+                    label={t("assembleModal.fields.serverInstance")}
                     isLoading={loading}
-                    placeholder="请选择或搜索服务端实例"
+                    placeholder={t("assembleModal.placeholders.selectServerInstance")}
                     selectedKey={selectedServerInstance}
                     onSelectionChange={(key) => {
                       setSelectedServerInstance(key as string);
@@ -396,9 +398,9 @@ export default function AssembleServiceModal({
               {/* 选择客户端实例 */}
               <div className="space-y-2">
                 <Autocomplete
-                  label="客户端实例"
+                  label={t("assembleModal.fields.clientInstance")}
                   isLoading={loading}
-                  placeholder="请选择或搜索客户端实例"
+                  placeholder={t("assembleModal.placeholders.selectClientInstance")}
                   selectedKey={selectedClientInstance}
                   onSelectionChange={(key) => {
                     setSelectedClientInstance(key as string);
@@ -424,14 +426,14 @@ export default function AssembleServiceModal({
             </ModalBody>
             <ModalFooter>
               <Button color="default" variant="flat" onPress={onClose}>
-                取消
+                {t("assembleModal.actions.cancel")}
               </Button>
               <Button
                 color="primary"
                 isLoading={submitting}
                 onPress={handleSubmit}
               >
-                组装服务
+                {t("assembleModal.actions.assemble")}
               </Button>
             </ModalFooter>
           </>

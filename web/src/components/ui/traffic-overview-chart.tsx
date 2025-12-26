@@ -8,6 +8,7 @@ import {
   Tooltip,
   XAxis,
 } from "recharts";
+import { useTranslation } from "react-i18next";
 
 // 流量数据类型
 type TrafficData = {
@@ -145,6 +146,7 @@ function TrafficOverviewChartComponent({
   onTimeRangeChange,
   timeRange = "24Hours",
 }: TrafficOverviewChartProps) {
+  const { t } = useTranslation("dashboard");
   const [activeMetric, setActiveMetric] = React.useState<string>("tcp-in");
 
   // 计算流量指标数据
@@ -189,7 +191,7 @@ function TrafficOverviewChartComponent({
     return [
       {
         key: "tcp-in",
-        title: "TCP In",
+        title: t("traffic.tcpIn"),
         value: currentValues.tcpIn,
         suffix: "",
         type: "number" as const,
@@ -200,7 +202,7 @@ function TrafficOverviewChartComponent({
       },
       {
         key: "tcp-out",
-        title: "TCP Out",
+        title: t("traffic.tcpOut"),
         value: currentValues.tcpOut,
         suffix: "",
         type: "number" as const,
@@ -211,7 +213,7 @@ function TrafficOverviewChartComponent({
       },
       {
         key: "udp-in",
-        title: "UDP In",
+        title: t("traffic.udpIn"),
         value: currentValues.udpIn,
         suffix: "",
         type: "number" as const,
@@ -222,7 +224,7 @@ function TrafficOverviewChartComponent({
       },
       {
         key: "udp-out",
-        title: "UDP Out",
+        title: t("traffic.udpOut"),
         value: currentValues.udpOut,
         suffix: "",
         type: "number" as const,
@@ -232,7 +234,7 @@ function TrafficOverviewChartComponent({
         dataKey: "udpOut" as keyof TrafficData,
       },
     ];
-  }, [data]);
+  }, [data, t]);
 
   // 获取当前活跃的指标数据
   const activeMetricData = React.useMemo(() => {
@@ -324,7 +326,7 @@ function TrafficOverviewChartComponent({
               </div>
             </div>
             <p className="text-default-500 animate-pulse text-sm md:text-base">
-              加载流量数据中...
+              {t("traffic.loading")}
             </p>
           </div>
         </div>
@@ -338,10 +340,10 @@ function TrafficOverviewChartComponent({
         <div className="flex items-center justify-center h-full">
           <div className="text-center">
             <p className="text-default-500 text-base md:text-lg">
-              暂无流量数据
+              {t("traffic.noData")}
             </p>
             <p className="text-default-400 text-xs md:text-sm mt-2">
-              当有实例运行时，流量趋势数据将在此显示
+              {t("traffic.noDataDescription")}
             </p>
           </div>
         </div>
@@ -359,7 +361,7 @@ function TrafficOverviewChartComponent({
           <div className="flex flex-col gap-y-2">
             <div className="flex flex-col gap-y-0">
               <span className="text-base font-semibold text-foreground">
-                流量总耗
+                {t("traffic.totalConsumption")}
               </span>
             </div>
             <div className="mt-2 flex w-full items-center">

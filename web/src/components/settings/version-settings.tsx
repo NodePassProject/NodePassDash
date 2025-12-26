@@ -17,6 +17,7 @@ import {
 import { Icon } from "@iconify/react";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -58,6 +59,7 @@ interface DeploymentInfo {
 }
 
 export default function VersionSettings() {
+  const { t } = useTranslation("settings");
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [deploymentInfo, setDeploymentInfo] = useState<DeploymentInfo | null>(
     null,
@@ -137,12 +139,12 @@ export default function VersionSettings() {
         const data = await response.json();
 
         alert(
-          `更新已开始: ${data.message}\n\n程序将在几秒钟后自动重启，请稍等...`,
+          t("version.alert.updateStarted", { message: data.message }),
         );
       } else {
         const errorData = await response.json();
 
-        alert(`更新失败: ${errorData.error}`);
+        alert(t("version.alert.updateFailed", { error: errorData.error }));
       }
     } catch (error) {
       console.error("执行更新失败:", error);
@@ -169,8 +171,8 @@ export default function VersionSettings() {
       <Card className="mt-5 p-2">
         <CardHeader className="flex gap-3">
           <div className="flex flex-col flex-1">
-            <p className="text-lg font-semibold">版本更新</p>
-            <p className="text-sm text-default-500">检查并管理系统版本</p>
+            <p className="text-lg font-semibold">{t("version.title")}</p>
+            <p className="text-sm text-default-500">{t("version.description")}</p>
           </div>
         </CardHeader>
         <Divider />
@@ -182,10 +184,10 @@ export default function VersionSettings() {
               <div className="space-y-1">
                 <div className="flex items-center gap-3">
                   <h3 className="text-base font-medium whitespace-nowrap">
-                    版本信息
+                    {t("version.current.title")}
                   </h3>
                   <Chip color="primary" size="sm" variant="flat">
-                    当前: {updateInfo?.current.current || "unknown"}
+                    {t("version.current.current")}: {updateInfo?.current.current || "unknown"}
                   </Chip>
                   {updateInfo?.hasStableUpdate && updateInfo.stable && (
                     <Chip
@@ -198,7 +200,7 @@ export default function VersionSettings() {
                         onOpen();
                       }}
                     >
-                      稳定版: {updateInfo.stable.tag_name}
+                      {t("version.current.stable")}: {updateInfo.stable.tag_name}
                     </Chip>
                   )}
                   {updateInfo?.hasBetaUpdate && updateInfo.beta && (
@@ -212,13 +214,13 @@ export default function VersionSettings() {
                         onOpen();
                       }}
                     >
-                      测试版: {updateInfo.beta.tag_name}
+                      {t("version.current.beta")}: {updateInfo.beta.tag_name}
                     </Chip>
                   )}
                 </div>
                 <div className="flex items-center gap-4 text-sm text-default-500">
                   <span>
-                    系统: {updateInfo?.current.os}/{updateInfo?.current.arch}
+                    {t("version.current.system")}: {updateInfo?.current.os}/{updateInfo?.current.arch}
                   </span>
                 </div>
               </div>
@@ -231,7 +233,7 @@ export default function VersionSettings() {
                 variant="bordered"
                 onPress={checkUpdate}
               >
-                检查更新
+                {t("version.current.checkUpdate")}
               </Button>
             </div>
 
@@ -241,7 +243,7 @@ export default function VersionSettings() {
                 <div className="space-y-1">
                   <div className="flex items-center gap-2">
                     <h3 className="text-base font-medium whitespace-nowrap">
-                      部署环境
+                      {t("version.deployment.title")}
                     </h3>
                     <Chip color="default" size="sm" variant="flat">
                       <Icon
@@ -256,8 +258,8 @@ export default function VersionSettings() {
                       &nbsp;
                       <span className="font-medium">
                         {deploymentInfo.method === "docker"
-                          ? "Docker 部署"
-                          : "二进制部署"}
+                          ? t("version.deployment.docker")
+                          : t("version.deployment.binary")}
                       </span>
                     </Chip>
                   </div>
@@ -279,7 +281,7 @@ export default function VersionSettings() {
                         }
                         onPress={() => performAutoUpdate("stable")}
                       >
-                        自动更新稳定版
+                        {t("version.deployment.autoUpdateStable")}
                       </Button>
                     )}
                   {updateInfo?.hasBetaUpdate &&
@@ -294,7 +296,7 @@ export default function VersionSettings() {
                         }
                         onPress={() => performAutoUpdate("beta")}
                       >
-                        自动更新测试版
+                        {t("version.deployment.autoUpdateBeta")}
                       </Button>
                     )}
                   {!deploymentInfo.canUpdate && (
@@ -306,7 +308,7 @@ export default function VersionSettings() {
                       }
                       variant="flat"
                     >
-                      手动更新
+                      {t("version.deployment.manualUpdate")}
                     </Button>
                   )}
                 </div>
@@ -317,27 +319,27 @@ export default function VersionSettings() {
           {/* 手动更新说明，保持原有块级展示 */}
           {deploymentInfo && !deploymentInfo.canUpdate && (
             <div className="px-4 py-5 bg-default-100 rounded-b-lg">
-              <h4 className="text-sm font-medium mb-2">更新说明：</h4>
+              <h4 className="text-sm font-medium mb-2">{t("version.updateInstructions.title")}</h4>
               <div className="text-sm text-default-600 space-y-1">
                 {deploymentInfo.method === "docker" ? (
                   <>
-                    <p>在 Docker 宿主机上执行以下命令：</p>
+                    <p>{t("version.updateInstructions.docker.desc")}</p>
                     <div className="mt-2 p-2 bg-black text-green-400 rounded font-mono text-xs overflow-x-auto">
-                      <div># 拉取最新镜像</div>
+                      <div>{t("version.updateInstructions.docker.pull")}</div>
                       <div>
                         docker pull ghcr.io/nodepassproject/nodepassdash:latest
                       </div>
-                      <div className="mt-1"># 重启容器</div>
+                      <div className="mt-1">{t("version.updateInstructions.docker.restart")}</div>
                       <div>docker-compose down && docker-compose up -d</div>
                     </div>
                   </>
                 ) : (
                   <>
-                    <p>点击上方按钮即可自动更新</p>
+                    <p>{t("version.updateInstructions.binary.auto")}</p>
                     <div className="mt-2 space-y-1 text-xs">
-                      <p>程序会自动下载、停止、替换和重启</p>
+                      <p>{t("version.updateInstructions.binary.autoDesc")}</p>
                       <p className="mt-2 text-default-400">
-                        或手动更新：从 GitHub 下载→停止程序→替换文件→重启
+                        {t("version.updateInstructions.binary.manual")}
                       </p>
                     </div>
                   </>
@@ -352,7 +354,7 @@ export default function VersionSettings() {
       <Modal isOpen={isOpen} size="2xl" onClose={onClose}>
         <ModalContent>
           <ModalHeader>
-            <h3>版本更新详情</h3>
+            <h3>{t("version.modal.title")}</h3>
           </ModalHeader>
           <ModalBody>
             {selectedVersion && (
@@ -363,10 +365,10 @@ export default function VersionSettings() {
                     variant="flat"
                   >
                     {selectedVersion.tag_name}
-                    {selectedVersion.prerelease && " (测试版)"}
+                    {selectedVersion.prerelease && " " + t("version.modal.prerelease")}
                   </Chip>
                   <span className="text-sm text-default-500">
-                    发布于{" "}
+                    {t("version.modal.publishedAt")}{" "}
                     {format(
                       new Date(selectedVersion.published_at),
                       "yyyy年MM月dd日",
@@ -387,7 +389,7 @@ export default function VersionSettings() {
           </ModalBody>
           <ModalFooter>
             <Button variant="light" onPress={onClose}>
-              关闭
+              {t("version.modal.close")}
             </Button>
             <Button
               color="primary"
@@ -398,7 +400,7 @@ export default function VersionSettings() {
                 }
               }}
             >
-              查看详情
+              {t("version.modal.viewDetails")}
             </Button>
           </ModalFooter>
         </ModalContent>

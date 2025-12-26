@@ -1,0 +1,266 @@
+{
+  "title": "Service Management",
+  "actions": {
+    "refresh": "Refresh",
+    "createService": "Create Service",
+    "assembleService": "Assemble Service",
+    "start": "Start",
+    "stop": "Stop",
+    "restart": "Restart",
+    "sync": "Sync",
+    "rename": "Rename",
+    "dissolve": "Dissolve",
+    "delete": "Delete"
+  },
+  "scenarios": {
+    "label": "Scenario Options",
+    "singleEndpoint": "Single Endpoint",
+    "penetration": "Penetration",
+    "tunnelForward": "Tunnel Forward"
+  },
+  "types": {
+    "general": "General Single Endpoint",
+    "localPenetration": "Local Penetration",
+    "localTunnel": "Local Tunnel",
+    "externalPenetration": "External Penetration",
+    "externalTunnel": "External Tunnel",
+    "balancedSingle": "Balanced Single",
+    "balancedPenetration": "Balanced Penetration",
+    "balancedTunnel": "Balanced Tunnel"
+  },
+  "search": {
+    "placeholder": "Search service SID, type or alias..."
+  },
+  "sorting": {
+    "enabled": "Drag cards to adjust display order",
+    "disabled": "Drag sorting is disabled in search mode"
+  },
+  "empty": {
+    "noServices": "No service data"
+  },
+  "confirm": {
+    "dissolveTitle": "Confirm Dissolve Service",
+    "deleteTitle": "Confirm Delete Service",
+    "dissolveMessage": "Are you sure you want to dissolve service \"{{name}}\"?",
+    "deleteMessage": "Are you sure you want to delete service \"{{name}}\"? This action cannot be undone!"
+  },
+  "toast": {
+    "fetchError": "Failed to fetch service list",
+    "sortSaved": "Sort order saved",
+    "sortError": "Failed to save sort order",
+    "dissolveSuccess": "Dissolved successfully",
+    "deleteSuccess": "Deleted successfully",
+    "dissolveError": "Failed to dissolve",
+    "deleteError": "Failed to delete",
+    "startSuccess": "Started successfully",
+    "stopSuccess": "Stopped successfully",
+    "restartSuccess": "Restarted successfully",
+    "startError": "Failed to start",
+    "stopError": "Failed to stop",
+    "restartError": "Failed to restart",
+    "syncSuccess": "Synced successfully",
+    "syncError": "Failed to sync",
+    "actionSuccess": "{{action}} successful",
+    "actionError": "{{action}} failed",
+    "operationError": "Operation failed",
+    "unknownError": "Unknown error",
+    "serviceActioned": "Service {{name}} has been {{action}}"
+  },
+  "details": {
+    "stats": {
+      "tcpTrafficSendReceive": "TCP Traffic (Send / Receive)",
+      "udpTrafficSendReceive": "UDP Traffic (Send / Receive)",
+      "internalLatency": "Internal Latency",
+      "connectionsTcpUdp": "Connections (TCP/UDP)"
+    },
+    "tabs": {
+      "traffic": "Traffic Total",
+      "speed": "Transfer Speed",
+      "latency": "Internal Latency",
+      "connections": "Connections"
+    },
+    "legend": {
+      "tcpIn": "TCP In",
+      "tcpOut": "TCP Out",
+      "udpIn": "UDP In",
+      "udpOut": "UDP Out",
+      "upload": "Upload",
+      "download": "Download",
+      "pool": "Pool"
+    }
+  },
+  "createModal": {
+    "title": {
+      "prefix": {
+        "local": "Local",
+        "external": "External",
+        "balanced": "Balanced"
+      },
+      "singleForward": "Single Forward",
+      "tunnelForward": "Tunnel Forward",
+      "natPenetration": "NAT Penetration"
+    },
+    "fields": {
+      "serviceName": "Service Name",
+      "entry": "Entry",
+      "exit": "Exit",
+      "relay": "Relay",
+      "target": "Target",
+      "entryServer": "Entry (Server)",
+      "exitClient": "Exit (Client)",
+      "relayClient": "Relay (Client)",
+      "entryClient": "Entry (Client)",
+      "exitServer": "Exit (Server)",
+      "selectEntryServer": "Select entry server",
+      "selectExitServer": "Select exit server",
+      "selectRelayServer": "Select relay server",
+      "accessPort": "Access Port",
+      "tunnelPort": "Tunnel Port",
+      "targetAddress": "Target Address",
+      "targetPort": "Target Port",
+      "listenType": "Listen Type",
+      "logLevel": "Log Level",
+      "localAddress": "Local Address",
+      "externalAddress": "External Address",
+      "additionalTargets": "Additional Target Addresses",
+      "relayServer": "Relay Server"
+    },
+    "placeholders": {
+      "serviceName": "Service Name",
+      "port": {
+        "access": "10022",
+        "tunnel": "10101",
+        "service": "22",
+        "relay": "1080",
+        "mysql": "3306"
+      },
+      "address": {
+        "local": "127.0.0.1",
+        "external": "192.168.1.100",
+        "multiline": "192.168.1.1:80\n192.168.1.2:80"
+      }
+    },
+    "tabs": {
+      "localAddress": "Local Address",
+      "externalAddress": "External Address"
+    },
+    "logLevels": {
+      "inherit": "Inherit from Master",
+      "inheritWithValue": "Inherit ({{level}})",
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warn",
+      "error": "Error",
+      "event": "Event",
+      "none": "None"
+    },
+    "tooltips": {
+      "randomPort": "Generate random port number",
+      "loadBalance": "Achieve load balancing by adding target addresses",
+      "toggleLoadBalance": "Add target addresses",
+      "disableLoadBalance": "Disable load balancing"
+    },
+    "preview": {
+      "title": "Architecture Preview",
+      "entry": "Entry",
+      "exit": "Exit",
+      "loadBalance": "Load Balance",
+      "selectServer": "Select"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "create": "Create"
+    },
+    "validation": {
+      "invalidScenario": "Invalid scenario type",
+      "reopenModal": "Please reopen the modal",
+      "emptyName": "Please enter instance name",
+      "nameRequired": "Instance name cannot be empty",
+      "formValidationFailed": "Form validation failed",
+      "fillRequired": "Please fill in all required fields"
+    },
+    "messages": {
+      "fetchEndpointsFailed": "Failed to fetch endpoints",
+      "cannotFetchEndpoints": "Cannot retrieve endpoints list",
+      "createSuccess": "Created successfully",
+      "scenarioCreated": "{{scenario}} scenario created",
+      "createFailed": "Creation failed",
+      "unknownError": "Unknown error"
+    }
+  },
+  "tcpingModal": {
+    "title": "Network Diagnostics",
+    "loading": {
+      "testing": "Running connectivity test...",
+      "targetAddress": "Target Address"
+    },
+    "result": {
+      "targetAddress": "Target Address",
+      "connectionStatus": "Connection Status",
+      "connected": "✓ Connected",
+      "disconnected": "✗ Disconnected",
+      "packetLoss": "Packet Loss",
+      "networkQuality": "Network Quality"
+    },
+    "analysis": {
+      "title": "Response Time Analysis",
+      "fastest": "Fastest",
+      "average": "Average",
+      "slowest": "Slowest"
+    },
+    "addressList": {
+      "selectHint": "Click any address to start connectivity test",
+      "entryAddress": "Entry Address",
+      "exitAddress": "Exit Address",
+      "exitAddressN": "Exit Address {{n}}"
+    },
+    "modes": {
+      "singleForward": "Single Forward Mode",
+      "natPenetration": "NAT Penetration Mode",
+      "tunnelForward": "Tunnel Forward Mode"
+    },
+    "actions": {
+      "close": "Close",
+      "retest": "Retest"
+    },
+    "toast": {
+      "testFailed": "Diagnostics test failed",
+      "unknownError": "Unknown error"
+    }
+  },
+  "assembleModal": {
+    "title": "Assemble Service",
+    "fields": {
+      "serviceId": "Service ID",
+      "serviceName": "Service Name",
+      "serverInstance": "Server Instance",
+      "clientInstance": "Client Instance"
+    },
+    "placeholders": {
+      "serviceName": "Enter service name",
+      "selectServerInstance": "Select or search server instance",
+      "selectClientInstance": "Select or search client instance"
+    },
+    "types": {
+      "singleForward": "Single Forward",
+      "natPenetration": "NAT Penetration",
+      "tunnelForward": "Tunnel Forward"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "assemble": "Assemble Service"
+    },
+    "validation": {
+      "formValidationFailed": "Form validation failed",
+      "fillServiceIdAndName": "Please fill in service ID and service name",
+      "selectClientInstance": "Please select client instance",
+      "selectServerInstance": "Please select server instance"
+    },
+    "messages": {
+      "fetchInstancesFailed": "Failed to fetch available instances",
+      "assembleSuccess": "Service assembled successfully",
+      "assembleFailed": "Failed to assemble service",
+      "unknownError": "Unknown error"
+    }
+  }
+}

@@ -35,6 +35,7 @@ import {
   faLock,
   faLockOpen,
 } from "@fortawesome/free-solid-svg-icons";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -257,20 +258,11 @@ interface ScenarioCreateModalProps {
   scenarioType?: ScenarioType;
 }
 
-// 场景配置预设
-const scenarioConfigs = {
-  "single-forward": {
-    title: "单端转发",
-    icon: faArrowRight,
-  },
-  "tunnel-forward": {
-    title: "隧道转发",
-    icon: faExchangeAlt,
-  },
-  "nat-penetration": {
-    title: "内网穿透",
-    icon: faShield,
-  },
+// 场景配置预设（图标）
+const scenarioIcons = {
+  "single-forward": faArrowRight,
+  "tunnel-forward": faExchangeAlt,
+  "nat-penetration": faShield,
 } as const;
 
 /**
@@ -282,6 +274,7 @@ export default function ScenarioCreateModal({
   onSaved,
   scenarioType,
 }: ScenarioCreateModalProps) {
+  const { t } = useTranslation("services");
   const [endpoints, setEndpoints] = useState<EndpointSimple[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -356,8 +349,8 @@ export default function ScenarioCreateModal({
         }
       } catch (err) {
         addToast({
-          title: "获取主控失败",
-          description: "无法获取主控列表",
+          title: t("createModal.messages.fetchEndpointsFailed"),
+          description: t("createModal.messages.cannotFetchEndpoints"),
           color: "danger",
         });
       } finally {
@@ -522,8 +515,8 @@ export default function ScenarioCreateModal({
   const handleSubmit = async () => {
     if (!selectedScenario) {
       addToast({
-        title: "无效的场景类型",
-        description: "请重新打开模态窗",
+        title: t("createModal.validation.invalidScenario"),
+        description: t("createModal.validation.reopenModal"),
         color: "warning",
       });
 
@@ -534,8 +527,8 @@ export default function ScenarioCreateModal({
 
     if (!tunnelName.trim()) {
       addToast({
-        title: "请填写实例名称",
-        description: "实例名称不能为空",
+        title: t("createModal.validation.emptyName"),
+        description: t("createModal.validation.nameRequired"),
         color: "warning",
       });
 
@@ -546,8 +539,8 @@ export default function ScenarioCreateModal({
 
     if (!requestData) {
       addToast({
-        title: "表单验证失败",
-        description: "请填写所有必填字段",
+        title: t("createModal.validation.formValidationFailed"),
+        description: t("createModal.validation.fillRequired"),
         color: "warning",
       });
 
@@ -566,12 +559,18 @@ export default function ScenarioCreateModal({
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "创建失败");
+        throw new Error(data.error || t("createModal.messages.createFailed"));
       }
 
+      const scenarioTitle = selectedScenario === "single-forward"
+        ? t("createModal.title.singleForward")
+        : selectedScenario === "tunnel-forward"
+        ? t("createModal.title.tunnelForward")
+        : t("createModal.title.natPenetration");
+
       addToast({
-        title: "创建成功",
-        description: `${scenarioConfigs[selectedScenario].title}场景已创建`,
+        title: t("createModal.messages.createSuccess"),
+        description: t("createModal.messages.scenarioCreated", { scenario: scenarioTitle }),
         color: "success",
       });
 
@@ -579,8 +578,8 @@ export default function ScenarioCreateModal({
       onSaved?.();
     } catch (err) {
       addToast({
-        title: "创建失败",
-        description: err instanceof Error ? err.message : "未知错误",
+        title: t("createModal.messages.createFailed"),
+        description: err instanceof Error ? err.message : t("createModal.messages.unknownError"),
         color: "danger",
       });
     } finally {
@@ -593,7 +592,7 @@ export default function ScenarioCreateModal({
     <div className="space-y-2">
       <Input
         isRequired
-        placeholder="服务名称"
+        placeholder={t("createModal.placeholders.serviceName")}
         value={formData.tunnelName}
         onValueChange={(v) => handleField("tunnelName", v)}
       />
@@ -602,7 +601,7 @@ export default function ScenarioCreateModal({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h4 className="text-[15px] font-semibold text-default-700">
-            入口(服务端)
+            {t("createModal.fields.entryServer")}
           </h4>
           <div className="flex items-center gap-2">
             <span className="text-xs text-default-500">TLS</span>
@@ -618,7 +617,7 @@ export default function ScenarioCreateModal({
         <div className="flex flex-row items-center gap-2">
           <Select
             isRequired
-            placeholder="选择入口服务器"
+            placeholder={t("createModal.fields.selectEntryServer")}
             classNames={{
               trigger: "bg-primary-900/40"
             }}
@@ -644,25 +643,25 @@ export default function ScenarioCreateModal({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-sm">访问端口</label>
+            <label className="text-sm">{t("createModal.fields.accessPort")}</label>
             <Input
               isRequired
-              placeholder="10022"
+              placeholder={t("createModal.placeholders.port.access")}
               type="number"
               value={formData.publicListenPort}
               onValueChange={(v) => handleField("publicListenPort", v ? String(v) : "")}
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm">隧道端口</label>
+            <label className="text-sm">{t("createModal.fields.tunnelPort")}</label>
             <Input
               isRequired
-              placeholder="10101"
+              placeholder={t("createModal.placeholders.port.tunnel")}
               type="number"
               value={formData.publicTunnelPort}
               onValueChange={(v) => handleField("publicTunnelPort", v ? String(v) : "")}
               endContent={
-                <Tooltip content="随机生成端口号">
+                <Tooltip content={t("createModal.tooltips.randomPort")}>
                   <button
                     type="button"
                     className="focus:outline-none cursor-pointer"
@@ -687,7 +686,7 @@ export default function ScenarioCreateModal({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h4 className="text-[15px] font-semibold text-default-700">
-            出口(客户端)
+            {t("createModal.fields.exitClient")}
           </h4>
           <Tabs
             size="sm"
@@ -702,14 +701,14 @@ export default function ScenarioCreateModal({
               handleField("natTargetExternal", key === "external")
             }
           >
-            <Tab key="local" title="本地地址" />
-            <Tab key="external" title="外部地址" />
+            <Tab key="local" title={t("createModal.tabs.localAddress")} />
+            <Tab key="external" title={t("createModal.tabs.externalAddress")} />
           </Tabs>
         </div>
         <div className="flex flex-row items-center gap-2">
           <Select
             isRequired
-            placeholder="选择出口服务器"
+            placeholder={t("createModal.fields.selectExitServer")}
             color="success"
             selectedKeys={
               formData.localServerEndpoint ? [formData.localServerEndpoint] : []
@@ -731,15 +730,15 @@ export default function ScenarioCreateModal({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-sm">目标地址</label>
+            <label className="text-sm">{t("createModal.fields.targetAddress")}</label>
             <Input
               isRequired
               readOnly={!formData.natTargetExternal}
-              placeholder={formData.natTargetExternal ? "192.168.1.100" : "127.0.0.1"}
+              placeholder={formData.natTargetExternal ? t("createModal.placeholders.address.external") : t("createModal.placeholders.address.local")}
               value={formData.natTargetExternal ? formData.localTargetHost : "127.0.0.1"}
               onValueChange={(v) => handleField("localTargetHost", v)}
               endContent={
-                <Tooltip content={isEnableExtendTargets ? "关闭负载均衡" : "增加目标地址"}>
+                <Tooltip content={isEnableExtendTargets ? t("createModal.tooltips.disableLoadBalance") : t("createModal.tooltips.toggleLoadBalance")}>
                   <button
                     type="button"
                     className="focus:outline-none cursor-pointer"
@@ -765,10 +764,10 @@ export default function ScenarioCreateModal({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm">目标端口</label>
+            <label className="text-sm">{t("createModal.fields.targetPort")}</label>
             <Input
               isRequired
-              placeholder="22"
+              placeholder={t("createModal.placeholders.port.service")}
               type="number"
               value={formData.localServicePort}
               onValueChange={(v) => handleField("localServicePort", v ? String(v) : "")}
@@ -781,8 +780,8 @@ export default function ScenarioCreateModal({
           <Textarea
             label={
               <div className="flex items-center gap-1">
-                <span>附加目标地址</span>
-                <Tooltip content="通过增加目标地址达到负载均衡的效果">
+                <span>{t("createModal.fields.additionalTargets")}</span>
+                <Tooltip content={t("createModal.tooltips.loadBalance")}>
                   <FontAwesomeIcon
                     className="w-4 h-4 text-default-400 cursor-help"
                     icon={faCircleQuestion}
@@ -790,7 +789,7 @@ export default function ScenarioCreateModal({
                 </Tooltip>
               </div>
             }
-            placeholder="192.168.1.1:80&#10;192.168.1.2:80"
+            placeholder={t("createModal.placeholders.address.multiline")}
             minRows={2}
             value={formData.extendTargetAddresses}
             onValueChange={(v) => handleField("extendTargetAddresses", v)}
@@ -802,7 +801,7 @@ export default function ScenarioCreateModal({
       <div className="grid grid-cols-2 gap-3">
         {/* 监听类型 */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm">监听类型</label>
+          <label className="text-sm">{t("createModal.fields.listenType")}</label>
           <Tabs
             classNames={{
               tabContent: "group-data-[selected=true]:text-white text-xs",
@@ -822,7 +821,7 @@ export default function ScenarioCreateModal({
 
         {/* 日志级别 */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm">日志级别</label>
+          <label className="text-sm">{t("createModal.fields.logLevel")}</label>
           <Select
             selectedKeys={formData.logLevel ? [formData.logLevel] : ["inherit"]}
             onSelectionChange={(keys) => {
@@ -830,17 +829,17 @@ export default function ScenarioCreateModal({
               handleField("logLevel", selectedKey === "inherit" ? "" : selectedKey);
             }}
           >
-            <SelectItem key="inherit" textValue="继承主控">
+            <SelectItem key="inherit" textValue={t("createModal.logLevels.inherit")}>
               {endpoints.find((ep) => String(ep.id) === String(formData.publicServerEndpoint))?.log
-                ? `继承 (${endpoints.find((ep) => String(ep.id) === String(formData.publicServerEndpoint))?.log.toUpperCase()})`
-                : "继承主控"}
+                ? t("createModal.logLevels.inheritWithValue", { level: endpoints.find((ep) => String(ep.id) === String(formData.publicServerEndpoint))?.log.toUpperCase() })
+                : t("createModal.logLevels.inherit")}
             </SelectItem>
-            <SelectItem key="debug" textValue="Debug">Debug</SelectItem>
-            <SelectItem key="info" textValue="Info">Info</SelectItem>
-            <SelectItem key="warn" textValue="Warn">Warn</SelectItem>
-            <SelectItem key="error" textValue="Error">Error</SelectItem>
-            <SelectItem key="event" textValue="Event">Event</SelectItem>
-            <SelectItem key="none" textValue="None">None</SelectItem>
+            <SelectItem key="debug" textValue={t("createModal.logLevels.debug")}>{t("createModal.logLevels.debug")}</SelectItem>
+            <SelectItem key="info" textValue={t("createModal.logLevels.info")}>{t("createModal.logLevels.info")}</SelectItem>
+            <SelectItem key="warn" textValue={t("createModal.logLevels.warn")}>{t("createModal.logLevels.warn")}</SelectItem>
+            <SelectItem key="error" textValue={t("createModal.logLevels.error")}>{t("createModal.logLevels.error")}</SelectItem>
+            <SelectItem key="event" textValue={t("createModal.logLevels.event")}>{t("createModal.logLevels.event")}</SelectItem>
+            <SelectItem key="none" textValue={t("createModal.logLevels.none")}>{t("createModal.logLevels.none")}</SelectItem>
           </Select>
         </div>
       </div>
@@ -852,7 +851,7 @@ export default function ScenarioCreateModal({
     <div className="space-y-2">
       <Input
         isRequired
-        placeholder="服务名称"
+        placeholder={t("createModal.placeholders.serviceName")}
         value={formData.tunnelName}
         onValueChange={(v) => handleField("tunnelName", v)}
       />
@@ -860,7 +859,7 @@ export default function ScenarioCreateModal({
       {/* 中转服务器 */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h4 className="text-[15px] font-semibold text-default-700">中转(客户端)</h4>
+          <h4 className="text-[15px] font-semibold text-default-700">{t("createModal.fields.relayClient")}</h4>
           <Tabs
             size="sm"
             color="warning"
@@ -875,16 +874,16 @@ export default function ScenarioCreateModal({
               handleField("singleTargetExternal", key === "external")
             }
           >
-            <Tab key="local" title="本地地址" />
-            <Tab key="external" title="外部地址" />
+            <Tab key="local" title={t("createModal.tabs.localAddress")} />
+            <Tab key="external" title={t("createModal.tabs.externalAddress")} />
           </Tabs>
         </div>
         <div className="grid grid-cols-2 gap-2">
           <div className="flex flex-col gap-1">
-            <label className="text-sm">中转服务器</label>
+            <label className="text-sm">{t("createModal.fields.relayServer")}</label>
             <Select
               isRequired
-              placeholder="选择中转服务器"
+              placeholder={t("createModal.fields.selectRelayServer")}
               selectedKeys={
                 formData.relayServerEndpoint ? [formData.relayServerEndpoint] : []
               }
@@ -904,10 +903,10 @@ export default function ScenarioCreateModal({
             </Select>
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm">访问端口</label>
+            <label className="text-sm">{t("createModal.fields.accessPort")}</label>
             <Input
               isRequired
-              placeholder="1080"
+              placeholder={t("createModal.placeholders.port.relay")}
               type="number"
               value={formData.relayListenPort}
               onValueChange={(v) => handleField("relayListenPort", v ? String(v) : "")}
@@ -920,15 +919,15 @@ export default function ScenarioCreateModal({
       <div className="space-y-2">
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-sm">目标地址</label>
+            <label className="text-sm">{t("createModal.fields.targetAddress")}</label>
             <Input
               isRequired
               readOnly={!formData.singleTargetExternal}
-              placeholder={formData.singleTargetExternal ? "192.168.1.100" : "127.0.0.1"}
+              placeholder={formData.singleTargetExternal ? t("createModal.placeholders.address.external") : t("createModal.placeholders.address.local")}
               value={formData.singleTargetExternal ? formData.targetServerAddress : "127.0.0.1"}
               onValueChange={(v) => handleField("targetServerAddress", v)}
               endContent={
-                <Tooltip content={isEnableExtendTargetsSingle ? "关闭负载均衡" : "增加目标地址"}>
+                <Tooltip content={isEnableExtendTargetsSingle ? t("createModal.tooltips.disableLoadBalance") : t("createModal.tooltips.toggleLoadBalance")}>
                   <button
                     type="button"
                     className="focus:outline-none cursor-pointer"
@@ -954,10 +953,10 @@ export default function ScenarioCreateModal({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm">目标端口</label>
+            <label className="text-sm">{t("createModal.fields.targetPort")}</label>
             <Input
               isRequired
-              placeholder="3306"
+              placeholder={t("createModal.placeholders.port.mysql")}
               type="number"
               value={formData.targetServicePort}
               onValueChange={(v) => handleField("targetServicePort", v ? String(v) : "")}
@@ -970,8 +969,8 @@ export default function ScenarioCreateModal({
           <Textarea
             label={
               <div className="flex items-center gap-1">
-                <span>附加目标地址</span>
-                <Tooltip content="通过增加目标地址达到负载均衡的效果">
+                <span>{t("createModal.fields.additionalTargets")}</span>
+                <Tooltip content={t("createModal.tooltips.loadBalance")}>
                   <FontAwesomeIcon
                     className="w-4 h-4 text-default-400 cursor-help"
                     icon={faCircleQuestion}
@@ -979,7 +978,7 @@ export default function ScenarioCreateModal({
                 </Tooltip>
               </div>
             }
-            placeholder="192.168.1.1:80&#10;192.168.1.2:80"
+            placeholder={t("createModal.placeholders.address.multiline")}
             minRows={2}
             value={formData.extendTargetAddressesSingle}
             onValueChange={(v) => handleField("extendTargetAddressesSingle", v)}
@@ -992,7 +991,7 @@ export default function ScenarioCreateModal({
       <div className="grid grid-cols-2 gap-3">
         {/* 监听类型 */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm">监听类型</label>
+          <label className="text-sm">{t("createModal.fields.listenType")}</label>
           <Tabs
             classNames={{
               tabContent: "group-data-[selected=true]:text-white text-xs",
@@ -1012,7 +1011,7 @@ export default function ScenarioCreateModal({
 
         {/* 日志级别 */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm">日志级别</label>
+          <label className="text-sm">{t("createModal.fields.logLevel")}</label>
           <Select
             selectedKeys={formData.logLevel ? [formData.logLevel] : ["inherit"]}
             onSelectionChange={(keys) => {
@@ -1020,17 +1019,17 @@ export default function ScenarioCreateModal({
               handleField("logLevel", selectedKey === "inherit" ? "" : selectedKey);
             }}
           >
-            <SelectItem key="inherit" textValue="继承主控">
+            <SelectItem key="inherit" textValue={t("createModal.logLevels.inherit")}>
               {endpoints.find((ep) => String(ep.id) === String(formData.relayServerEndpoint))?.log
-                ? `继承 (${endpoints.find((ep) => String(ep.id) === String(formData.relayServerEndpoint))?.log.toUpperCase()})`
-                : "继承主控"}
+                ? t("createModal.logLevels.inheritWithValue", { level: endpoints.find((ep) => String(ep.id) === String(formData.relayServerEndpoint))?.log.toUpperCase() })
+                : t("createModal.logLevels.inherit")}
             </SelectItem>
-            <SelectItem key="debug" textValue="Debug">Debug</SelectItem>
-            <SelectItem key="info" textValue="Info">Info</SelectItem>
-            <SelectItem key="warn" textValue="Warn">Warn</SelectItem>
-            <SelectItem key="error" textValue="Error">Error</SelectItem>
-            <SelectItem key="event" textValue="Event">Event</SelectItem>
-            <SelectItem key="none" textValue="None">None</SelectItem>
+            <SelectItem key="debug" textValue={t("createModal.logLevels.debug")}>{t("createModal.logLevels.debug")}</SelectItem>
+            <SelectItem key="info" textValue={t("createModal.logLevels.info")}>{t("createModal.logLevels.info")}</SelectItem>
+            <SelectItem key="warn" textValue={t("createModal.logLevels.warn")}>{t("createModal.logLevels.warn")}</SelectItem>
+            <SelectItem key="error" textValue={t("createModal.logLevels.error")}>{t("createModal.logLevels.error")}</SelectItem>
+            <SelectItem key="event" textValue={t("createModal.logLevels.event")}>{t("createModal.logLevels.event")}</SelectItem>
+            <SelectItem key="none" textValue={t("createModal.logLevels.none")}>{t("createModal.logLevels.none")}</SelectItem>
           </Select>
         </div>
       </div>
@@ -1042,7 +1041,7 @@ export default function ScenarioCreateModal({
     <div className="space-y-2">
       <Input
         isRequired
-        placeholder="服务名称"
+        placeholder={t("createModal.placeholders.serviceName")}
         value={formData.tunnelName}
         onValueChange={(v) => handleField("tunnelName", v)}
       />
@@ -1050,7 +1049,7 @@ export default function ScenarioCreateModal({
       {/* 入口服务器 */}
       <div className="space-y-2">
         <div className="flex items-center justify-between">
-          <h4 className="text-[15px] font-semibold text-default-700">入口(客户端)</h4>
+          <h4 className="text-[15px] font-semibold text-default-700">{t("createModal.fields.entryClient")}</h4>
           <div className="flex items-center gap-2">
             <span className="text-xs text-default-500">TLS</span>
             <InlineSwitch
@@ -1065,7 +1064,7 @@ export default function ScenarioCreateModal({
         <div className="flex flex-row items-center gap-2">
           <Select
             isRequired
-            placeholder="选择入口服务器"
+            placeholder={t("createModal.fields.selectEntryServer")}
             classNames={{
               trigger: "bg-primary-900/40"
             }}
@@ -1092,27 +1091,27 @@ export default function ScenarioCreateModal({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-sm">访问端口</label>
+            <label className="text-sm">{t("createModal.fields.accessPort")}</label>
             <Input
               fullWidth
               isRequired
-              placeholder="10022"
+              placeholder={t("createModal.placeholders.port.access")}
               type="number"
               value={formData.relayListenPort2}
               onValueChange={(v) => handleField("relayListenPort2", v ? String(v) : "")}
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm">隧道端口</label>
+            <label className="text-sm">{t("createModal.fields.tunnelPort")}</label>
             <Input
               fullWidth
               isRequired
-              placeholder="10101"
+              placeholder={t("createModal.placeholders.port.tunnel")}
               type="number"
               value={formData.relayTunnelPort2}
               onValueChange={(v) => handleField("relayTunnelPort2", v ? String(v) : "")}
               endContent={
-                <Tooltip content="随机生成端口号">
+                <Tooltip content={t("createModal.tooltips.randomPort")}>
                   <button
                     type="button"
                     className="focus:outline-none cursor-pointer"
@@ -1137,7 +1136,7 @@ export default function ScenarioCreateModal({
       <div className="space-y-2">
         <div className="flex items-center justify-between">
           <h4 className="text-[15px] font-semibold text-default-700">
-            出口(服户端)
+            {t("createModal.fields.exitServer")}
           </h4>
           <Tabs
             size="sm"
@@ -1152,15 +1151,15 @@ export default function ScenarioCreateModal({
               handleField("doubleTargetExternal", key === "external")
             }
           >
-            <Tab key="local" title="本地地址" />
-            <Tab key="external" title="外部地址" />
+            <Tab key="local" title={t("createModal.tabs.localAddress")} />
+            <Tab key="external" title={t("createModal.tabs.externalAddress")} />
           </Tabs>
         </div>
         <div className="flex flex-row items-center gap-2">
           <Select
             isRequired
             color="success"
-            placeholder="选择出口服务器"
+            placeholder={t("createModal.fields.selectExitServer")}
             selectedKeys={
               formData.relayServerEndpoint2
                 ? [formData.relayServerEndpoint2]
@@ -1184,15 +1183,15 @@ export default function ScenarioCreateModal({
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="flex flex-col gap-1">
-            <label className="text-sm">目标地址</label>
+            <label className="text-sm">{t("createModal.fields.targetAddress")}</label>
             <Input
               isRequired
               readOnly={!formData.doubleTargetExternal}
-              placeholder={formData.doubleTargetExternal ? "192.168.1.100" : "127.0.0.1"}
+              placeholder={formData.doubleTargetExternal ? t("createModal.placeholders.address.external") : t("createModal.placeholders.address.local")}
               value={formData.doubleTargetExternal ? formData.targetAddress2 : "127.0.0.1"}
               onValueChange={(v) => handleField("targetAddress2", v)}
               endContent={
-                <Tooltip content={isEnableExtendTargets2 ? "关闭负载均衡" : "增加目标地址"}>
+                <Tooltip content={isEnableExtendTargets2 ? t("createModal.tooltips.disableLoadBalance") : t("createModal.tooltips.toggleLoadBalance")}>
                   <button
                     type="button"
                     className="focus:outline-none cursor-pointer"
@@ -1218,11 +1217,11 @@ export default function ScenarioCreateModal({
             />
           </div>
           <div className="flex flex-col gap-1">
-            <label className="text-sm">目标端口</label>
+            <label className="text-sm">{t("createModal.fields.targetPort")}</label>
             <Input
               fullWidth
               isRequired
-              placeholder="1080"
+              placeholder={t("createModal.placeholders.port.relay")}
               type="number"
               value={formData.targetServicePort2}
               onValueChange={(v) => handleField("targetServicePort2", v ? String(v) : "")}
@@ -1235,8 +1234,8 @@ export default function ScenarioCreateModal({
           <Textarea
             label={
               <div className="flex items-center gap-1">
-                <span>附加目标地址</span>
-                <Tooltip content="通过增加目标地址达到负载均衡的效果">
+                <span>{t("createModal.fields.additionalTargets")}</span>
+                <Tooltip content={t("createModal.tooltips.loadBalance")}>
                   <FontAwesomeIcon
                     className="w-4 h-4 text-default-400 cursor-help"
                     icon={faCircleQuestion}
@@ -1244,7 +1243,7 @@ export default function ScenarioCreateModal({
                 </Tooltip>
               </div>
             }
-            placeholder="192.168.1.1:80&#10;192.168.1.2:80"
+            placeholder={t("createModal.placeholders.address.multiline")}
             minRows={2}
             value={formData.extendTargetAddresses2}
             onValueChange={(v) => handleField("extendTargetAddresses2", v)}
@@ -1257,7 +1256,7 @@ export default function ScenarioCreateModal({
       <div className="grid grid-cols-2 gap-3">
         {/* 监听类型 */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm">监听类型</label>
+          <label className="text-sm">{t("createModal.fields.listenType")}</label>
           <Tabs
             classNames={{
               tabContent: "group-data-[selected=true]:text-white text-xs",
@@ -1277,7 +1276,7 @@ export default function ScenarioCreateModal({
 
         {/* 日志级别 */}
         <div className="flex flex-col gap-1">
-          <label className="text-sm">日志级别</label>
+          <label className="text-sm">{t("createModal.fields.logLevel")}</label>
           <Select
             selectedKeys={formData.logLevel ? [formData.logLevel] : ["inherit"]}
             onSelectionChange={(keys) => {
@@ -1285,17 +1284,17 @@ export default function ScenarioCreateModal({
               handleField("logLevel", selectedKey === "inherit" ? "" : selectedKey);
             }}
           >
-            <SelectItem key="inherit" textValue="继承主控">
+            <SelectItem key="inherit" textValue={t("createModal.logLevels.inherit")}>
               {endpoints.find((ep) => String(ep.id) === String(formData.relayServerEndpoint2))?.log
-                ? `继承 (${endpoints.find((ep) => String(ep.id) === String(formData.relayServerEndpoint2))?.log.toUpperCase()})`
-                : "继承主控"}
+                ? t("createModal.logLevels.inheritWithValue", { level: endpoints.find((ep) => String(ep.id) === String(formData.relayServerEndpoint2))?.log.toUpperCase() })
+                : t("createModal.logLevels.inherit")}
             </SelectItem>
-            <SelectItem key="debug" textValue="Debug">Debug</SelectItem>
-            <SelectItem key="info" textValue="Info">Info</SelectItem>
-            <SelectItem key="warn" textValue="Warn">Warn</SelectItem>
-            <SelectItem key="error" textValue="Error">Error</SelectItem>
-            <SelectItem key="event" textValue="Event">Event</SelectItem>
-            <SelectItem key="none" textValue="None">None</SelectItem>
+            <SelectItem key="debug" textValue={t("createModal.logLevels.debug")}>{t("createModal.logLevels.debug")}</SelectItem>
+            <SelectItem key="info" textValue={t("createModal.logLevels.info")}>{t("createModal.logLevels.info")}</SelectItem>
+            <SelectItem key="warn" textValue={t("createModal.logLevels.warn")}>{t("createModal.logLevels.warn")}</SelectItem>
+            <SelectItem key="error" textValue={t("createModal.logLevels.error")}>{t("createModal.logLevels.error")}</SelectItem>
+            <SelectItem key="event" textValue={t("createModal.logLevels.event")}>{t("createModal.logLevels.event")}</SelectItem>
+            <SelectItem key="none" textValue={t("createModal.logLevels.none")}>{t("createModal.logLevels.none")}</SelectItem>
           </Select>
         </div>
       </div>
@@ -1329,16 +1328,7 @@ export default function ScenarioCreateModal({
           {/* 中转服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
-              {/* {relayEndpoint
-                ? relayEndpoint.url
-                  ? extractHostFromUrl(relayEndpoint.url)
-                  : relayEndpoint.name
-                : "选择"} */}
-              {
-                relayEndpoint
-                  ? relayEndpoint.name
-                  : "选择"
-              }
+              {relayEndpoint ? relayEndpoint.name : t("createModal.preview.selectServer")}
             </span>
             <Icon
               className="text-3xl text-primary"
@@ -1417,7 +1407,7 @@ export default function ScenarioCreateModal({
             <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
               {publicEndpoint
                 ? publicEndpoint.name
-                : "选择"}
+                : t("createModal.preview.selectServer")}
             </span>
             <Icon className="text-4xl text-primary" icon="solar:cloud-bold" />
             <span className="text-xs text-default-600 font-medium mt-1">
@@ -1444,7 +1434,7 @@ export default function ScenarioCreateModal({
             <>
               <div className="flex flex-col items-center">
                 <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
-                  {localEndpoint ? localEndpoint.name : "选择"}
+                  {localEndpoint ? localEndpoint.name : t("createModal.preview.selectServer")}
                 </span>
                 <Icon
                   className="text-4xl text-success"
@@ -1470,7 +1460,7 @@ export default function ScenarioCreateModal({
             <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
               {formData.natTargetExternal
                 ? formData.localTargetHost || "192.168.1.100"
-                : (localEndpoint ? localEndpoint.name : "选择")}
+                : (localEndpoint ? localEndpoint.name : t("createModal.preview.selectServer"))}
             </span>
             <Icon
               className="text-4xl text-success"
@@ -1514,7 +1504,7 @@ export default function ScenarioCreateModal({
           {/* 中转服务器 */}
           <div className="flex flex-col items-center">
             <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
-              {targetEndpoint ? targetEndpoint.name : "选择"}
+              {targetEndpoint ? targetEndpoint.name : t("createModal.preview.selectServer")}
             </span>
             <Icon
               className="text-3xl text-primary"
@@ -1543,7 +1533,7 @@ export default function ScenarioCreateModal({
             <>
               <div className="flex flex-col items-center">
                 <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
-                  {relayEndpoint ? relayEndpoint.name : "选择"}
+                  {relayEndpoint ? relayEndpoint.name : t("createModal.preview.selectServer")}
                 </span>
                 <Icon
                   className="text-3xl text-primary"
@@ -1567,7 +1557,7 @@ export default function ScenarioCreateModal({
             <span className="text-xs text-default-500 mb-1 max-w-[120px] text-center break-all leading-tight">
               {formData.doubleTargetExternal
                 ? formData.targetAddress2 || "192.168.1.100"
-                : (relayEndpoint ? relayEndpoint.name : "选择")}
+                : (relayEndpoint ? relayEndpoint.name : t("createModal.preview.selectServer"))}
             </span>
             <Icon
               className="text-3xl text-success"
@@ -1608,7 +1598,7 @@ export default function ScenarioCreateModal({
         const publicEndpoint = endpoints.find(
           (ep) => String(ep.id) === String(formData.publicServerEndpoint)
         );
-        const entryHost = publicEndpoint?.url ? extractHostFromUrl(publicEndpoint.url) : "选择服务器";
+        const entryHost = publicEndpoint?.url ? extractHostFromUrl(publicEndpoint.url) : t("createModal.preview.selectServer");
         const entryPort = formData.publicListenPort || "10022";
         const exitHost = formData.natTargetExternal ? formData.localTargetHost || "192.168.1.100" : "127.0.0.1";
         const exitPort = formData.localServicePort || "22";
@@ -1618,7 +1608,7 @@ export default function ScenarioCreateModal({
         const relayEndpoint = endpoints.find(
           (ep) => String(ep.id) === String(formData.relayServerEndpoint)
         );
-        const entryHost = relayEndpoint?.url ? extractHostFromUrl(relayEndpoint.url) : "选择服务器";
+        const entryHost = relayEndpoint?.url ? extractHostFromUrl(relayEndpoint.url) : t("createModal.preview.selectServer");
         const entryPort = formData.relayListenPort || "1080";
         const exitHost = formData.singleTargetExternal ? formData.targetServerAddress || "192.168.1.100" : "127.0.0.1";
         const exitPort = formData.targetServicePort || "3306";
@@ -1631,8 +1621,7 @@ export default function ScenarioCreateModal({
         const targetEndpoint = endpoints.find(
           (ep) => String(ep.id) === String(formData.targetServerEndpoint2),
         );
-        // const entryHost = formData.targetServerEndpoint2?.url ? extractHostFromUrl(formData.targetServerEndpoint2.url) : "选择目标服务器"
-        const entryHost = targetEndpoint ? targetEndpoint.url ? extractHostFromUrl(targetEndpoint.url) : targetEndpoint.name : "选择目标服务器";
+        const entryHost = targetEndpoint ? targetEndpoint.url ? extractHostFromUrl(targetEndpoint.url) : targetEndpoint.name : t("createModal.preview.selectServer");
         const entryPort = formData.relayListenPort2 || "10022";
         const exitHost = formData.doubleTargetExternal ? formData.targetAddress2 || "192.168.1.100" : "127.0.0.1";
         const exitPort = formData.targetServicePort2 || "1080";
@@ -1648,7 +1637,7 @@ export default function ScenarioCreateModal({
       <div className="h-full flex flex-col">
         <Card className="flex-1">
           <CardBody className="bg-default-50">
-            <h4 className="text-sm font-semibold text-default-700 mb-4">架构预览</h4>
+            <h4 className="text-sm font-semibold text-default-700 mb-4">{t("createModal.preview.title")}</h4>
             {selectedScenario === "single-forward" &&
               renderSingleForwardPreview()}
             {selectedScenario === "nat-penetration" && renderNATPreview()}
@@ -1662,7 +1651,7 @@ export default function ScenarioCreateModal({
                 <div className="bg-primary-50 dark:bg-primary-900/20 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Icon icon="line-md:login" className="text-primary text-lg" />
-                    <span className="text-xs font-medium text-primary">入口</span>
+                    <span className="text-xs font-medium text-primary">{t("createModal.preview.entry")}</span>
                   </div>
                   <div className="font-mono text-sm text-default-700 break-all">{entry}</div>
                 </div>
@@ -1670,10 +1659,10 @@ export default function ScenarioCreateModal({
                 <div className="bg-success-50 dark:bg-success-900/20 rounded-lg p-3">
                   <div className="flex items-center gap-2 mb-2">
                     <Icon icon="line-md:logout" className="text-success text-lg" />
-                    <span className="text-xs font-medium text-success">出口</span>
+                    <span className="text-xs font-medium text-success">{t("createModal.preview.exit")}</span>
                     {exit.length > 1 && (
                       <span className="text-[10px] px-1.5 py-0.5 rounded-full bg-warning-100 text-warning-600 dark:bg-warning-900/30 dark:text-warning-400">
-                        负载均衡
+                        {t("createModal.preview.loadBalance")}
                       </span>
                     )}
                   </div>
@@ -1727,37 +1716,41 @@ export default function ScenarioCreateModal({
                 <>
                   <FontAwesomeIcon
                     fixedWidth
-                    icon={scenarioConfigs[selectedScenario].icon}
+                    icon={scenarioIcons[selectedScenario]}
                   />
-                  {/* <Icon icon={scenarioConfigs[selectedScenario].icon} className="text-primary" /> */}
                   {(() => {
                     let prefix = "";
                     if (selectedScenario === "nat-penetration") {
                       if (isEnableExtendTargets) {
-                        prefix = "均衡";
+                        prefix = t("createModal.title.prefix.balanced");
                       } else if (formData.natTargetExternal) {
-                        prefix = "外部";
+                        prefix = t("createModal.title.prefix.external");
                       } else {
-                        prefix = "本地";
+                        prefix = t("createModal.title.prefix.local");
                       }
                     } else if (selectedScenario === "tunnel-forward") {
                       if (isEnableExtendTargets2) {
-                        prefix = "均衡";
+                        prefix = t("createModal.title.prefix.balanced");
                       } else if (formData.doubleTargetExternal) {
-                        prefix = "外部";
+                        prefix = t("createModal.title.prefix.external");
                       } else {
-                        prefix = "本地";
+                        prefix = t("createModal.title.prefix.local");
                       }
                     } else if (selectedScenario === "single-forward") {
                       if (isEnableExtendTargetsSingle) {
-                        prefix = "均衡";
+                        prefix = t("createModal.title.prefix.balanced");
                       } else if (formData.singleTargetExternal) {
-                        prefix = "外部";
+                        prefix = t("createModal.title.prefix.external");
                       } else {
-                        prefix = "本地";
+                        prefix = t("createModal.title.prefix.local");
                       }
                     }
-                    return prefix ? `${prefix}${scenarioConfigs[selectedScenario].title}` : scenarioConfigs[selectedScenario].title;
+                    const scenarioTitle = selectedScenario === "single-forward"
+                      ? t("createModal.title.singleForward")
+                      : selectedScenario === "tunnel-forward"
+                      ? t("createModal.title.tunnelForward")
+                      : t("createModal.title.natPenetration");
+                    return prefix ? `${prefix}${scenarioTitle}` : scenarioTitle;
                   })()}
                 </>
               )}
@@ -1773,7 +1766,7 @@ export default function ScenarioCreateModal({
             </ModalBody>
             <ModalFooter>
               <Button variant="light" onPress={onClose}>
-                取消
+                {t("createModal.actions.cancel")}
               </Button>
               <Button
                 color="primary"
@@ -1781,10 +1774,14 @@ export default function ScenarioCreateModal({
                 isLoading={submitting}
                 onPress={handleSubmit}
               >
-                创建
-                {selectedScenario
-                  ? scenarioConfigs[selectedScenario].title
-                  : ""}
+                {t("createModal.actions.create")}
+                {selectedScenario && (
+                  selectedScenario === "single-forward"
+                    ? t("createModal.title.singleForward")
+                    : selectedScenario === "tunnel-forward"
+                    ? t("createModal.title.tunnelForward")
+                    : t("createModal.title.natPenetration")
+                )}
               </Button>
             </ModalFooter>
           </>

@@ -25,6 +25,7 @@ import {
   faLink,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 import GroupInstancesModal from "./group-instances-modal";
 
@@ -50,6 +51,7 @@ export default function GroupManagementModal({
   onOpenChange,
   onSaved,
 }: GroupManagementModalProps) {
+  const { t } = useTranslation("tunnels");
   const [groups, setGroups] = useState<Group[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -73,15 +75,15 @@ export default function GroupManagementModal({
       setLoading(true);
       const response = await fetch(buildApiUrl("/api/groups"));
 
-      if (!response.ok) throw new Error("获取分组列表失败");
+      if (!response.ok) throw new Error(t("groupManagement.toast.fetchFailedDesc"));
       const data = await response.json();
 
       setGroups(data.groups || []);
     } catch (error) {
-      console.error("获取分组列表失败:", error);
+      console.error(t("groupManagement.toast.fetchFailedDesc") + ":", error);
       addToast({
-        title: "错误",
-        description: "获取分组列表失败",
+        title: t("groupManagement.toast.fetchFailed"),
+        description: t("groupManagement.toast.fetchFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -93,8 +95,8 @@ export default function GroupManagementModal({
   const handleCreateGroup = async () => {
     if (!newGroupName.trim()) {
       addToast({
-        title: "错误",
-        description: "请输入分组名称",
+        title: t("groupManagement.toast.nameRequired"),
+        description: t("groupManagement.toast.nameRequiredDesc"),
         color: "danger",
       });
 
@@ -114,12 +116,12 @@ export default function GroupManagementModal({
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.message || "创建分组失败");
+        throw new Error(error.message || t("groupManagement.toast.createFailedDesc"));
       }
 
       addToast({
-        title: "成功",
-        description: "分组创建成功",
+        title: t("groupManagement.toast.createSuccess"),
+        description: t("groupManagement.toast.createSuccessDesc"),
         color: "success",
       });
 
@@ -128,10 +130,10 @@ export default function GroupManagementModal({
       fetchGroups();
       onSaved(); // 通知父组件刷新分组列表
     } catch (error) {
-      console.error("创建分组失败:", error);
+      console.error(t("groupManagement.toast.createFailedDesc") + ":", error);
       addToast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "创建分组失败",
+        title: t("groupManagement.toast.createFailed"),
+        description: error instanceof Error ? error.message : t("groupManagement.toast.createFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -149,8 +151,8 @@ export default function GroupManagementModal({
   const handleSaveEdit = async () => {
     if (!editingGroup || !editName.trim()) {
       addToast({
-        title: "错误",
-        description: "请输入分组名称",
+        title: t("groupManagement.toast.nameRequired"),
+        description: t("groupManagement.toast.nameRequiredDesc"),
         color: "danger",
       });
 
@@ -173,12 +175,12 @@ export default function GroupManagementModal({
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.message || "更新分组失败");
+        throw new Error(error.message || t("groupManagement.toast.updateFailedDesc"));
       }
 
       addToast({
-        title: "成功",
-        description: "分组更新成功",
+        title: t("groupManagement.toast.updateSuccess"),
+        description: t("groupManagement.toast.updateSuccessDesc"),
         color: "success",
       });
 
@@ -187,10 +189,10 @@ export default function GroupManagementModal({
       fetchGroups();
       onSaved(); // 通知父组件刷新分组列表
     } catch (error) {
-      console.error("更新分组失败:", error);
+      console.error(t("groupManagement.toast.updateFailedDesc") + ":", error);
       addToast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "更新分组失败",
+        title: t("groupManagement.toast.updateFailed"),
+        description: error instanceof Error ? error.message : t("groupManagement.toast.updateFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -206,7 +208,7 @@ export default function GroupManagementModal({
 
   // 删除分组
   const handleDelete = async (group: Group) => {
-    if (!confirm(`确定要删除分组 "${group.name}" 吗？`)) {
+    if (!confirm(t("groupManagement.confirmDelete", { name: group.name }))) {
       return;
     }
 
@@ -219,22 +221,22 @@ export default function GroupManagementModal({
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.message || "删除分组失败");
+        throw new Error(error.message || t("groupManagement.toast.deleteFailedDesc"));
       }
 
       addToast({
-        title: "成功",
-        description: "分组删除成功",
+        title: t("groupManagement.toast.deleteSuccess"),
+        description: t("groupManagement.toast.deleteSuccessDesc"),
         color: "success",
       });
 
       fetchGroups();
       onSaved(); // 通知父组件刷新分组列表
     } catch (error) {
-      console.error("删除分组失败:", error);
+      console.error(t("groupManagement.toast.deleteFailedDesc") + ":", error);
       addToast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "删除分组失败",
+        title: t("groupManagement.toast.deleteFailed"),
+        description: error instanceof Error ? error.message : t("groupManagement.toast.deleteFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -278,7 +280,7 @@ export default function GroupManagementModal({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-primary" icon={faTag} />
-                分组管理
+                {t("groupManagement.title")}
               </div>
               <Button
                 color="primary"
@@ -287,7 +289,7 @@ export default function GroupManagementModal({
                 variant="flat"
                 onClick={() => setShowAddForm(true)}
               >
-                添加
+                {t("groupManagement.addButton")}
               </Button>
             </div>
           </DrawerHeader>
@@ -298,8 +300,8 @@ export default function GroupManagementModal({
                 <div className="flex items-center gap-4 mb-4">
                   <Input
                     className="flex-1"
-                    label="分组名称"
-                    placeholder="请输入分组名称"
+                    label={t("groupManagement.addForm.groupName")}
+                    placeholder={t("groupManagement.addForm.placeholder")}
                     value={newGroupName}
                     onValueChange={setNewGroupName}
                   />
@@ -311,7 +313,7 @@ export default function GroupManagementModal({
                     isLoading={saving}
                     onClick={handleCreateGroup}
                   >
-                    保存
+                    {t("groupManagement.addForm.save")}
                   </Button>
                   <Button
                     color="default"
@@ -321,7 +323,7 @@ export default function GroupManagementModal({
                       setNewGroupName("");
                     }}
                   >
-                    取消
+                    {t("groupManagement.addForm.cancel")}
                   </Button>
                 </div>
               </div>
@@ -333,10 +335,10 @@ export default function GroupManagementModal({
                 <Spinner size="lg" />
               </div>
             ) : (
-              <Table aria-label="分组列表" shadow="none">
+              <Table aria-label={t("groupManagement.title")} shadow="none">
                 <TableHeader>
-                  <TableColumn>分组名称</TableColumn>
-                  <TableColumn>操作</TableColumn>
+                  <TableColumn>{t("groupManagement.table.groupName")}</TableColumn>
+                  <TableColumn>{t("groupManagement.table.actions")}</TableColumn>
                 </TableHeader>
                 <TableBody>
                   {groups.map((group) => (
@@ -364,7 +366,7 @@ export default function GroupManagementModal({
                               size="sm"
                               onClick={handleSaveEdit}
                             >
-                              保存
+                              {t("groupManagement.addForm.save")}
                             </Button>
                             <Button
                               color="default"
@@ -372,12 +374,12 @@ export default function GroupManagementModal({
                               variant="light"
                               onClick={handleCancelEdit}
                             >
-                              取消
+                              {t("groupManagement.addForm.cancel")}
                             </Button>
                           </div>
                         ) : (
                           <div className="flex gap-2">
-                            <Tooltip content="绑定实例" size="sm">
+                            <Tooltip content={t("groupManagement.actions.bindInstances")} size="sm">
                               <Button
                                 isIconOnly
                                 color="secondary"
@@ -391,7 +393,7 @@ export default function GroupManagementModal({
                                 />
                               </Button>
                             </Tooltip>
-                            <Tooltip content="编辑分组" size="sm">
+                            <Tooltip content={t("groupManagement.actions.edit")} size="sm">
                               <Button
                                 isIconOnly
                                 color="primary"
@@ -405,7 +407,7 @@ export default function GroupManagementModal({
                                 />
                               </Button>
                             </Tooltip>
-                            <Tooltip content="删除分组" size="sm">
+                            <Tooltip content={t("groupManagement.actions.delete")} size="sm">
                               <Button
                                 isIconOnly
                                 color="danger"
@@ -439,10 +441,10 @@ export default function GroupManagementModal({
                   </div>
                   <div className="space-y-2">
                     <p className="text-default-500 text-sm font-medium">
-                      暂无分组
+                      {t("groupManagement.empty.title")}
                     </p>
                     <p className="text-default-400 text-xs">
-                      点击上方按钮创建第一个分组
+                      {t("groupManagement.empty.description")}
                     </p>
                   </div>
                 </div>
@@ -451,7 +453,7 @@ export default function GroupManagementModal({
           </DrawerBody>
           <DrawerFooter>
             <Button color="default" variant="light" onPress={handleClose}>
-              关闭
+              {t("groupManagement.close")}
             </Button>
           </DrawerFooter>
         </>

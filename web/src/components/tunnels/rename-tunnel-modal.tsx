@@ -11,6 +11,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ export default function RenameTunnelModal({
   currentName,
   onRenamed,
 }: RenameTunnelModalProps) {
+  const { t } = useTranslation("tunnels");
   const [newTunnelName, setNewTunnelName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -55,21 +57,21 @@ export default function RenameTunnelModal({
         }),
       });
 
-      if (!response.ok) throw new Error("修改名称失败");
+      if (!response.ok) throw new Error(t("renameModal.toast.updateFailed"));
 
       addToast({
-        title: "修改成功",
-        description: "实例名称已更新",
+        title: t("renameModal.toast.updateSuccess"),
+        description: t("renameModal.toast.updateSuccessDesc"),
         color: "success",
       });
 
       onRenamed?.(newTunnelName.trim());
       onOpenChange(false);
     } catch (error) {
-      console.error("修改名称失败:", error);
+      console.error(t("renameModal.toast.updateFailed") + ":", error);
       addToast({
-        title: "修改失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("renameModal.toast.updateFailedDesc"),
+        description: error instanceof Error ? error.message : t("toast.unknownError"),
         color: "danger",
       });
     } finally {
@@ -91,15 +93,15 @@ export default function RenameTunnelModal({
             <ModalHeader className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-primary" icon={faPen} />
-                修改实例名称
+                {t("renameModal.title")}
               </div>
             </ModalHeader>
             <ModalBody>
               <Input
                 autoFocus
                 isDisabled={isLoading}
-                label="实例名称"
-                placeholder="请输入新的实例名称"
+                label={t("renameModal.label")}
+                placeholder={t("renameModal.placeholder")}
                 value={newTunnelName}
                 variant="bordered"
                 onKeyDown={handleKeyDown}
@@ -113,7 +115,7 @@ export default function RenameTunnelModal({
                 variant="light"
                 onPress={onClose}
               >
-                取消
+                {t("renameModal.cancel")}
               </Button>
               <Button
                 color="primary"
@@ -124,7 +126,7 @@ export default function RenameTunnelModal({
                 isLoading={isLoading}
                 onPress={handleSubmit}
               >
-                确认修改
+                {t("renameModal.confirm")}
               </Button>
             </ModalFooter>
           </>

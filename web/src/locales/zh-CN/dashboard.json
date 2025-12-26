@@ -1,0 +1,77 @@
+{
+  "title": "👋 概览",
+  "currentTime": "当前时间",
+  "stats": {
+    "services": "服务数",
+    "instances": "实例数",
+    "endpoints": "主控数",
+    "running": "运行",
+    "stopped": "停止",
+    "error": "错误",
+    "offline": "离线"
+  },
+  "traffic": {
+    "overview": "流量概览",
+    "weeklyStats": "本周统计",
+    "todayTraffic": "今日流量",
+    "totalConsumption": "流量总耗",
+    "loading": "加载流量数据中...",
+    "noData": "暂无流量数据",
+    "noDataDescription": "当有实例运行时，流量趋势数据将在此显示",
+    "tcpIn": "TCP In",
+    "tcpOut": "TCP Out",
+    "udpIn": "UDP In",
+    "udpOut": "UDP Out"
+  },
+  "endpoints": {
+    "title": "主控列表",
+    "instance": "个实例",
+    "noEndpoints": "暂无主控",
+    "addFirst": "请先添加主控服务器"
+  },
+  "activity": {
+    "title": "最近活动",
+    "loading": "加载中...",
+    "filter": "筛选最近100条记录",
+    "noRecords": "暂无操作记录",
+    "clearTitle": "清空最近活动",
+    "confirmClear": "确认清空最近活动",
+    "confirmMessage": "此操作将删除所有最近活动记录，且不可撤销。确定要继续吗？",
+    "clearing": "清空中..."
+  },
+  "table": {
+    "time": "时间",
+    "action": "操作",
+    "instance": "实例",
+    "status": "状态"
+  },
+  "actions": {
+    "start": "启动",
+    "stop": "停止",
+    "create": "创建",
+    "delete": "删除",
+    "restart": "重启"
+  },
+  "errors": {
+    "fetchStatsError": "获取tunnel统计数据失败",
+    "fetchLogsError": "获取操作日志失败",
+    "fetchEndpointsError": "获取主控数据失败",
+    "fetchTrafficError": "获取流量趋势数据失败",
+    "fetchWeeklyStatsError": "获取每周统计数据失败",
+    "clearLogsError": "无法清空日志"
+  },
+  "quickActions": {
+    "title": "快捷操作",
+    "addEndpoint": "添加主控",
+    "createTunnel": "创建实例",
+    "scenarioCreate": "场景创建",
+    "debugTools": "调试工具",
+    "docs": "说明文档",
+    "settings": "系统设置",
+    "addEndpointSuccess": "添加成功",
+    "addEndpointSuccessDesc": "主控已成功添加",
+    "addEndpointFailed": "添加失败",
+    "addEndpointError": "添加主控失败",
+    "addEndpointErrorDesc": "添加主控时发生错误"
+  }
+}

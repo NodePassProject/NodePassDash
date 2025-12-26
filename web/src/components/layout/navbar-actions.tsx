@@ -8,6 +8,7 @@ import {
   ModalFooter,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
+import { useTranslation } from "react-i18next";
 
 import { useAuth } from "@/components/auth/auth-provider";
 
@@ -18,6 +19,7 @@ import { useAuth } from "@/components/auth/auth-provider";
 export const NavbarActions = () => {
   // 通过上下文获取登出函数
   const { logout } = useAuth();
+  const { t } = useTranslation("common");
 
   // 控制模态窗
   const { isOpen, onOpen, onOpenChange } = useDisclosure();
@@ -43,15 +45,15 @@ export const NavbarActions = () => {
           {(onClose) => (
             <>
               <ModalHeader className="flex flex-col gap-1">
-                确认退出
+                {t("logout.confirmTitle")}
               </ModalHeader>
-              <ModalBody>您确定要退出登录吗？</ModalBody>
+              <ModalBody>{t("logout.confirmMessage")}</ModalBody>
               <ModalFooter>
                 <Button variant="light" onClick={onClose}>
-                  取消
+                  {t("action.cancel")}
                 </Button>
                 <Button color="danger" onClick={handleConfirmLogout}>
-                  确认退出
+                  {t("logout.confirm")}
                 </Button>
               </ModalFooter>
             </>

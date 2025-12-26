@@ -15,6 +15,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faHammer, faPlus, faTrash } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -44,6 +45,7 @@ export default function BatchUrlCreateTunnelModal({
   onOpenChange,
   onSaved,
 }: BatchUrlCreateTunnelModalProps) {
+  const { t } = useTranslation("tunnels");
   const [endpoints, setEndpoints] = useState<Endpoint[]>([]);
   const [loading, setLoading] = useState(true);
   const [submitting, setSubmitting] = useState(false);
@@ -66,8 +68,8 @@ export default function BatchUrlCreateTunnelModal({
         setEndpoints(data);
       } catch (err) {
         addToast({
-          title: "获取主控失败",
-          description: "无法获取主控列表",
+          title: t("batchUrlCreate.toast.fetchEndpointsFailed"),
+          description: t("batchUrlCreate.toast.fetchEndpointsFailedDesc"),
           color: "danger",
         });
       } finally {
@@ -118,8 +120,8 @@ export default function BatchUrlCreateTunnelModal({
   const handleSubmit = async () => {
     if (tunnelRules.length === 0) {
       addToast({
-        title: "创建失败",
-        description: "请添加至少一条隧道",
+        title: t("batchUrlCreate.toast.createFailed"),
+        description: t("batchUrlCreate.toast.addTunnelRequired"),
         color: "warning",
       });
 
@@ -132,8 +134,8 @@ export default function BatchUrlCreateTunnelModal({
 
       if (!rule.endpointId) {
         addToast({
-          title: "创建失败",
-          description: `第 ${i + 1} 条规则请选择主控服务器`,
+          title: t("batchUrlCreate.toast.createFailed"),
+          description: t("batchUrlCreate.toast.selectEndpointRequired", { index: i + 1 }),
           color: "warning",
         });
 
@@ -141,8 +143,8 @@ export default function BatchUrlCreateTunnelModal({
       }
       if (!rule.name.trim()) {
         addToast({
-          title: "创建失败",
-          description: `第 ${i + 1} 条规则请输入实例名称`,
+          title: t("batchUrlCreate.toast.createFailed"),
+          description: t("batchUrlCreate.toast.nameRequired", { index: i + 1 }),
           color: "warning",
         });
 
@@ -150,8 +152,8 @@ export default function BatchUrlCreateTunnelModal({
       }
       if (!rule.url.trim()) {
         addToast({
-          title: "创建失败",
-          description: `第 ${i + 1} 条规则请输入实例URL`,
+          title: t("batchUrlCreate.toast.createFailed"),
+          description: t("batchUrlCreate.toast.urlRequired", { index: i + 1 }),
           color: "warning",
         });
 
@@ -180,14 +182,14 @@ export default function BatchUrlCreateTunnelModal({
       if (!response.ok) {
         const errorData = await response.json();
 
-        throw new Error(errorData.message || "创建实例失败");
+        throw new Error(errorData.message || t("batchUrlCreate.toast.createFailedDesc"));
       }
 
       const result = await response.json();
 
       addToast({
-        title: "创建成功",
-        description: result.message || `成功创建 ${tunnelRules.length} 个实例`,
+        title: t("batchUrlCreate.toast.createSuccess"),
+        description: result.message || t("batchUrlCreate.toast.createSuccessDesc", { count: tunnelRules.length }),
         color: "success",
       });
 
@@ -200,8 +202,8 @@ export default function BatchUrlCreateTunnelModal({
     } catch (error) {
       console.error("创建实例失败:", error);
       addToast({
-        title: "创建失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("batchUrlCreate.toast.createFailed"),
+        description: error instanceof Error ? error.message : t("batchUrlCreate.toast.unknownError"),
         color: "danger",
       });
     } finally {
@@ -223,7 +225,7 @@ export default function BatchUrlCreateTunnelModal({
             <ModalHeader className="flex items-center justify-start gap-2">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-warning" icon={faHammer} />
-                批量URL创建实例
+                {t("batchUrlCreate.title")}
               </div>
               <Button
                 color="primary"
@@ -235,7 +237,7 @@ export default function BatchUrlCreateTunnelModal({
                 variant="flat"
                 onClick={addNewRule}
               >
-                添加
+                {t("batchUrlCreate.addButton")}
               </Button>
             </ModalHeader>
             <ModalBody>
@@ -250,13 +252,13 @@ export default function BatchUrlCreateTunnelModal({
                     {tunnelRules.length === 0 ? (
                       <div className="text-center py-8 border-2 border-dashed border-default-200 rounded-lg">
                         <p className="text-default-500 text-sm">
-                          暂无隧道规则，点击右上角"添加规则"开始配置
+                          {t("batchUrlCreate.noRules")}
                         </p>
                       </div>
                     ) : (
                       <div className="max-h-96 overflow-y-auto border border-default-200 rounded-lg">
                         <Listbox
-                          aria-label="隧道规则列表"
+                          aria-label={t("batchUrlCreate.rulesList")}
                           className="p-0"
                           selectionMode="none"
                           variant="flat"
@@ -276,7 +278,7 @@ export default function BatchUrlCreateTunnelModal({
                                   <div className="col-span-2">
                                     <Select
                                       isRequired
-                                      placeholder="选择主控"
+                                      placeholder={t("batchUrlCreate.selectEndpoint")}
                                       selectedKeys={
                                         rule.endpointId ? [rule.endpointId] : []
                                       }
@@ -305,7 +307,7 @@ export default function BatchUrlCreateTunnelModal({
                                   {/* 隧道名称 */}
                                   <div className="col-span-2">
                                     <Input
-                                      placeholder="隧道名称"
+                                      placeholder={t("batchUrlCreate.tunnelName")}
                                       size="sm"
                                       value={rule.name}
                                       variant="bordered"
@@ -319,7 +321,7 @@ export default function BatchUrlCreateTunnelModal({
                                   <div className="col-span-4">
                                     <Input
                                       className="font-mono"
-                                      placeholder="<core>://<tunnel_addr>/<target_addr>"
+                                      placeholder={t("batchUrlCreate.tunnelUrl")}
                                       size="sm"
                                       value={rule.url}
                                       variant="bordered"
@@ -361,7 +363,7 @@ export default function BatchUrlCreateTunnelModal({
                   onClose();
                 }}
               >
-                取消
+                {t("batchUrlCreate.buttons.cancel")}
               </Button>
               <Button
                 color="primary"
@@ -372,7 +374,7 @@ export default function BatchUrlCreateTunnelModal({
                 }
                 onPress={handleSubmit}
               >
-                {submitting ? "创建中..." : `批量创建 (${tunnelRules.length})`}
+                {submitting ? t("batchUrlCreate.buttons.creating") : t("batchUrlCreate.buttons.create", { count: tunnelRules.length })}
               </Button>
             </ModalFooter>
           </>

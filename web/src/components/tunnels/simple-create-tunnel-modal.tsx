@@ -33,6 +33,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 import { motion, AnimatePresence } from "framer-motion";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 import RenameTunnelModal from "./rename-tunnel-modal";
@@ -95,6 +96,8 @@ export default function SimpleCreateTunnelModal({
   mode: modalMode = "create",
   instanceId: tunnelId,
 }: SimpleCreateTunnelModalProps) {
+  const { t } = useTranslation("tunnels");
+
   // 响应式标签位置配置
   const [isMobile, setIsMobile] = useState(false);
   const LABEL_PLACEMENT = isMobile ? ("outside" as const) : ("outside-left" as const);
@@ -180,7 +183,7 @@ export default function SimpleCreateTunnelModal({
           );
 
           if (!tunnelRes.ok) {
-            throw new Error("获取隧道详情失败");
+            throw new Error(t("simpleCreate.toast.getTunnelDetailsFailed"));
           }
 
           const tunnel = await tunnelRes.json();
@@ -250,9 +253,9 @@ export default function SimpleCreateTunnelModal({
           setFormData((prev) => ({ ...prev, apiEndpoint: String(endpointsData[0].id) }));
         }
       } catch (err) {
-        const errorMsg = err instanceof Error ? err.message : "加载数据失败";
+        const errorMsg = err instanceof Error ? err.message : t("simpleCreate.toast.loadDataFailed");
         addToast({
-          title: modalMode === "edit" ? "获取隧道详情失败" : "获取主控失败",
+          title: modalMode === "edit" ? t("simpleCreate.toast.getTunnelDetailsFailed") : t("simpleCreate.toast.getEndpointsFailed"),
           description: errorMsg,
           color: "danger",
         });
@@ -297,8 +300,8 @@ export default function SimpleCreateTunnelModal({
     // 基本校验
     if (!apiEndpoint || !tunnelName.trim() || !tunnelPort || !targetPort) {
       addToast({
-        title: "请填写必填字段",
-        description: "主控/名称/端口不能为空",
+        title: t("simpleCreate.validation.requiredFields"),
+        description: t("simpleCreate.validation.requiredFieldsDesc"),
         color: "warning",
       });
 
@@ -308,8 +311,8 @@ export default function SimpleCreateTunnelModal({
     // 客户端模式校验（由于有默认值，这里主要是确保值有效）
     if (type === "client" && ![1, 2].includes(Number(mode))) {
       addToast({
-        title: "请选择有效的客户端模式",
-        description: "客户端模式必须为模式1或模式2",
+        title: t("simpleCreate.validation.invalidClientMode"),
+        description: t("simpleCreate.validation.invalidClientModeDesc"),
         color: "warning",
       });
 
@@ -321,8 +324,8 @@ export default function SimpleCreateTunnelModal({
 
     if (tp < 0 || tp > 65535 || tp2 < 0 || tp2 > 65535) {
       addToast({
-        title: "端口不合法",
-        description: "端口需 0-65535",
+        title: t("simpleCreate.validation.invalidPort"),
+        description: t("simpleCreate.validation.invalidPortDesc"),
         color: "warning",
       });
 
@@ -336,8 +339,8 @@ export default function SimpleCreateTunnelModal({
       (!certPath.trim() || !keyPath.trim())
     ) {
       addToast({
-        title: "缺少证书",
-        description: "TLS 模式2 需填写证书与密钥路径",
+        title: t("simpleCreate.validation.missingCert"),
+        description: t("simpleCreate.validation.missingCertDesc"),
         color: "warning",
       });
 
@@ -402,10 +405,10 @@ export default function SimpleCreateTunnelModal({
 
       if (!res.ok || !data.success)
         throw new Error(
-          data.error || (modalMode === "edit" ? "更新失败" : "创建失败"),
+          data.error || (modalMode === "edit" ? t("simpleCreate.toast.updateFailed") : t("simpleCreate.toast.createFailed")),
         );
       addToast({
-        title: modalMode === "edit" ? "更新成功" : "创建成功",
+        title: modalMode === "edit" ? t("simpleCreate.toast.updateSuccess") : t("simpleCreate.toast.createSuccess"),
         description: data.message || "",
         color: "success",
       });
@@ -413,8 +416,8 @@ export default function SimpleCreateTunnelModal({
       onSaved?.();
     } catch (err) {
       addToast({
-        title: modalMode === "edit" ? "更新失败" : "创建失败",
-        description: err instanceof Error ? err.message : "未知错误",
+        title: modalMode === "edit" ? t("simpleCreate.toast.updateFailed") : t("simpleCreate.toast.createFailed"),
+        description: err instanceof Error ? err.message : t("simpleCreate.toast.unknownError"),
         color: "danger",
       });
     } finally {
@@ -483,20 +486,20 @@ export default function SimpleCreateTunnelModal({
             />
           </button>
         }
-        label="隧道密码"
-        placeholder="连接密码认证"
+        label={t("simpleCreate.fields.tunnelPassword")}
+        placeholder={t("simpleCreate.fields.tunnelPasswordPlaceholder")}
         type={isPasswordVisible ? "text" : "password"}
         value={formData.password}
         onValueChange={(v) => handleField("password", v)}
       />
     );
-  }, [selectedEndpoint, formData.password, isPasswordVisible, handleField]);
+  }, [selectedEndpoint, formData.password, isPasswordVisible, handleField, t]);
 
   // 缓存 Proxy Protocol 选择器渲染结果
   const proxyProtocolSelect = useMemo(() => {
     return (
       <Select
-        label="Proxy Protocol"
+        label={t("simpleCreate.fields.proxyProtocol")}
         selectedKeys={
           formData.proxyProtocol ? [formData.proxyProtocol] : ["false"]
         }
@@ -506,19 +509,19 @@ export default function SimpleCreateTunnelModal({
           handleField("proxyProtocol", selectedKey);
         }}
       >
-        <SelectItem key="true">开启</SelectItem>
-        <SelectItem key="false">关闭</SelectItem>
+        <SelectItem key="true">{t("simpleCreate.switch.on")}</SelectItem>
+        <SelectItem key="false">{t("simpleCreate.switch.off")}</SelectItem>
       </Select>
     );
-  }, [formData.proxyProtocol, handleField]);
+  }, [formData.proxyProtocol, handleField, t]);
 
   // 缓存权重字段渲染结果
   const sortInput = useMemo(() => {
     return (
       <Input
         readOnly={modalMode === "edit"}
-        label="权重(越大越前)"
-        placeholder="0"
+        label={t("simpleCreate.fields.weight")}
+        placeholder={t("simpleCreate.fields.weightPlaceholder")}
         type="number"
         value={formData.sorts}
         onValueChange={(v) => handleField("sorts", v ? String(v) : "")}
@@ -538,7 +541,7 @@ export default function SimpleCreateTunnelModal({
         }
       />
     );
-  }, [modalMode, formData.sorts, handleField]);
+  }, [modalMode, formData.sorts, handleField, t]);
 
   return (
     <Modal
@@ -552,7 +555,7 @@ export default function SimpleCreateTunnelModal({
           <>
             <ModalHeader className="flex items-center gap-2 pb-0">
               <FontAwesomeIcon className="text-warning" icon={faBolt} />
-              {modalMode === "edit" ? "编辑实例" : "创建实例"}
+              {modalMode === "edit" ? t("simpleCreate.modalTitle.edit") : t("simpleCreate.modalTitle.create")}
             </ModalHeader>
             <ModalBody className="space-y-1">
               {loading ? (
@@ -571,14 +574,14 @@ export default function SimpleCreateTunnelModal({
                       handleField("type", key as string)
                     }
                   >
-                    <Tab key="server" title="服务端" />
-                    <Tab key="client" title="客户端" />
+                    <Tab key="server" title={t("simpleCreate.tabs.server")} />
+                    <Tab key="client" title={t("simpleCreate.tabs.client")} />
                   </Tabs>
                   <div>
                     <div className="grid grid-cols-2 gap-2 ">
                       {/* 主控 */}
                       <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
-                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>选择主控</label>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>{t("simpleCreate.fields.selectEndpoint")}</label>
                         <Select
                           isDisabled={modalMode === "edit"}
                           selectedKeys={[formData.apiEndpoint]}
@@ -596,7 +599,7 @@ export default function SimpleCreateTunnelModal({
                       </div>
                       {/* 实例名称 */}
                       <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
-                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>实例名称</label>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>{t("simpleCreate.fields.instanceName")}</label>
                         {modalMode === "edit" ? (
                           <div
                             className="flex-1 px-3 py-2 rounded-lg bg-default-100 cursor-pointer hover:bg-default-200 transition-colors flex items-center justify-between"
@@ -606,7 +609,7 @@ export default function SimpleCreateTunnelModal({
                           </div>
                         ) : (
                           <Input
-                            placeholder="xxx-tunnel"
+                            placeholder={t("simpleCreate.fields.instanceNamePlaceholder")}
                             value={formData.tunnelName}
                             onValueChange={(v) => handleField("tunnelName", v)}
                           />
@@ -616,7 +619,7 @@ export default function SimpleCreateTunnelModal({
                       {/* 服务端模式选择 - col-2 布局，总高度 40px */}
                       <>
                         <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
-                          <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>运行模式</label>
+                          <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>{t("simpleCreate.fields.runMode")}</label>
                           <Tabs
                             className="text-xs"
                             size="sm"
@@ -627,13 +630,13 @@ export default function SimpleCreateTunnelModal({
                               handleField("mode", key as string)
                             }
                           >
-                            <Tab key="0" title="自动" disabled={isClientType} />
-                            <Tab key="1" title={isServerType ? "反向" : "单端"} />
-                            <Tab key="2" title={isServerType ? "正向" : "双端"} />
+                            <Tab key="0" title={t("simpleCreate.modes.auto")} disabled={isClientType} />
+                            <Tab key="1" title={isServerType ? t("simpleCreate.modes.reverse") : t("simpleCreate.modes.single")} />
+                            <Tab key="2" title={isServerType ? t("simpleCreate.modes.forward") : t("simpleCreate.modes.dual")} />
                           </Tabs>
                         </div>
                         <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
-                          <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>监听类型</label>
+                          <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>{t("simpleCreate.fields.listenType")}</label>
                           <Tabs
                             classNames={{
                               tabContent: "group-data-[selected=true]:text-white text-xs ",
@@ -646,26 +649,26 @@ export default function SimpleCreateTunnelModal({
                               handleField("listenType", key as string)
                             }
                           >
-                            <Tab key="ALL" title="ALL" />
-                            <Tab key="TCP" title="TCP" />
-                            <Tab key="UDP" title="UDP" />
+                            <Tab key="ALL" title={t("simpleCreate.listenTypes.all")} />
+                            <Tab key="TCP" title={t("simpleCreate.listenTypes.tcp")} />
+                            <Tab key="UDP" title={t("simpleCreate.listenTypes.udp")} />
                           </Tabs>
                         </div>
                       </>
 
                       {/* 隧道地址端口 */}
                       <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
-                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>隧道地址</label>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>{t("simpleCreate.fields.tunnelAddress")}</label>
                         <Input
-                          placeholder="0.0.0.0/[2001:db8::1]"
+                          placeholder={t("simpleCreate.fields.tunnelAddressPlaceholder")}
                           value={formData.tunnelAddress}
                           onValueChange={(v) => handleField("tunnelAddress", v)}
                         />
                       </div>
                       <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
-                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>隧道端口</label>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>{t("simpleCreate.fields.tunnelPort")}</label>
                         <NumberInput
-                          placeholder="0-65535"
+                          placeholder={t("simpleCreate.fields.tunnelPortPlaceholder")}
                           type="number"
                           minValue={0}
                           maxValue={65535}
@@ -677,7 +680,7 @@ export default function SimpleCreateTunnelModal({
                           }}
                           endContent={
                             isServerType ? (
-                              <Tooltip content="随机生成端口号">
+                              <Tooltip content={t("simpleCreate.tooltips.randomPort")}>
                                 <button
                                   type="button"
                                   className="focus:outline-none cursor-pointer"
@@ -699,13 +702,13 @@ export default function SimpleCreateTunnelModal({
 
                       {/* 目标地址端口 */}
                       <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
-                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>目标地址</label>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>{t("simpleCreate.fields.targetAddress")}</label>
                         <Input
-                          placeholder="0.0.0.0/[2001:db8::1]"
+                          placeholder={t("simpleCreate.fields.targetAddressPlaceholder")}
                           value={formData.targetAddress}
                           onValueChange={(v) => handleField("targetAddress", v)}
                           endContent={
-                            <Tooltip content={isEnableLoadBalancing ? "关闭负载均衡" : "增加目标地址"}>
+                            <Tooltip content={isEnableLoadBalancing ? t("simpleCreate.tooltips.disableLoadBalancing") : t("simpleCreate.tooltips.toggleLoadBalancing")}>
                               <button
                                 type="button"
                                 className="focus:outline-none cursor-pointer"
@@ -734,9 +737,9 @@ export default function SimpleCreateTunnelModal({
                         />
                       </div>
                       <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
-                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>目标端口</label>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>{t("simpleCreate.fields.targetPort")}</label>
                         <NumberInput
-                          placeholder="0-65535"
+                          placeholder={t("simpleCreate.fields.targetPortPlaceholder")}
                           type="number"
                           minValue={0}
                           maxValue={65535}
@@ -753,7 +756,7 @@ export default function SimpleCreateTunnelModal({
                       {isServerType && (
                         <>
                           <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
-                            <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>日志级别</label>
+                            <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>{t("simpleCreate.fields.logLevel")}</label>
                             <Select
                               selectedKeys={
                                 formData.logLevel ? [formData.logLevel] : ["inherit"]
@@ -769,19 +772,19 @@ export default function SimpleCreateTunnelModal({
                             >
                               <SelectItem key="inherit">
                                 {selectedEndpoint?.log
-                                  ? `继承 (${selectedEndpoint.log.toUpperCase()})`
-                                  : "继承主控"}
+                                  ? t("simpleCreate.logLevels.inheritWithValue", { level: selectedEndpoint.log.toUpperCase() })
+                                  : t("simpleCreate.logLevels.inheritMaster")}
                               </SelectItem>
-                              <SelectItem key="debug">Debug</SelectItem>
-                              <SelectItem key="info">Info</SelectItem>
-                              <SelectItem key="warn">Warn</SelectItem>
-                              <SelectItem key="error">Error</SelectItem>
-                              <SelectItem key="event">Event</SelectItem>
-                              <SelectItem key="none">None</SelectItem>
+                              <SelectItem key="debug">{t("simpleCreate.logLevels.debug")}</SelectItem>
+                              <SelectItem key="info">{t("simpleCreate.logLevels.info")}</SelectItem>
+                              <SelectItem key="warn">{t("simpleCreate.logLevels.warn")}</SelectItem>
+                              <SelectItem key="error">{t("simpleCreate.logLevels.error")}</SelectItem>
+                              <SelectItem key="event">{t("simpleCreate.logLevels.event")}</SelectItem>
+                              <SelectItem key="none">{t("simpleCreate.logLevels.none")}</SelectItem>
                             </Select>
                           </div>
                           <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
-                            <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>TLS 模式</label>
+                            <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>{t("simpleCreate.fields.tlsMode")}</label>
                             <Select
                               selectedKeys={
                                 formData.tlsMode ? [formData.tlsMode] : ["inherit"]
@@ -800,24 +803,24 @@ export default function SimpleCreateTunnelModal({
                                   const getTLSModeText = (mode: string) => {
                                     switch (mode) {
                                       case "0":
-                                        return "无 TLS";
+                                        return t("simpleCreate.tls.mode0");
                                       case "1":
-                                        return "自签名证书";
+                                        return t("simpleCreate.tls.mode1");
                                       case "2":
-                                        return "自定义证书";
+                                        return t("simpleCreate.tls.mode2");
                                       default:
                                         return mode;
                                     }
                                   };
                                   const masterTls = selectedEndpoint?.tls;
                                   return masterTls
-                                    ? `继承 (${getTLSModeText(masterTls)})`
-                                    : "继承主控";
+                                    ? t("simpleCreate.tls.inheritWithValue", { mode: getTLSModeText(masterTls) })
+                                    : t("simpleCreate.tls.inheritMaster");
                                 })()}
                               </SelectItem>
-                              <SelectItem key="0">模式0：无 TLS</SelectItem>
-                              <SelectItem key="1">模式1：自签名证书</SelectItem>
-                              <SelectItem key="2">模式2：自定义证书</SelectItem>
+                              <SelectItem key="0">{t("simpleCreate.tls.mode0Full")}</SelectItem>
+                              <SelectItem key="1">{t("simpleCreate.tls.mode1Full")}</SelectItem>
+                              <SelectItem key="2">{t("simpleCreate.tls.mode2Full")}</SelectItem>
                             </Select>
                           </div>
                         </>
@@ -826,17 +829,17 @@ export default function SimpleCreateTunnelModal({
                       {isShowServerTLS && (
                         <>
                           <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
-                            <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>证书路径</label>
+                            <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>{t("simpleCreate.fields.certPath")}</label>
                             <Input
                               value={formData.certPath}
-                              placeholder="/path/to/cert.pem"
+                              placeholder={t("simpleCreate.fields.certPathPlaceholder")}
                               onValueChange={(v) => handleField("certPath", v)}
                             />
                           </div>
                           <div className={`flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
-                            <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>密钥路径</label>
+                            <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>{t("simpleCreate.fields.keyPath")}</label>
                             <Input
-                              placeholder="/path/to/cert.key"
+                              placeholder={t("simpleCreate.fields.keyPathPlaceholder")}
                               value={formData.keyPath}
                               onValueChange={(v) => handleField("keyPath", v)}
                             />
@@ -847,7 +850,7 @@ export default function SimpleCreateTunnelModal({
                     {/* 日志级别 */}
                     {isClientType && (
                       <div className={`pt-2 flex ${LABEL_PLACEMENT === "outside" ? "flex-col" : "flex-row items-center gap-2"}`}>
-                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>日志级别</label>
+                        <label className={`text-sm pl-2 ${LABEL_PLACEMENT === "outside" ? "" : "whitespace-nowrap flex-shrink-0"}`}>{t("simpleCreate.fields.logLevel")}</label>
                         <Select
                           selectedKeys={
                             formData.logLevel ? [formData.logLevel] : ["inherit"]
@@ -863,15 +866,15 @@ export default function SimpleCreateTunnelModal({
                         >
                           <SelectItem key="inherit">
                             {selectedEndpoint?.log
-                              ? `继承 (${selectedEndpoint.log.toUpperCase()})`
-                              : "继承主控"}
+                              ? t("simpleCreate.logLevels.inheritWithValue", { level: selectedEndpoint.log.toUpperCase() })
+                              : t("simpleCreate.logLevels.inheritMaster")}
                           </SelectItem>
-                          <SelectItem key="debug">Debug</SelectItem>
-                          <SelectItem key="info">Info</SelectItem>
-                          <SelectItem key="warn">Warn</SelectItem>
-                          <SelectItem key="error">Error</SelectItem>
-                          <SelectItem key="event">Event</SelectItem>
-                          <SelectItem key="none">None</SelectItem>
+                          <SelectItem key="debug">{t("simpleCreate.logLevels.debug")}</SelectItem>
+                          <SelectItem key="info">{t("simpleCreate.logLevels.info")}</SelectItem>
+                          <SelectItem key="warn">{t("simpleCreate.logLevels.warn")}</SelectItem>
+                          <SelectItem key="error">{t("simpleCreate.logLevels.error")}</SelectItem>
+                          <SelectItem key="event">{t("simpleCreate.logLevels.event")}</SelectItem>
+                          <SelectItem key="none">{t("simpleCreate.logLevels.none")}</SelectItem>
                         </Select>
                       </div>
                     )}
@@ -887,7 +890,7 @@ export default function SimpleCreateTunnelModal({
                           setIsOptionalExpanded(!isOptionalExpanded)
                         }
                       >
-                        可选配置
+                        {t("simpleCreate.optional.title")}
                         <FontAwesomeIcon
                           className="text-xs"
                           icon={
@@ -918,8 +921,8 @@ export default function SimpleCreateTunnelModal({
                               <>
                                 {passwordInput}
                                 <Input
-                                  label="连接池最小容量"
-                                  placeholder="64(默认值)"
+                                  label={t("simpleCreate.fields.poolMinCapacity")}
+                                  placeholder={t("simpleCreate.fields.poolMinPlaceholder")}
                                   type="number"
                                   value={formData.min}
                                   onValueChange={(v) => handleField("min", v ? String(v) : "")}
@@ -930,8 +933,8 @@ export default function SimpleCreateTunnelModal({
                               <>
                                 {passwordInput}
                                 <Input
-                                  label="连接池最大容量"
-                                  placeholder="1024(默认值)"
+                                  label={t("simpleCreate.fields.poolMaxCapacity")}
+                                  placeholder={t("simpleCreate.fields.poolMaxPlaceholder")}
                                   type="number"
                                   value={formData.max}
                                   onValueChange={(v) => handleField("max", v ? String(v) : "")}
@@ -940,8 +943,8 @@ export default function SimpleCreateTunnelModal({
                             )}
 
                             <Input
-                              label="数据读取超时"
-                              placeholder="1h0m0s"
+                              label={t("simpleCreate.fields.readTimeout")}
+                              placeholder={t("simpleCreate.fields.readTimeoutPlaceholder")}
                               value={formData.read}
                               onValueChange={(v) => handleField("read", v)}
                             />
@@ -949,19 +952,19 @@ export default function SimpleCreateTunnelModal({
                               endContent={
                                 <div className="pointer-events-none flex items-center">
                                   <span className="text-default-400 text-small">
-                                    Mbps
+                                    {t("simpleCreate.fields.rateLimitUnit")}
                                   </span>
                                 </div>
                               }
-                              label="速率限制"
+                              label={t("simpleCreate.fields.rateLimit")}
                               type="number"
-                              placeholder="100"
+                              placeholder={t("simpleCreate.fields.rateLimitPlaceholder")}
                               value={formData.rate}
                               onValueChange={(v) => handleField("rate", v ? String(v) : "")}
                             />
                             <Input
-                              label="最大连接数限制"
-                              placeholder="100"
+                              label={t("simpleCreate.fields.maxConnections")}
+                              placeholder={t("simpleCreate.fields.maxConnectionsPlaceholder")}
                               type="number"
                               value={formData.slot}
                               onValueChange={(v) => handleField("slot", v ? String(v) : "")}
@@ -971,7 +974,7 @@ export default function SimpleCreateTunnelModal({
                             {formData.type == 'server' &&
                               <>
                                 <Select
-                                  label="启用 QUIC"
+                                  label={t("simpleCreate.fields.enableQuic")}
                                   selectedKeys={
                                     formData.quic ? [formData.quic] : ["false"]
                                   }
@@ -980,22 +983,22 @@ export default function SimpleCreateTunnelModal({
                                     handleField("quic", selectedKey);
                                   }}
                                 >
-                                  <SelectItem key="false">关闭</SelectItem>
-                                  <SelectItem key="true">启用</SelectItem>
+                                  <SelectItem key="false">{t("simpleCreate.switch.disable")}</SelectItem>
+                                  <SelectItem key="true">{t("simpleCreate.switch.enable")}</SelectItem>
                                 </Select>
                               </>
                             }
                             {sortInput}
                             <Input
-                              label="出站源IP"
-                              placeholder="auto"
+                              label={t("simpleCreate.fields.outboundIP")}
+                              placeholder={t("simpleCreate.fields.outboundIPPlaceholder")}
                               value={formData.dial}
                               onValueChange={(v) => handleField("dial", v ? String(v) : "")}
                             />
                             {isShowClientPoolMin &&
                               <Input
-                                label="DNS TTL"
-                                placeholder="5m"
+                                label={t("simpleCreate.fields.dnsTTL")}
+                                placeholder={t("simpleCreate.fields.dnsTTLPlaceholder")}
                                 value={formData.dns}
                                 onValueChange={(v) => handleField("dns", v ? String(v) : "")}
                               />}
@@ -1005,8 +1008,8 @@ export default function SimpleCreateTunnelModal({
                           <div className="grid grid-cols-1 gap-2">
                             {!isShowClientPoolMin &&
                               <Input
-                                label="DNS TTL"
-                                placeholder="5m"
+                                label={t("simpleCreate.fields.dnsTTL")}
+                                placeholder={t("simpleCreate.fields.dnsTTLPlaceholder")}
                                 value={formData.dns}
                                 onValueChange={(v) => handleField("dns", v ? String(v) : "")}
                               />}
@@ -1019,8 +1022,8 @@ export default function SimpleCreateTunnelModal({
                               <Textarea
                                 label={
                                   <div className="flex items-center gap-1">
-                                    <span>附加目标地址</span>
-                                    <Tooltip content="通过增加目标地址达到负载均衡的效果">
+                                    <span>{t("simpleCreate.fields.extendedTargets")}</span>
+                                    <Tooltip content={t("simpleCreate.fields.extendedTargetsTooltip")}>
                                       <FontAwesomeIcon
                                         className="w-4 h-4 text-default-400 cursor-help"
                                         icon={faCircleQuestion}
@@ -1028,7 +1031,7 @@ export default function SimpleCreateTunnelModal({
                                     </Tooltip>
                                   </div>
                                 }
-                                placeholder="192.168.1.1:80&#10;192.168.1.2:80"
+                                placeholder={t("simpleCreate.fields.extendedTargetsPlaceholder")}
                                 minRows={2}
                                 value={formData.extendTargetAddresses}
                                 onValueChange={(v) => handleField("extendTargetAddresses", v)}
@@ -1053,20 +1056,20 @@ export default function SimpleCreateTunnelModal({
                     size="sm"
                     onValueChange={setResetChecked}
                   >
-                    保存后重置流量统计
+                    {t("simpleCreate.optional.resetTraffic")}
                   </Checkbox>
                 )}
               </div>
               <div className="flex items-center gap-2">
                 <Button variant="light" onPress={onClose}>
-                  取消
+                  {t("simpleCreate.buttons.cancel")}
                 </Button>
                 <Button
                   color="primary"
                   isLoading={submitting}
                   onPress={handleSubmit}
                 >
-                  {modalMode === "edit" ? "更新" : "创建"}
+                  {modalMode === "edit" ? t("simpleCreate.buttons.update") : t("simpleCreate.buttons.create")}
                 </Button>
               </div>
             </ModalFooter>

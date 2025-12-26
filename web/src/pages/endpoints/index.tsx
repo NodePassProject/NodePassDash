@@ -31,6 +31,7 @@ import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
 import { Icon } from "@iconify/react";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 import {
   DndContext,
   closestCenter,
@@ -124,10 +125,12 @@ function SortableTableRow({
   id,
   result,
   index,
+  t,
 }: {
   id: string;
   result: any;
   index: number;
+  t: (key: string) => string;
 }) {
   const {
     attributes,
@@ -190,7 +193,7 @@ function SortableTableRow({
                   : "text-danger"
             }`}
           >
-            {result.canImport ? "✓ 可导入" : "✗ 不可导入"}
+            {result.canImport ? t("importModal.importSuccess") : t("importModal.importFail")}
           </span>
           <span className="text-xs text-default-400">{result.message}</span>
         </div>
@@ -200,6 +203,7 @@ function SortableTableRow({
 }
 
 export default function EndpointsPage() {
+  const { t } = useTranslation("endpoints");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -285,7 +289,7 @@ export default function EndpointsPage() {
 
   // 表格排序状态 - 默认不排序
   const [sortDescriptor, setSortDescriptor] = useState<{
-    column: string | React.Key;
+    column: string;
     direction: "ascending" | "descending";
   } | null>(null);
 
@@ -329,7 +333,7 @@ export default function EndpointsPage() {
       setLoading(true);
       const response = await fetch(buildApiUrl("/api/endpoints"));
 
-      if (!response.ok) throw new Error("获取主控列表失败");
+      if (!response.ok) throw new Error(t("toast.fetchFailedDesc"));
       const data = await response.json();
 
       if (isMountedRef.current) {
@@ -339,8 +343,8 @@ export default function EndpointsPage() {
       if (isMountedRef.current) {
         console.error("获取主控列表失败:", error);
         addToast({
-          title: "错误",
-          description: "获取主控列表失败",
+          title: t("toast.fetchFailed"),
+          description: t("toast.fetchFailedDesc"),
           color: "danger",
         });
       }
@@ -394,11 +398,11 @@ export default function EndpointsPage() {
         body: JSON.stringify(data),
       });
 
-      if (!response.ok) throw new Error("添加主控失败");
+      if (!response.ok) throw new Error(t("toast.addFailed"));
 
       addToast({
-        title: "主控添加成功",
-        description: `${data.name} 已成功添加到主控列表`,
+        title: t("toast.addSuccess"),
+        description: t("toast.addSuccessDesc", { name: data.name }),
         color: "success",
       });
 
@@ -406,8 +410,8 @@ export default function EndpointsPage() {
       fetchEndpoints();
     } catch (error) {
       addToast({
-        title: "添加主控失败",
-        description: "请检查输入信息后重试",
+        title: t("toast.addFailed"),
+        description: t("toast.addFailedDesc"),
         color: "danger",
       });
     }
@@ -432,22 +436,22 @@ export default function EndpointsPage() {
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.message || "删除失败");
+        throw new Error(error.message || t("toast.deleteFailed"));
       }
 
       // 刷新主控列表
       await fetchEndpoints();
 
       addToast({
-        title: "成功",
-        description: "删除成功",
+        title: t("toast.deleteSuccess"),
+        description: t("toast.deleteSuccessDesc"),
         color: "success",
       });
     } catch (error) {
       console.error("删除主控失败:", error);
       addToast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "删除失败",
+        title: t("toast.fetchFailed"),
+        description: error instanceof Error ? error.message : t("toast.deleteFailed"),
         color: "danger",
       });
     }
@@ -475,15 +479,15 @@ export default function EndpointsPage() {
       if (!response.ok) {
         const errorData = await response.json();
 
-        throw new Error(errorData.error || "重连失败");
+        throw new Error(errorData.error || t("toast.reconnectFailed"));
       }
 
       const result = await response.json();
 
       addToast({
-        title: "重连成功",
+        title: t("toast.reconnectSuccess"),
         description:
-          result.message || "主控重连请求已发送，正在尝试建立连接...",
+          result.message || t("toast.reconnectSuccessDesc"),
         color: "success",
       });
 
@@ -491,9 +495,9 @@ export default function EndpointsPage() {
       await fetchEndpoints();
     } catch (error) {
       addToast({
-        title: "重连失败",
+        title: t("toast.reconnectFailed"),
         description:
-          error instanceof Error ? error.message : "重连请求失败，请稍后重试",
+          error instanceof Error ? error.message : t("toast.reconnectFailedDesc"),
         color: "danger",
       });
     }
@@ -516,15 +520,15 @@ export default function EndpointsPage() {
       if (!response.ok) {
         const errorData = await response.json();
 
-        throw new Error(errorData.error || "连接失败");
+        throw new Error(errorData.error || t("toast.connectFailed"));
       }
 
       const result = await response.json();
 
       addToast({
-        title: "连接成功",
+        title: t("toast.connectSuccess"),
         description:
-          result.message || "主控连接请求已发送，正在尝试建立连接...",
+          result.message || t("toast.connectSuccessDesc"),
         color: "success",
       });
 
@@ -532,9 +536,9 @@ export default function EndpointsPage() {
       await fetchEndpoints();
     } catch (error) {
       addToast({
-        title: "连接失败",
+        title: t("toast.connectFailed"),
         description:
-          error instanceof Error ? error.message : "连接请求失败，请稍后重试",
+          error instanceof Error ? error.message : t("toast.connectFailedDesc"),
         color: "danger",
       });
     }
@@ -557,14 +561,14 @@ export default function EndpointsPage() {
       if (!response.ok) {
         const errorData = await response.json();
 
-        throw new Error(errorData.error || "断开连接失败");
+        throw new Error(errorData.error || t("toast.disconnectFailed"));
       }
 
       const result = await response.json();
 
       addToast({
-        title: "断开连接成功",
-        description: result.message || "主控连接已断开",
+        title: t("toast.disconnectSuccess"),
+        description: result.message || t("toast.disconnectSuccessDesc"),
         color: "success",
       });
 
@@ -572,9 +576,9 @@ export default function EndpointsPage() {
       await fetchEndpoints();
     } catch (error) {
       addToast({
-        title: "断开连接失败",
+        title: t("toast.disconnectFailed"),
         description:
-          error instanceof Error ? error.message : "断开连接失败，请稍后重试",
+          error instanceof Error ? error.message : t("toast.disconnectFailedDesc"),
         color: "danger",
       });
     }
@@ -584,7 +588,7 @@ export default function EndpointsPage() {
       const response = await fetch("/api/data/export");
 
       if (!response.ok) {
-        throw new Error("导出失败");
+        throw new Error(t("toast.exportFailed"));
       }
 
       const blob = await response.blob();
@@ -599,15 +603,15 @@ export default function EndpointsPage() {
       document.body.removeChild(a);
 
       addToast({
-        title: "导出成功",
-        description: "数据已成功导出到文件",
+        title: t("toast.exportSuccess"),
+        description: t("toast.exportSuccessDesc"),
         color: "success",
       });
     } catch (error) {
       console.error("导出数据失败:", error);
       addToast({
-        title: "导出失败",
-        description: "导出数据时发生错误",
+        title: t("toast.exportFailed"),
+        description: t("toast.exportFailedDesc"),
         color: "danger",
       });
     }
@@ -619,8 +623,8 @@ export default function EndpointsPage() {
     if (file) {
       if (file.type !== "application/json") {
         addToast({
-          title: "文件格式错误",
-          description: "请选择 JSON 格式的文件",
+          title: t("toast.fileFormatError"),
+          description: t("toast.fileFormatErrorDesc"),
           color: "danger",
         });
 
@@ -633,8 +637,8 @@ export default function EndpointsPage() {
   const handleImportData = async () => {
     if (!selectedFile) {
       addToast({
-        title: "请选择文件",
-        description: "请先选择要导入的端点配置文件",
+        title: t("toast.selectFile"),
+        description: t("toast.selectFileDesc"),
         color: "danger",
       });
 
@@ -661,7 +665,7 @@ export default function EndpointsPage() {
       const validateResult = await validateResponse.json();
 
       if (!validateResult.success) {
-        throw new Error(validateResult.error || "验证失败");
+        throw new Error(validateResult.error || t("toast.validateFailed"));
       }
 
       // 关闭导入窗口，显示验证结果窗口
@@ -673,9 +677,9 @@ export default function EndpointsPage() {
     } catch (error) {
       console.error("验证导入数据失败:", error);
       addToast({
-        title: "验证失败",
+        title: t("toast.validateFailed"),
         description:
-          error instanceof Error ? error.message : "验证导入数据时发生错误",
+          error instanceof Error ? error.message : t("toast.validateFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -713,8 +717,8 @@ export default function EndpointsPage() {
 
     if (importableEndpoints.length === 0) {
       addToast({
-        title: "没有可导入的主控",
-        description: "所有主控都不符合导入条件",
+        title: t("toast.noImportable"),
+        description: t("toast.noImportableDesc"),
         color: "warning",
       });
       return;
@@ -735,7 +739,7 @@ export default function EndpointsPage() {
 
       if (response.ok && result.success) {
         addToast({
-          title: "导入成功",
+          title: t("toast.importDataSuccess"),
           description: result.message,
           color: "success",
         });
@@ -752,14 +756,14 @@ export default function EndpointsPage() {
           window.location.reload();
         }, 1000);
       } else {
-        throw new Error(result.error || "导入失败");
+        throw new Error(result.error || t("toast.importDataFailed"));
       }
     } catch (error) {
       console.error("导入数据失败:", error);
       addToast({
-        title: "导入失败",
+        title: t("toast.importDataFailed"),
         description:
-          error instanceof Error ? error.message : "导入数据时发生错误",
+          error instanceof Error ? error.message : t("toast.importDataFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -787,7 +791,7 @@ export default function EndpointsPage() {
           <div className="space-y-4">
             <div>
               <label className="text-small text-default-500 mb-2 block">
-                URL 地址
+                {t("table.urlLabel")}
               </label>
               <Input
                 isReadOnly
@@ -798,7 +802,7 @@ export default function EndpointsPage() {
             </div>
             <div>
               <label className="text-small text-default-500 mb-2 block">
-                API 前缀
+                {t("table.apiPrefix")}
               </label>
               <Input
                 isReadOnly
@@ -809,7 +813,7 @@ export default function EndpointsPage() {
             </div>
             <div>
               <label className="text-small text-default-500 mb-2 block">
-                API Key
+                {t("table.apiKeyLabel")}
               </label>
               <Input
                 isReadOnly
@@ -823,7 +827,7 @@ export default function EndpointsPage() {
             {/* 连接状态和操作 */}
             <div className="space-y-3">
               <div className="flex items-center gap-3">
-                <span className="text-small text-default-500">连接状态:</span>
+                <span className="text-small text-default-500">{t("status.connection")}:</span>
                 <Chip
                   color={
                     realTimeData.status === "ONLINE"
@@ -852,19 +856,19 @@ export default function EndpointsPage() {
                   variant="flat"
                 >
                   {realTimeData.status === "ONLINE"
-                    ? "在线"
+                    ? t("status.online")
                     : realTimeData.status === "FAIL"
-                      ? "异常"
+                      ? t("status.fail")
                       : realTimeData.status === "DISCONNECT"
-                        ? "断开"
-                        : "离线"}
+                        ? t("status.disconnect")
+                        : t("status.offline")}
                 </Chip>
               </div>
 
               <div className="flex items-center gap-3">
-                <span className="text-small text-default-500">实例数量:</span>
+                <span className="text-small text-default-500">{t("status.instanceCount")}:</span>
                 <Chip color="primary" size="sm" variant="flat">
-                  {realTimeData.tunnelCount} 个
+                  {t("table.instancesCount", { count: realTimeData.tunnelCount })}
                 </Chip>
               </div>
 
@@ -872,7 +876,7 @@ export default function EndpointsPage() {
               {realTimeData.status === "FAIL" && (
                 <div className="p-2 bg-danger-50 rounded-lg">
                   <p className="text-tiny text-danger-600">
-                    主控连接失败，已停止重试
+                    {t("status.failMessage")}
                   </p>
                 </div>
               )}
@@ -880,7 +884,7 @@ export default function EndpointsPage() {
               {/* 显示断开状态提示 */}
               {realTimeData.status === "DISCONNECT" && (
                 <div className="p-2 bg-default-50 rounded-lg">
-                  <p className="text-tiny text-default-600">主控已断开连接</p>
+                  <p className="text-tiny text-default-600">{t("status.disconnectMessage")}</p>
                 </div>
               )}
             </div>
@@ -891,14 +895,14 @@ export default function EndpointsPage() {
                 startContent={<FontAwesomeIcon icon={faEdit} />}
                 variant="bordered"
               >
-                编辑
+                {t("actions.edit")}
               </Button>
               <Button
                 size="sm"
                 startContent={<FontAwesomeIcon icon={faEye} />}
                 variant="bordered"
               >
-                查看实例
+                {t("actions.view")}
               </Button>
               {realTimeData.canRetry && (
                 <Button
@@ -908,7 +912,7 @@ export default function EndpointsPage() {
                   variant="bordered"
                   onPress={() => handleReconnect(endpoint.id)}
                 >
-                  重新连接
+                  {t("actions.reconnect")}
                 </Button>
               )}
             </div>
@@ -934,8 +938,8 @@ export default function EndpointsPage() {
           />
           <p className="text-small text-default-500">
             {realTimeData.tunnelCount
-              ? `${realTimeData.tunnelCount} 个实例`
-              : "0 个实例"}
+              ? t("table.instances", { count: realTimeData.tunnelCount })
+              : t("table.noInstances")}
           </p>
         </div>
         <div className="flex items-center">
@@ -988,7 +992,7 @@ export default function EndpointsPage() {
                 color="primary"
                 startContent={<FontAwesomeIcon fixedWidth icon={faPlus} />}
               >
-                添加实例
+                {t("actions.addTunnel")}
               </DropdownItem>
               <DropdownItem
                 key="refresTunnel"
@@ -996,7 +1000,7 @@ export default function EndpointsPage() {
                 color="secondary"
                 startContent={<FontAwesomeIcon fixedWidth icon={faSync} />}
               >
-                同步实例
+                {t("actions.syncTunnel")}
               </DropdownItem>
               <DropdownItem
                 key="rename"
@@ -1004,7 +1008,7 @@ export default function EndpointsPage() {
                 color="warning"
                 startContent={<FontAwesomeIcon fixedWidth icon={faPen} />}
               >
-                重命名
+                {t("actions.rename")}
               </DropdownItem>
               <DropdownItem
                 key="editApiKey"
@@ -1012,7 +1016,7 @@ export default function EndpointsPage() {
                 color="warning"
                 startContent={<FontAwesomeIcon fixedWidth icon={faKey} />}
               >
-                修改密钥
+                {t("actions.editApiKey")}
               </DropdownItem>
               <DropdownItem
                 key="copy"
@@ -1020,7 +1024,7 @@ export default function EndpointsPage() {
                 color="success"
                 startContent={<FontAwesomeIcon fixedWidth icon={faCopy} />}
               >
-                复制配置
+                {t("actions.copyConfig")}
               </DropdownItem>
               <DropdownItem
                 key="toggle"
@@ -1041,7 +1045,7 @@ export default function EndpointsPage() {
                   />
                 }
               >
-                {realTimeData.status === "ONLINE" ? "断开连接" : "连接主控"}
+                {realTimeData.status === "ONLINE" ? t("actions.disconnect") : t("actions.connect")}
               </DropdownItem>
               <DropdownItem
                 key="delete"
@@ -1049,7 +1053,7 @@ export default function EndpointsPage() {
                 color="danger"
                 startContent={<FontAwesomeIcon fixedWidth icon={faTrash} />}
               >
-                删除主控
+                {t("actions.deleteMaster")}
               </DropdownItem>
             </DropdownMenu>
           </Dropdown>
@@ -1084,12 +1088,12 @@ export default function EndpointsPage() {
       if (!response.ok) {
         const errorData = await response.json();
 
-        throw new Error(errorData.error || "重命名失败");
+        throw new Error(errorData.error || t("toast.renameFailed"));
       }
 
       addToast({
-        title: "重命名成功",
-        description: `主控名称已更新为 "${newName}"`,
+        title: t("toast.renameSuccess"),
+        description: t("toast.renameSuccessDesc", { name: newName }),
         color: "success",
       });
 
@@ -1097,8 +1101,8 @@ export default function EndpointsPage() {
       fetchEndpoints();
     } catch (error) {
       addToast({
-        title: "重命名失败",
-        description: error instanceof Error ? error.message : "请稍后重试",
+        title: t("toast.renameFailed"),
+        description: error instanceof Error ? error.message : t("toast.renameFailedDesc"),
         color: "danger",
       });
     }
@@ -1130,12 +1134,12 @@ export default function EndpointsPage() {
       if (!response.ok) {
         const errorData = await response.json();
 
-        throw new Error(errorData.error || "修改密钥失败");
+        throw new Error(errorData.error || t("toast.editApiKeyFailed"));
       }
 
       addToast({
-        title: "密钥修改成功",
-        description: "API Key 已更新，正在重新连接...",
+        title: t("toast.editApiKeySuccess"),
+        description: t("toast.editApiKeySuccessDesc"),
         color: "success",
       });
 
@@ -1148,8 +1152,8 @@ export default function EndpointsPage() {
       }, 1000);
     } catch (error) {
       addToast({
-        title: "修改密钥失败",
-        description: error instanceof Error ? error.message : "请稍后重试",
+        title: t("toast.editApiKeyFailed"),
+        description: error instanceof Error ? error.message : t("toast.editApiKeyFailedDesc"),
         color: "danger",
       });
       throw error; // 重新抛出错误以便模态框处理
@@ -1183,8 +1187,8 @@ export default function EndpointsPage() {
     if (!selectedEndpoint) return;
     if (!tunnelUrl.trim()) {
       addToast({
-        title: "请输入 URL",
-        description: "隧道 URL 不能为空",
+        title: t("toast.addTunnelUrlRequired"),
+        description: t("toast.addTunnelUrlRequiredDesc"),
         color: "warning",
       });
 
@@ -1203,18 +1207,18 @@ export default function EndpointsPage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "创建隧道失败");
+        throw new Error(data.error || t("toast.createTunnelFailed"));
       }
       addToast({
-        title: "创建成功",
-        description: data.message || "隧道已创建",
+        title: t("toast.createTunnelSuccess"),
+        description: data.message || t("toast.createTunnelSuccessDesc"),
         color: "success",
       });
       onAddTunnelOpenChange();
     } catch (err) {
       addToast({
-        title: "创建失败",
-        description: err instanceof Error ? err.message : "无法创建隧道",
+        title: t("toast.createTunnelFailed"),
+        description: err instanceof Error ? err.message : t("toast.createTunnelFailedDesc"),
         color: "danger",
       });
     }
@@ -1224,7 +1228,7 @@ export default function EndpointsPage() {
   function handleCopyConfig(endpoint: FormattedEndpoint) {
     const cfg = `API URL: ${endpoint.url}${endpoint.apiPath}\nAPI KEY: ${endpoint.apiKey}`;
 
-    copyToClipboard(cfg, "配置已复制到剪贴板", showManualCopyModal);
+    copyToClipboard(cfg, t("toast.copySuccess"), showManualCopyModal);
   }
 
   // 手动复制模态框状态
@@ -1244,7 +1248,7 @@ export default function EndpointsPage() {
   function handleCopyInstallScript() {
     const cmd = "bash <(wget -qO- https://run.nodepass.eu/np.sh)";
 
-    copyToClipboard(cmd, "安装脚本已复制到剪贴板", showManualCopyModal);
+    copyToClipboard(cmd, t("toast.copyInstallSuccess"), showManualCopyModal);
   }
 
   // 刷新指定端点的隧道信息
@@ -1258,18 +1262,18 @@ export default function EndpointsPage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "刷新失败");
+        throw new Error(data.error || t("toast.refreshFailed"));
       }
       addToast({
-        title: "刷新成功",
-        description: data.message || "隧道信息已刷新",
+        title: t("toast.refreshSuccess"),
+        description: data.message || t("toast.refreshSuccessDesc"),
         color: "success",
       });
       await fetchEndpoints();
     } catch (err) {
       addToast({
-        title: "刷新失败",
-        description: err instanceof Error ? err.message : "刷新请求失败",
+        title: t("toast.refreshFailed"),
+        description: err instanceof Error ? err.message : t("toast.refreshFailedDesc"),
         color: "danger",
       });
     }
@@ -1279,7 +1283,7 @@ export default function EndpointsPage() {
     <div className="max-w-7xl mx-auto space-y-6">
       <div className="flex flex-col md:flex-row md:justify-between items-start md:items-center gap-2 md:gap-0">
         <div className="flex items-center gap-2 md:gap-4">
-          <h1 className="text-2xl font-bold">主控管理</h1>
+          <h1 className="text-2xl font-bold">{t("page.title")}</h1>
         </div>
         <div className="flex flex-wrap items-center gap-2 md:gap-4 mt-2 md:mt-0">
           <Button
@@ -1287,21 +1291,21 @@ export default function EndpointsPage() {
             variant="flat"
             onPress={handleExportData}
           >
-            导出数据
+            {t("actions.export")}
           </Button>
           <Button
             startContent={<FontAwesomeIcon icon={faFileImport} />}
             variant="flat"
             onPress={onImportOpen}
           >
-            导入数据
+            {t("actions.import")}
           </Button>
           <Button
             startContent={<FontAwesomeIcon icon={faCopy} />}
             variant="flat"
             onPress={handleCopyInstallScript}
           >
-            安装脚本
+            {t("actions.copyInstall")}
           </Button>
           <Button
             startContent={<FontAwesomeIcon icon={faRotateRight} />}
@@ -1310,10 +1314,10 @@ export default function EndpointsPage() {
               await fetchEndpoints();
             }}
           >
-            刷新
+            {t("actions.refresh")}
           </Button>
           <Tabs
-            aria-label="布局切换"
+            aria-label={t("table.layoutSwitch")}
             className="w-auto"
             selectedKey={viewMode}
             onSelectionChange={(key) => setViewMode(key as "card" | "table")}
@@ -1321,7 +1325,7 @@ export default function EndpointsPage() {
             <Tab
               key="card"
               title={
-                <Tooltip content="卡片视图">
+                <Tooltip content={t("page.cardView")}>
                   <div>
                     <FontAwesomeIcon icon={faGrip} />
                   </div>
@@ -1331,7 +1335,7 @@ export default function EndpointsPage() {
             <Tab
               key="table"
               title={
-                <Tooltip content="表格视图">
+                <Tooltip content={t("page.tableView")}>
                   <div>
                     <FontAwesomeIcon icon={faTable} />
                   </div>
@@ -1415,12 +1419,12 @@ export default function EndpointsPage() {
                     variant="flat"
                   >
                     {realTimeData.status === "ONLINE"
-                      ? "在线"
+                      ? t("status.online")
                       : realTimeData.status === "FAIL"
-                        ? "异常"
+                        ? t("status.fail")
                         : realTimeData.status === "DISCONNECT"
-                          ? "断开"
-                          : "离线"}
+                          ? t("status.disconnect")
+                          : t("status.offline")}
                   </Chip>
                 </div>
 
@@ -1512,10 +1516,10 @@ export default function EndpointsPage() {
                 </div>
                 <div className="text-center">
                   <h3 className="text-lg font-semibold text-default-700 mb-1">
-                    添加 API 主控
+                    {t("actions.addApi")}
                   </h3>
                   <p className="text-small text-default-500">
-                    点击添加新的主控配置
+                    {t("actions.addDesc")}
                   </p>
                 </div>
               </div>
@@ -1525,34 +1529,34 @@ export default function EndpointsPage() {
       ) : (
         /* 表格布局 */
         <Table
-          aria-label="API 主控列表"
+          aria-label={t("table.tableTitle")}
           className="mt-4"
           sortDescriptor={sortDescriptor ?? undefined}
           onSortChange={(descriptor) => {
             if (descriptor.column) {
               setSortDescriptor({
-                column: descriptor.column,
+                column: String(descriptor.column),
                 direction: descriptor.direction ?? "ascending",
               });
             }
           }}
         >
           <TableHeader>
-            <TableColumn key="id">ID</TableColumn>
+            <TableColumn key="id">{t("table.columns.id")}</TableColumn>
             <TableColumn allowsSorting key="name" className="min-w-[140px]">
-              名称
+              {t("table.columns.name")}
             </TableColumn>
             <TableColumn key="version" className="w-24">
-              版本
+              {t("table.columns.version")}
             </TableColumn>
             <TableColumn allowsSorting key="url" className="min-w-[200px]">
-              URL
+              {t("table.columns.url")}
             </TableColumn>
             <TableColumn key="apikey" className="min-w-[220px]">
-              API Key
+              {t("table.columns.apiKey")}
             </TableColumn>
             <TableColumn key="actions" className="w-52">
-              操作
+              {t("table.columns.actions")}
             </TableColumn>
           </TableHeader>
           <TableBody>
@@ -1560,7 +1564,7 @@ export default function EndpointsPage() {
               <>
                 <TableRow>
                   <TableCell className="text-center py-4" colSpan={6}>
-                    暂无主控数据
+                    {t("page.noData")}
                   </TableCell>
                 </TableRow>
                 <TableRow key="add-row-empty">
@@ -1571,7 +1575,7 @@ export default function EndpointsPage() {
                       onPress={onAddOpen}
                     >
                       <FontAwesomeIcon className="mr-2" icon={faPlus} />
-                      添加 API 主控
+                      {t("actions.addApi")}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -1589,12 +1593,12 @@ export default function EndpointsPage() {
                           <Tooltip
                             content={
                               realTimeData.status === "ONLINE"
-                                ? "在线"
+                                ? t("status.online")
                                 : realTimeData.status === "FAIL"
-                                  ? "异常"
+                                  ? t("status.fail")
                                   : realTimeData.status === "DISCONNECT"
-                                    ? "断开"
-                                    : "离线"
+                                    ? t("status.disconnect")
+                                    : t("status.offline")
                             }
                             size="sm"
                           >
@@ -1614,9 +1618,9 @@ export default function EndpointsPage() {
                             {ep.name}
                           </span>
                           <span className="text-default-400 text-xs flex-shrink-0">
-                            [{realTimeData.tunnelCount}实例]
+                            {t("table.instancesBracket", { count: realTimeData.tunnelCount })}
                           </span>
-                          <Tooltip content="修改名称" size="sm">
+                          <Tooltip content={t("table.editName")} size="sm">
                             <FontAwesomeIcon
                               className="text-[10px] text-default-400 hover:text-default-500 cursor-pointer flex-shrink-0"
                               icon={faPen}
@@ -1648,7 +1652,7 @@ export default function EndpointsPage() {
                       <TableCell className="w-52">
                         <div className="flex items-center gap-1 justify-start">
                           {/* 查看详情 */}
-                          <Tooltip content="查看详情">
+                          <Tooltip content={t("actions.viewDetails")}>
                             <Button
                               isIconOnly
                               color="primary"
@@ -1662,13 +1666,13 @@ export default function EndpointsPage() {
                             </Button>
                           </Tooltip>
                           {/* 添加实例 */}
-                          {/* <Tooltip content="添加实例">
+                          {/* <Tooltip content={t("actions.addTunnel")}>
                           <Button isIconOnly size="sm" variant="light" color="primary" onPress={()=>handleAddTunnel(ep)}>
                             <FontAwesomeIcon icon={faPlus} />
                           </Button>
                         </Tooltip> */}
                           {/* 刷新实例 */}
-                          <Tooltip content="同步实例">
+                          <Tooltip content={t("actions.syncTunnel")}>
                             <Button
                               isIconOnly
                               color="secondary"
@@ -1680,7 +1684,7 @@ export default function EndpointsPage() {
                             </Button>
                           </Tooltip>
                           {/* 修改密钥 */}
-                          <Tooltip content="修改密钥">
+                          <Tooltip content={t("actions.editApiKey")}>
                             <Button
                               isIconOnly
                               color="warning"
@@ -1692,7 +1696,7 @@ export default function EndpointsPage() {
                             </Button>
                           </Tooltip>
                           {/* 复制配置 */}
-                          <Tooltip content="复制配置">
+                          <Tooltip content={t("actions.copyConfig")}>
                             <Button
                               isIconOnly
                               color="success"
@@ -1707,8 +1711,8 @@ export default function EndpointsPage() {
                           <Tooltip
                             content={
                               realTimeData.status === "ONLINE"
-                                ? "断开连接"
-                                : "连接主控"
+                                ? t("actions.disconnect")
+                                : t("actions.connect")
                             }
                           >
                             <Button
@@ -1736,7 +1740,7 @@ export default function EndpointsPage() {
                             </Button>
                           </Tooltip>
                           {/* 删除 */}
-                          <Tooltip content="删除主控">
+                          <Tooltip content={t("actions.deleteMaster")}>
                             <Button
                               isIconOnly
                               color="danger"
@@ -1761,7 +1765,7 @@ export default function EndpointsPage() {
                       onPress={onAddOpen}
                     >
                       <FontAwesomeIcon className="mr-2" icon={faPlus} />
-                      添加 API 主控
+                      {t("actions.addApi")}
                     </Button>
                   </TableCell>
                 </TableRow>
@@ -1807,16 +1811,16 @@ export default function EndpointsPage() {
         <ModalContent>
           {(onClose) => (
             <>
-              <ModalHeader>添加实例</ModalHeader>
+              <ModalHeader>{t("addTunnelModal.title")}</ModalHeader>
               <ModalBody>
                 <div className="space-y-3">
                   <Input
-                    placeholder="实例名称"
+                    placeholder={t("addTunnelModal.name")}
                     value={tunnelName}
                     onValueChange={setTunnelName}
                   />
                   <Input
-                    placeholder="<core>://<tunnel_addr>/<target_addr>"
+                    placeholder={t("addTunnelModal.urlPlaceholder")}
                     value={tunnelUrl}
                     onValueChange={setTunnelUrl}
                   />
@@ -1824,10 +1828,10 @@ export default function EndpointsPage() {
               </ModalBody>
               <ModalFooter>
                 <Button variant="light" onPress={onClose}>
-                  取消
+                  {t("addTunnelModal.cancel")}
                 </Button>
                 <Button color="primary" onPress={handleSubmitAddTunnel}>
-                  确定
+                  {t("addTunnelModal.confirm")}
                 </Button>
               </ModalFooter>
             </>
@@ -1847,28 +1851,28 @@ export default function EndpointsPage() {
               <ModalHeader className="flex flex-col gap-1">
                 <div className="flex items-center gap-2">
                   <FontAwesomeIcon className="text-danger" icon={faTrash} />
-                  确认删除主控
+                  {t("deleteModal.title")}
                 </div>
               </ModalHeader>
               <ModalBody>
                 {deleteModalEndpoint && (
                   <>
                     <p className="text-default-600">
-                      您确定要删除主控{" "}
+                      {t("deleteModal.message")}{" "}
                       <span className="font-semibold text-foreground">
                         "{deleteModalEndpoint.name}"
                       </span>{" "}
-                      吗？
+                      {t("deleteModal.messageEnd")}
                     </p>
                     <p className="text-small text-warning">
-                      ⚠️ 此操作不可撤销，主控的所有配置都将被永久删除。
+                      {t("deleteModal.warning")}
                     </p>
                   </>
                 )}
               </ModalBody>
               <ModalFooter>
                 <Button color="default" variant="light" onPress={onClose}>
-                  取消
+                  {t("deleteModal.cancel")}
                 </Button>
                 <Button
                   color="danger"
@@ -1878,7 +1882,7 @@ export default function EndpointsPage() {
                     onClose();
                   }}
                 >
-                  确认删除
+                  {t("deleteModal.confirm")}
                 </Button>
               </ModalFooter>
             </>
@@ -1914,7 +1918,7 @@ export default function EndpointsPage() {
                     icon="solar:import-bold"
                     width={24}
                   />
-                  导入数据
+                  {t("importModal.title")}
                 </div>
               </ModalHeader>
               <ModalBody>
@@ -1932,10 +1936,10 @@ export default function EndpointsPage() {
                       variant="light"
                       onPress={() => fileInputRef.current?.click()}
                     >
-                      选择文件
+                      {t("importModal.selectFile")}
                     </Button>
                     <span className="text-small text-default-500">
-                      {selectedFile ? selectedFile.name : "未选择文件"}
+                      {selectedFile ? selectedFile.name : t("importModal.noFile")}
                     </span>
                     <input
                       ref={fileInputRef}
@@ -1947,9 +1951,9 @@ export default function EndpointsPage() {
                   </div>
 
                   <div className="text-small text-default-500">
-                    <p>• 请选择之前导出的 JSON 格式数据文件</p>
-                    <p>• 导入过程中请勿关闭窗口</p>
-                    <p>• 重复的数据将被自动跳过</p>
+                    <p>{t("importModal.helpText1")}</p>
+                    <p>{t("importModal.helpText2")}</p>
+                    <p>{t("importModal.helpText3")}</p>
                   </div>
                 </div>
               </ModalBody>
@@ -1960,7 +1964,7 @@ export default function EndpointsPage() {
                   variant="light"
                   onPress={onClose}
                 >
-                  取消
+                  {t("importModal.cancel")}
                 </Button>
                 <Button
                   color="primary"
@@ -1972,7 +1976,7 @@ export default function EndpointsPage() {
                   }
                   onPress={handleImportData}
                 >
-                  {isSubmitting ? "检查中..." : "开始导入"}
+                  {isSubmitting ? t("importModal.checking") : t("importModal.start")}
                 </Button>
               </ModalFooter>
             </>
@@ -2002,13 +2006,13 @@ export default function EndpointsPage() {
                     icon="solar:check-circle-bold"
                     width={24}
                   />
-                  导入验证结果
+                  {t("importModal.validateTitle")}
                 </div>
               </ModalHeader>
               <ModalBody>
                 <div className="flex flex-col gap-4">
                   <p className="text-small text-default-500">
-                    共检测到 {importValidateResults.length} 个主控，请查看验证结果（可拖动排序）：
+                    {t("importModal.validateDesc", { count: importValidateResults.length })}
                   </p>
                   <div className="max-h-[400px] overflow-y-auto">
                     <DndContext
@@ -2020,16 +2024,16 @@ export default function EndpointsPage() {
                         <thead className="sticky top-0 bg-default-100 z-10">
                           <tr>
                             <th className="text-left px-3 py-2 text-small font-semibold">
-                              名称
+                              {t("importModal.validateColumns.name")}
                             </th>
                             <th className="text-left px-3 py-2 text-small font-semibold">
-                              URL
+                              {t("importModal.validateColumns.url")}
                             </th>
                             <th className="text-left px-3 py-2 text-small font-semibold">
-                              版本
+                              {t("importModal.validateColumns.version")}
                             </th>
                             <th className="text-left px-3 py-2 text-small font-semibold">
-                              状态
+                              {t("importModal.validateColumns.status")}
                             </th>
                           </tr>
                         </thead>
@@ -2044,6 +2048,7 @@ export default function EndpointsPage() {
                                 id={`item-${index}`}
                                 result={result}
                                 index={index}
+                                t={t}
                               />
                             ))}
                           </SortableContext>
@@ -2053,7 +2058,7 @@ export default function EndpointsPage() {
                   </div>
                   <div className="rounded-lg bg-default-100 p-3">
                     <p className="text-xs text-default-600">
-                      注意：只有版本 ≥ 1.10.0 的主控才会被导入，低版本或连接失败的主控将被自动跳过。拖动行可调整导入顺序。
+                      {t("importModal.validateNote")}
                     </p>
                   </div>
                 </div>
@@ -2070,7 +2075,7 @@ export default function EndpointsPage() {
                     setImportFileData(null);
                   }}
                 >
-                  取消
+                  {t("importModal.cancel")}
                 </Button>
                 <Button
                   color="primary"
@@ -2082,7 +2087,7 @@ export default function EndpointsPage() {
                   }
                   onPress={handleConfirmImport}
                 >
-                  {isSubmitting ? "导入中..." : "确认导入"}
+                  {isSubmitting ? t("importModal.importing") : t("importModal.confirmImport")}
                 </Button>
               </ModalFooter>
             </>

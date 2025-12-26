@@ -12,6 +12,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faKey, faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 interface EditApiKeyModalProps {
   isOpen: boolean;
@@ -28,6 +29,7 @@ export default function EditApiKeyModal({
   endpointName,
   onSave,
 }: EditApiKeyModalProps) {
+  const { t } = useTranslation("endpoints");
   const [newApiKey, setNewApiKey] = useState("");
   const [isVisible, setIsVisible] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -70,17 +72,17 @@ export default function EditApiKeyModal({
             <ModalHeader className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-warning" icon={faKey} />
-                修改 API 密钥
+                {t("editApiKeyModal.title")}
               </div>
               <p className="text-small text-default-500 font-normal">
-                主控: {endpointName}
+                {t("editApiKeyModal.endpoint")}: {endpointName}
               </p>
             </ModalHeader>
             <ModalBody>
               <div className="space-y-4">
                 <div>
                   <label className="text-small text-default-600 mb-2 block">
-                    当前 API Key
+                    {t("editApiKeyModal.currentKey")}
                   </label>
                   <Input
                     isReadOnly
@@ -93,7 +95,7 @@ export default function EditApiKeyModal({
                 </div>
                 <div>
                   <label className="text-small text-default-600 mb-2 block">
-                    新 API Key <span className="text-danger">*</span>
+                    {t("editApiKeyModal.newKey")} <span className="text-danger">*</span>
                   </label>
                   <Input
                     className="font-mono"
@@ -109,7 +111,7 @@ export default function EditApiKeyModal({
                         />
                       </button>
                     }
-                    placeholder="请输入新的 API Key"
+                    placeholder={t("editApiKeyModal.newKeyPlaceholder")}
                     size="sm"
                     type={isVisible ? "text" : "password"}
                     value={newApiKey}
@@ -119,7 +121,7 @@ export default function EditApiKeyModal({
                 </div>
                 <div className="p-3 bg-warning-50 rounded-lg">
                   <p className="text-tiny text-warning-600">
-                    ⚠️ 修改密钥后将自动断开并重新连接到主控
+                    {t("editApiKeyModal.warning")}
                   </p>
                 </div>
               </div>
@@ -131,7 +133,7 @@ export default function EditApiKeyModal({
                 variant="light"
                 onPress={onClose}
               >
-                取消
+                {t("editApiKeyModal.cancel")}
               </Button>
               <Button
                 color="warning"
@@ -142,7 +144,7 @@ export default function EditApiKeyModal({
                 }
                 onPress={handleSubmit}
               >
-                {isLoading ? "保存中..." : "保存"}
+                {isLoading ? t("editApiKeyModal.saving") : t("editApiKeyModal.save")}
               </Button>
             </ModalFooter>
           </>

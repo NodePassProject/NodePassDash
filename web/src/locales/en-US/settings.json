@@ -1,0 +1,314 @@
+{
+  "drawer": {
+    "title": "Personalization Settings",
+    "description": "Customize your experience",
+    "theme": {
+      "title": "Theme Settings",
+      "description": "Choose your preferred interface theme",
+      "label": "Theme Mode",
+      "light": "Light Theme",
+      "dark": "Dark Theme",
+      "system": "Follow System"
+    },
+    "language": {
+      "title": "Language Settings",
+      "description": "Select your interface language",
+      "label": "Interface Language"
+    },
+    "privacy": {
+      "title": "Privacy Mode",
+      "description": "Protect your privacy and data security",
+      "label": "Enhanced Privacy Protection",
+      "details": "Hide sensitive information, limit data collection, protect user privacy"
+    },
+    "experimental": {
+      "title": "Experimental Features",
+      "description": "Try out new features in testing",
+      "label": "Enable Experimental Features",
+      "details": "Features may be unstable, use with caution in production"
+    },
+    "updates": {
+      "title": "Auto Check for Updates",
+      "description": "Manage software update check strategy",
+      "enable": "Enable Auto Check Updates",
+      "enableDesc": "Periodically check for new versions",
+      "frequency": "Check Frequency",
+      "daily": "Daily",
+      "weekly": "Weekly",
+      "monthly": "Monthly",
+      "never": "Never",
+      "time": "Check Time",
+      "midnight": "Midnight (00:00)",
+      "morning": "Morning (06:00)",
+      "noon": "Noon (12:00)",
+      "evening": "Evening (18:00)",
+      "night": "Night (22:00)",
+      "notifications": "Update Notifications",
+      "silentDownload": "Silent Download"
+    },
+    "save": "Save Settings",
+    "autoSave": "Settings will be automatically saved to local storage"
+  },
+  "system": {
+    "title": "System Settings",
+    "description": "Customize system appearance and behavior preferences",
+    "themeSettings": {
+      "title": "Theme Settings"
+    },
+    "languageSettings": {
+      "title": "Language Settings",
+      "label": "Interface Language"
+    },
+    "behaviorSettings": {
+      "title": "Behavior Settings",
+      "autoSave": {
+        "title": "Auto Save",
+        "description": "Automatically save modified configurations and forms"
+      },
+      "autoUpdate": {
+        "title": "Auto Update",
+        "description": "Automatically check and prompt for updates"
+      },
+      "telemetry": {
+        "title": "Telemetry Data",
+        "description": "Send usage data to help improve the product"
+      }
+    },
+    "actions": {
+      "reset": "Reset",
+      "save": "Save Changes"
+    }
+  },
+  "page": {
+    "tabs": {
+      "ariaLabel": "Settings Options",
+      "security": "Account Security",
+      "logs": "Log Management",
+      "version": "Version Check"
+    },
+    "toast": {
+      "saveSuccess": "Saved Successfully",
+      "saveSuccessDesc": "Settings have been updated",
+      "saveFailed": "Save Failed",
+      "unknownError": "Unknown error",
+      "resetSuccess": "Reset Successfully",
+      "resetSuccessDesc": "Settings have been restored to default values"
+    }
+  },
+  "security": {
+    "basic": {
+      "title": "Basic Security Settings",
+      "description": "Manage basic account security information"
+    },
+    "username": {
+      "title": "Change Username",
+      "description": "Change your login username",
+      "button": "Change Username",
+      "modalTitle": "Change Username",
+      "label": "New Username",
+      "placeholder": "Enter new username",
+      "cancel": "Cancel",
+      "confirm": "Confirm Change",
+      "submitting": "Changing..."
+    },
+    "password": {
+      "title": "Change Password",
+      "description": "Regularly update password to improve account security",
+      "button": "Change Password",
+      "modalTitle": "Change Password",
+      "currentPassword": "Current Password",
+      "currentPasswordPlaceholder": "Enter current password",
+      "newPassword": "New Password",
+      "newPasswordPlaceholder": "Enter new password",
+      "confirmPassword": "Confirm New Password",
+      "confirmPasswordPlaceholder": "Re-enter new password",
+      "requirements": {
+        "minLength": "• Password must be at least 6 characters long",
+        "recommended": "• Recommended to include letters, numbers, and special characters"
+      },
+      "cancel": "Cancel",
+      "confirm": "Confirm Change",
+      "submitting": "Changing..."
+    },
+    "oauth2": {
+      "title": "OAuth2 Authentication",
+      "description": "Only one third-party login method can be bound",
+      "bound": "Bound",
+      "configure": "Configure",
+      "unbind": "Unbind",
+      "notBound": "No OAuth2 login method bound yet",
+      "bindButton": "Bind OAuth2 Authentication",
+      "selectProvider": "Select OAuth2 Provider",
+      "github": {
+        "title": "GitHub OAuth2 Configuration",
+        "clientId": "Client ID",
+        "clientIdPlaceholder": "GitHub OAuth App Client ID",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "GitHub OAuth App Client Secret",
+        "cancel": "Cancel",
+        "save": "Save Configuration"
+      },
+      "cloudflare": {
+        "title": "Cloudflare OAuth2 Configuration",
+        "clientId": "Client ID",
+        "clientIdPlaceholder": "Cloudflare OAuth App Client ID",
+        "clientSecret": "Client Secret",
+        "clientSecretPlaceholder": "Cloudflare OAuth App Client Secret",
+        "authUrl": "Auth URL",
+        "authUrlPlaceholder": "Cloudflare Access Auth URL",
+        "tokenUrl": "Token URL",
+        "tokenUrlPlaceholder": "Cloudflare Access Token URL",
+        "userInfoUrl": "User Info URL",
+        "userInfoUrlPlaceholder": "Cloudflare Access User Info URL",
+        "cancel": "Cancel",
+        "save": "Save Configuration"
+      }
+    },
+    "toast": {
+      "validationFailed": "Form Validation Failed",
+      "fillAllFields": "Please fill in all password fields",
+      "passwordMismatch": "Password Mismatch",
+      "passwordMismatchDesc": "New password and confirmation password do not match",
+      "passwordTooShort": "Password Too Short",
+      "passwordTooShortDesc": "New password must be at least 6 characters long",
+      "passwordChangeSuccess": "Password Changed Successfully",
+      "passwordChangeSuccessDesc": "Your password has been successfully updated",
+      "passwordChangeFailed": "Password Change Failed",
+      "checkCurrentPassword": "Please check if your current password is correct",
+      "networkError": "Network Error",
+      "checkConnection": "Please check your network connection and try again",
+      "fillUsername": "Please enter new username",
+      "usernameChangeSuccess": "Username Changed Successfully",
+      "usernameChangeSuccessDesc": "Your username has been successfully updated",
+      "usernameChangeFailed": "Username Change Failed",
+      "usernameChangeError": "An error occurred while changing username",
+      "configSaveSuccess": "Configuration Saved Successfully",
+      "githubConfigSaved": "GitHub OAuth2 configuration has been successfully saved",
+      "cloudflareConfigSaved": "Cloudflare OAuth2 configuration has been successfully saved",
+      "configSaveFailed": "Save Failed",
+      "githubConfigError": "An error occurred while saving GitHub OAuth2 configuration",
+      "cloudflareConfigError": "An error occurred while saving Cloudflare OAuth2 configuration",
+      "unbindSuccess": "Unbound Successfully",
+      "unbindSuccessDesc": "OAuth2 login method has been successfully unbound",
+      "unbindFailed": "Unbind Failed",
+      "unbindError": "An error occurred during operation"
+    }
+  },
+  "logs": {
+    "stats": {
+      "title": "Log Cleanup Statistics",
+      "description": "Current log cleanup system status",
+      "refresh": "Refresh Data",
+      "status": "Cleanup Status",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "autoCleanup": "Auto Cleanup",
+      "fileCount": "Log File Count",
+      "fileCountUnit": "Files",
+      "fileSize": "Log File Size",
+      "diskUsage": "Disk Usage",
+      "noData": "Unable to retrieve statistics"
+    },
+    "config": {
+      "title": "Log Cleanup Configuration",
+      "description": "Manage automatic log cleanup rules",
+      "configureButton": "Configure Cleanup Rules",
+      "configureShort": "Configure",
+      "manualCleanup": "Manual Cleanup",
+      "manualCleanupShort": "Cleanup",
+      "retentionDays": "Retention Days",
+      "retentionDaysUnit": "days",
+      "cleanupInterval": "Cleanup Interval",
+      "maxRecordsPerDay": "Max Records Per Day",
+      "unlimited": "Unlimited",
+      "autoCleanupStatus": "Auto Cleanup Status",
+      "enabled": "Enabled",
+      "disabled": "Disabled",
+      "hint": "💡 Log Cleanup Info:",
+      "hintDesc": "The system will periodically clean up logs older than the retention period to maintain database performance. Cleanup tasks run automatically in the background, or can be triggered manually.",
+      "noData": "Unable to retrieve configuration data"
+    },
+    "modal": {
+      "title": "Configure Log Cleanup Rules",
+      "enableAutoCleanup": "Enable Auto Cleanup",
+      "enableAutoCleanupDesc": "When enabled, expired logs will be cleaned up periodically according to the configured rules",
+      "retentionDays": "Log Retention Days",
+      "retentionDaysDesc": "Database events older than this number of days will be deleted",
+      "cleanupInterval": "Cleanup Interval",
+      "cleanupIntervalDesc": "Cleanup task execution interval, format: 24h, 12h, 6h",
+      "cleanupIntervalPlaceholder": "24h",
+      "maxRecordsPerDay": "Max Records Per Day",
+      "maxRecordsPerDayDesc": "Maximum database event records per endpoint per day, 0 for unlimited",
+      "warning": "⚠️ Warning:",
+      "warningDesc": "Log cleanup will affect system log retention period. Cleaned logs cannot be recovered. Please set retention days according to actual needs.",
+      "cancel": "Cancel",
+      "save": "Save Configuration"
+    },
+    "toast": {
+      "statsFailed": "Failed to Retrieve Statistics",
+      "statsFailedDesc": "Unable to retrieve log statistics",
+      "networkError": "Network Error",
+      "statsNetworkError": "Failed to retrieve log statistics, please check network connection",
+      "configFailed": "Failed to Retrieve Configuration",
+      "configFailedDesc": "Unable to retrieve cleanup configuration",
+      "configNetworkError": "Failed to retrieve cleanup configuration, please check network connection",
+      "refreshSuccess": "Refreshed Successfully",
+      "refreshSuccessDesc": "Statistics have been updated",
+      "updateSuccess": "Configuration Updated Successfully",
+      "updateSuccessDesc": "Log cleanup configuration has been saved",
+      "updateFailed": "Update Failed",
+      "updateFailedDesc": "Configuration update failed",
+      "updateNetworkError": "Configuration update failed, please check network connection",
+      "cleanupStarted": "Cleanup Task Started",
+      "cleanupStartedDesc": "Log cleanup will run in the background, please check statistics later",
+      "cleanupFailed": "Failed to Start Cleanup",
+      "cleanupFailedDesc": "Unable to start cleanup task",
+      "cleanupNetworkError": "Failed to start cleanup task, please check network connection"
+    },
+    "loading": "Loading log cleanup settings..."
+  },
+  "version": {
+    "title": "Version Update",
+    "description": "Check and manage system version",
+    "current": {
+      "title": "Version Information",
+      "current": "Current",
+      "stable": "Stable",
+      "beta": "Beta",
+      "system": "System",
+      "checkUpdate": "Check for Updates"
+    },
+    "deployment": {
+      "title": "Deployment Environment",
+      "docker": "Docker Deployment",
+      "binary": "Binary Deployment",
+      "autoUpdateStable": "Auto Update to Stable",
+      "autoUpdateBeta": "Auto Update to Beta",
+      "manualUpdate": "Manual Update"
+    },
+    "updateInstructions": {
+      "title": "Update Instructions:",
+      "docker": {
+        "desc": "Execute the following commands on Docker host:",
+        "pull": "# Pull latest image",
+        "restart": "# Restart container"
+      },
+      "binary": {
+        "auto": "Click the button above to automatically update",
+        "autoDesc": "The program will automatically download, stop, replace, and restart",
+        "manual": "Or manually update: Download from GitHub → Stop program → Replace files → Restart"
+      }
+    },
+    "modal": {
+      "title": "Version Update Details",
+      "prerelease": "(Beta)",
+      "publishedAt": "Published on",
+      "close": "Close",
+      "viewDetails": "View Details"
+    },
+    "alert": {
+      "updateStarted": "Update started: {{message}}\n\nThe program will automatically restart in a few seconds, please wait...",
+      "updateFailed": "Update failed: {{error}}"
+    }
+  }
+}

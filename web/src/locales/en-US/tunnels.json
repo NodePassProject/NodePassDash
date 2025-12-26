@@ -1,0 +1,700 @@
+{
+  "page": {
+    "title": "Tunnel Management",
+    "loading": "Loading...",
+    "loadFailed": "Load Failed",
+    "retry": "Retry",
+    "noData": "No Tunnels",
+    "noDataDesc": "You haven't created any tunnels yet",
+    "refresh": "Refresh",
+    "reset": "Reset"
+  },
+  "table": {
+    "columns": {
+      "type": "Type",
+      "name": "Name",
+      "endpoint": "Endpoint",
+      "tunnelAddress": "Tunnel Address",
+      "targetAddress": "Target Address",
+      "status": "Status",
+      "traffic": "Traffic Stats",
+      "actions": "Actions"
+    },
+    "trafficTooltip": {
+      "line1": "Line 1: ↑ Total Upload Traffic (TCP+UDP)",
+      "line2": "Line 2: ↓ Total Download Traffic (TCP+UDP)"
+    }
+  },
+  "type": {
+    "server": "Server",
+    "client": "Client"
+  },
+  "status": {
+    "all": "All Status",
+    "running": "Running",
+    "stopped": "Stopped",
+    "error": "Error",
+    "offline": "Offline",
+    "unknown": "Unknown"
+  },
+  "filter": {
+    "search": "Search Tunnels",
+    "searchPlaceholder": "Search tunnel name...",
+    "statusFilter": "Status Filter",
+    "endpointFilter": "Endpoint Filter",
+    "allEndpoints": "All Endpoints",
+    "groupFilter": "Group Filter",
+    "all": "All",
+    "selected": "{{count}} Selected"
+  },
+  "sort": {
+    "label": "Sort",
+    "id": "ID",
+    "sorts": "Weight",
+    "type": "Type",
+    "name": "Name",
+    "endpoint_id": "Endpoint",
+    "status": "Status",
+    "services": "Services"
+  },
+  "pagination": {
+    "rowsPerPage": "Rows per page",
+    "rows10": "10 per page",
+    "rows20": "20 per page",
+    "rows50": "50 per page"
+  },
+  "actions": {
+    "create": "Create",
+    "createInstance": "Create Tunnel",
+    "createOptions": "Create Options",
+    "manualCreate": "Manual Create",
+    "batchCreate": "Batch Create",
+    "scenarioCreate": "Scenario Create",
+    "groupManagement": "Group Management",
+    "view": "View Tunnel",
+    "start": "Start Tunnel",
+    "stop": "Stop Tunnel",
+    "restart": "Restart Tunnel",
+    "edit": "Edit Tunnel",
+    "rename": "Rename",
+    "delete": "Delete Tunnel",
+    "bulkActions": "Bulk Actions",
+    "bulkStart": "Bulk Start",
+    "bulkStop": "Bulk Stop",
+    "bulkRestart": "Bulk Restart",
+    "bulkExport": "Bulk Export",
+    "bulkDelete": "Bulk Delete",
+    "modifyName": "Modify Name"
+  },
+  "delete": {
+    "modalTitle": "Confirm Delete",
+    "confirmMessage": "Are you sure you want to delete tunnel",
+    "confirmMessageEnd": "?",
+    "warning": "⚠️ This action cannot be undone. All configurations and data for this tunnel will be permanently deleted.",
+    "cancel": "Cancel",
+    "confirm": "Confirm Delete",
+    "batchTitle": "Confirm Batch Delete",
+    "batchMessage": "Are you sure you want to delete the selected",
+    "batchMessageEnd": "tunnels?",
+    "batchWarning": "⚠️ This action cannot be undone. All configurations and data for the selected tunnels will be permanently deleted."
+  },
+  "export": {
+    "modalTitle": "Export Configuration Rules",
+    "selectedMessage": "Selected {{count}} tunnel configuration rules, format complies with batch creation specifications:",
+    "close": "Close",
+    "copy": "Copy Configuration"
+  },
+  "toast": {
+    "fetchError": "Error",
+    "fetchFailed": "Failed to fetch tunnel list",
+    "fetchEndpointsFailed": "Failed to fetch endpoint list",
+    "fetchGroupsFailed": "Failed to fetch group list",
+    "actionSuccess": "Success",
+    "actionSuccessDesc": "Operation successful",
+    "actionFailed": "Operation failed",
+    "deleteSuccess": "Delete successful",
+    "deleteFailed": "Delete failed",
+    "batchDeleteProgress": "Batch deleting...",
+    "batchDeleteProgressDesc": "Deleting selected tunnels, please wait",
+    "batchDeleteSuccess": "Batch Delete Successful",
+    "batchDeleteSuccessDesc": "Deleted {{count}} tunnels",
+    "batchDeleteFailed": "Batch Delete Failed",
+    "batchStartFailed": "Batch Start Failed",
+    "batchStartFailedDesc": "Please select tunnels to start first",
+    "batchStartNoInstances": "No startable tunnels in selection (stopped status)",
+    "batchStartProgress": "Batch starting...",
+    "batchStartProgressDesc": "Starting {{count}} tunnels, please wait",
+    "batchStartComplete": "Batch Start Complete",
+    "batchStartCompleteDesc": "Successfully started {{success}} tunnels{{failed}}",
+    "batchStopFailed": "Batch Stop Failed",
+    "batchStopFailedDesc": "Please select tunnels to stop first",
+    "batchStopNoInstances": "No stoppable tunnels in selection (running status)",
+    "batchStopProgress": "Batch stopping...",
+    "batchStopProgressDesc": "Stopping {{count}} tunnels, please wait",
+    "batchStopComplete": "Batch Stop Complete",
+    "batchStopCompleteDesc": "Successfully stopped {{success}} tunnels{{failed}}",
+    "batchRestartFailed": "Batch Restart Failed",
+    "batchRestartFailedDesc": "Please select tunnels to restart first",
+    "batchRestartNoInstances": "No restartable tunnels in selection (running status)",
+    "batchRestartProgress": "Batch restarting...",
+    "batchRestartProgressDesc": "Restarting {{count}} tunnels, please wait",
+    "batchRestartComplete": "Batch Restart Complete",
+    "batchRestartCompleteDesc": "Successfully restarted {{success}} tunnels{{failed}}",
+    "failedCount": ", {{count}} failed",
+    "unknownError": "Unknown error",
+    "missingInstanceId": "This tunnel is missing NodePass ID, cannot perform operation",
+    "copySuccess": "Configuration copied to clipboard"
+  },
+  "mobile": {
+    "endpoint": "Endpoint:",
+    "tunnel": "Tunnel:",
+    "target": "Target:",
+    "version": "Version:"
+  },
+  "renameModal": {
+    "title": "Modify Tunnel Name",
+    "label": "Tunnel Name",
+    "placeholder": "Please enter new tunnel name",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "toast": {
+      "updateFailed": "Failed to modify name",
+      "updateSuccess": "Success",
+      "updateSuccessDesc": "Tunnel name has been updated",
+      "updateFailedDesc": "Modification failed"
+    }
+  },
+  "groupManagement": {
+    "title": "Group Management",
+    "addButton": "Add",
+    "close": "Close",
+    "addForm": {
+      "groupName": "Group Name",
+      "placeholder": "Please enter group name",
+      "save": "Save",
+      "cancel": "Cancel"
+    },
+    "table": {
+      "groupName": "Group Name",
+      "actions": "Actions"
+    },
+    "actions": {
+      "bindInstances": "Bind Tunnels",
+      "edit": "Edit Group",
+      "delete": "Delete Group"
+    },
+    "confirmDelete": "Are you sure you want to delete group \"{{name}}\"?",
+    "empty": {
+      "title": "No Groups",
+      "description": "Click the button above to create your first group"
+    },
+    "toast": {
+      "fetchFailed": "Error",
+      "fetchFailedDesc": "Failed to fetch group list",
+      "nameRequired": "Error",
+      "nameRequiredDesc": "Please enter group name",
+      "createSuccess": "Success",
+      "createSuccessDesc": "Group created successfully",
+      "createFailed": "Error",
+      "createFailedDesc": "Failed to create group",
+      "updateSuccess": "Success",
+      "updateSuccessDesc": "Group updated successfully",
+      "updateFailed": "Error",
+      "updateFailedDesc": "Failed to update group",
+      "deleteSuccess": "Success",
+      "deleteSuccessDesc": "Group deleted successfully",
+      "deleteFailed": "Error",
+      "deleteFailedDesc": "Failed to delete group"
+    }
+  },
+  "batchCreate": {
+    "title": "Batch Create Tunnels",
+    "tabs": {
+      "standard": "Standard Mode",
+      "quick": "Config Mode"
+    },
+    "standard": {
+      "rules": "Forward Rules",
+      "selectEndpoint": "Select Entry Server",
+      "unifiedEndpoint": "Unified Entry Server",
+      "addRule": "Add Rule",
+      "noRules": "No forwarding rules, click \"Add Rule\" to start configuration",
+      "selectEndpointServer": "Select Entry Server",
+      "tunnelName": "Tunnel Name",
+      "tunnelPort": "Entry Port, e.g.: 8000",
+      "targetIP": "Target IP, e.g.: 192.168.1.100",
+      "targetPort": "Target Port: 10000"
+    },
+    "quick": {
+      "selectMaster": "Select Master Server",
+      "selectMasterPlaceholder": "Please select the master server to use",
+      "batchRules": "Batch Rules Configuration",
+      "reset": "Reset",
+      "format": "Format",
+      "addExample": "Add Example",
+      "jsonFormat": "JSON Format Input",
+      "formatDescription": "Format Description:",
+      "destDesc": "Target address, format: \"IP:port\"",
+      "listenPortDesc": "Listen port number",
+      "nameDesc": "Tunnel name",
+      "arrayFormatDesc": "Enter JSON array format, supports batch creation of multiple rules",
+      "validationError": "Must be in JSON array format",
+      "validRules": "Detected {{count}} valid rules",
+      "partialValid": "Valid rules: {{valid}} / {{total}}",
+      "jsonError": "JSON format error"
+    },
+    "buttons": {
+      "cancel": "Cancel",
+      "create": "Batch Create",
+      "creating": "Creating...",
+      "createWithCount": "Batch Create ({{count}})"
+    },
+    "toast": {
+      "fetchEndpointsFailed": "Failed to fetch endpoint list",
+      "addRuleRequired": "Please add at least one forwarding rule",
+      "selectUnifiedEndpoint": "Please select a unified entry server",
+      "selectEndpointForEachRule": "Please select an entry server for each rule",
+      "completeAllRules": "Please complete all forwarding rule configurations (including tunnel name)",
+      "selectMaster": "Please select a master server",
+      "enterJsonRules": "Please enter JSON rule configuration",
+      "jsonMustBeArray": "JSON must be in array format",
+      "atLeastOneRule": "Please enter at least one rule",
+      "ruleFormatError": "Rule {{index}} format error: must contain dest, listen_port and name fields",
+      "jsonFormatError": "JSON format error, please check syntax",
+      "createComplete": "Batch Creation Complete",
+      "createSuccess": "Successfully created {{count}} tunnels",
+      "createFailed": "Batch Creation Failed",
+      "createFailedDesc": "Creation failed",
+      "networkError": "Network error, please try again later",
+      "formatSuccess": "Format Successful",
+      "formatSuccessDesc": "Formatted {{count}} rules",
+      "formatFailed": "Format Failed",
+      "formatFailedArray": "JSON must be in array format",
+      "formatFailedSyntax": "JSON format error, please check syntax"
+    }
+  },
+  "batchUrlCreate": {
+    "title": "Batch URL Create Tunnels",
+    "addButton": "Add",
+    "noRules": "No tunnel rules yet, click \"Add\" in the upper right corner to start configuration",
+    "rulesList": "Tunnel Rules List",
+    "selectEndpoint": "Select Endpoint",
+    "tunnelName": "Tunnel Name",
+    "tunnelUrl": "<core>://<tunnel_addr>/<target_addr>",
+    "buttons": {
+      "cancel": "Cancel",
+      "create": "Batch Create ({{count}})",
+      "creating": "Creating..."
+    },
+    "toast": {
+      "fetchEndpointsFailed": "Failed to fetch endpoints",
+      "fetchEndpointsFailedDesc": "Unable to fetch endpoint list",
+      "createFailed": "Creation Failed",
+      "addTunnelRequired": "Please add at least one tunnel",
+      "selectEndpointRequired": "Rule {{index}}: Please select an endpoint server",
+      "nameRequired": "Rule {{index}}: Please enter tunnel name",
+      "urlRequired": "Rule {{index}}: Please enter tunnel URL",
+      "createSuccess": "Creation Successful",
+      "createSuccessDesc": "Successfully created {{count}} tunnels",
+      "createFailedDesc": "Failed to create tunnels",
+      "unknownError": "Unknown error"
+    }
+  },
+  "simpleCreate": {
+    "modalTitle": {
+      "create": "Create Tunnel",
+      "edit": "Edit Tunnel"
+    },
+    "tabs": {
+      "server": "Server",
+      "client": "Client"
+    },
+    "fields": {
+      "selectEndpoint": "Select Endpoint",
+      "instanceName": "Tunnel Name",
+      "instanceNamePlaceholder": "xxx-tunnel",
+      "runMode": "Run Mode",
+      "listenType": "Listen Type",
+      "tunnelAddress": "Tunnel Address",
+      "tunnelAddressPlaceholder": "0.0.0.0/[2001:db8::1]",
+      "tunnelPort": "Tunnel Port",
+      "tunnelPortPlaceholder": "0-65535",
+      "targetAddress": "Target Address",
+      "targetAddressPlaceholder": "0.0.0.0/[2001:db8::1]",
+      "targetPort": "Target Port",
+      "targetPortPlaceholder": "0-65535",
+      "logLevel": "Log Level",
+      "tlsMode": "TLS Mode",
+      "certPath": "Certificate Path",
+      "certPathPlaceholder": "/path/to/cert.pem",
+      "keyPath": "Key Path",
+      "keyPathPlaceholder": "/path/to/cert.key",
+      "tunnelPassword": "Tunnel Password",
+      "tunnelPasswordPlaceholder": "Connection password authentication",
+      "poolMinCapacity": "Pool Min Capacity",
+      "poolMinPlaceholder": "64 (default)",
+      "poolMaxCapacity": "Pool Max Capacity",
+      "poolMaxPlaceholder": "1024 (default)",
+      "readTimeout": "Read Timeout",
+      "readTimeoutPlaceholder": "1h0m0s",
+      "rateLimit": "Rate Limit",
+      "rateLimitPlaceholder": "100",
+      "rateLimitUnit": "Mbps",
+      "maxConnections": "Max Connections Limit",
+      "maxConnectionsPlaceholder": "100",
+      "proxyProtocol": "Proxy Protocol",
+      "enableQuic": "Enable QUIC",
+      "weight": "Weight (higher first)",
+      "weightPlaceholder": "0",
+      "outboundIP": "Outbound Source IP",
+      "outboundIPPlaceholder": "auto",
+      "dnsTTL": "DNS TTL",
+      "dnsTTLPlaceholder": "5m",
+      "extendedTargets": "Extended Target Addresses",
+      "extendedTargetsPlaceholder": "192.168.1.1:80&#10;192.168.1.2:80",
+      "extendedTargetsTooltip": "Achieve load balancing by adding target addresses"
+    },
+    "modes": {
+      "auto": "Auto",
+      "reverse": "Reverse",
+      "forward": "Forward",
+      "single": "Single",
+      "dual": "Dual"
+    },
+    "listenTypes": {
+      "all": "ALL",
+      "tcp": "TCP",
+      "udp": "UDP"
+    },
+    "tls": {
+      "inherit": "Inherit",
+      "inheritWithValue": "Inherit ({{mode}})",
+      "inheritMaster": "Inherit from Endpoint",
+      "mode0": "No TLS",
+      "mode1": "Self-signed Certificate",
+      "mode2": "Custom Certificate",
+      "mode0Full": "Mode 0: No TLS",
+      "mode1Full": "Mode 1: Self-signed Certificate",
+      "mode2Full": "Mode 2: Custom Certificate"
+    },
+    "logLevels": {
+      "inherit": "Inherit",
+      "inheritWithValue": "Inherit ({{level}})",
+      "inheritMaster": "Inherit from Endpoint",
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warn",
+      "error": "Error",
+      "event": "Event",
+      "none": "None"
+    },
+    "switch": {
+      "on": "On",
+      "off": "Off",
+      "enable": "Enable",
+      "disable": "Disable"
+    },
+    "optional": {
+      "title": "Optional Configuration",
+      "resetTraffic": "Reset traffic statistics after save"
+    },
+    "tooltips": {
+      "randomPort": "Generate random port number",
+      "toggleLoadBalancing": "Add target address",
+      "disableLoadBalancing": "Disable load balancing"
+    },
+    "buttons": {
+      "cancel": "Cancel",
+      "create": "Create",
+      "update": "Update"
+    },
+    "validation": {
+      "requiredFields": "Please fill in required fields",
+      "requiredFieldsDesc": "Endpoint/Name/Port cannot be empty",
+      "invalidClientMode": "Please select a valid client mode",
+      "invalidClientModeDesc": "Client mode must be mode 1 or mode 2",
+      "invalidPort": "Invalid port",
+      "invalidPortDesc": "Port must be 0-65535",
+      "missingCert": "Missing certificate",
+      "missingCertDesc": "TLS mode 2 requires certificate and key path"
+    },
+    "toast": {
+      "loadDataFailed": "Failed to load data",
+      "getTunnelDetailsFailed": "Failed to get tunnel details",
+      "getEndpointsFailed": "Failed to get endpoints",
+      "createSuccess": "Created successfully",
+      "createFailed": "Creation failed",
+      "updateSuccess": "Updated successfully",
+      "updateFailed": "Update failed",
+      "unknownError": "Unknown error"
+    }
+  },
+  "details": {
+    "timeRange": {
+      "1h": "1 Hour",
+      "6h": "6 Hours",
+      "12h": "12 Hours",
+      "24h": "24 Hours"
+    },
+    "status": {
+      "running": "Running",
+      "error": "Error",
+      "stopped": "Stopped",
+      "offline": "Offline",
+      "unknown": "Unknown"
+    },
+    "tlsMode": {
+      "none": "No TLS Encryption",
+      "selfsigned": "Self-Signed Certificate",
+      "custom": "Custom Certificate"
+    },
+    "tunnelMode": {
+      "auto": "Auto Mode",
+      "singleForward": "Single Forward",
+      "dualForward": "Dual Forward",
+      "autoDetect": "Auto Detect",
+      "reverse": "Reverse Forward",
+      "forward": "Forward",
+      "unknown": "Unknown Mode",
+      "notSet": "Not Set"
+    },
+    "loading": "Loading...",
+    "refreshing": "Refreshing data...",
+    "buttons": {
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "delete": "Delete",
+      "reset": "Reset",
+      "refresh": "Refresh",
+      "edit": "Edit Tunnel",
+      "cancel": "Cancel",
+      "confirm": "Confirm",
+      "close": "Close",
+      "copy": "Copy"
+    },
+    "deleteModal": {
+      "title": "Confirm Delete",
+      "message": "Are you sure you want to delete tunnel",
+      "messageEnd": "?",
+      "warning": "⚠️ This action cannot be undone. All configurations and data for this tunnel will be permanently deleted.",
+      "confirmButton": "Confirm Delete"
+    },
+    "resetModal": {
+      "title": "Confirm Reset",
+      "message": "Are you sure you want to reset traffic information for tunnel",
+      "messageEnd": "?",
+      "warning": "⚠️ This operation only resets traffic statistics and does not affect other configurations.",
+      "confirmButton": "Confirm Reset"
+    },
+    "trafficStats": {
+      "tcpReceive": "TCP Receive",
+      "tcpSend": "TCP Send",
+      "udpReceive": "UDP Receive",
+      "udpSend": "UDP Send",
+      "latency": "Internal Latency",
+      "pool": "Pool Connections",
+      "tcpConnections": "TCP Connections",
+      "udpConnections": "UDP Connections",
+      "tcpTraffic": "TCP Traffic",
+      "udpTraffic": "UDP Traffic"
+    },
+    "instanceInfo": {
+      "title": "Tunnel Information",
+      "instanceId": "Tunnel ID",
+      "mode": "Mode",
+      "endpoint": "Endpoint",
+      "version": "Version",
+      "tunnelAddress": "Tunnel Address",
+      "targetAddress": "Target Address",
+      "extendedTargets": "Extended Target Addresses",
+      "logLevel": {
+        "label": "Log Level",
+        "inherit": "Inherit from Endpoint",
+        "inheritWithValue": "Inherit from Endpoint [{{level}}]",
+        "none": "No Logging [NONE]"
+      },
+      "pool": {
+        "min": "Pool Min",
+        "max": "Pool Max",
+        "default": "(default)"
+      },
+      "maxConnections": {
+        "label": "Max Connections Limit",
+        "notSet": "Not Set",
+        "default": "(default)"
+      },
+      "tls": {
+        "label": "TLS Settings",
+        "inherit": "Inherit from Endpoint",
+        "certPath": "Certificate Path",
+        "keyPath": "Key Path",
+        "default": "(default)"
+      },
+      "password": {
+        "label": "Tunnel Password",
+        "notSet": "Not Set",
+        "hasPassword": "Password Set",
+        "clickToCopy": "Click to copy password",
+        "default": "(default)"
+      },
+      "compression": {
+        "label": "Compression",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "default": "(default)"
+      },
+      "encryption": {
+        "label": "Encryption",
+        "enabled": "Enabled",
+        "disabled": "Disabled",
+        "default": "(default)"
+      },
+      "autoRestart": {
+        "label": "Auto Restart",
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "tcping": {
+        "label": "TCPing",
+        "test": "Test",
+        "default": "(default)"
+      },
+      "tags": {
+        "label": "Tags",
+        "manage": "Manage Tags",
+        "noTags": "No Tags"
+      },
+      "configLine": "Config Line",
+      "readTimeout": {
+        "label": "Read Timeout",
+        "notSet": "Not Set"
+      },
+      "rateLimit": {
+        "label": "Rate Limit",
+        "notSet": "Not Set",
+        "unlimited": "Unlimited",
+        "default": "(default)"
+      },
+      "proxyProtocol": {
+        "label": "Proxy Protocol",
+        "on": "On",
+        "off": "Off"
+      },
+      "listenType": "Listen Type",
+      "quic": {
+        "label": "Enable QUIC",
+        "enabled": "Enabled",
+        "disabled": "Disabled"
+      },
+      "outboundIP": "Outbound Source IP",
+      "bindService": {
+        "label": "Bind Service",
+        "unknown": "Unknown Service"
+      },
+      "toggleUrl": {
+        "showCommand": "Toggle Command URL Display",
+        "showConfig": "Toggle Config URL Display"
+      },
+      "expiry": {
+        "unlimited": "Unlimited",
+        "days": "days"
+      },
+      "editTooltip": "Edit Tunnel"
+    },
+    "logs": {
+      "title": "Tunnel Logs",
+      "logTitle": "Logs",
+      "realtime": "Realtime Logs",
+      "realtimeShort": "Realtime",
+      "realtimeOutput": "Realtime Output",
+      "selectDate": "Select Date",
+      "export": "Export Logs",
+      "exportFile": "Export Log File",
+      "clear": "Clear",
+      "cleared": "File logs cleared",
+      "timeError": "Time parsing error",
+      "refresh": "Refresh",
+      "scrollToBottom": "Scroll to Bottom",
+      "confirmClear": "Confirm Clear Logs",
+      "clearRealtimeWarning": "This will clear the current realtime output.",
+      "clearFileWarning": "This will clear the displayed content and all saved log files, and cannot be undone.",
+      "confirmClearButton": "Confirm Clear",
+      "cancel": "Cancel"
+    },
+    "charts": {
+      "traffic": "Traffic Statistics",
+      "speed": "Speed Statistics",
+      "pool": "Pool Statistics",
+      "connections": "Connections Statistics",
+      "latency": "Latency Statistics"
+    },
+    "statsTabs": {
+      "traffic": "Traffic Total",
+      "speed": "Transfer Speed",
+      "latency": "Internal Latency",
+      "connections": "Connections"
+    },
+    "toast": {
+      "fetchFailed": "Failed to fetch tunnel details",
+      "refreshFailed": "Refresh failed",
+      "resetSuccess": "Reset successful",
+      "resetSuccessDesc": "Tunnel traffic information has been reset",
+      "resetFailed": "Reset failed",
+      "exportSuccess": "Export successful",
+      "exportSuccessDesc": "Log file exported as {{filename}}",
+      "exportFailed": "Export failed",
+      "restartConfigSuccess": "Configuration updated successfully",
+      "restartConfigSuccessDesc": "Auto restart has been {{status}}",
+      "restartConfigFailed": "Configuration update failed",
+      "restartNotSupported": "Current tunnel does not support auto restart feature",
+      "unknownError": "Unknown error",
+      "enabled": "enabled",
+      "disabled": "disabled"
+    }
+  },
+  "tcpingModal": {
+    "title": "Network Diagnostics",
+    "loading": {
+      "testing": "Running connectivity test...",
+      "targetAddress": "Target Address"
+    },
+    "result": {
+      "title": "Test Result",
+      "targetAddress": "Target Address",
+      "connectionStatus": "Connection Status",
+      "connected": "✓ Connected",
+      "disconnected": "✗ Disconnected",
+      "packetLoss": "Packet Loss",
+      "networkQuality": "Network Quality"
+    },
+    "analysis": {
+      "fastest": "Fastest",
+      "average": "Average",
+      "slowest": "Slowest"
+    },
+    "latencyQuality": {
+      "excellent": "Excellent",
+      "good": "Good",
+      "fair": "Fair",
+      "poor": "Poor"
+    },
+    "addressSelection": {
+      "title": "ℹ️ Multiple target addresses detected",
+      "description": "This tunnel has load balancing configured. Please select the target address to test, then click the test button to start diagnostics.",
+      "mainTarget": "Main Target Address",
+      "extendedTarget": "Extended Address #{{n}}"
+    },
+    "actions": {
+      "close": "Close",
+      "retest": "Retest",
+      "startTest": "Start Test"
+    },
+    "toast": {
+      "testFailed": "Diagnostics test failed",
+      "unknownError": "Unknown error",
+      "selectAddress": "Please select target address",
+      "selectAddressDesc": "Please select a target address before running the test"
+    }
+  }
+}

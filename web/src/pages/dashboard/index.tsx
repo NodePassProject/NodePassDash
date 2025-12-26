@@ -31,6 +31,7 @@ import {
   faUnlink,
 } from "@fortawesome/free-solid-svg-icons";
 import { faTrash, faRotateRight } from "@fortawesome/free-solid-svg-icons";
+import { useTranslation } from "react-i18next";
 
 import { fontSans } from "@/config/fonts";
 import { buildApiUrl } from "@/lib/utils";
@@ -99,6 +100,8 @@ interface Endpoint {
  */
 export default function DashboardPage() {
   const { settings } = useSettings();
+  const { t } = useTranslation("dashboard");
+  const { t: tCommon } = useTranslation("common");
   const [currentTime, setCurrentTime] = useState(new Date());
   const [tunnelStats, setTunnelStats] = useState<TunnelStats>({
     total: 0,
@@ -219,7 +222,7 @@ export default function DashboardPage() {
     try {
       const response = await fetch(buildApiUrl("/api/dashboard/tunnel-stats"));
 
-      if (!response.ok) throw new Error("获取tunnel统计数据失败");
+      if (!response.ok) throw new Error(t("errors.fetchStatsError"));
       const result = await response.json();
 
       if (result.success && result.data && isMountedRef.current) {
@@ -227,10 +230,10 @@ export default function DashboardPage() {
       }
     } catch (error) {
       if (isMountedRef.current) {
-        console.error("获取tunnel统计数据失败:", error);
+        console.error(t("errors.fetchStatsError"), error);
       }
     }
-  }, []);
+  }, [t]);
 
   // 获取操作日志数据
   const fetchOperationLogs = useCallback(async () => {
@@ -240,7 +243,7 @@ export default function DashboardPage() {
         buildApiUrl(`/api/dashboard/operate_logs?limit=${MAX_OPERATION_LOGS}`),
       );
 
-      if (!response.ok) throw new Error("获取操作日志失败");
+      if (!response.ok) throw new Error(t("errors.fetchLogsError"));
       const data: OperationLog[] = await response.json();
 
       if (isMountedRef.current) {
@@ -254,10 +257,10 @@ export default function DashboardPage() {
       }
     } catch (error) {
       if (isMountedRef.current) {
-        console.error("获取操作日志失败:", error);
+        console.error(t("errors.fetchLogsError"), error);
       }
     }
-  }, []);
+  }, [t]);
 
   // 处理IP地址隐藏的函数 - 优化依赖，避免不必要的重创建
   const maskIpAddress = useCallback(
@@ -385,7 +388,7 @@ export default function DashboardPage() {
     try {
       const response = await fetch(buildApiUrl("/api/endpoints/simple"));
 
-      if (!response.ok) throw new Error("获取主控数据失败");
+      if (!response.ok) throw new Error(t("errors.fetchEndpointsError"));
       const data: Endpoint[] = await response.json();
 
       if (isMountedRef.current) {
@@ -393,17 +396,17 @@ export default function DashboardPage() {
       }
     } catch (error) {
       if (isMountedRef.current) {
-        console.error("获取主控数据失败:", error);
+        console.error(t("errors.fetchEndpointsError"), error);
       }
     }
-  }, []);
+  }, [t]);
 
   // 获取流量趋势数据
   const fetchTrafficTrend = useCallback(async () => {
     try {
       const response = await fetch(buildApiUrl("/api/dashboard/traffic-trend"));
 
-      if (!response.ok) throw new Error("获取流量趋势数据失败");
+      if (!response.ok) throw new Error(t("errors.fetchTrafficError"));
 
       const result = await response.json();
 
@@ -423,22 +426,22 @@ export default function DashboardPage() {
           示例数据: limitedData.slice(0, 3),
         });
       } else if (isMountedRef.current) {
-        throw new Error(result.error || "获取流量趋势数据失败");
+        throw new Error(result.error || t("errors.fetchTrafficError"));
       }
     } catch (error) {
       if (isMountedRef.current) {
-        console.error("获取流量趋势数据失败:", error);
+        console.error(t("errors.fetchTrafficError"), error);
         setTrafficTrend([]); // 设置为空数组，显示无数据状态
       }
     }
-  }, []);
+  }, [t]);
 
   // 获取每周统计数据
   const fetchWeeklyStats = useCallback(async () => {
     try {
       const response = await fetch(buildApiUrl("/api/dashboard/weekly-stats"));
 
-      if (!response.ok) throw new Error("获取每周统计数据失败");
+      if (!response.ok) throw new Error(t("errors.fetchWeeklyStatsError"));
 
       const result = await response.json();
 
@@ -463,16 +466,16 @@ export default function DashboardPage() {
           示例数据: chartData.slice(0, 3),
         });
       } else if (isMountedRef.current) {
-        throw new Error(result.error || "获取每周统计数据失败");
+        throw new Error(result.error || t("errors.fetchWeeklyStatsError"));
       }
     } catch (error) {
       if (isMountedRef.current) {
-        console.error("获取每周统计数据失败:", error);
+        console.error(t("errors.fetchWeeklyStatsError"), error);
         // 出错时也设置默认的7天0值数据，而不是空数组
         setWeeklyStatsData(generateDefaultWeeklyData());
       }
     }
-  }, [generateDefaultWeeklyData]);
+  }, [generateDefaultWeeklyData, t]);
 
   // 确认清空日志
   const confirmClearLogs = useCallback(async () => {
@@ -488,18 +491,18 @@ export default function DashboardPage() {
         setOperationLogs([]);
         onClearClose();
       } else if (isMountedRef.current) {
-        console.error("清空失败:", data.error || "无法清空日志");
+        console.error(t("errors.clearLogsError"), data.error || t("errors.clearLogsError"));
       }
     } catch (error) {
       if (isMountedRef.current) {
-        console.error("清空操作日志失败:", error);
+        console.error(t("errors.fetchLogsError"), error);
       }
     } finally {
       if (isMountedRef.current) {
         setClearingLogs(false);
       }
     }
-  }, [operationLogs.length, onClearClose]);
+  }, [operationLogs.length, onClearClose, t]);
 
   // 初始化数据 - 改为分批加载，减少同时加载的内存压力
   useEffect(() => {
@@ -560,10 +563,10 @@ export default function DashboardPage() {
 
   // 表格列定义
   const columns = [
-    { key: "time", label: "时间" },
-    { key: "action", label: "操作" },
-    { key: "instance", label: "实例" },
-    { key: "status", label: "状态" },
+    { key: "time", label: t("table.time") },
+    { key: "action", label: t("table.action") },
+    { key: "instance", label: t("table.instance") },
+    { key: "status", label: t("table.status") },
   ];
 
   // 根据操作类型获取图标和样式 - 纯函数，不需要useCallback
@@ -625,9 +628,9 @@ export default function DashboardPage() {
     >
       <div className="flex justify-between items-start">
         <div className="flex flex-col gap-1">
-          <h1 className="text-2xl font-bold text-foreground">👋 概览</h1>
+          <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
           <p className="text-sm md:text-base text-default-500">
-            当前时间 {formatTime(currentTime)}
+            {t("currentTime")} {formatTime(currentTime)}
           </p>
         </div>
 
@@ -636,19 +639,19 @@ export default function DashboardPage() {
             <div className="text-xl md:text-2xl font-bold text-success">
               {loading ? "--" : tunnelStats.total_services || 0}
             </div>
-            <div className="text-xs md:text-sm text-default-500">服务数</div>
+            <div className="text-xs md:text-sm text-default-500">{t("stats.services")}</div>
           </div>
           <div className="text-center">
             <div className="text-xl md:text-2xl font-bold text-primary">
               {loading ? "--" : tunnelStats.total}
             </div>
-            <div className="text-xs md:text-sm text-default-500">实例数</div>
+            <div className="text-xs md:text-sm text-default-500">{t("stats.instances")}</div>
           </div>
           <div className="text-center">
             <div className="text-xl md:text-2xl font-bold text-secondary">
               {loading ? "--" : tunnelStats.total_endpoints}
             </div>
-            <div className="text-xs md:text-sm text-default-500">主控数</div>
+            <div className="text-xs md:text-sm text-default-500">{t("stats.endpoints")}</div>
           </div>
         </div>
       </div>
@@ -665,7 +668,7 @@ export default function DashboardPage() {
             <div className="flex justify-between items-center">
               <div className="flex flex-col gap-1">
                 <span className="text-default-600 text-xs md:text-sm">
-                  运行
+                  {t("stats.running")}
                 </span>
                 <span className="text-xl md:text-2xl font-semibold text-success">
                   {loading ? "--" : tunnelStats.running}
@@ -693,7 +696,7 @@ export default function DashboardPage() {
             <div className="flex justify-between items-center">
               <div className="flex flex-col gap-1">
                 <span className="text-default-600 text-xs md:text-sm">
-                  停止
+                  {t("stats.stopped")}
                 </span>
                 <span className="text-xl md:text-2xl font-semibold text-danger">
                   {loading ? "--" : tunnelStats.stopped}
@@ -721,7 +724,7 @@ export default function DashboardPage() {
             <div className="flex justify-between items-center">
               <div className="flex flex-col gap-1">
                 <span className="text-default-600 text-xs md:text-sm">
-                  错误
+                  {t("stats.error")}
                 </span>
                 <span className="text-xl md:text-2xl font-semibold text-warning">
                   {loading ? "--" : tunnelStats.error}
@@ -749,7 +752,7 @@ export default function DashboardPage() {
             <div className="flex justify-between items-center">
               <div className="flex flex-col gap-1">
                 <span className="text-default-600 text-xs md:text-sm">
-                  离线
+                  {t("stats.offline")}
                 </span>
                 <span className="text-xl md:text-2xl font-semibold text-default-600">
                   {loading ? "--" : tunnelStats.offline}
@@ -794,7 +797,7 @@ export default function DashboardPage() {
             <CardHeader className="p-5 pb-0">
               <div className="flex flex-col items-start gap-1 w-full">
                 <span className="text-base font-semibold text-foreground">
-                  主控列表
+                  {t("endpoints.title")}
                 </span>
               </div>
             </CardHeader>
@@ -863,7 +866,7 @@ export default function DashboardPage() {
                                   size="sm"
                                   variant="flat"
                                 >
-                                  {endpoint.tunnelCount || 0} 个实例
+                                  {endpoint.tunnelCount || 0} {t("endpoints.instance")}
                                 </Chip>
                               </div>
 
@@ -880,9 +883,9 @@ export default function DashboardPage() {
                     // 无主控时的空状态
                     <div className="flex items-center justify-center h-32">
                       <div className="text-center">
-                        <p className="text-default-500 text-sm">暂无主控</p>
+                        <p className="text-default-500 text-sm">{t("endpoints.noEndpoints")}</p>
                         <p className="text-default-400 text-xs mt-1">
-                          请先添加主控服务器
+                          {t("endpoints.addFirst")}
                         </p>
                       </div>
                     </div>
@@ -904,7 +907,7 @@ export default function DashboardPage() {
             color="primary"
             formatBytes={formatBytes}
             loading={trafficLoading}
-            title="本周统计"
+            title={t("traffic.weeklyStats")}
           />
         </div>
 
@@ -937,7 +940,7 @@ export default function DashboardPage() {
             color="success"
             formatBytes={formatBytes}
             loading={trafficLoading}
-            title="今日流量"
+            title={t("traffic.todayTraffic")}
             total={todayTrafficData.total}
             unitTitle="Total"
           />
@@ -956,17 +959,17 @@ export default function DashboardPage() {
             <div className="flex items-center justify-between w-full">
               <div className="flex flex-col items-start gap-0">
                 <span className="text-base font-semibold text-foreground">
-                  最近活动
+                  {t("activity.title")}
                 </span>
                 <span className="text-sm text-default-500">
-                  {loading ? "加载中..." : `筛选最近100条记录`}
+                  {loading ? t("activity.loading") : t("activity.filter")}
                 </span>
               </div>
               <Button
                 isIconOnly
                 className="text-default-400 hover:text-danger"
                 size="sm"
-                title="清空最近活动"
+                title={t("activity.clearTitle")}
                 variant="light"
                 onPress={onClearOpen}
               >
@@ -1010,7 +1013,7 @@ export default function DashboardPage() {
                   emptyContent={
                     <div className="text-center py-8">
                       <span className="text-default-400 text-xs md:text-sm">
-                        {loading ? "加载中..." : "暂无操作记录"}
+                        {loading ? t("activity.loading") : t("activity.noRecords")}
                       </span>
                     </div>
                   }
@@ -1086,23 +1089,23 @@ export default function DashboardPage() {
       <Modal isOpen={isClearOpen} onClose={onClearClose}>
         <ModalContent>
           <ModalHeader className="flex flex-col gap-1">
-            确认清空最近活动
+            {t("activity.confirmClear")}
           </ModalHeader>
           <ModalBody>
             <p className="text-sm">
-              此操作将删除所有最近活动记录，且不可撤销。确定要继续吗？
+              {t("activity.confirmMessage")}
             </p>
           </ModalBody>
           <ModalFooter>
             <Button variant="light" onPress={onClearClose}>
-              取消
+              {tCommon("action.cancel")}
             </Button>
             <Button
               color="danger"
               isLoading={clearingLogs}
               onPress={confirmClearLogs}
             >
-              确认清空
+              {clearingLogs ? t("activity.clearing") : tCommon("action.confirm")}
             </Button>
           </ModalFooter>
         </ModalContent>

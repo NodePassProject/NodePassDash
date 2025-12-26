@@ -15,6 +15,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faBug } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 interface TcpingTestModalProps {
   isOpen: boolean;
@@ -46,6 +47,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
   targetPort,
   extendTargetAddress = [],
 }) => {
+  const { t } = useTranslation("tunnels");
   const [tcpingTarget, setTcpingTarget] = React.useState("");
   const [tcpingLoading, setTcpingLoading] = React.useState(false);
   const [tcpingSelectedAddress, setTcpingSelectedAddress] = React.useState<string | null>(null);
@@ -75,13 +77,13 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
         if (response.ok && data.success) {
           setTcpingResult(data.result);
         } else {
-          throw new Error(data.error || "诊断测试失败");
+          throw new Error(data.error || t("tcpingModal.toast.testFailed"));
         }
       } catch (error) {
-        console.error("TCPing诊断测试失败:", error);
+        console.error("TCPing test failed:", error);
         addToast({
-          title: "诊断测试失败",
-          description: error instanceof Error ? error.message : "未知错误",
+          title: t("tcpingModal.toast.testFailed"),
+          description: error instanceof Error ? error.message : t("tcpingModal.toast.unknownError"),
           color: "danger",
         });
       } finally {
@@ -95,11 +97,11 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
   const handleTcpingTest = async () => {
     if (tcpingLoading) return;
 
-    // 如果没有选择地址，返回
+    // If no address selected, return
     if (!tcpingSelectedAddress) {
       addToast({
-        title: "请选择目标地址",
-        description: "请先选择一个目标地址后再进行测试",
+        title: t("tcpingModal.toast.selectAddress"),
+        description: t("tcpingModal.toast.selectAddressDesc"),
         color: "warning",
       });
       return;
@@ -109,40 +111,40 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
     performTcpingTest(tcpingSelectedAddress);
   };
 
-  // 判断延迟是否优秀的函数
+  // Latency quality evaluation function
   const getLatencyQuality = (latency: number) => {
-    if (latency < 50) return { text: "优秀", color: "success" };
-    if (latency < 100) return { text: "良好", color: "primary" };
-    if (latency < 200) return { text: "一般", color: "warning" };
+    if (latency < 50) return { text: t("tcpingModal.latencyQuality.excellent"), color: "success" };
+    if (latency < 100) return { text: t("tcpingModal.latencyQuality.good"), color: "primary" };
+    if (latency < 200) return { text: t("tcpingModal.latencyQuality.fair"), color: "warning" };
 
-    return { text: "较差", color: "danger" };
+    return { text: t("tcpingModal.latencyQuality.poor"), color: "danger" };
   };
 
-  // 合并主目标地址和扩展地址的辅助函数
+  // Merge main target address and extended addresses
   const getAddressOptions = React.useMemo(() => {
     const addresses = [];
     const mainAddr = `${targetAddress}:${targetPort}`;
 
-    // 添加主目标地址
+    // Add main target address
     addresses.push({
       value: mainAddr,
       label: mainAddr,
-      description: "主目标地址",
+      description: t("tcpingModal.addressSelection.mainTarget"),
     });
 
-    // 添加扩展目标地址
+    // Add extended target addresses
     if (extendTargetAddress && extendTargetAddress.length > 0) {
       extendTargetAddress.forEach((addr, index) => {
         addresses.push({
           value: addr,
           label: typeof addr === "string" ? addr : JSON.stringify(addr),
-          description: `扩展地址 #${index + 1}`,
+          description: t("tcpingModal.addressSelection.extendedTarget", { n: index + 1 }),
         });
       });
     }
 
     return addresses;
-  }, [targetAddress, targetPort, extendTargetAddress]);
+  }, [t, targetAddress, targetPort, extendTargetAddress]);
 
   // 当模态框打开时初始化选中的地址，如果只有一个地址则自动开始测试
   React.useEffect(() => {
@@ -195,42 +197,42 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
             <ModalHeader className="flex flex-col gap-1 ">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-primary" icon={faBug} />
-                网络诊断测试
+                {t("tcpingModal.title")}
               </div>
             </ModalHeader>
 
             {tcpingLoading ? (
-              // 加载状态 - 充斥整个模态窗内容
+              // Loading state
               <ModalBody className="flex-1 flex items-center justify-center py-12">
                 <div className="flex flex-col items-center space-y-4">
                   <Spinner color="primary" size="lg" />
                   <p className="text-default-600 animate-pulse">
-                    正在进行连通性测试...
+                    {t("tcpingModal.loading.testing")}
                   </p>
                   <p className="text-xs text-default-400">
-                    目标地址: {tcpingTarget}
+                    {t("tcpingModal.loading.targetAddress")}: {tcpingTarget}
                   </p>
                 </div>
               </ModalBody>
             ) : tcpingResult ? (
               <>
-                {/* 结果显示状态 */}
+                {/* Result display state */}
                 <ModalBody className="py-0">
                   <div className="space-y-6">
-                    {/* 测试结果卡片 */}
+                    {/* Test result card */}
                     <div className="bg-gradient-to-r from-blue-50 to-purple-50 dark:from-blue-950/30 dark:to-purple-950/30 rounded-lg p-6 border border-default-200">
                       <div className="flex items-center gap-3 mb-4">
                         <div
                           className={`w-3 h-3 rounded-full ${tcpingResult.connected ? "bg-success animate-pulse" : "bg-danger"}`}
                         />
-                        <h3 className="text-lg font-semibold">测试结果</h3>
+                        <h3 className="text-lg font-semibold">{t("tcpingModal.result.title")}</h3>
                       </div>
 
-                      {/* 目标地址 */}
+                      {/* Target address */}
                       <div className="grid grid-cols-2 gap-4 mb-4">
                         <div>
                           <p className="text-xs text-default-500 mb-1">
-                            目标地址
+                            {t("tcpingModal.result.targetAddress")}
                           </p>
                           <p className="font-mono text-sm text-primary">
                             {tcpingResult.target}
@@ -238,7 +240,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                         </div>
                         <div>
                           <p className="text-xs text-default-500 mb-1">
-                            连接状态
+                            {t("tcpingModal.result.connectionStatus")}
                           </p>
                           <Chip
                             className="text-xs"
@@ -248,19 +250,19 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                             variant="flat"
                           >
                             {tcpingResult.connected
-                              ? "✓ 连接成功"
-                              : "✗ 连接失败"}
+                              ? t("tcpingModal.result.connected")
+                              : t("tcpingModal.result.disconnected")}
                           </Chip>
                         </div>
                       </div>
 
-                      {/* 始终显示统计信息，无论成功还是失败 */}
+                      {/* Always show statistics */}
                       <div className="space-y-4">
-                        {/* 丢包率和网络质量评估 */}
+                        {/* Packet loss and network quality */}
                         <div className="grid grid-cols-2 gap-4">
                           <div>
                             <p className="text-xs text-default-500 mb-1">
-                              丢包率
+                              {t("tcpingModal.result.packetLoss")}
                             </p>
                             <div className="flex items-center gap-2">
                               <span
@@ -276,7 +278,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                           {tcpingResult.avgLatency && (
                             <div>
                               <p className="text-xs text-default-500 mb-1">
-                                网络质量
+                                {t("tcpingModal.result.networkQuality")}
                               </p>
                               <Chip
                                 className="text-xs"
@@ -295,11 +297,11 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                           )}
                         </div>
 
-                        {/* 延迟统计 - 始终显示，空值显示为 - */}
+                        {/* Latency statistics */}
                         <div className="grid grid-cols-3 gap-4">
                           <div>
                             <p className="text-xs text-default-500 mb-1">
-                              最快响应
+                              {t("tcpingModal.analysis.fastest")}
                             </p>
                             <div className="flex items-center gap-1">
                               <span className="text-sm font-bold text-success">
@@ -316,7 +318,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                           </div>
                           <div>
                             <p className="text-xs text-default-500 mb-1">
-                              平均响应
+                              {t("tcpingModal.analysis.average")}
                             </p>
                             <div className="flex items-center gap-1">
                               <span className="text-sm font-bold text-primary">
@@ -333,7 +335,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                           </div>
                           <div>
                             <p className="text-xs text-default-500 mb-1">
-                              最慢响应
+                              {t("tcpingModal.analysis.slowest")}
                             </p>
                             <div className="flex items-center gap-1">
                               <span className="text-sm font-bold text-warning">
@@ -377,7 +379,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                     </div>
                   </div>
                 </ModalBody>
-                {/* 结果显示时的Footer */}
+                {/* Result footer */}
                 <ModalFooter>
                   <Button
                     className="flex-1"
@@ -387,30 +389,30 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                       handleTcpingTest();
                     }}
                   >
-                    重新测试
+                    {t("tcpingModal.actions.retest")}
                   </Button>
                   <Button
                     className="flex-1"
                     variant="flat"
                     onPress={handleClose}
                   >
-                    关闭
+                    {t("tcpingModal.actions.close")}
                   </Button>
                 </ModalFooter>
               </>
             ) : (
-              // 地址选择状态
+              // Address selection state
               <>
                 <ModalBody className="py-0">
                   <div className="space-y-6">
-                    {/* 如果有扩展目标地址，显示RadioGroup */}
+                    {/* If there are extended target addresses, show RadioGroup */}
                     <div className="space-y-4">
                       <div className="bg-blue-50 dark:bg-blue-950/30 rounded-lg p-4 border border-blue-200 dark:border-blue-900">
                         <p className="text-sm font-semibold text-blue-900 dark:text-blue-100 mb-2">
-                          ℹ️ 检测到多个目标地址
+                          {t("tcpingModal.addressSelection.title")}
                         </p>
                         <p className="text-xs text-blue-800 dark:text-blue-200">
-                          此隧道配置了负载均衡，请选择要测试的目标地址，然后点击测试按钮开始诊断。
+                          {t("tcpingModal.addressSelection.description")}
                         </p>
                       </div>
 
@@ -442,14 +444,14 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                     </div>
                   </div>
                 </ModalBody>
-                {/* 地址选择时的Footer */}
+                {/* Address selection footer */}
                 <ModalFooter>
                   <Button
                     color="default"
                     variant="light"
                     onPress={handleClose}
                   >
-                    关闭
+                    {t("tcpingModal.actions.close")}
                   </Button>
                   <Button
                     color="primary"
@@ -458,7 +460,7 @@ export const TcpingTestModal: React.FC<TcpingTestModalProps> = ({
                       handleTcpingTest();
                     }}
                   >
-                    开始测试
+                    {t("tcpingModal.actions.startTest")}
                   </Button>
                 </ModalFooter>
               </>

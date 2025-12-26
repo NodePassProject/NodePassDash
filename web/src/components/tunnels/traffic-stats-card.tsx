@@ -1,4 +1,5 @@
 import { Card, CardBody, CardHeader } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 
 interface TrafficData {
   tcpRx: number;
@@ -20,6 +21,7 @@ export const TrafficStatsCard = ({
   trafficData,
   formatTrafficValue,
 }: TrafficStatsCardProps) => {
+  const { t } = useTranslation("tunnels");
   // 计算TCP和UDP总和用于比例显示
   const tcpTotal = trafficData.tcpRx + trafficData.tcpTx;
   const udpTotal = trafficData.udpRx + trafficData.udpTx;
@@ -70,7 +72,7 @@ export const TrafficStatsCard = ({
             />
           </svg>
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold">流量累计</h3>
+            <h3 className="text-base font-semibold">{t("details.statsTabs.traffic")}</h3>
           </div>
         </CardHeader>
         <CardBody>
@@ -93,7 +95,7 @@ export const TrafficStatsCard = ({
                   <span className="font-mono text-xs">{tcpRxUnit}</span>
                 </div>
                 <div className="text-xs font-medium opacity-90 text-blue-600 dark:text-blue-400">
-                  TCP流量
+                  {t("details.trafficStats.tcpTraffic")}
                 </div>
               </div>
 
@@ -113,7 +115,7 @@ export const TrafficStatsCard = ({
                   <span className="font-mono text-xs">{udpRxUnit}</span>
                 </div>
                 <div className="text-xs font-medium opacity-90 text-green-600 dark:text-green-400">
-                  UDP流量
+                  {t("details.trafficStats.udpTraffic")}
                 </div>
               </div>
             </div>

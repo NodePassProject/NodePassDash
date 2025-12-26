@@ -18,6 +18,7 @@ import {
 } from "@heroui/react";
 import React, { useCallback, useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faSearch,
@@ -88,6 +89,7 @@ export interface Service {
 export default function ServicesPage() {
   const navigate = useNavigate();
   const settings = useSettings();
+  const { t } = useTranslation("services");
   const [services, setServices] = useState<Service[]>([]);
   const [loading, setLoading] = useState(true);
   const [refreshing, setRefreshing] = useState(false);
@@ -138,7 +140,7 @@ export default function ServicesPage() {
       const response = await fetch(buildApiUrl("/api/services"));
 
       if (!response.ok) {
-        throw new Error("获取服务列表失败");
+        throw new Error(t("toast.fetchError"));
       }
 
       const data = await response.json();
@@ -151,10 +153,10 @@ export default function ServicesPage() {
 
       setServices(sortedServices);
     } catch (error) {
-      console.error("获取服务列表失败:", error);
+      console.error(t("toast.fetchError"), error);
       addToast({
-        title: "获取服务列表失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("toast.fetchError"),
+        description: error instanceof Error ? error.message : t("toast.unknownError"),
         color: "danger",
       });
       setServices([]);
@@ -162,7 +164,7 @@ export default function ServicesPage() {
       setLoading(false);
       setRefreshing(false);
     }
-  }, []);
+  }, [t]);
 
   useEffect(() => {
     fetchServices();
@@ -208,18 +210,18 @@ export default function ServicesPage() {
       });
 
       if (!response.ok) {
-        throw new Error("保存排序失败");
+        throw new Error(t("toast.sortError"));
       }
 
       addToast({
-        title: "排序已保存",
+        title: t("toast.sortSaved"),
         color: "success",
       });
     } catch (error) {
-      console.error("保存排序失败:", error);
+      console.error(t("toast.sortError"), error);
       addToast({
-        title: "保存排序失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("toast.sortError"),
+        description: error instanceof Error ? error.message : t("toast.unknownError"),
         color: "danger",
       });
       // 失败时恢复原顺序
@@ -248,22 +250,25 @@ export default function ServicesPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "操作失败");
+        throw new Error(errorData.error || t("toast.operationError"));
       }
 
       addToast({
-        title: type === "dissolve" ? "解散成功" : "删除成功",
-        description: `服务 ${service.alias || service.sid} 已${type === "dissolve" ? "解散" : "删除"}`,
+        title: type === "dissolve" ? t("toast.dissolveSuccess") : t("toast.deleteSuccess"),
+        description: t("toast.serviceActioned", {
+          name: service.alias || service.sid,
+          action: type === "dissolve" ? t("actions.dissolve") : t("actions.delete")
+        }),
         color: "success",
       });
 
       // 刷新服务列表
       fetchServices();
     } catch (error) {
-      console.error("操作失败:", error);
+      console.error(t("toast.operationError"), error);
       addToast({
-        title: type === "dissolve" ? "解散失败" : "删除失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: type === "dissolve" ? t("toast.dissolveError") : t("toast.deleteError"),
+        description: error instanceof Error ? error.message : t("toast.unknownError"),
         color: "danger",
       });
     }
@@ -287,26 +292,29 @@ export default function ServicesPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "操作失败");
+        throw new Error(errorData.error || t("toast.operationError"));
       }
 
       const actionText =
-        action === "start" ? "启动" : action === "stop" ? "停止" : "重启";
+        action === "start" ? t("actions.start") : action === "stop" ? t("actions.stop") : t("actions.restart");
       addToast({
-        title: `${actionText}成功`,
-        description: `服务 ${service.alias || service.sid} 已${actionText}`,
+        title: t("toast.actionSuccess", { action: actionText }),
+        description: t("toast.serviceActioned", {
+          name: service.alias || service.sid,
+          action: actionText
+        }),
         color: "success",
       });
 
       // 刷新服务列表
       fetchServices();
     } catch (error) {
-      console.error("操作失败:", error);
+      console.error(t("toast.operationError"), error);
       const actionText =
-        action === "start" ? "启动" : action === "stop" ? "停止" : "重启";
+        action === "start" ? t("actions.start") : action === "stop" ? t("actions.stop") : t("actions.restart");
       addToast({
-        title: `${actionText}失败`,
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("toast.actionError", { action: actionText }),
+        description: error instanceof Error ? error.message : t("toast.unknownError"),
         color: "danger",
       });
     }
@@ -330,22 +338,25 @@ export default function ServicesPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "同步失败");
+        throw new Error(errorData.error || t("toast.syncError"));
       }
 
       addToast({
-        title: "同步成功",
-        description: `服务 ${service.alias || service.sid} 已同步`,
+        title: t("toast.syncSuccess"),
+        description: t("toast.serviceActioned", {
+          name: service.alias || service.sid,
+          action: t("actions.sync")
+        }),
         color: "success",
       });
 
       // 刷新服务列表
       fetchServices();
     } catch (error) {
-      console.error("同步失败:", error);
+      console.error(t("toast.syncError"), error);
       addToast({
-        title: "同步失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("toast.syncError"),
+        description: error instanceof Error ? error.message : t("toast.unknownError"),
         color: "danger",
       });
     }
@@ -375,21 +386,21 @@ export default function ServicesPage() {
   const getTypeLabel = (type: string) => {
     switch (type) {
       case "0":
-        return "通用单端转发";
+        return t("types.general");
       case "1":
-        return "本地内网穿透";
+        return t("types.localPenetration");
       case "2":
-        return "本地隧道转发";
+        return t("types.localTunnel");
       case "3":
-        return "外部内网穿透";
+        return t("types.externalPenetration");
       case "4":
-        return "外部隧道转发";
+        return t("types.externalTunnel");
       case "5":
-        return "均衡单端转发";
+        return t("types.balancedSingle");
       case "6":
-        return "均衡内网穿透";
+        return t("types.balancedPenetration");
       case "7":
-        return "均衡隧道转发";
+        return t("types.balancedTunnel");
       default:
         return type;
     }
@@ -476,7 +487,7 @@ export default function ServicesPage() {
       {/* 页面标题和操作栏 */}
       <div className="flex flex-col gap-4 md:flex-row md:justify-between md:items-center">
         <div>
-          <h1 className="text-2xl font-bold">服务管理</h1>
+          <h1 className="text-2xl font-bold">{t("title")}</h1>
         </div>
         <div className="flex gap-2">
           <Button
@@ -486,7 +497,7 @@ export default function ServicesPage() {
             variant="flat"
             onPress={() => fetchServices(true)}
           >
-            刷新
+            {t("actions.refresh")}
           </Button>
           <Dropdown placement="bottom-end">
             <DropdownTrigger>
@@ -496,11 +507,11 @@ export default function ServicesPage() {
                 startContent={<FontAwesomeIcon icon={faLayerGroup} />}
                 variant="flat"
               >
-                创建服务
+                {t("actions.createService")}
               </Button>
             </DropdownTrigger>
             <DropdownMenu
-              aria-label="场景创建选项"
+              aria-label={t("scenarios.label")}
               onAction={(key) => {
                 const scenarioType = key as ScenarioType;
                 setSelectedScenarioType(scenarioType);
@@ -514,7 +525,7 @@ export default function ServicesPage() {
                   <FontAwesomeIcon fixedWidth icon={faArrowRight} />
                 }
               >
-                单端转发
+                {t("scenarios.singleEndpoint")}
               </DropdownItem>
               <DropdownItem
                 key="nat-penetration"
@@ -526,7 +537,7 @@ export default function ServicesPage() {
                   <FontAwesomeIcon fixedWidth icon={faShield} className="group-hover:text-white" />
                 }
               >
-                内网穿透
+                {t("scenarios.penetration")}
               </DropdownItem>
 
               <DropdownItem
@@ -536,7 +547,7 @@ export default function ServicesPage() {
                   <FontAwesomeIcon fixedWidth icon={faExchangeAlt} />
                 }
               >
-                隧道转发
+                {t("scenarios.tunnelForward")}
               </DropdownItem>
             </DropdownMenu>
           </Dropdown>
@@ -545,7 +556,7 @@ export default function ServicesPage() {
             startContent={<FontAwesomeIcon icon={faCubes} />}
             onPress={() => setAssembleModalOpen(true)}
           >
-            组装服务
+            {t("actions.assembleService")}
           </Button>
         </div>
       </div>
@@ -556,7 +567,7 @@ export default function ServicesPage() {
           <div className="flex flex-col gap-2">
             <Input
               isClearable
-              placeholder="搜索服务 SID、类型或别名..."
+              placeholder={t("search.placeholder")}
               size="sm"
               startContent={<FontAwesomeIcon icon={faSearch} />}
               value={searchQuery}
@@ -566,13 +577,13 @@ export default function ServicesPage() {
             {!searchQuery && !loading && filteredServices.length > 0 && (
               <div className="flex items-center gap-2 text-xs text-default-500">
                 <FontAwesomeIcon icon={faGripVertical} className="text-default-400" />
-                <span>拖拽卡片可以调整显示顺序</span>
+                <span>{t("sorting.enabled")}</span>
               </div>
             )}
             {searchQuery && (
               <div className="flex items-center gap-2 text-xs text-warning">
                 <FontAwesomeIcon icon={faSearch} className="text-warning" />
-                <span>搜索模式下拖拽排序已禁用</span>
+                <span>{t("sorting.disabled")}</span>
               </div>
             )}
           </div>
@@ -610,7 +621,7 @@ export default function ServicesPage() {
       ) : filteredServices.length === 0 ? (
         <Card>
           <CardBody className="text-center py-12">
-            <p className="text-default-400">暂无服务数据</p>
+            <p className="text-default-400">{t("empty.noServices")}</p>
           </CardBody>
         </Card>
       ) : (
@@ -725,13 +736,13 @@ export default function ServicesPage() {
           {(onClose) => (
             <>
               <ModalHeader className="flex flex-col gap-1">
-                {confirmAction?.type === "dissolve" ? "确认解散服务" : "确认删除服务"}
+                {confirmAction?.type === "dissolve" ? t("confirm.dissolveTitle") : t("confirm.deleteTitle")}
               </ModalHeader>
               <ModalBody>
                 <p>
                   {confirmAction?.type === "dissolve"
-                    ? `确定要解散服务 "${confirmAction.service.alias || confirmAction.service.sid}" 吗？`
-                    : `确定要删除服务 "${confirmAction?.service.alias || confirmAction?.service.sid}" 吗？此操作不可撤销！`
+                    ? t("confirm.dissolveMessage", { name: confirmAction.service.alias || confirmAction.service.sid })
+                    : t("confirm.deleteMessage", { name: confirmAction?.service.alias || confirmAction?.service.sid })
                   }
                 </p>
               </ModalBody>
@@ -740,7 +751,7 @@ export default function ServicesPage() {
                   variant="light"
                   onPress={onClose}
                 >
-                  取消
+                  {t("action.cancel", { ns: "common" })}
                 </Button>
                 <Button
                   color={confirmAction?.type === "dissolve" ? "warning" : "danger"}
@@ -749,7 +760,7 @@ export default function ServicesPage() {
                     onClose();
                   }}
                 >
-                  {confirmAction?.type === "dissolve" ? "解散" : "删除"}
+                  {confirmAction?.type === "dissolve" ? t("actions.dissolve") : t("actions.delete")}
                 </Button>
               </ModalFooter>
             </>

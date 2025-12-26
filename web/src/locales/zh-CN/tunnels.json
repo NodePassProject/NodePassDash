@@ -1,0 +1,700 @@
+{
+  "page": {
+    "title": "实例管理",
+    "loading": "加载中...",
+    "loadFailed": "加载失败",
+    "retry": "重试",
+    "noData": "暂无实例",
+    "noDataDesc": "您还没有创建任何实例",
+    "refresh": "刷新",
+    "reset": "重置"
+  },
+  "table": {
+    "columns": {
+      "type": "类型",
+      "name": "名称",
+      "endpoint": "主控",
+      "tunnelAddress": "隧道地址",
+      "targetAddress": "目标地址",
+      "status": "状态",
+      "traffic": "流量统计",
+      "actions": "操作"
+    },
+    "trafficTooltip": {
+      "line1": "第一行：↑ 总上传流量 (TCP+UDP)",
+      "line2": "第二行：↓ 总下载流量 (TCP+UDP)"
+    }
+  },
+  "type": {
+    "server": "服务端",
+    "client": "客户端"
+  },
+  "status": {
+    "all": "所有状态",
+    "running": "运行",
+    "stopped": "停止",
+    "error": "错误",
+    "offline": "离线",
+    "unknown": "未知"
+  },
+  "filter": {
+    "search": "搜索实例",
+    "searchPlaceholder": "搜索实例名称...",
+    "statusFilter": "状态筛选",
+    "endpointFilter": "主控筛选",
+    "allEndpoints": "所有主控",
+    "groupFilter": "分组筛选",
+    "all": "所有",
+    "selected": "已选择 {{count}} 个"
+  },
+  "sort": {
+    "label": "排序",
+    "id": "ID",
+    "sorts": "权重",
+    "type": "类型",
+    "name": "名称",
+    "endpoint_id": "主控",
+    "status": "状态",
+    "services": "服务"
+  },
+  "pagination": {
+    "rowsPerPage": "每页显示",
+    "rows10": "10条/页",
+    "rows20": "20条/页",
+    "rows50": "50条/页"
+  },
+  "actions": {
+    "create": "创建",
+    "createInstance": "创建实例",
+    "createOptions": "创建选项",
+    "manualCreate": "手搓创建",
+    "batchCreate": "批量创建",
+    "scenarioCreate": "场景创建",
+    "groupManagement": "分组管理",
+    "view": "查看实例",
+    "start": "启动实例",
+    "stop": "停止实例",
+    "restart": "重启实例",
+    "edit": "编辑实例",
+    "rename": "重命名",
+    "delete": "删除实例",
+    "bulkActions": "批量操作",
+    "bulkStart": "批量启动",
+    "bulkStop": "批量停止",
+    "bulkRestart": "批量重启",
+    "bulkExport": "批量导出",
+    "bulkDelete": "批量删除",
+    "modifyName": "修改名称"
+  },
+  "delete": {
+    "modalTitle": "确认删除",
+    "confirmMessage": "您确定要删除实例",
+    "confirmMessageEnd": "吗？",
+    "warning": "⚠️ 此操作不可撤销，实例的所有配置和数据都将被永久删除。",
+    "cancel": "取消",
+    "confirm": "确认删除",
+    "batchTitle": "确认批量删除",
+    "batchMessage": "您确定要删除选中的",
+    "batchMessageEnd": "个实例吗？",
+    "batchWarning": "⚠️ 此操作不可撤销，选中实例的所有配置和数据都将被永久删除。"
+  },
+  "export": {
+    "modalTitle": "导出配置规则",
+    "selectedMessage": "已选择 {{count}} 个实例的配置规则，格式符合批量创建规范：",
+    "close": "关闭",
+    "copy": "复制配置"
+  },
+  "toast": {
+    "fetchError": "错误",
+    "fetchFailed": "获取实例列表失败",
+    "fetchEndpointsFailed": "获取主控列表失败",
+    "fetchGroupsFailed": "获取分组列表失败",
+    "actionSuccess": "成功",
+    "actionSuccessDesc": "操作成功",
+    "actionFailed": "操作失败",
+    "deleteSuccess": "删除成功",
+    "deleteFailed": "删除失败",
+    "batchDeleteProgress": "批量删除中...",
+    "batchDeleteProgressDesc": "正在删除所选实例，请稍候",
+    "batchDeleteSuccess": "批量删除成功",
+    "batchDeleteSuccessDesc": "已删除 {{count}} 个实例",
+    "batchDeleteFailed": "批量删除失败",
+    "batchStartFailed": "批量启动失败",
+    "batchStartFailedDesc": "请先选择需要启动的实例",
+    "batchStartNoInstances": "所选实例中没有可启动的实例（已停止状态）",
+    "batchStartProgress": "批量启动中...",
+    "batchStartProgressDesc": "正在启动 {{count}} 个实例，请稍候",
+    "batchStartComplete": "批量启动完成",
+    "batchStartCompleteDesc": "成功启动 {{success}} 个实例{{failed}}",
+    "batchStopFailed": "批量停止失败",
+    "batchStopFailedDesc": "请先选择需要停止的实例",
+    "batchStopNoInstances": "所选实例中没有可停止的实例（运行中状态）",
+    "batchStopProgress": "批量停止中...",
+    "batchStopProgressDesc": "正在停止 {{count}} 个实例，请稍候",
+    "batchStopComplete": "批量停止完成",
+    "batchStopCompleteDesc": "成功停止 {{success}} 个实例{{failed}}",
+    "batchRestartFailed": "批量重启失败",
+    "batchRestartFailedDesc": "请先选择需要重启的实例",
+    "batchRestartNoInstances": "所选实例中没有可重启的实例（运行中状态）",
+    "batchRestartProgress": "批量重启中...",
+    "batchRestartProgressDesc": "正在重启 {{count}} 个实例，请稍候",
+    "batchRestartComplete": "批量重启完成",
+    "batchRestartCompleteDesc": "成功重启 {{success}} 个实例{{failed}}",
+    "failedCount": "，{{count}} 个失败",
+    "unknownError": "未知错误",
+    "missingInstanceId": "此实例缺少NodePass ID，无法执行操作",
+    "copySuccess": "配置已复制到剪贴板"
+  },
+  "mobile": {
+    "endpoint": "主控:",
+    "tunnel": "隧道:",
+    "target": "目标:",
+    "version": "版本:"
+  },
+  "renameModal": {
+    "title": "修改实例名称",
+    "label": "实例名称",
+    "placeholder": "请输入新的实例名称",
+    "cancel": "取消",
+    "confirm": "确认修改",
+    "toast": {
+      "updateFailed": "修改名称失败",
+      "updateSuccess": "修改成功",
+      "updateSuccessDesc": "实例名称已更新",
+      "updateFailedDesc": "修改失败"
+    }
+  },
+  "groupManagement": {
+    "title": "分组管理",
+    "addButton": "添加",
+    "close": "关闭",
+    "addForm": {
+      "groupName": "分组名称",
+      "placeholder": "请输入分组名称",
+      "save": "保存",
+      "cancel": "取消"
+    },
+    "table": {
+      "groupName": "分组名称",
+      "actions": "操作"
+    },
+    "actions": {
+      "bindInstances": "绑定实例",
+      "edit": "编辑分组",
+      "delete": "删除分组"
+    },
+    "confirmDelete": "确定要删除分组 \"{{name}}\" 吗？",
+    "empty": {
+      "title": "暂无分组",
+      "description": "点击上方按钮创建第一个分组"
+    },
+    "toast": {
+      "fetchFailed": "错误",
+      "fetchFailedDesc": "获取分组列表失败",
+      "nameRequired": "错误",
+      "nameRequiredDesc": "请输入分组名称",
+      "createSuccess": "成功",
+      "createSuccessDesc": "分组创建成功",
+      "createFailed": "错误",
+      "createFailedDesc": "创建分组失败",
+      "updateSuccess": "成功",
+      "updateSuccessDesc": "分组更新成功",
+      "updateFailed": "错误",
+      "updateFailedDesc": "更新分组失败",
+      "deleteSuccess": "成功",
+      "deleteSuccessDesc": "分组删除成功",
+      "deleteFailed": "错误",
+      "deleteFailedDesc": "删除分组失败"
+    }
+  },
+  "batchCreate": {
+    "title": "批量创建实例",
+    "tabs": {
+      "standard": "标准模式",
+      "quick": "配置模式"
+    },
+    "standard": {
+      "rules": "转发规则",
+      "selectEndpoint": "选择入口服务器",
+      "unifiedEndpoint": "统一入口服务器",
+      "addRule": "添加规则",
+      "noRules": "暂无转发规则，点击\"添加规则\"开始配置",
+      "selectEndpointServer": "选择入口服务器",
+      "tunnelName": "隧道名称",
+      "tunnelPort": "入口端口，如：8000",
+      "targetIP": "目标IP，如：192.168.1.100",
+      "targetPort": "目标端口：10000"
+    },
+    "quick": {
+      "selectMaster": "选择主控服务器",
+      "selectMasterPlaceholder": "请选择要使用的主控服务器",
+      "batchRules": "批量规则配置",
+      "reset": "复位",
+      "format": "格式化",
+      "addExample": "添加示例",
+      "jsonFormat": "JSON格式输入",
+      "formatDescription": "格式说明：",
+      "destDesc": "目标地址，格式为 \"IP:端口\"",
+      "listenPortDesc": "监听端口号",
+      "nameDesc": "隧道名称",
+      "arrayFormatDesc": "输入JSON数组格式，支持多条规则批量创建",
+      "validationError": "必须是JSON数组格式",
+      "validRules": "检测到 {{count}} 条有效规则",
+      "partialValid": "有效规则：{{valid}} / {{total}}",
+      "jsonError": "JSON格式错误"
+    },
+    "buttons": {
+      "cancel": "取消",
+      "create": "批量创建",
+      "creating": "创建中...",
+      "createWithCount": "批量创建 ({{count}})"
+    },
+    "toast": {
+      "fetchEndpointsFailed": "获取主控列表失败",
+      "addRuleRequired": "请添加至少一条转发规则",
+      "selectUnifiedEndpoint": "请选择统一的入口服务器",
+      "selectEndpointForEachRule": "请为每条规则选择入口服务器",
+      "completeAllRules": "请完善所有转发规则的配置（包括隧道名称）",
+      "selectMaster": "请选择主控服务器",
+      "enterJsonRules": "请输入JSON规则配置",
+      "jsonMustBeArray": "JSON必须是数组格式",
+      "atLeastOneRule": "请输入至少一条规则",
+      "ruleFormatError": "第 {{index}} 条规则格式错误：必须包含 dest、listen_port 和 name 字段",
+      "jsonFormatError": "JSON格式错误，请检查语法",
+      "createComplete": "批量创建完成",
+      "createSuccess": "成功创建 {{count}} 个实例",
+      "createFailed": "批量创建失败",
+      "createFailedDesc": "创建失败",
+      "networkError": "网络错误，请稍后重试",
+      "formatSuccess": "格式化成功",
+      "formatSuccessDesc": "已格式化 {{count}} 条规则",
+      "formatFailed": "格式化失败",
+      "formatFailedArray": "JSON必须是数组格式",
+      "formatFailedSyntax": "JSON格式错误，请检查语法"
+    }
+  },
+  "batchUrlCreate": {
+    "title": "批量URL创建实例",
+    "addButton": "添加",
+    "noRules": "暂无隧道规则，点击右上角\"添加\"开始配置",
+    "rulesList": "隧道规则列表",
+    "selectEndpoint": "选择主控",
+    "tunnelName": "隧道名称",
+    "tunnelUrl": "<core>://<tunnel_addr>/<target_addr>",
+    "buttons": {
+      "cancel": "取消",
+      "create": "批量创建 ({{count}})",
+      "creating": "创建中..."
+    },
+    "toast": {
+      "fetchEndpointsFailed": "获取主控失败",
+      "fetchEndpointsFailedDesc": "无法获取主控列表",
+      "createFailed": "创建失败",
+      "addTunnelRequired": "请添加至少一条隧道",
+      "selectEndpointRequired": "第 {{index}} 条规则请选择主控服务器",
+      "nameRequired": "第 {{index}} 条规则请输入实例名称",
+      "urlRequired": "第 {{index}} 条规则请输入实例URL",
+      "createSuccess": "创建成功",
+      "createSuccessDesc": "成功创建 {{count}} 个实例",
+      "createFailedDesc": "创建实例失败",
+      "unknownError": "未知错误"
+    }
+  },
+  "simpleCreate": {
+    "modalTitle": {
+      "create": "创建实例",
+      "edit": "编辑实例"
+    },
+    "tabs": {
+      "server": "服务端",
+      "client": "客户端"
+    },
+    "fields": {
+      "selectEndpoint": "选择主控",
+      "instanceName": "实例名称",
+      "instanceNamePlaceholder": "xxx-tunnel",
+      "runMode": "运行模式",
+      "listenType": "监听类型",
+      "tunnelAddress": "隧道地址",
+      "tunnelAddressPlaceholder": "0.0.0.0/[2001:db8::1]",
+      "tunnelPort": "隧道端口",
+      "tunnelPortPlaceholder": "0-65535",
+      "targetAddress": "目标地址",
+      "targetAddressPlaceholder": "0.0.0.0/[2001:db8::1]",
+      "targetPort": "目标端口",
+      "targetPortPlaceholder": "0-65535",
+      "logLevel": "日志级别",
+      "tlsMode": "TLS 模式",
+      "certPath": "证书路径",
+      "certPathPlaceholder": "/path/to/cert.pem",
+      "keyPath": "密钥路径",
+      "keyPathPlaceholder": "/path/to/cert.key",
+      "tunnelPassword": "隧道密码",
+      "tunnelPasswordPlaceholder": "连接密码认证",
+      "poolMinCapacity": "连接池最小容量",
+      "poolMinPlaceholder": "64(默认值)",
+      "poolMaxCapacity": "连接池最大容量",
+      "poolMaxPlaceholder": "1024(默认值)",
+      "readTimeout": "数据读取超时",
+      "readTimeoutPlaceholder": "1h0m0s",
+      "rateLimit": "速率限制",
+      "rateLimitPlaceholder": "100",
+      "rateLimitUnit": "Mbps",
+      "maxConnections": "最大连接数限制",
+      "maxConnectionsPlaceholder": "100",
+      "proxyProtocol": "Proxy Protocol",
+      "enableQuic": "启用 QUIC",
+      "weight": "权重(越大越前)",
+      "weightPlaceholder": "0",
+      "outboundIP": "出站源IP",
+      "outboundIPPlaceholder": "auto",
+      "dnsTTL": "DNS TTL",
+      "dnsTTLPlaceholder": "5m",
+      "extendedTargets": "附加目标地址",
+      "extendedTargetsPlaceholder": "192.168.1.1:80&#10;192.168.1.2:80",
+      "extendedTargetsTooltip": "通过增加目标地址达到负载均衡的效果"
+    },
+    "modes": {
+      "auto": "自动",
+      "reverse": "反向",
+      "forward": "正向",
+      "single": "单端",
+      "dual": "双端"
+    },
+    "listenTypes": {
+      "all": "ALL",
+      "tcp": "TCP",
+      "udp": "UDP"
+    },
+    "tls": {
+      "inherit": "继承",
+      "inheritWithValue": "继承 ({{mode}})",
+      "inheritMaster": "继承主控",
+      "mode0": "无 TLS",
+      "mode1": "自签名证书",
+      "mode2": "自定义证书",
+      "mode0Full": "模式0：无 TLS",
+      "mode1Full": "模式1：自签名证书",
+      "mode2Full": "模式2：自定义证书"
+    },
+    "logLevels": {
+      "inherit": "继承",
+      "inheritWithValue": "继承 ({{level}})",
+      "inheritMaster": "继承主控",
+      "debug": "Debug",
+      "info": "Info",
+      "warn": "Warn",
+      "error": "Error",
+      "event": "Event",
+      "none": "None"
+    },
+    "switch": {
+      "on": "开启",
+      "off": "关闭",
+      "enable": "启用",
+      "disable": "关闭"
+    },
+    "optional": {
+      "title": "可选配置",
+      "resetTraffic": "保存后重置流量统计"
+    },
+    "tooltips": {
+      "randomPort": "随机生成端口号",
+      "toggleLoadBalancing": "增加目标地址",
+      "disableLoadBalancing": "关闭负载均衡"
+    },
+    "buttons": {
+      "cancel": "取消",
+      "create": "创建",
+      "update": "更新"
+    },
+    "validation": {
+      "requiredFields": "请填写必填字段",
+      "requiredFieldsDesc": "主控/名称/端口不能为空",
+      "invalidClientMode": "请选择有效的客户端模式",
+      "invalidClientModeDesc": "客户端模式必须为模式1或模式2",
+      "invalidPort": "端口不合法",
+      "invalidPortDesc": "端口需 0-65535",
+      "missingCert": "缺少证书",
+      "missingCertDesc": "TLS 模式2 需填写证书与密钥路径"
+    },
+    "toast": {
+      "loadDataFailed": "加载数据失败",
+      "getTunnelDetailsFailed": "获取隧道详情失败",
+      "getEndpointsFailed": "获取主控失败",
+      "createSuccess": "创建成功",
+      "createFailed": "创建失败",
+      "updateSuccess": "更新成功",
+      "updateFailed": "更新失败",
+      "unknownError": "未知错误"
+    }
+  },
+  "details": {
+    "timeRange": {
+      "1h": "1小时",
+      "6h": "6小时",
+      "12h": "12小时",
+      "24h": "24小时"
+    },
+    "status": {
+      "running": "运行中",
+      "error": "有错误",
+      "stopped": "已停止",
+      "offline": "已离线",
+      "unknown": "未知"
+    },
+    "tlsMode": {
+      "none": "无 TLS 加密",
+      "selfsigned": "自签名证书",
+      "custom": "自定义证书"
+    },
+    "tunnelMode": {
+      "auto": "自动模式",
+      "singleForward": "单端转发",
+      "dualForward": "双端转发",
+      "autoDetect": "自动检测",
+      "reverse": "反向转发",
+      "forward": "正向转发",
+      "unknown": "未知模式",
+      "notSet": "未设置"
+    },
+    "loading": "加载中...",
+    "refreshing": "刷新数据中...",
+    "buttons": {
+      "start": "启动",
+      "stop": "停止",
+      "restart": "重启",
+      "delete": "删除",
+      "reset": "重置",
+      "refresh": "刷新",
+      "edit": "编辑实例",
+      "cancel": "取消",
+      "confirm": "确认",
+      "close": "关闭",
+      "copy": "复制"
+    },
+    "deleteModal": {
+      "title": "确认删除",
+      "message": "您确定要删除实例",
+      "messageEnd": "吗？",
+      "warning": "⚠️ 此操作不可撤销，实例的所有配置和数据都将被永久删除。",
+      "confirmButton": "确认删除"
+    },
+    "resetModal": {
+      "title": "确认重置",
+      "message": "您确定要重置实例",
+      "messageEnd": "的流量信息吗？",
+      "warning": "⚠️ 此操作仅重置流量统计，不影响其他配置。",
+      "confirmButton": "确认重置"
+    },
+    "trafficStats": {
+      "tcpReceive": "TCP 接收",
+      "tcpSend": "TCP 发送",
+      "udpReceive": "UDP 接收",
+      "udpSend": "UDP 发送",
+      "latency": "端内延迟",
+      "pool": "池连接数",
+      "tcpConnections": "TCP连接数",
+      "udpConnections": "UDP连接数",
+      "tcpTraffic": "TCP流量",
+      "udpTraffic": "UDP流量"
+    },
+    "instanceInfo": {
+      "title": "实例信息",
+      "instanceId": "实例ID",
+      "mode": "模式",
+      "endpoint": "主控",
+      "version": "版本号",
+      "tunnelAddress": "隧道地址",
+      "targetAddress": "目标地址",
+      "extendedTargets": "扩展目标地址",
+      "logLevel": {
+        "label": "日志级别",
+        "inherit": "继承主控",
+        "inheritWithValue": "继承主控 [{{level}}]",
+        "none": "无日志 [NONE]"
+      },
+      "pool": {
+        "min": "池最小值",
+        "max": "池最大值",
+        "default": "(默认)"
+      },
+      "maxConnections": {
+        "label": "最大连接数限制",
+        "notSet": "未设置",
+        "default": "(默认)"
+      },
+      "tls": {
+        "label": "TLS 设置",
+        "inherit": "继承主控",
+        "certPath": "证书路径",
+        "keyPath": "密钥路径",
+        "default": "(默认)"
+      },
+      "password": {
+        "label": "隧道密码",
+        "notSet": "未设置",
+        "hasPassword": "已设置密码",
+        "clickToCopy": "点击复制密码",
+        "default": "(默认)"
+      },
+      "compression": {
+        "label": "压缩",
+        "enabled": "已启用",
+        "disabled": "未启用",
+        "default": "(默认)"
+      },
+      "encryption": {
+        "label": "加密",
+        "enabled": "已启用",
+        "disabled": "未启用",
+        "default": "(默认)"
+      },
+      "autoRestart": {
+        "label": "自动重启",
+        "enabled": "已启用",
+        "disabled": "已禁用"
+      },
+      "tcping": {
+        "label": "TCPing",
+        "test": "测试",
+        "default": "(默认)"
+      },
+      "tags": {
+        "label": "标签",
+        "manage": "管理标签",
+        "noTags": "暂无标签"
+      },
+      "configLine": "配置行",
+      "readTimeout": {
+        "label": "读取超时",
+        "notSet": "未设置"
+      },
+      "rateLimit": {
+        "label": "速率限制",
+        "notSet": "未设置",
+        "unlimited": "不限制",
+        "default": "(默认)"
+      },
+      "proxyProtocol": {
+        "label": "代理协议",
+        "on": "开启",
+        "off": "关闭"
+      },
+      "listenType": "监听类型",
+      "quic": {
+        "label": "启用 QUIC",
+        "enabled": "启用",
+        "disabled": "关闭"
+      },
+      "outboundIP": "出站源IP",
+      "bindService": {
+        "label": "绑定服务",
+        "unknown": "未知服务"
+      },
+      "toggleUrl": {
+        "showCommand": "切换显示命令URL",
+        "showConfig": "切换显示配置URL"
+      },
+      "expiry": {
+        "unlimited": "无限期",
+        "days": "天"
+      },
+      "editTooltip": "编辑实例"
+    },
+    "logs": {
+      "title": "实例日志",
+      "logTitle": "日志",
+      "realtime": "实时日志",
+      "realtimeShort": "实时",
+      "realtimeOutput": "实时输出",
+      "selectDate": "选择日期",
+      "export": "导出日志",
+      "exportFile": "导出日志文件",
+      "clear": "清空",
+      "cleared": "文件日志已清空",
+      "timeError": "时间解析错误",
+      "refresh": "刷新",
+      "scrollToBottom": "滚动到底部",
+      "confirmClear": "确认清空日志",
+      "clearRealtimeWarning": "此操作将清空当前实时输出的内容。",
+      "clearFileWarning": "此操作将清空页面显示和所有已保存的日志文件，且不可撤销。",
+      "confirmClearButton": "确认清空",
+      "cancel": "取消"
+    },
+    "charts": {
+      "traffic": "流量统计",
+      "speed": "速度统计",
+      "pool": "连接池统计",
+      "connections": "连接数统计",
+      "latency": "延迟统计"
+    },
+    "statsTabs": {
+      "traffic": "流量累计",
+      "speed": "传输速率",
+      "latency": "端内延迟",
+      "connections": "连接数量"
+    },
+    "toast": {
+      "fetchFailed": "获取实例详情失败",
+      "refreshFailed": "刷新失败",
+      "resetSuccess": "重置成功",
+      "resetSuccessDesc": "实例流量信息已重置",
+      "resetFailed": "重置失败",
+      "exportSuccess": "导出成功",
+      "exportSuccessDesc": "日志文件已导出为 {{filename}}",
+      "exportFailed": "导出失败",
+      "restartConfigSuccess": "配置更新成功",
+      "restartConfigSuccessDesc": "自动重启已{{status}}",
+      "restartConfigFailed": "配置更新失败",
+      "restartNotSupported": "当前实例不支持自动重启功能",
+      "unknownError": "未知错误",
+      "enabled": "开启",
+      "disabled": "关闭"
+    }
+  },
+  "tcpingModal": {
+    "title": "网络诊断测试",
+    "loading": {
+      "testing": "正在进行连通性测试...",
+      "targetAddress": "目标地址"
+    },
+    "result": {
+      "title": "测试结果",
+      "targetAddress": "目标地址",
+      "connectionStatus": "连接状态",
+      "connected": "✓ 连接成功",
+      "disconnected": "✗ 连接失败",
+      "packetLoss": "丢包率",
+      "networkQuality": "网络质量"
+    },
+    "analysis": {
+      "fastest": "最快响应",
+      "average": "平均响应",
+      "slowest": "最慢响应"
+    },
+    "latencyQuality": {
+      "excellent": "优秀",
+      "good": "良好",
+      "fair": "一般",
+      "poor": "较差"
+    },
+    "addressSelection": {
+      "title": "ℹ️ 检测到多个目标地址",
+      "description": "此隧道配置了负载均衡，请选择要测试的目标地址，然后点击测试按钮开始诊断。",
+      "mainTarget": "主目标地址",
+      "extendedTarget": "扩展地址 #{{n}}"
+    },
+    "actions": {
+      "close": "关闭",
+      "retest": "重新测试",
+      "startTest": "开始测试"
+    },
+    "toast": {
+      "testFailed": "诊断测试失败",
+      "unknownError": "未知错误",
+      "selectAddress": "请选择目标地址",
+      "selectAddressDesc": "请先选择一个目标地址后再进行测试"
+    }
+  }
+}

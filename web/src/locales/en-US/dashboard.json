@@ -1,0 +1,77 @@
+{
+  "title": "👋 Overview",
+  "currentTime": "Current Time",
+  "stats": {
+    "services": "Services",
+    "instances": "Instances",
+    "endpoints": "Endpoints",
+    "running": "Running",
+    "stopped": "Stopped",
+    "error": "Error",
+    "offline": "Offline"
+  },
+  "traffic": {
+    "overview": "Traffic Overview",
+    "weeklyStats": "Weekly Statistics",
+    "todayTraffic": "Today's Traffic",
+    "totalConsumption": "Total Traffic Consumption",
+    "loading": "Loading traffic data...",
+    "noData": "No traffic data",
+    "noDataDescription": "Traffic trend data will be displayed here when instances are running",
+    "tcpIn": "TCP In",
+    "tcpOut": "TCP Out",
+    "udpIn": "UDP In",
+    "udpOut": "UDP Out"
+  },
+  "endpoints": {
+    "title": "Endpoints",
+    "instance": "instances",
+    "noEndpoints": "No endpoints",
+    "addFirst": "Please add an endpoint first"
+  },
+  "activity": {
+    "title": "Recent Activity",
+    "loading": "Loading...",
+    "filter": "Showing last 100 records",
+    "noRecords": "No operation records",
+    "clearTitle": "Clear Recent Activity",
+    "confirmClear": "Confirm Clear",
+    "confirmMessage": "This operation will delete all recent activity records and cannot be undone. Are you sure you want to continue?",
+    "clearing": "Clearing..."
+  },
+  "table": {
+    "time": "Time",
+    "action": "Action",
+    "instance": "Instance",
+    "status": "Status"
+  },
+  "actions": {
+    "start": "Start",
+    "stop": "Stop",
+    "create": "Create",
+    "delete": "Delete",
+    "restart": "Restart"
+  },
+  "errors": {
+    "fetchStatsError": "Failed to fetch tunnel statistics",
+    "fetchLogsError": "Failed to fetch operation logs",
+    "fetchEndpointsError": "Failed to fetch endpoint data",
+    "fetchTrafficError": "Failed to fetch traffic trend data",
+    "fetchWeeklyStatsError": "Failed to fetch weekly statistics",
+    "clearLogsError": "Unable to clear logs"
+  },
+  "quickActions": {
+    "title": "Quick Actions",
+    "addEndpoint": "Add Endpoint",
+    "createTunnel": "Create Instance",
+    "scenarioCreate": "Scenario Create",
+    "debugTools": "Debug Tools",
+    "docs": "Documentation",
+    "settings": "Settings",
+    "addEndpointSuccess": "Added Successfully",
+    "addEndpointSuccessDesc": "Endpoint added successfully",
+    "addEndpointFailed": "Add Failed",
+    "addEndpointError": "Failed to add endpoint",
+    "addEndpointErrorDesc": "Error occurred while adding endpoint"
+  }
+}

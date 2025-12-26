@@ -9,6 +9,7 @@ import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
 import { addToast } from "@heroui/toast";
 import { useState } from "react";
+import { useTranslation } from "react-i18next";
 
 import AddEndpointModal from "@/components/endpoints/add-endpoint-modal";
 import SimpleCreateTunnelModal from "@/components/tunnels/simple-create-tunnel-modal";
@@ -24,6 +25,7 @@ import { buildApiUrl } from "@/lib/utils";
  */
 export function DemoQuickEntryCard() {
   const navigate = useNavigate();
+  const { t } = useTranslation("dashboard");
 
   // 模态框控制
   const {
@@ -51,7 +53,7 @@ export function DemoQuickEntryCard() {
     {
       id: "add-endpoint",
       icon: faServer,
-      label: "添加主控",
+      label: t("quickActions.addEndpoint"),
       action: "modal",
       color: "bg-blue-500 hover:bg-blue-600",
       iconType: "fontawesome",
@@ -60,7 +62,7 @@ export function DemoQuickEntryCard() {
     {
       id: "create-tunnel",
       icon: "solar:transmission-bold",
-      label: "创建实例",
+      label: t("quickActions.createTunnel"),
       action: "modal",
       color: "bg-green-500 hover:bg-green-600",
       iconType: "iconify",
@@ -69,7 +71,7 @@ export function DemoQuickEntryCard() {
     {
       id: "template-create",
       icon: faLayerGroup,
-      label: "场景创建",
+      label: t("quickActions.scenarioCreate"),
       action: "modal",
       color: "bg-purple-500 hover:bg-purple-600",
       iconType: "fontawesome",
@@ -78,7 +80,7 @@ export function DemoQuickEntryCard() {
     {
       id: "debug-tools",
       icon: faBug,
-      label: "调试工具",
+      label: t("quickActions.debugTools"),
       action: "navigate",
       route: "/debug",
       color: "bg-teal-500 hover:bg-teal-600",
@@ -88,7 +90,7 @@ export function DemoQuickEntryCard() {
     {
       id: "docs",
       icon: "solar:document-text-bold",
-      label: "说明文档",
+      label: t("quickActions.docs"),
       action: "navigate",
       route: "/docs",
       color: "bg-indigo-500 hover:bg-indigo-600",
@@ -98,7 +100,7 @@ export function DemoQuickEntryCard() {
     {
       id: "settings",
       icon: "solar:settings-bold",
-      label: "系统设置",
+      label: t("quickActions.settings"),
       action: "navigate",
       route: "/settings",
       color: "bg-gray-500 hover:bg-gray-600",
@@ -121,19 +123,19 @@ export function DemoQuickEntryCard() {
       const result = await response.json();
 
       if (!response.ok) {
-        throw new Error(result.error || "添加主控失败");
+        throw new Error(result.error || t("quickActions.addEndpointError"));
       }
 
       addToast({
-        title: "添加成功",
-        description: "主控已成功添加",
+        title: t("quickActions.addEndpointSuccess"),
+        description: t("quickActions.addEndpointSuccessDesc"),
         color: "success",
       });
     } catch (error) {
       addToast({
-        title: "添加失败",
+        title: t("quickActions.addEndpointFailed"),
         description:
-          error instanceof Error ? error.message : "添加主控时发生错误",
+          error instanceof Error ? error.message : t("quickActions.addEndpointErrorDesc"),
         color: "danger",
       });
       throw error; // 重新抛出错误，让模态框处理
@@ -175,7 +177,7 @@ export function DemoQuickEntryCard() {
       <CardBody className="p-5 h-full flex flex-col">
         {/* 标题 */}
         <span className="text-base font-semibold text-foreground mb-4">
-          快捷操作
+          {t("quickActions.title")}
         </span>
 
         {/* 按钮网格 - 2列3行 */}

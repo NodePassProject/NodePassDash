@@ -20,6 +20,7 @@ import {
   faEyeSlash,
   faFileImport,
 } from "@fortawesome/free-solid-svg-icons";
+import { useTranslation } from "react-i18next";
 
 // 表单数据接口
 interface FormData {
@@ -44,6 +45,7 @@ export default function AddEndpointModal({
   onOpenChange,
   onAdd,
 }: AddEndpointModalProps) {
+  const { t } = useTranslation("endpoints");
   const [isTestingConnection, setIsTestingConnection] = useState(false);
   const [showApiKey, setShowApiKey] = useState(false);
   const [showImportModal, setShowImportModal] = useState(false);
@@ -90,8 +92,8 @@ export default function AddEndpointModal({
   const testConnectionAndVersion = async () => {
     if (!formData.url || !formData.apiKey) {
       addToast({
-        title: "参数不完整",
-        description: "请先填写完整的 URL 和 API Key",
+        title: t("toast.incompleteParams"),
+        description: t("toast.incompleteParamsDesc"),
         color: "warning",
       });
 
@@ -119,7 +121,7 @@ export default function AddEndpointModal({
       const result = await response.json();
 
       if (!result.success) {
-        throw new Error(result.error || "连接测试失败");
+        throw new Error(result.error || t("toast.testFailedDesc"));
       }
 
       // 保存测试结果并显示模态窗
@@ -127,11 +129,11 @@ export default function AddEndpointModal({
       setShowTestResultModal(true);
     } catch (error) {
       addToast({
-        title: "连接测试失败",
+        title: t("toast.testFailed"),
         description:
           error instanceof Error
             ? error.message
-            : "连接失败，请检查配置是否正确",
+            : t("toast.testFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -184,11 +186,11 @@ export default function AddEndpointModal({
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1">
-              添加 API 主控
+              {t("addModal.title")}
             </ModalHeader>
             <ModalBody className="px-6 pb-6">
               <div className="flex flex-col items-start">
-                <p className="text-large font-semibold">主控配置</p>
+                <p className="text-large font-semibold">{t("addModal.configTitle")}</p>
                 <div
                   className="flex gap-4 py-4 cursor-pointer"
                   onClick={() => setShowImportModal(true)}
@@ -224,14 +226,14 @@ export default function AddEndpointModal({
                     />
                   </Badge>
                   <div className="flex flex-col items-start justify-center">
-                    <p className="font-medium">导入主控配置</p>
+                    <p className="font-medium">{t("addModal.importConfig")}</p>
                     <span className="text-small text-default-500">
-                      点击导入已有的主控配置
+                      {t("addModal.importDesc")}
                     </span>
                   </div>
                 </div>
                 <p className="text-small text-default-400 mb-6">
-                  您可以手动填写配置信息，或者点击上方图标快速导入已有的主控配置。
+                  {t("addModal.helpText")}
                 </p>
               </div>
 
@@ -244,11 +246,11 @@ export default function AddEndpointModal({
                       {formData.name.length}/25
                     </span>
                   }
-                  label="主控名称"
+                  label={t("addModal.name")}
                   labelPlacement="outside"
                   maxLength={25}
                   name="name"
-                  placeholder="主服务器"
+                  placeholder={t("addModal.namePlaceholder")}
                   value={formData.name}
                   onValueChange={(value) => handleInputChange("name", value)}
                 />
@@ -256,10 +258,10 @@ export default function AddEndpointModal({
                 <Input
                   isRequired
                   className="md:col-span-1"
-                  label="URL 地址"
+                  label={t("addModal.urlLabel")}
                   labelPlacement="outside"
                   name="url"
-                  placeholder="http(s)://example.com:9090/api/v1"
+                  placeholder={t("addModal.urlPlaceholder")}
                   type="url"
                   value={formData.url}
                   onValueChange={(value) => handleInputChange("url", value)}
@@ -282,11 +284,11 @@ export default function AddEndpointModal({
                       />
                     </Button>
                   }
-                  label="API Key"
+                  label={t("addModal.apiKeyLabel")}
                   labelPlacement="outside"
                   maxLength={100}
                   name="apiKey"
-                  placeholder="输入您的 API Key"
+                  placeholder={t("addModal.apiKeyPlaceholder")}
                   type={showApiKey ? "text" : "password"}
                   value={formData.apiKey}
                   onValueChange={(value) =>
@@ -298,7 +300,7 @@ export default function AddEndpointModal({
               <div className="mt-6 flex w-full justify-end gap-2">
                 <div className="flex gap-2">
                   <Button radius="full" variant="bordered" onPress={onClose}>
-                    取消
+                    {t("addModal.cancel")}
                   </Button>
                   <Button
                     color="primary"
@@ -311,7 +313,7 @@ export default function AddEndpointModal({
                     }
                     onPress={testConnectionAndVersion}
                   >
-                    {isTestingConnection ? "检测中..." : "检测连接并添加"}
+                    {isTestingConnection ? t("addModal.testing") : t("addModal.testAndAdd")}
                   </Button>
                 </div>
               </div>
@@ -328,14 +330,12 @@ export default function AddEndpointModal({
                 <ModalContent>
                   {(onClose) => (
                     <>
-                      <ModalHeader>导入配置</ModalHeader>
+                      <ModalHeader>{t("addModal.importModalTitle")}</ModalHeader>
                       <ModalBody className="gap-4">
                         <Textarea
-                          label="配置内容"
+                          label={t("addModal.importContent")}
                           minRows={3}
-                          placeholder={
-                            "API URL: http(s)://xxx.xxx.xxx.xxx:10101/api/v1\nAPI KEY: xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx"
-                          }
+                          placeholder={t("addModal.importPlaceholder")}
                           value={importText}
                           onValueChange={setImportText}
                         />
@@ -345,7 +345,7 @@ export default function AddEndpointModal({
                             variant="bordered"
                             onPress={onClose}
                           >
-                            取消
+                            {t("addModal.cancel")}
                           </Button>
                           <Button
                             color="primary"
@@ -362,27 +362,26 @@ export default function AddEndpointModal({
                                 const { baseUrl } = parseUrl(urlMatch[1]);
 
                                 setFormData({
-                                  name: "导入的主控",
+                                  name: t("addModal.importedName"),
                                   url: urlMatch[1],
                                   apiKey: keyMatch[1],
                                 });
                                 onClose();
                                 addToast({
-                                  title: "导入成功",
-                                  description: "配置已成功导入到表单中",
+                                  title: t("toast.importSuccess"),
+                                  description: t("toast.importSuccessDesc"),
                                   color: "success",
                                 });
                               } else {
                                 addToast({
-                                  title: "导入失败",
-                                  description:
-                                    "无法识别配置格式，请检查内容是否正确",
+                                  title: t("toast.importFailed"),
+                                  description: t("toast.importFailedDesc"),
                                   color: "danger",
                                 });
                               }
                             }}
                           >
-                            解析配置
+                            {t("addModal.parseConfig")}
                           </Button>
                         </div>
                       </ModalBody>
@@ -400,24 +399,24 @@ export default function AddEndpointModal({
                 <ModalContent>
                   {(onClose) => (
                     <>
-                      <ModalHeader>连接检测结果</ModalHeader>
+                      <ModalHeader>{t("addModal.testResultTitle")}</ModalHeader>
                       <ModalBody className="gap-4 pb-6">
                         {testResult && (
                           <>
                             <div className="flex flex-col gap-2">
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-semibold">
-                                  连接状态：
+                                  {t("addModal.connectionStatus")}：
                                 </span>
                                 <span
                                   className={`text-sm ${testResult.connected ? "text-success" : "text-danger"}`}
                                 >
-                                  {testResult.connected ? "成功" : "失败"}
+                                  {testResult.connected ? t("addModal.statusSuccess") : t("addModal.statusFailed")}
                                 </span>
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-semibold">
-                                  主控版本：
+                                  {t("addModal.endpointVersion")}：
                                 </span>
                                 <span className="text-sm">
                                   {testResult.version}
@@ -425,12 +424,12 @@ export default function AddEndpointModal({
                               </div>
                               <div className="flex items-center gap-2">
                                 <span className="text-sm font-semibold">
-                                  支持添加：
+                                  {t("addModal.canAdd")}：
                                 </span>
                                 <span
                                   className={`text-sm ${testResult.canAdd ? "text-success" : "text-danger"}`}
                                 >
-                                  {testResult.canAdd ? "是" : "否"}
+                                  {testResult.canAdd ? t("addModal.statusYes") : t("addModal.statusNo")}
                                 </span>
                               </div>
                             </div>
@@ -443,7 +442,7 @@ export default function AddEndpointModal({
                                   onClose();
                                 }}
                               >
-                                关闭
+                                {t("addModal.close")}
                               </Button>
                               <Button
                                 color="primary"
@@ -451,7 +450,7 @@ export default function AddEndpointModal({
                                 radius="full"
                                 onPress={handleAddFromTestResult}
                               >
-                                添加主控
+                                {t("addModal.addEndpoint")}
                               </Button>
                             </div>
                           </>

@@ -218,7 +218,7 @@ func (hw *HistoryWorker) triggerBatchWrite(key string, currentStatus *ServiceCur
 	currentStatus.Result = currentStatus.Result[:0]
 	currentStatus.mu.Unlock()
 
-	log.Infof("[HistoryWorker]实例 %s 达到累积阈值，开始聚合计算 %d 个数据点", key, len(dataPoints))
+	log.Debugf("[HistoryWorker]实例 %s 达到累积阈值，开始聚合计算 %d 个数据点", key, len(dataPoints))
 
 	// 异步进行数据聚合和批量写入
 	go hw.aggregateAndWrite(dataPoints)
@@ -345,7 +345,7 @@ func (hw *HistoryWorker) aggregateAndWrite(dataPoints []MonitoringData) {
 			historyModel.EndpointID, historyModel.InstanceID, duration, err)
 	}
 
-	log.Infof("[HistoryWorker]聚合完成 - 端点:%d 实例:%s 数据点:%d 时间跨度:%.1fs TCP入累计:%d TCP出累计:%d UDP入累计:%d UDP出累计:%d 延迟平均:%.2fms 连接池最新:%d TCP连接数:%d UDP连接数:%d 入站速度:%.2f bytes/s 出站速度:%.2f bytes/s",
+	log.Debugf("[HistoryWorker]聚合完成 - 端点:%d 实例:%s 数据点:%d 时间跨度:%.1fs TCP入累计:%d TCP出累计:%d UDP入累计:%d UDP出累计:%d 延迟平均:%.2fms 连接池最新:%d TCP连接数:%d UDP连接数:%d 入站速度:%.2f bytes/s 出站速度:%.2f bytes/s",
 		historyModel.EndpointID, historyModel.InstanceID, historyModel.RecordCount, totalTime,
 		historyModel.DeltaTCPIn, historyModel.DeltaTCPOut, historyModel.DeltaUDPIn, historyModel.DeltaUDPOut,
 		historyModel.AvgPing, int64(historyModel.AvgPool), historyModel.AvgTCPs, historyModel.AvgUDPs, historyModel.AvgSpeedIn, historyModel.AvgSpeedOut)
@@ -395,13 +395,13 @@ func (hw *HistoryWorker) calculateDelta(current, last int64) int64 {
 func (hw *HistoryWorker) Close() {
 	hw.closeMu.Lock()
 	defer hw.closeMu.Unlock()
-	
+
 	// 检查是否已经关闭
 	if hw.closed {
 		log.Debug("HistoryWorker 已经关闭，跳过重复关闭")
 		return
 	}
-	
+
 	log.Info("正在关闭历史数据处理Worker")
 
 	// 标记为已关闭
