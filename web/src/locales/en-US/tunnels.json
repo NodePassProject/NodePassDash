@@ -778,5 +778,114 @@
       "fetchEndpointsFailed": "Failed to fetch endpoints",
       "fetchEndpointsFailedDesc": "Unable to fetch endpoint list"
     }
+  },
+  "updateSortModal": {
+    "title": "Update Weight",
+    "weightLabel": "Weight (higher is first)",
+    "weightPlaceholder": "0",
+    "cancel": "Cancel",
+    "confirm": "Confirm",
+    "toast": {
+      "updateFailed": "Failed to update weight",
+      "updateSuccess": "Update successful",
+      "updateSuccessDesc": "Weight has been updated",
+      "updateFailedTitle": "Update failed",
+      "unknownError": "Unknown error"
+    }
+  },
+  "tagInstancesModal": {
+    "title": "Group {{name}} Instance Management",
+    "selectedCount": "[Selected {{selected}} / {{total}} ]",
+    "selectAll": "Select All",
+    "clearAll": "Clear All",
+    "selectPlaceholder": "Select instances to bind to group",
+    "selectAriaLabel": "Select instances",
+    "endpoint": "Endpoint",
+    "empty": {
+      "title": "No Instances",
+      "description": "Please create instances before binding to groups"
+    },
+    "buttons": {
+      "cancel": "Cancel",
+      "save": "Save Settings"
+    },
+    "toast": {
+      "fetchFailed": "Error",
+      "fetchFailedDesc": "Failed to fetch instance list",
+      "saveFailed": "Failed to set instance tags",
+      "saveSuccess": "Success",
+      "saveSuccessDesc": "Bound {{count}} instances to group \"{{name}}\""
+    }
+  },
+  "instanceTagModal": {
+    "title": "Set Tags",
+    "tabs": {
+      "json": "JSON Editor",
+      "template": "Template Editor",
+      "ariaLabel": "Edit Mode"
+    },
+    "fields": {
+      "startDate": "Start Date",
+      "endDate": "End Date",
+      "unlimited": "Unlimited",
+      "amount": "Amount",
+      "amountPlaceholder": "Enter amount",
+      "bandwidth": "Bandwidth",
+      "bandwidthPlaceholder": "Enter bandwidth value",
+      "traffic": "Traffic",
+      "trafficPlaceholder": "Enter traffic value",
+      "networkRoute": "Network Route",
+      "networkRoutePlaceholder": "e.g., 4837, 9929, Unicom, etc.",
+      "extra": "Extra Info",
+      "extraPlaceholder": "Separate multiple items with commas"
+    },
+    "amountType": {
+      "none": "No Format",
+      "prefix": "Prefix",
+      "suffix": "Suffix",
+      "free": "Free"
+    },
+    "ariaLabels": {
+      "currencySymbol": "Currency Symbol",
+      "currencyCode": "Currency Code"
+    },
+    "buttons": {
+      "cancel": "Cancel",
+      "save": "Save"
+    },
+    "toast": {
+      "saveFailed": "Save Failed",
+      "saveFailedMessage": "Failed to save tags",
+      "saveSuccess": "Save Successful",
+      "saveSuccessDesc": "Instance tags have been updated",
+      "unknownError": "Unknown error"
+    }
+  },
+  "simpleTagModal": {
+    "title": "Set Tag",
+    "description": "Select a tag for this instance, or choose \"No Tag\" to clear the existing tag",
+    "noTag": "No Tag",
+    "empty": {
+      "title": "No tags available",
+      "description": "Please create tags in tag management first"
+    },
+    "buttons": {
+      "cancel": "Cancel",
+      "clear": "Clear Tag",
+      "save": "Save"
+    },
+    "toast": {
+      "fetchFailed": "Error",
+      "fetchFailedDesc": "Failed to fetch tag list",
+      "fetchFailedMessage": "Failed to fetch tag list",
+      "setFailed": "Error",
+      "setFailedMessage": "Failed to set tag",
+      "setSuccess": "Success",
+      "setSuccessDesc": "Tag set successfully",
+      "clearFailed": "Error",
+      "clearFailedMessage": "Failed to clear tag",
+      "clearSuccess": "Success",
+      "clearSuccessDesc": "Tag has been cleared"
+    }
   }
 }

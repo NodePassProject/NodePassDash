@@ -19,6 +19,7 @@ import {
   faNetworkWired,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -288,6 +289,7 @@ export default function NetworkDebugModal({
   onOpenChange,
   endpointId,
 }: NetworkDebugModalProps) {
+  const { t } = useTranslation("modals");
   const [targetAddress, setTargetAddress] = useState("");
   const [testCount, setTestCount] = useState(5);
   const [interval, setInterval] = useState(1000);
@@ -381,7 +383,7 @@ export default function NetworkDebugModal({
           return {
             timestamp: Date.now(),
             success: false,
-            error: data.error || "测试失败",
+            error: data.error || t("networkDebug.toast.testFailed"),
           };
         }
       } else {
@@ -395,7 +397,7 @@ export default function NetworkDebugModal({
       return {
         timestamp: Date.now(),
         success: false,
-        error: error instanceof Error ? error.message : "网络错误",
+        error: error instanceof Error ? error.message : t("networkDebug.toast.networkError"),
       };
     }
   };
@@ -435,8 +437,8 @@ export default function NetworkDebugModal({
         setIsRunning(false);
         isRunningRef.current = false;
         addToast({
-          title: "测试完成",
-          description: `网络测试已完成，共执行 ${testCount} 次测试`,
+          title: t("networkDebug.toast.testCompleted"),
+          description: t("networkDebug.toast.testCompletedDesc", { count: testCount }),
           color: "success",
         });
 
@@ -478,8 +480,8 @@ export default function NetworkDebugModal({
           setIsRunning(false);
           isRunningRef.current = false;
           addToast({
-            title: "测试完成",
-            description: `网络测试已完成，共执行 ${testCount} 次测试`,
+            title: t("networkDebug.toast.testCompleted"),
+            description: t("networkDebug.toast.testCompletedDesc", { count: testCount }),
             color: "success",
           });
         }
@@ -498,8 +500,8 @@ export default function NetworkDebugModal({
           setIsRunning(false);
           isRunningRef.current = false;
           addToast({
-            title: "测试完成",
-            description: `网络测试已完成，共执行 ${testCount} 次测试`,
+            title: t("networkDebug.toast.testCompleted"),
+            description: t("networkDebug.toast.testCompletedDesc", { count: testCount }),
             color: "success",
           });
         }
@@ -522,8 +524,8 @@ export default function NetworkDebugModal({
       intervalRef.current = null;
     }
     addToast({
-      title: "测试已停止",
-      description: "网络测试已手动停止",
+      title: t("networkDebug.toast.testStopped"),
+      description: t("networkDebug.toast.testStoppedDesc"),
       color: "warning",
     });
   };
@@ -584,10 +586,10 @@ export default function NetworkDebugModal({
                   className="text-primary"
                   icon={faNetworkWired}
                 />
-                <span>网络调试</span>
+                <span>{t("networkDebug.title")}</span>
               </div>
               <p className="text-sm text-default-500 font-normal">
-                对指定地址进行网络连通性测试
+                {t("networkDebug.description")}
               </p>
             </ModalHeader>
 
@@ -599,13 +601,13 @@ export default function NetworkDebugModal({
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                       <Input
                         isRequired
-                        label="目标地址"
-                        placeholder="IP:端口 或 域名:端口"
+                        label={t("networkDebug.form.targetAddress")}
+                        placeholder={t("networkDebug.form.targetPlaceholder")}
                         value={targetAddress}
                         onValueChange={setTargetAddress}
                       />
                       <Input
-                        label="测试次数"
+                        label={t("networkDebug.form.testCount")}
                         max={100}
                         min={1}
                         type="number"
@@ -615,7 +617,7 @@ export default function NetworkDebugModal({
                         }
                       />
                       <Input
-                        label="间隔时间(ms)"
+                        label={t("networkDebug.form.interval")}
                         max={10000}
                         min={100}
                         type="number"
@@ -632,9 +634,9 @@ export default function NetworkDebugModal({
                 <div className="flex flex-col items-center justify-center py-12 space-y-4">
                   <Spinner color="primary" size="lg" />
                   <div className="text-center">
-                    <p className="text-lg font-medium">测试中...</p>
+                    <p className="text-lg font-medium">{t("networkDebug.loading.title")}</p>
                     <p className="text-sm text-default-500">
-                      正在连接目标地址进行网络测试
+                      {t("networkDebug.loading.description")}
                     </p>
                   </div>
                 </div>
@@ -657,26 +659,26 @@ export default function NetworkDebugModal({
                           <div className="text-2xl font-bold text-success">
                             {stats.success}
                           </div>
-                          <div className="text-sm text-default-500">成功</div>
+                          <div className="text-sm text-default-500">{t("networkDebug.stats.success")}</div>
                         </div>
                         <div className="text-center">
                           <div className="text-2xl font-bold text-danger">
                             {stats.failed}
                           </div>
-                          <div className="text-sm text-default-500">失败</div>
+                          <div className="text-sm text-default-500">{t("networkDebug.stats.failed")}</div>
                         </div>
                         <div className="text-center">
                           <div className="text-2xl font-bold text-warning">
                             {stats.packetLoss}%
                           </div>
-                          <div className="text-sm text-default-500">丢包率</div>
+                          <div className="text-sm text-default-500">{t("networkDebug.stats.packetLoss")}</div>
                         </div>
                         <div className="text-center">
                           <div className="text-2xl font-bold text-primary">
                             {stats.avgLatency}ms
                           </div>
                           <div className="text-sm text-default-500">
-                            平均延迟
+                            {t("networkDebug.stats.avgLatency")}
                           </div>
                         </div>
                         <div className="text-center">
@@ -684,7 +686,7 @@ export default function NetworkDebugModal({
                             {stats.maxLatency}ms
                           </div>
                           <div className="text-sm text-default-500">
-                            最高延迟
+                            {t("networkDebug.stats.maxLatency")}
                           </div>
                         </div>
                         <div className="text-center">
@@ -692,7 +694,7 @@ export default function NetworkDebugModal({
                             {stats.minLatency}ms
                           </div>
                           <div className="text-sm text-default-500">
-                            最低延迟
+                            {t("networkDebug.stats.minLatency")}
                           </div>
                         </div>
                       </div>
@@ -725,7 +727,7 @@ export default function NetworkDebugModal({
                       variant="solid"
                       onPress={startTest}
                     >
-                      开始测试
+                      {t("networkDebug.buttons.startTest")}
                     </Button>
                   ) : (
                     <>
@@ -734,7 +736,7 @@ export default function NetworkDebugModal({
                         variant="flat"
                         onPress={resetTest}
                       >
-                        重新测试
+                        {t("networkDebug.buttons.retryTest")}
                       </Button>
                       {isRunning && (
                         <Button
@@ -743,7 +745,7 @@ export default function NetworkDebugModal({
                           variant="flat"
                           onPress={stopTest}
                         >
-                          停止测试
+                          {t("networkDebug.buttons.stopTest")}
                         </Button>
                       )}
                     </>

@@ -8,5 +8,42 @@
     "description": "Auto-copy failed, please manually select and copy the following content:",
     "hint": "💡 Tip: Click the text box above to select all content, then use Ctrl+C (Windows) or Cmd+C (Mac) to copy",
     "understood": "Got it"
+  },
+  "networkDebug": {
+    "title": "Network Debug",
+    "description": "Test network connectivity to specified address",
+    "form": {
+      "targetAddress": "Target Address",
+      "targetPlaceholder": "IP:Port or Domain:Port",
+      "testCount": "Test Count",
+      "interval": "Interval (ms)"
+    },
+    "loading": {
+      "title": "Testing...",
+      "description": "Connecting to target address for network test"
+    },
+    "stats": {
+      "success": "Success",
+      "failed": "Failed",
+      "packetLoss": "Packet Loss",
+      "avgLatency": "Avg Latency",
+      "maxLatency": "Max Latency",
+      "minLatency": "Min Latency"
+    },
+    "buttons": {
+      "startTest": "Start Test",
+      "retryTest": "Retry Test",
+      "stopTest": "Stop Test"
+    },
+    "toast": {
+      "testFailed": "Test Failed",
+      "networkError": "Network Error",
+      "testStarted": "Test Started",
+      "testStartedDesc": "Target={{target}}, Count={{count}}, Interval={{interval}}ms",
+      "testCompleted": "Test Completed",
+      "testCompletedDesc": "Network test completed, {{count}} tests executed",
+      "testStopped": "Test Stopped",
+      "testStoppedDesc": "Network test manually stopped"
+    }
   }
 }

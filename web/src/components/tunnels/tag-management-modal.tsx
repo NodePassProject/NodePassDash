@@ -25,6 +25,7 @@ import {
   faLink,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 import TagInstancesModal from "./tag-instances-modal";
@@ -49,6 +50,7 @@ export default function TagManagementModal({
   onOpenChange,
   onSaved,
 }: TagManagementModalProps) {
+  const { t } = useTranslation("tunnels");
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -71,15 +73,15 @@ export default function TagManagementModal({
       setLoading(true);
       const response = await fetch(buildApiUrl("/api/tags"));
 
-      if (!response.ok) throw new Error("获取标签列表失败");
+      if (!response.ok) throw new Error(t("groupManagement.toast.fetchFailedDesc"));
       const data = await response.json();
 
       setTags(data.tags || []);
     } catch (error) {
       console.error("获取标签列表失败:", error);
       addToast({
-        title: "错误",
-        description: "获取标签列表失败",
+        title: t("groupManagement.toast.fetchFailed"),
+        description: t("groupManagement.toast.fetchFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -91,8 +93,8 @@ export default function TagManagementModal({
   const handleCreateTag = async () => {
     if (!newTagName.trim()) {
       addToast({
-        title: "错误",
-        description: "请输入分组名称",
+        title: t("groupManagement.toast.nameRequired"),
+        description: t("groupManagement.toast.nameRequiredDesc"),
         color: "danger",
       });
 
@@ -112,12 +114,12 @@ export default function TagManagementModal({
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.message || "创建标签失败");
+        throw new Error(error.message || t("groupManagement.toast.createFailedDesc"));
       }
 
       addToast({
-        title: "成功",
-        description: "分组创建成功",
+        title: t("groupManagement.toast.createSuccess"),
+        description: t("groupManagement.toast.createSuccessDesc"),
         color: "success",
       });
 
@@ -128,8 +130,8 @@ export default function TagManagementModal({
     } catch (error) {
       console.error("创建标签失败:", error);
       addToast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "创建标签失败",
+        title: t("groupManagement.toast.createFailed"),
+        description: error instanceof Error ? error.message : t("groupManagement.toast.createFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -147,8 +149,8 @@ export default function TagManagementModal({
   const handleSaveEdit = async () => {
     if (!editingTag || !editName.trim()) {
       addToast({
-        title: "错误",
-        description: "请输入分组名称",
+        title: t("groupManagement.toast.nameRequired"),
+        description: t("groupManagement.toast.nameRequiredDesc"),
         color: "danger",
       });
 
@@ -168,12 +170,12 @@ export default function TagManagementModal({
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.message || "更新标签失败");
+        throw new Error(error.message || t("groupManagement.toast.updateFailedDesc"));
       }
 
       addToast({
-        title: "成功",
-        description: "分组更新成功",
+        title: t("groupManagement.toast.updateSuccess"),
+        description: t("groupManagement.toast.updateSuccessDesc"),
         color: "success",
       });
 
@@ -184,8 +186,8 @@ export default function TagManagementModal({
     } catch (error) {
       console.error("更新标签失败:", error);
       addToast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "更新标签失败",
+        title: t("groupManagement.toast.updateFailed"),
+        description: error instanceof Error ? error.message : t("groupManagement.toast.updateFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -201,7 +203,7 @@ export default function TagManagementModal({
 
   // 删除标签
   const handleDelete = async (tag: Tag) => {
-    if (!confirm(`确定要删除分组 "${tag.name}" 吗？`)) {
+    if (!confirm(t("groupManagement.confirmDelete", { name: tag.name }))) {
       return;
     }
 
@@ -214,12 +216,12 @@ export default function TagManagementModal({
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.message || "删除标签失败");
+        throw new Error(error.message || t("groupManagement.toast.deleteFailedDesc"));
       }
 
       addToast({
-        title: "成功",
-        description: "分组删除成功",
+        title: t("groupManagement.toast.deleteSuccess"),
+        description: t("groupManagement.toast.deleteSuccessDesc"),
         color: "success",
       });
 
@@ -228,8 +230,8 @@ export default function TagManagementModal({
     } catch (error) {
       console.error("删除标签失败:", error);
       addToast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "删除标签失败",
+        title: t("groupManagement.toast.deleteFailed"),
+        description: error instanceof Error ? error.message : t("groupManagement.toast.deleteFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -273,7 +275,7 @@ export default function TagManagementModal({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-primary" icon={faTag} />
-                分组管理
+                {t("groupManagement.title")}
               </div>
               <Button
                 color="primary"
@@ -282,7 +284,7 @@ export default function TagManagementModal({
                 variant="flat"
                 onClick={() => setShowAddForm(true)}
               >
-                添加
+                {t("groupManagement.addButton")}
               </Button>
             </div>
           </DrawerHeader>
@@ -293,8 +295,8 @@ export default function TagManagementModal({
                 <div className="flex items-center gap-4 mb-4">
                   <Input
                     className="flex-1"
-                    label="分组名称"
-                    placeholder="请输入分组名称"
+                    label={t("groupManagement.addForm.groupName")}
+                    placeholder={t("groupManagement.addForm.placeholder")}
                     value={newTagName}
                     onValueChange={setNewTagName}
                   />
@@ -306,7 +308,7 @@ export default function TagManagementModal({
                     isLoading={saving}
                     onClick={handleCreateTag}
                   >
-                    保存
+                    {t("groupManagement.addForm.save")}
                   </Button>
                   <Button
                     color="default"
@@ -316,7 +318,7 @@ export default function TagManagementModal({
                       setNewTagName("");
                     }}
                   >
-                    取消
+                    {t("groupManagement.addForm.cancel")}
                   </Button>
                 </div>
               </div>
@@ -328,10 +330,10 @@ export default function TagManagementModal({
                 <Spinner size="lg" />
               </div>
             ) : (
-              <Table aria-label="分组列表" shadow="none">
+              <Table aria-label={t("groupManagement.title")} shadow="none">
                 <TableHeader>
-                  <TableColumn>分组名称</TableColumn>
-                  <TableColumn>操作</TableColumn>
+                  <TableColumn>{t("groupManagement.table.groupName")}</TableColumn>
+                  <TableColumn>{t("groupManagement.table.actions")}</TableColumn>
                 </TableHeader>
                 <TableBody>
                   {tags.map((tag) => (
@@ -359,7 +361,7 @@ export default function TagManagementModal({
                               size="sm"
                               onClick={handleSaveEdit}
                             >
-                              保存
+                              {t("groupManagement.addForm.save")}
                             </Button>
                             <Button
                               color="default"
@@ -367,12 +369,12 @@ export default function TagManagementModal({
                               variant="light"
                               onClick={handleCancelEdit}
                             >
-                              取消
+                              {t("groupManagement.addForm.cancel")}
                             </Button>
                           </div>
                         ) : (
                           <div className="flex gap-2">
-                            <Tooltip content="绑定实例" size="sm">
+                            <Tooltip content={t("groupManagement.actions.bindInstances")} size="sm">
                               <Button
                                 isIconOnly
                                 color="secondary"
@@ -386,7 +388,7 @@ export default function TagManagementModal({
                                 />
                               </Button>
                             </Tooltip>
-                            <Tooltip content="编辑分组" size="sm">
+                            <Tooltip content={t("groupManagement.actions.edit")} size="sm">
                               <Button
                                 isIconOnly
                                 color="primary"
@@ -400,7 +402,7 @@ export default function TagManagementModal({
                                 />
                               </Button>
                             </Tooltip>
-                            <Tooltip content="删除分组" size="sm">
+                            <Tooltip content={t("groupManagement.actions.delete")} size="sm">
                               <Button
                                 isIconOnly
                                 color="danger"
@@ -434,10 +436,10 @@ export default function TagManagementModal({
                   </div>
                   <div className="space-y-2">
                     <p className="text-default-500 text-sm font-medium">
-                      暂无分组
+                      {t("groupManagement.empty.title")}
                     </p>
                     <p className="text-default-400 text-xs">
-                      点击上方按钮创建第一个分组
+                      {t("groupManagement.empty.description")}
                     </p>
                   </div>
                 </div>
@@ -446,7 +448,7 @@ export default function TagManagementModal({
           </DrawerBody>
           <DrawerFooter>
             <Button color="default" variant="light" onPress={handleClose}>
-              关闭
+              {t("groupManagement.close")}
             </Button>
           </DrawerFooter>
         </>

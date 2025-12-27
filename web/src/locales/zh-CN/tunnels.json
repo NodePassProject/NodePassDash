@@ -778,5 +778,114 @@
       "fetchEndpointsFailed": "获取主控失败",
       "fetchEndpointsFailedDesc": "无法获取主控列表"
     }
+  },
+  "updateSortModal": {
+    "title": "修改权重",
+    "weightLabel": "权重(越大越前)",
+    "weightPlaceholder": "0",
+    "cancel": "取消",
+    "confirm": "确认修改",
+    "toast": {
+      "updateFailed": "修改权重失败",
+      "updateSuccess": "修改成功",
+      "updateSuccessDesc": "权重已更新",
+      "updateFailedTitle": "修改失败",
+      "unknownError": "未知错误"
+    }
+  },
+  "tagInstancesModal": {
+    "title": "分组{{name}}实例管理",
+    "selectedCount": "[已选择 {{selected}} / {{total}} ]",
+    "selectAll": "全选",
+    "clearAll": "清空",
+    "selectPlaceholder": "选择要绑定分组的实例",
+    "selectAriaLabel": "选择实例",
+    "endpoint": "主控",
+    "empty": {
+      "title": "暂无实例",
+      "description": "请先创建实例后再绑定分组"
+    },
+    "buttons": {
+      "cancel": "取消",
+      "save": "保存设置"
+    },
+    "toast": {
+      "fetchFailed": "错误",
+      "fetchFailedDesc": "获取实例列表失败",
+      "saveFailed": "设置实例标签失败",
+      "saveSuccess": "成功",
+      "saveSuccessDesc": "已为 {{count}} 个实例绑定分组\"{{name}}\""
+    }
+  },
+  "instanceTagModal": {
+    "title": "设置标签",
+    "tabs": {
+      "json": "JSON 编辑",
+      "template": "模板编辑",
+      "ariaLabel": "编辑模式"
+    },
+    "fields": {
+      "startDate": "开始日期",
+      "endDate": "结束日期",
+      "unlimited": "无限期",
+      "amount": "金额",
+      "amountPlaceholder": "输入金额",
+      "bandwidth": "带宽",
+      "bandwidthPlaceholder": "输入带宽数值",
+      "traffic": "流量",
+      "trafficPlaceholder": "输入流量数值",
+      "networkRoute": "网络路由",
+      "networkRoutePlaceholder": "例如：4837、9929、联通 等",
+      "extra": "额外信息",
+      "extraPlaceholder": "使用逗号分隔多个信息"
+    },
+    "amountType": {
+      "none": "无格式",
+      "prefix": "前缀",
+      "suffix": "后缀",
+      "free": "免费"
+    },
+    "ariaLabels": {
+      "currencySymbol": "货币符号",
+      "currencyCode": "货币代码"
+    },
+    "buttons": {
+      "cancel": "取消",
+      "save": "保存"
+    },
+    "toast": {
+      "saveFailed": "保存失败",
+      "saveFailedMessage": "保存标签失败",
+      "saveSuccess": "保存成功",
+      "saveSuccessDesc": "实例标签已更新",
+      "unknownError": "未知错误"
+    }
+  },
+  "simpleTagModal": {
+    "title": "设置标签",
+    "description": "为当前实例选择一个标签，或选择"无标签"来清除现有标签",
+    "noTag": "无标签",
+    "empty": {
+      "title": "暂无可用标签",
+      "description": "请先在标签管理中创建标签"
+    },
+    "buttons": {
+      "cancel": "取消",
+      "clear": "清除标签",
+      "save": "保存"
+    },
+    "toast": {
+      "fetchFailed": "错误",
+      "fetchFailedDesc": "获取标签列表失败",
+      "fetchFailedMessage": "获取标签列表失败",
+      "setFailed": "错误",
+      "setFailedMessage": "设置标签失败",
+      "setSuccess": "成功",
+      "setSuccessDesc": "标签设置成功",
+      "clearFailed": "错误",
+      "clearFailedMessage": "清除标签失败",
+      "clearSuccess": "成功",
+      "clearSuccessDesc": "标签已清除"
+    }
   }
 }

@@ -11,6 +11,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -29,6 +30,7 @@ export default function UpdateSortModal({
   currentSort,
   onUpdated,
 }: UpdateSortModalProps) {
+  const { t } = useTranslation("tunnels");
   const [newSort, setNewSort] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -56,11 +58,11 @@ export default function UpdateSortModal({
         }),
       });
 
-      if (!response.ok) throw new Error("修改权重失败");
+      if (!response.ok) throw new Error(t("updateSortModal.toast.updateFailed"));
 
       addToast({
-        title: "修改成功",
-        description: "权重已更新",
+        title: t("updateSortModal.toast.updateSuccess"),
+        description: t("updateSortModal.toast.updateSuccessDesc"),
         color: "success",
       });
 
@@ -69,8 +71,8 @@ export default function UpdateSortModal({
     } catch (error) {
       console.error("修改权重失败:", error);
       addToast({
-        title: "修改失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("updateSortModal.toast.updateFailedTitle"),
+        description: error instanceof Error ? error.message : t("updateSortModal.toast.unknownError"),
         color: "danger",
       });
     } finally {
@@ -92,15 +94,15 @@ export default function UpdateSortModal({
             <ModalHeader className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-primary" icon={faPen} />
-                修改权重
+                {t("updateSortModal.title")}
               </div>
             </ModalHeader>
             <ModalBody>
               <Input
                 autoFocus
                 isDisabled={isLoading}
-                label="权重(越大越前)"
-                placeholder="0"
+                label={t("updateSortModal.weightLabel")}
+                placeholder={t("updateSortModal.weightPlaceholder")}
                 type="number"
                 value={newSort}
                 variant="bordered"
@@ -115,7 +117,7 @@ export default function UpdateSortModal({
                 variant="light"
                 onPress={onClose}
               >
-                取消
+                {t("updateSortModal.cancel")}
               </Button>
               <Button
                 color="primary"
@@ -123,7 +125,7 @@ export default function UpdateSortModal({
                 isLoading={isLoading}
                 onPress={handleSubmit}
               >
-                确认修改
+                {t("updateSortModal.confirm")}
               </Button>
             </ModalFooter>
           </>

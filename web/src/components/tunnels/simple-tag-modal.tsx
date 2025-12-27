@@ -13,6 +13,7 @@ import {
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faTag, faTimes } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -37,6 +38,7 @@ export default function SimpleTagModal({
   currentTag,
   onSaved,
 }: SimpleTagModalProps) {
+  const { t } = useTranslation("tunnels");
   const [tags, setTags] = useState<Tag[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -50,15 +52,15 @@ export default function SimpleTagModal({
       setLoading(true);
       const response = await fetch(buildApiUrl("/api/tags"));
 
-      if (!response.ok) throw new Error("获取标签列表失败");
+      if (!response.ok) throw new Error(t("simpleTagModal.toast.fetchFailedMessage"));
       const data = await response.json();
 
       setTags(data.tags || []);
     } catch (error) {
       console.error("获取标签列表失败:", error);
       addToast({
-        title: "错误",
-        description: "获取标签列表失败",
+        title: t("simpleTagModal.toast.fetchFailed"),
+        description: t("simpleTagModal.toast.fetchFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -85,12 +87,12 @@ export default function SimpleTagModal({
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.message || "设置标签失败");
+        throw new Error(error.message || t("simpleTagModal.toast.setFailedMessage"));
       }
 
       addToast({
-        title: "成功",
-        description: "标签设置成功",
+        title: t("simpleTagModal.toast.setSuccess"),
+        description: t("simpleTagModal.toast.setSuccessDesc"),
         color: "success",
       });
 
@@ -99,8 +101,8 @@ export default function SimpleTagModal({
     } catch (error) {
       console.error("设置标签失败:", error);
       addToast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "设置标签失败",
+        title: t("simpleTagModal.toast.setFailed"),
+        description: error instanceof Error ? error.message : t("simpleTagModal.toast.setFailedMessage"),
         color: "danger",
       });
     } finally {
@@ -127,12 +129,12 @@ export default function SimpleTagModal({
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.message || "清除标签失败");
+        throw new Error(error.message || t("simpleTagModal.toast.clearFailedMessage"));
       }
 
       addToast({
-        title: "成功",
-        description: "标签已清除",
+        title: t("simpleTagModal.toast.clearSuccess"),
+        description: t("simpleTagModal.toast.clearSuccessDesc"),
         color: "success",
       });
 
@@ -141,8 +143,8 @@ export default function SimpleTagModal({
     } catch (error) {
       console.error("清除标签失败:", error);
       addToast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "清除标签失败",
+        title: t("simpleTagModal.toast.clearFailed"),
+        description: error instanceof Error ? error.message : t("simpleTagModal.toast.clearFailedMessage"),
         color: "danger",
       });
     } finally {
@@ -166,7 +168,7 @@ export default function SimpleTagModal({
             <ModalHeader className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-primary" icon={faTag} />
-                设置标签
+                {t("simpleTagModal.title")}
               </div>
             </ModalHeader>
             <ModalBody>
@@ -177,7 +179,7 @@ export default function SimpleTagModal({
               ) : (
                 <div className="space-y-4">
                   <p className="text-sm text-default-600">
-                    为当前实例选择一个标签，或选择"无标签"来清除现有标签
+                    {t("simpleTagModal.description")}
                   </p>
 
                   {/* 无标签选项 */}
@@ -188,7 +190,7 @@ export default function SimpleTagModal({
                     <div
                       className={`w-4 h-4 rounded-full border-2 ${selectedTagId === null ? "border-primary bg-primary" : "border-default-300"}`}
                     />
-                    <span className="text-sm">无标签</span>
+                    <span className="text-sm">{t("simpleTagModal.noTag")}</span>
                   </div>
 
                   {/* 标签列表 */}
@@ -214,9 +216,9 @@ export default function SimpleTagModal({
                           className="text-xl text-default-400"
                           icon={faTag}
                         />
-                        <p className="text-sm text-default-500">暂无可用标签</p>
+                        <p className="text-sm text-default-500">{t("simpleTagModal.empty.title")}</p>
                         <p className="text-xs text-default-400">
-                          请先在标签管理中创建标签
+                          {t("simpleTagModal.empty.description")}
                         </p>
                       </div>
                     </div>
@@ -231,7 +233,7 @@ export default function SimpleTagModal({
                 variant="light"
                 onPress={onClose}
               >
-                取消
+                {t("simpleTagModal.buttons.cancel")}
               </Button>
               {currentTag && (
                 <Button
@@ -241,7 +243,7 @@ export default function SimpleTagModal({
                   variant="light"
                   onPress={handleClear}
                 >
-                  清除标签
+                  {t("simpleTagModal.buttons.clear")}
                 </Button>
               )}
               <Button
@@ -250,7 +252,7 @@ export default function SimpleTagModal({
                 isLoading={saving}
                 onPress={handleSave}
               >
-                保存
+                {t("simpleTagModal.buttons.save")}
               </Button>
             </ModalFooter>
           </>

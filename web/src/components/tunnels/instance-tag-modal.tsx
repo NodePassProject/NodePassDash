@@ -19,6 +19,7 @@ import {
 import { parseDate } from "@internationalized/date";
 import { addToast } from "@heroui/toast";
 import Editor from "@monaco-editor/react";
+import { useTranslation } from "react-i18next";
 
 interface InstanceTagModalProps {
   isOpen: boolean;
@@ -70,6 +71,8 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
   currentTags = {},
   onSaved,
 }) => {
+  const { t } = useTranslation("tunnels");
+
   // 标准字段状态
   const [startDate, setStartDate] = useState<string>("");
   const [endDate, setEndDate] = useState<string>("");
@@ -184,7 +187,8 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
     }
 
     // 检查是否为免费
-    if (amount.toLowerCase().includes("免费") || amount.toLowerCase().includes("free")) {
+    const freeText = t("instanceTagModal.amountType.free").toLowerCase();
+    if (amount.toLowerCase().includes(freeText) || amount.toLowerCase().includes("free")) {
       setAmountType("free");
       setAmountValue("");
       return;
@@ -441,12 +445,12 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
       });
 
       if (!response.ok) {
-        throw new Error("保存标签失败");
+        throw new Error(t("instanceTagModal.toast.saveFailedMessage"));
       }
 
       addToast({
-        title: "保存成功",
-        description: "实例标签已更新",
+        title: t("instanceTagModal.toast.saveSuccess"),
+        description: t("instanceTagModal.toast.saveSuccessDesc"),
         color: "success",
       });
 
@@ -455,8 +459,8 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
     } catch (error) {
       console.error("保存标签失败:", error);
       addToast({
-        title: "保存失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("instanceTagModal.toast.saveFailed"),
+        description: error instanceof Error ? error.message : t("instanceTagModal.toast.unknownError"),
         color: "danger",
       });
     } finally {
@@ -476,16 +480,16 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
         {(onClose) => (
           <>
             <ModalHeader className="flex flex-col gap-1 pb-0">
-              <h2 className="text-xl font-semibold">设置标签</h2>
+              <h2 className="text-xl font-semibold">{t("instanceTagModal.title")}</h2>
             </ModalHeader>
             <ModalBody>
               <Tabs
                 fullWidth
                 selectedKey={activeTab}
                 onSelectionChange={handleTabChange}
-                aria-label="编辑模式"
+                aria-label={t("instanceTagModal.tabs.ariaLabel")}
               >
-                <Tab key="json" title="JSON 编辑">
+                <Tab key="json" title={t("instanceTagModal.tabs.json")}>
                   <div className={`border rounded-lg overflow-hidden ${isJsonError ? 'border-danger' : 'border-default-200'}`}>
                     <Editor
                       defaultLanguage="json"
@@ -508,13 +512,13 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                     />
                   </div>
                 </Tab>
-                <Tab key="template" title="模板编辑">
+                <Tab key="template" title={t("instanceTagModal.tabs.template")}>
                   <div className="space-y-4 ">
                     {/* 日期字段 */}
                     <div className="grid grid-cols-2 gap-4">
                       {/* 开始日期 */}
                       <div className="flex flex-col gap-2">
-                        <label className="text-sm font-medium text-default-700">开始日期</label>
+                        <label className="text-sm font-medium text-default-700">{t("instanceTagModal.fields.startDate")}</label>
                         <DatePicker
                           value={startDate ? (parseDate(startDate.split('T')[0]) as any) : undefined}
                           onChange={(date) => {
@@ -536,7 +540,7 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                       {/* 结束日期 */}
                       <div className="flex flex-col gap-1.5">
                         <div className="flex items-center justify-between">
-                          <label className="text-sm font-medium text-default-700">结束日期</label>
+                          <label className="text-sm font-medium text-default-700">{t("instanceTagModal.fields.endDate")}</label>
                           <Checkbox
                             isSelected={isUnlimited}
                             onValueChange={(checked) => {
@@ -547,7 +551,7 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                             }}
                             size="sm"
                           >
-                            无限期
+                            {t("instanceTagModal.fields.unlimited")}
                           </Checkbox>
                         </div>
                         <DatePicker
@@ -574,7 +578,7 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                     {/* 金额字段 */}
                     <div className="flex flex-col gap-1.5">
                       <div className="flex items-center justify-between">
-                        <label className="text-sm font-medium text-default-700">金额</label>
+                        <label className="text-sm font-medium text-default-700">{t("instanceTagModal.fields.amount")}</label>
                         <RadioGroup
                           value={amountType}
                           onValueChange={setAmountType}
@@ -582,17 +586,17 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                           className="gap-2"
                           size="sm"
                         >
-                          <Radio value="none">无格式</Radio>
-                          <Radio value="prefix">前缀</Radio>
-                          <Radio value="suffix">后缀</Radio>
-                          <Radio value="free">免费</Radio>
+                          <Radio value="none">{t("instanceTagModal.amountType.none")}</Radio>
+                          <Radio value="prefix">{t("instanceTagModal.amountType.prefix")}</Radio>
+                          <Radio value="suffix">{t("instanceTagModal.amountType.suffix")}</Radio>
+                          <Radio value="free">{t("instanceTagModal.amountType.free")}</Radio>
                         </RadioGroup>
                       </div>
 
                       {/* 金额输入区域 */}
                       {amountType === "none" && (
                         <Input
-                          placeholder="输入金额"
+                          placeholder={t("instanceTagModal.fields.amountPlaceholder")}
                           value={amountValue}
                           onValueChange={setAmountValue}
                           variant="bordered"
@@ -609,7 +613,7 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                             }}
                             className="w-32"
                             variant="bordered"
-                            aria-label="货币符号"
+                            aria-label={t("instanceTagModal.ariaLabels.currencySymbol")}
                           >
                             {CURRENCY_OPTIONS.map((currency) => (
                               <SelectItem key={currency.key}>
@@ -618,7 +622,7 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                             ))}
                           </Select>
                           <Input
-                            placeholder="输入金额"
+                            placeholder={t("instanceTagModal.fields.amountPlaceholder")}
                             value={amountValue}
                             onValueChange={setAmountValue}
                             variant="bordered"
@@ -635,7 +639,7 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                       {amountType === "suffix" && (
                         <div className="flex gap-2">
                           <Input
-                            placeholder="输入金额"
+                            placeholder={t("instanceTagModal.fields.amountPlaceholder")}
                             value={amountValue}
                             onValueChange={setAmountValue}
                             variant="bordered"
@@ -654,7 +658,7 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                             }}
                             className="w-32"
                             variant="bordered"
-                            aria-label="货币代码"
+                            aria-label={t("instanceTagModal.ariaLabels.currencyCode")}
                           >
                             {CURRENCY_CODES.map((currency) => (
                               <SelectItem key={currency.key}>
@@ -679,9 +683,9 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                     <div className="grid grid-cols-2 gap-4">
                       {/* 带宽 */}
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-sm font-medium text-default-700">带宽</label>
+                        <label className="text-sm font-medium text-default-700">{t("instanceTagModal.fields.bandwidth")}</label>
                         <Input
-                          placeholder="输入带宽数值"
+                          placeholder={t("instanceTagModal.fields.bandwidthPlaceholder")}
                           value={bandwidthValue}
                           onValueChange={setBandwidthValue}
                           variant="bordered"
@@ -703,9 +707,9 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
 
                       {/* 流量 */}
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-sm font-medium text-default-700">流量</label>
+                        <label className="text-sm font-medium text-default-700">{t("instanceTagModal.fields.traffic")}</label>
                         <Input
-                          placeholder="输入流量数值"
+                          placeholder={t("instanceTagModal.fields.trafficPlaceholder")}
                           value={trafficValue}
                           onValueChange={setTrafficValue}
                           variant="bordered"
@@ -730,9 +734,9 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                     <div className="grid grid-cols-2 gap-4">
                       {/* 网络路由 */}
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-sm font-medium text-default-700">网络路由</label>
+                        <label className="text-sm font-medium text-default-700">{t("instanceTagModal.fields.networkRoute")}</label>
                         <Input
-                          placeholder="例如：4837、9929、联通 等"
+                          placeholder={t("instanceTagModal.fields.networkRoutePlaceholder")}
                           value={networkRoute}
                           onValueChange={setNetworkRoute}
                           variant="bordered"
@@ -741,9 +745,9 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
 
                       {/* 额外信息 */}
                       <div className="flex flex-col gap-1.5">
-                        <label className="text-sm font-medium text-default-700">额外信息</label>
+                        <label className="text-sm font-medium text-default-700">{t("instanceTagModal.fields.extra")}</label>
                         <Input
-                          placeholder="使用逗号分隔多个信息"
+                          placeholder={t("instanceTagModal.fields.extraPlaceholder")}
                           value={extra}
                           onValueChange={setExtra}
                           variant="bordered"
@@ -756,7 +760,7 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
             </ModalBody>
             <ModalFooter className="pt-0">
               <Button color="danger" variant="light" onPress={onClose}>
-                取消
+                {t("instanceTagModal.buttons.cancel")}
               </Button>
               <Button
                 color="primary"
@@ -764,7 +768,7 @@ const InstanceTagModal: React.FC<InstanceTagModalProps> = ({
                 isLoading={isSaving}
                 isDisabled={isJsonError}
               >
-                保存
+                {t("instanceTagModal.buttons.save")}
               </Button>
             </ModalFooter>
           </>

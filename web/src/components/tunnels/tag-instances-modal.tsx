@@ -21,6 +21,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 import { Selection } from "@react-types/shared";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -60,6 +61,7 @@ export default function TagInstancesModal({
   onOpenChange,
   onSaved,
 }: TagInstancesModalProps) {
+  const { t } = useTranslation("tunnels");
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -71,7 +73,7 @@ export default function TagInstancesModal({
       setLoading(true);
       const response = await fetch(buildApiUrl("/api/tunnels?page_size=1000"));
 
-      if (!response.ok) throw new Error("获取实例列表失败");
+      if (!response.ok) throw new Error(t("tagInstancesModal.toast.fetchFailedDesc"));
       const result = await response.json();
 
       const tunnelList = result.data || [];
@@ -88,8 +90,8 @@ export default function TagInstancesModal({
     } catch (error) {
       console.error("获取实例列表失败:", error);
       addToast({
-        title: "错误",
-        description: "获取实例列表失败",
+        title: t("tagInstancesModal.toast.fetchFailed"),
+        description: t("tagInstancesModal.toast.fetchFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -124,12 +126,12 @@ export default function TagInstancesModal({
 
       if (!response.ok) {
         const error = await response.json();
-        throw new Error(error.message || "设置实例标签失败");
+        throw new Error(error.message || t("tagInstancesModal.toast.saveFailed"));
       }
 
       addToast({
-        title: "成功",
-        description: `已为 ${tunnelIds.length} 个实例绑定分组"${tag.name}"`,
+        title: t("tagInstancesModal.toast.saveSuccess"),
+        description: t("tagInstancesModal.toast.saveSuccessDesc", { count: tunnelIds.length, name: tag.name }),
         color: "success",
       });
 
@@ -138,8 +140,8 @@ export default function TagInstancesModal({
     } catch (error) {
       console.error("设置实例标签失败:", error);
       addToast({
-        title: "错误",
-        description: error instanceof Error ? error.message : "设置实例标签失败",
+        title: t("tagInstancesModal.toast.fetchFailed"),
+        description: error instanceof Error ? error.message : t("tagInstancesModal.toast.saveFailed"),
         color: "danger",
       });
     } finally {
@@ -149,7 +151,7 @@ export default function TagInstancesModal({
 
   // 获取类型显示文本
   const getTypeDisplayText = (type: "server" | "client"): string => {
-    return type === "server" ? "服务端" : "客户端";
+    return type === "server" ? t("type.server") : t("type.client");
   };
 
   // 获取已选择的实例数量
@@ -188,7 +190,7 @@ export default function TagInstancesModal({
                 <div className="flex items-center gap-2">
                   <FontAwesomeIcon className="text-secondary" icon={faLink} />
                   {tag && (
-                    <>分组{tag.name}实例管理 <span className="text-sm">[已选择 {getSelectedCount()} / {tunnels.length} ]</span></>
+                    <>{t("tagInstancesModal.title", { name: tag.name })} <span className="text-sm">{t("tagInstancesModal.selectedCount", { selected: getSelectedCount(), total: tunnels.length })}</span></>
                   )}
                 </div>
                 <div className="flex gap-2">
@@ -201,14 +203,14 @@ export default function TagInstancesModal({
                       setSelectedTunnels(new Set(allIds));
                     }}
                   >
-                    全选
+                    {t("tagInstancesModal.selectAll")}
                   </Button>
                   <Button
                     size="sm"
                     variant="flat"
                     onClick={() => setSelectedTunnels(new Set())}
                   >
-                    清空
+                    {t("tagInstancesModal.clearAll")}
                   </Button>
                 </div>
               </div>
@@ -221,8 +223,8 @@ export default function TagInstancesModal({
               ) : (
                 <div className="space-y-4">
                   <Select
-                    aria-label="选择实例"
-                    placeholder="选择要绑定分组的实例"
+                    aria-label={t("tagInstancesModal.selectAriaLabel")}
+                    placeholder={t("tagInstancesModal.selectPlaceholder")}
                     selectedKeys={selectedTunnels}
                     selectionMode="multiple"
                     onSelectionChange={setSelectedTunnels}
@@ -252,7 +254,7 @@ export default function TagInstancesModal({
                               >
                                 {getTypeDisplayText(tunnel.type)}
                               </Chip>
-                              <span>主控: {tunnel.endpoint}</span>
+                              <span>{t("tagInstancesModal.endpoint")}: {tunnel.endpoint}</span>
                               {tunnel.tag && tunnel.tag.id !== tag?.id && (
                                 <Chip
                                   color="warning"
@@ -288,10 +290,10 @@ export default function TagInstancesModal({
                         </div>
                         <div className="space-y-2">
                           <p className="text-default-500 text-sm font-medium">
-                            暂无实例
+                            {t("tagInstancesModal.empty.title")}
                           </p>
                           <p className="text-default-400 text-xs">
-                            请先创建实例后再绑定分组
+                            {t("tagInstancesModal.empty.description")}
                           </p>
                         </div>
                       </div>
@@ -307,7 +309,7 @@ export default function TagInstancesModal({
                 onPress={onClose}
                 startContent={<FontAwesomeIcon icon={faTimes} />}
               >
-                取消
+                {t("tagInstancesModal.buttons.cancel")}
               </Button>
               <Button
                 color="primary"
@@ -316,7 +318,7 @@ export default function TagInstancesModal({
                 onPress={handleSave}
                 startContent={<FontAwesomeIcon icon={faCheck} />}
               >
-                保存设置
+                {t("tagInstancesModal.buttons.save")}
               </Button>
             </ModalFooter>
           </>
