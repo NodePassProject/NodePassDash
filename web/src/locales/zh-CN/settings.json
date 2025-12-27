@@ -95,6 +95,27 @@
       "resetSuccessDesc": "设置已恢复默认值"
     }
   },
+  "profile": {
+    "title": "个人资料",
+    "description": "管理您的个人资料信息和账户设置",
+    "avatar": {
+      "title": "头像",
+      "description": "上传您的头像图片，建议使用正方形图片",
+      "uploadButton": "上传新头像"
+    },
+    "fields": {
+      "username": "用户名",
+      "usernamePlaceholder": "请输入用户名",
+      "email": "邮箱地址",
+      "emailPlaceholder": "请输入邮箱地址",
+      "password": "修改密码",
+      "passwordPlaceholder": "输入新密码"
+    },
+    "actions": {
+      "reset": "重置",
+      "save": "保存更改"
+    }
+  },
   "security": {
     "basic": {
       "title": "基础安全设置",

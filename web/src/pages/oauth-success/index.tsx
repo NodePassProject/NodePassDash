@@ -1,6 +1,7 @@
 import { useEffect } from "react";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { Spinner } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 
 import { useAuth } from "@/components/auth/auth-provider";
 
@@ -10,6 +11,7 @@ import { useAuth } from "@/components/auth/auth-provider";
  */
 export default function OAuthSuccessPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation("oauth");
   const [searchParams] = useSearchParams();
   const { setToken, setUserDirectly } = useAuth();
 
@@ -55,7 +57,7 @@ export default function OAuthSuccessPage() {
     <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-background to-default-100">
       <div className="text-center">
         <Spinner size="lg" />
-        <p className="mt-4 text-default-500">正在完成认证...</p>
+        <p className="mt-4 text-default-500">{t("success.processing")}</p>
       </div>
     </div>
   );

@@ -7,6 +7,7 @@ import {
   Button,
   Avatar,
 } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faUser,
@@ -16,13 +17,15 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 
 export function ProfileSettings() {
+  const { t } = useTranslation("settings");
+
   return (
     <Card>
       <CardHeader>
         <div className="flex flex-col gap-1">
-          <h3 className="text-xl font-semibold text-foreground">个人资料</h3>
+          <h3 className="text-xl font-semibold text-foreground">{t("profile.title")}</h3>
           <p className="text-small text-default-500">
-            管理您的个人资料信息和账户设置
+            {t("profile.description")}
           </p>
         </div>
       </CardHeader>
@@ -35,12 +38,12 @@ export function ProfileSettings() {
             src="https://ui.shadcn.com/avatars/01.png"
           />
           <div>
-            <h4 className="text-lg font-medium text-foreground">头像</h4>
+            <h4 className="text-lg font-medium text-foreground">{t("profile.avatar.title")}</h4>
             <p className="text-small text-default-500">
-              上传您的头像图片，建议使用正方形图片
+              {t("profile.avatar.description")}
             </p>
             <Button className="mt-2" color="primary" size="sm" variant="light">
-              上传新头像
+              {t("profile.avatar.uploadButton")}
             </Button>
           </div>
         </div>
@@ -56,8 +59,8 @@ export function ProfileSettings() {
                   icon={faCircleCheck}
                 />
               }
-              label="用户名"
-              placeholder="请输入用户名"
+              label={t("profile.fields.username")}
+              placeholder={t("profile.fields.usernamePlaceholder")}
               startContent={
                 <FontAwesomeIcon
                   className="text-default-400 pointer-events-none flex-shrink-0"
@@ -71,8 +74,8 @@ export function ProfileSettings() {
           <div className="space-y-2">
             <Input
               defaultValue="admin@example.com"
-              label="邮箱地址"
-              placeholder="请输入邮箱地址"
+              label={t("profile.fields.email")}
+              placeholder={t("profile.fields.emailPlaceholder")}
               startContent={
                 <FontAwesomeIcon
                   className="text-default-400 pointer-events-none flex-shrink-0"
@@ -86,8 +89,8 @@ export function ProfileSettings() {
           {/* Password */}
           <div className="space-y-2">
             <Input
-              label="修改密码"
-              placeholder="输入新密码"
+              label={t("profile.fields.password")}
+              placeholder={t("profile.fields.passwordPlaceholder")}
               startContent={
                 <FontAwesomeIcon
                   className="text-default-400 pointer-events-none flex-shrink-0"
@@ -102,9 +105,9 @@ export function ProfileSettings() {
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-4">
           <Button color="danger" variant="light">
-            重置
+            {t("profile.actions.reset")}
           </Button>
-          <Button color="primary">保存更改</Button>
+          <Button color="primary">{t("profile.actions.save")}</Button>
         </div>
       </CardBody>
     </Card>

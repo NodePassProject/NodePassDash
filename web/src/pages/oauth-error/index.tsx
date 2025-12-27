@@ -4,6 +4,7 @@ import { useNavigate, useSearchParams } from "react-router-dom";
 import { useTheme } from "next-themes";
 import { useIsSSR } from "@react-aria/ssr";
 import { motion } from "framer-motion";
+import { useTranslation } from "react-i18next";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faShieldAlt,
@@ -14,6 +15,7 @@ import {
 
 export default function OAuthErrorPage() {
   const navigate = useNavigate();
+  const { t } = useTranslation("oauth");
   const [searchParams] = useSearchParams();
   const [errorMessage, setErrorMessage] = useState("");
   const [provider, setProvider] = useState("");
@@ -25,12 +27,12 @@ export default function OAuthErrorPage() {
 
   useEffect(() => {
     // 从 URL 参数获取错误信息
-    const error = searchParams.get("error") || "OAuth2 登录失败";
+    const error = searchParams.get("error") || t("error.defaultError");
     const providerParam = searchParams.get("provider") || "";
 
     setErrorMessage(decodeURIComponent(error));
     setProvider(providerParam);
-  }, [searchParams]);
+  }, [searchParams, t]);
 
   const handleRetryLogin = () => {
     navigate("/login");
@@ -66,7 +68,7 @@ export default function OAuthErrorPage() {
               <h1 className="text-2xl font-bold text-foreground">
                 NodePassDash
               </h1>
-              <p className="text-small text-default-500">OAuth2 登录遇到问题</p>
+              <p className="text-small text-default-500">{t("error.title")}</p>
             </CardHeader>
 
             <CardBody className="px-8 pb-8">
@@ -89,32 +91,32 @@ export default function OAuthErrorPage() {
                 {/* 错误信息 */}
                 <div className="text-center space-y-3">
                   <h2 className="text-xl font-semibold text-danger">
-                    登录失败
+                    {t("error.loginFailed")}
                   </h2>
 
                   <div className="p-4 bg-danger-50 border border-danger-200 rounded-lg">
                     <p className="text-danger text-sm font-medium mb-2">
-                      错误详情
+                      {t("error.errorDetails")}
                     </p>
                     <p className="text-danger-600 text-xs break-words">
                       {errorMessage}
                     </p>
                     {provider && (
                       <p className="text-danger-500 text-xs mt-2">
-                        提供者:{" "}
+                        {t("error.provider")}:{" "}
                         {provider === "github"
-                          ? "GitHub"
+                          ? t("error.providers.github")
                           : provider === "cloudflare"
-                            ? "Cloudflare"
+                            ? t("error.providers.cloudflare")
                             : provider}
                       </p>
                     )}
                   </div>
 
                   <div className="text-small text-default-500 space-y-1">
-                    <p>• 可能的原因：系统已绑定其他 OAuth2 账户</p>
-                    <p>• 每个系统只能绑定一个 OAuth2 用户</p>
-                    <p>• 请联系管理员或使用已绑定的账户登录</p>
+                    <p>{t("error.reasons.reason1")}</p>
+                    <p>{t("error.reasons.reason2")}</p>
+                    <p>{t("error.reasons.reason3")}</p>
                   </div>
                 </div>
 
@@ -127,7 +129,7 @@ export default function OAuthErrorPage() {
                     startContent={<FontAwesomeIcon icon={faRedo} />}
                     onPress={handleRetryLogin}
                   >
-                    重新登录
+                    {t("error.actions.retryLogin")}
                   </Button>
 
                   <Button
@@ -138,7 +140,7 @@ export default function OAuthErrorPage() {
                     variant="bordered"
                     onPress={handleGoHome}
                   >
-                    返回首页
+                    {t("error.actions.goHome")}
                   </Button>
                 </div>
 
@@ -146,7 +148,7 @@ export default function OAuthErrorPage() {
                 <div className="text-center">
                   <div className="inline-flex items-center gap-2 text-xs text-default-400">
                     <FontAwesomeIcon icon={faInfoCircle} />
-                    <span>如需帮助，请联系系统管理员</span>
+                    <span>{t("error.help")}</span>
                   </div>
                 </div>
               </motion.div>

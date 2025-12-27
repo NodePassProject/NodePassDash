@@ -95,6 +95,27 @@
       "resetSuccessDesc": "Settings have been restored to default values"
     }
   },
+  "profile": {
+    "title": "Personal Profile",
+    "description": "Manage your personal information and account settings",
+    "avatar": {
+      "title": "Avatar",
+      "description": "Upload your avatar image, square images recommended",
+      "uploadButton": "Upload New Avatar"
+    },
+    "fields": {
+      "username": "Username",
+      "usernamePlaceholder": "Enter username",
+      "email": "Email Address",
+      "emailPlaceholder": "Enter email address",
+      "password": "Change Password",
+      "passwordPlaceholder": "Enter new password"
+    },
+    "actions": {
+      "reset": "Reset",
+      "save": "Save Changes"
+    }
+  },
   "security": {
     "basic": {
       "title": "Basic Security Settings",

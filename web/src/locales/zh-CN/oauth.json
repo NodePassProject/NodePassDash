@@ -1,0 +1,27 @@
+{
+  "error": {
+    "title": "OAuth2 登录遇到问题",
+    "loginFailed": "登录失败",
+    "errorDetails": "错误详情",
+    "provider": "提供者",
+    "providers": {
+      "github": "GitHub",
+      "cloudflare": "Cloudflare"
+    },
+    "reasons": {
+      "title": "可能的原因：",
+      "reason1": "• 可能的原因：系统已绑定其他 OAuth2 账户",
+      "reason2": "• 每个系统只能绑定一个 OAuth2 用户",
+      "reason3": "• 请联系管理员或使用已绑定的账户登录"
+    },
+    "actions": {
+      "retryLogin": "重新登录",
+      "goHome": "返回首页"
+    },
+    "help": "如需帮助，请联系系统管理员",
+    "defaultError": "OAuth2 登录失败"
+  },
+  "success": {
+    "processing": "正在完成认证..."
+  }
+}

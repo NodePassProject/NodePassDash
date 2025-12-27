@@ -1,0 +1,27 @@
+{
+  "error": {
+    "title": "OAuth2 Login Issue",
+    "loginFailed": "Login Failed",
+    "errorDetails": "Error Details",
+    "provider": "Provider",
+    "providers": {
+      "github": "GitHub",
+      "cloudflare": "Cloudflare"
+    },
+    "reasons": {
+      "title": "Possible reasons:",
+      "reason1": "• System is already bound to another OAuth2 account",
+      "reason2": "• Each system can only bind one OAuth2 user",
+      "reason3": "• Please contact the administrator or log in with the bound account"
+    },
+    "actions": {
+      "retryLogin": "Retry Login",
+      "goHome": "Go Home"
+    },
+    "help": "If you need help, please contact the system administrator",
+    "defaultError": "OAuth2 login failed"
+  },
+  "success": {
+    "processing": "Completing authentication..."
+  }
+}
