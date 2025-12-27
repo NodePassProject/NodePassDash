@@ -42,7 +42,11 @@
     "dissolveTitle": "Confirm Dissolve Service",
     "deleteTitle": "Confirm Delete Service",
     "dissolveMessage": "Are you sure you want to dissolve service \"{{name}}\"?",
-    "deleteMessage": "Are you sure you want to delete service \"{{name}}\"? This action cannot be undone!"
+    "deleteMessage": "Are you sure you want to delete service \"{{name}}\"? This action cannot be undone!",
+    "actions": {
+      "cancel": "Cancel",
+      "confirm": "Confirm"
+    }
   },
   "toast": {
     "fetchError": "Failed to fetch service list",
@@ -260,6 +264,41 @@
       "fetchInstancesFailed": "Failed to fetch available instances",
       "assembleSuccess": "Service assembled successfully",
       "assembleFailed": "Failed to assemble service",
+      "unknownError": "Unknown error"
+    }
+  },
+  "card": {
+    "menu": {
+      "ariaLabel": "Service actions",
+      "instanceActions": "Instance Actions",
+      "serviceActions": "Service Actions"
+    },
+    "entry": "Entry",
+    "exit": "Exit",
+    "upload": "Upload",
+    "download": "Download"
+  },
+  "renameModal": {
+    "title": "Rename Service",
+    "fields": {
+      "currentSid": "Current Service SID:",
+      "serviceAlias": "Service Alias"
+    },
+    "placeholders": {
+      "serviceAlias": "Enter service alias"
+    },
+    "actions": {
+      "cancel": "Cancel",
+      "confirm": "Confirm"
+    },
+    "validation": {
+      "emptyName": "Service name cannot be empty",
+      "error": "Error"
+    },
+    "toast": {
+      "renameSuccess": "Renamed successfully",
+      "renameFailed": "Rename failed",
+      "renamedTo": "Service renamed to {{name}}",
       "unknownError": "Unknown error"
     }
   }

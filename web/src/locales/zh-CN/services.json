@@ -42,7 +42,11 @@
     "dissolveTitle": "确认解散服务",
     "deleteTitle": "确认删除服务",
     "dissolveMessage": "确定要解散服务 \"{{name}}\" 吗？",
-    "deleteMessage": "确定要删除服务 \"{{name}}\" 吗？此操作不可撤销！"
+    "deleteMessage": "确定要删除服务 \"{{name}}\" 吗？此操作不可撤销！",
+    "actions": {
+      "cancel": "取消",
+      "confirm": "确认"
+    }
   },
   "toast": {
     "fetchError": "获取服务列表失败",
@@ -260,6 +264,41 @@
       "fetchInstancesFailed": "获取可用实例失败",
       "assembleSuccess": "组装服务成功",
       "assembleFailed": "组装服务失败",
+      "unknownError": "未知错误"
+    }
+  },
+  "card": {
+    "menu": {
+      "ariaLabel": "服务操作",
+      "instanceActions": "实例操作",
+      "serviceActions": "服务操作"
+    },
+    "entry": "入口",
+    "exit": "出口",
+    "upload": "上传",
+    "download": "下载"
+  },
+  "renameModal": {
+    "title": "重命名服务",
+    "fields": {
+      "currentSid": "当前服务 SID:",
+      "serviceAlias": "服务别名"
+    },
+    "placeholders": {
+      "serviceAlias": "请输入服务别名"
+    },
+    "actions": {
+      "cancel": "取消",
+      "confirm": "确定"
+    },
+    "validation": {
+      "emptyName": "服务名称不能为空",
+      "error": "错误"
+    },
+    "toast": {
+      "renameSuccess": "重命名成功",
+      "renameFailed": "重命名失败",
+      "renamedTo": "服务已重命名为 {{name}}",
       "unknownError": "未知错误"
     }
   }

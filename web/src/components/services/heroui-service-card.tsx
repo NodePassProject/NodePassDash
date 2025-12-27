@@ -21,6 +21,7 @@ import {
   faUserSlash,
   faSync,
 } from "@fortawesome/free-solid-svg-icons";
+import { useTranslation } from "react-i18next";
 import { formatBytes } from "@/lib/utils";
 
 // 服务类型定义
@@ -62,6 +63,7 @@ export function HeroUIServiceCard({
   onNavigate,
   onAction,
 }: ServiceCardProps) {
+  const { t } = useTranslation("services");
   const cardColor = getTypeColor(service.type);
 
   return (
@@ -94,57 +96,57 @@ export function HeroUIServiceCard({
                 <FontAwesomeIcon icon={faEllipsisVertical} size="sm" />
               </Button>
             </DropdownTrigger>
-            <DropdownMenu aria-label="服务操作" onAction={onAction}>
-              <DropdownSection showDivider title="实例操作">
+            <DropdownMenu aria-label={t("card.menu.ariaLabel")} onAction={onAction}>
+              <DropdownSection showDivider title={t("card.menu.instanceActions")}>
                 <DropdownItem
                   key="start"
                   color="success"
                   startContent={<FontAwesomeIcon fixedWidth icon={faPlay} />}
                 >
-                  启动
+                  {t("actions.start")}
                 </DropdownItem>
                 <DropdownItem
                   key="stop"
                   color="warning"
                   startContent={<FontAwesomeIcon fixedWidth icon={faStop} />}
                 >
-                  停止
+                  {t("actions.stop")}
                 </DropdownItem>
                 <DropdownItem
                   key="restart"
                   color="primary"
                   startContent={<FontAwesomeIcon fixedWidth icon={faRotateRight} />}
                 >
-                  重启
+                  {t("actions.restart")}
                 </DropdownItem>
                 <DropdownItem
                   key="delete"
                   color="danger"
                   startContent={<FontAwesomeIcon fixedWidth icon={faTrash} />}
                 >
-                  删除
+                  {t("actions.delete")}
                 </DropdownItem>
               </DropdownSection>
-              <DropdownSection title="服务操作">
+              <DropdownSection title={t("card.menu.serviceActions")}>
                 <DropdownItem
                   key="sync"
                   color="primary"
                   startContent={<FontAwesomeIcon fixedWidth icon={faSync} />}
                 >
-                  同步
+                  {t("actions.sync")}
                 </DropdownItem>
                 <DropdownItem
                   key="rename"
                   startContent={<FontAwesomeIcon fixedWidth icon={faEdit} />}
                 >
-                  重命名
+                  {t("actions.rename")}
                 </DropdownItem>
                 <DropdownItem
                   key="dissolve"
                   color="warning"
                   startContent={<FontAwesomeIcon fixedWidth icon={faUserSlash} />}
                 >
-                  解散
+                  {t("actions.dissolve")}
                 </DropdownItem>
               </DropdownSection>
             </DropdownMenu>
@@ -193,7 +195,7 @@ export function HeroUIServiceCard({
           <div className="space-y-2">
             <div className="flex items-center gap-2 p-2.5 rounded-lg bg-default-100/50">
               <span className="text-xs font-medium text-default-500 min-w-[36px]">
-                入口
+                {t("card.entry")}
               </span>
               <span className="text-xs font-mono font-semibold text-foreground flex-1 truncate">
                 {formatHost(service.entranceHost)}:{service.entrancePort}
@@ -201,7 +203,7 @@ export function HeroUIServiceCard({
             </div>
             <div className="flex items-center gap-2 p-2.5 rounded-lg bg-default-100/50">
               <span className="text-xs font-medium text-default-500 min-w-[36px]">
-                出口
+                {t("card.exit")}
               </span>
               <span className="text-xs font-mono font-semibold text-foreground flex-1 truncate">
                 {formatHost(service.exitHost)}:{service.exitPort}
@@ -216,7 +218,7 @@ export function HeroUIServiceCard({
             {/* 上传 */}
             <div className="flex-1 flex items-center gap-1.5">
               <span className="font-mono text-success font-bold">↑</span>
-              <span className="text-default-400">上传</span>
+              <span className="text-default-400">{t("card.upload")}</span>
               <span className="font-mono font-semibold text-foreground ml-auto truncate">
                 {formatBytes(service.totalTx || 0)}
               </span>
@@ -228,7 +230,7 @@ export function HeroUIServiceCard({
             {/* 下载 */}
             <div className="flex-1 flex items-center gap-1.5">
               <span className="font-mono text-primary font-bold">↓</span>
-              <span className="text-default-400">下载</span>
+              <span className="text-default-400">{t("card.download")}</span>
               <span className="font-mono font-semibold text-foreground ml-auto truncate">
                 {formatBytes(service.totalRx || 0)}
               </span>

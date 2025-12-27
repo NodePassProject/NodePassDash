@@ -751,7 +751,7 @@ export default function ServicesPage() {
                   variant="light"
                   onPress={onClose}
                 >
-                  {t("action.cancel", { ns: "common" })}
+                  {t("confirm.actions.cancel")}
                 </Button>
                 <Button
                   color={confirmAction?.type === "dissolve" ? "warning" : "danger"}

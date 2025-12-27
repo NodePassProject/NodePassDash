@@ -8,6 +8,7 @@ import {
   Input,
 } from "@heroui/react";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faEdit } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
@@ -30,6 +31,7 @@ export default function RenameServiceModal({
   service,
   onRenamed,
 }: RenameServiceModalProps) {
+  const { t } = useTranslation("services");
   const [newName, setNewName] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
 
@@ -43,8 +45,8 @@ export default function RenameServiceModal({
   const handleSubmit = async () => {
     if (!service || !newName.trim()) {
       addToast({
-        title: "错误",
-        description: "服务名称不能为空",
+        title: t("renameModal.validation.error"),
+        description: t("renameModal.validation.emptyName"),
         color: "danger",
       });
 
@@ -67,12 +69,12 @@ export default function RenameServiceModal({
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "重命名失败");
+        throw new Error(errorData.error || t("renameModal.toast.renameFailed"));
       }
 
       addToast({
-        title: "重命名成功",
-        description: `服务已重命名为 ${newName.trim()}`,
+        title: t("renameModal.toast.renameSuccess"),
+        description: t("renameModal.toast.renamedTo", { name: newName.trim() }),
         color: "success",
       });
 
@@ -82,10 +84,10 @@ export default function RenameServiceModal({
       // 关闭模态窗
       onOpenChange(false);
     } catch (error) {
-      console.error("重命名失败:", error);
+      console.error(t("renameModal.toast.renameFailed"), error);
       addToast({
-        title: "重命名失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("renameModal.toast.renameFailed"),
+        description: error instanceof Error ? error.message : t("renameModal.toast.unknownError"),
         color: "danger",
       });
     } finally {
@@ -100,19 +102,19 @@ export default function RenameServiceModal({
           <>
             <ModalHeader className="flex items-center gap-2">
               <FontAwesomeIcon icon={faEdit} />
-              重命名服务
+              {t("renameModal.title")}
             </ModalHeader>
             <ModalBody>
               <div className="space-y-4">
                 <div>
                   <p className="text-sm text-default-600 mb-2">
-                    当前服务 SID: <span className="font-mono">{service?.sid}</span>
+                    {t("renameModal.fields.currentSid")} <span className="font-mono">{service?.sid}</span>
                   </p>
                 </div>
                 <Input
                   autoFocus
-                  label="服务别名"
-                  placeholder="请输入服务别名"
+                  label={t("renameModal.fields.serviceAlias")}
+                  placeholder={t("renameModal.placeholders.serviceAlias")}
                   value={newName}
                   variant="bordered"
                   onValueChange={setNewName}
@@ -126,7 +128,7 @@ export default function RenameServiceModal({
             </ModalBody>
             <ModalFooter>
               <Button variant="light" onPress={onClose}>
-                取消
+                {t("renameModal.actions.cancel")}
               </Button>
               <Button
                 color="primary"
@@ -134,7 +136,7 @@ export default function RenameServiceModal({
                 isLoading={isSubmitting}
                 onPress={handleSubmit}
               >
-                确定
+                {t("renameModal.actions.confirm")}
               </Button>
             </ModalFooter>
           </>
