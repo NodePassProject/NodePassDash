@@ -773,6 +773,14 @@ func (s *TunnelShared) copyTunnel(src *models.Tunnel) *models.Tunnel {
 		dns := *src.Dns
 		dst.Dns = &dns
 	}
+	if src.Sni != nil {
+		sni := *src.Sni
+		dst.Sni = &sni
+	}
+	if src.Block != nil {
+		block := *src.Block
+		dst.Block = &block
+	}
 	if src.ServiceSID != nil {
 		ssid := *src.ServiceSID
 		dst.ServiceSID = &ssid

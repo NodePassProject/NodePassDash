@@ -35,13 +35,16 @@ RUN apk add --no-cache git gcc g++ make musl-dev sqlite-dev
 # 将 go.mod 和 go.sum 拷贝并拉取依赖
 COPY go.mod go.sum ./
 
-# 设置 Go module proxy 和超时
-ENV GOPROXY=https://proxy.golang.org,direct
+# 设置 Go module proxy（使用多个镜像源提高成功率）
+ENV GOPROXY=https://goproxy.cn,https://goproxy.io,https://proxy.golang.org,direct
 ENV GOSUMDB=sum.golang.org
 ENV GOTIMEOUT=600s
 
-# 增加网络重试和下载超时
-RUN go mod download -x
+# 下载依赖（添加重试逻辑）
+RUN --mount=type=cache,target=/go/pkg/mod \
+    go mod download || \
+    (sleep 5 && go mod download) || \
+    (sleep 10 && go mod download)
 
 # 复制 Go 后端代码
 COPY cmd/ ./cmd/

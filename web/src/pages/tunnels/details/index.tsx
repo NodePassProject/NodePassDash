@@ -109,6 +109,8 @@ interface TunnelInfo {
   poolType?: number | null;
   dial?: string | null;
   dns?: string | null;
+  sni?: string | null;
+  block?: number | null;
   targetPort: number;
   tlsMode: string;
   commandLine: string;
@@ -2357,6 +2359,41 @@ export default function TunnelDetailPage() {
                           </Tooltip>
                         </div>
                       );
+                    })()
+                  }
+                />
+                {tunnelInfo?.type === "client" && tunnelInfo?.mode === 2 && (
+                  <CellValue
+                    icon={
+                      <Icon
+                        className="text-default-600"
+                        height={20}
+                        icon="mdi:certificate-outline"
+                        width={20}
+                      />
+                    }
+                    label={t("details.instanceInfo.sni")}
+                    value={tunnelInfo?.sni || "-"}
+                  />
+                )}
+                <CellValue
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={20}
+                      icon="mdi:shield-lock-outline"
+                      width={20}
+                    />
+                  }
+                  label={t("details.instanceInfo.block.label")}
+                  value={
+                    (() => {
+                      const blockType = tunnelInfo?.block;
+                      if (blockType === 0) return t("details.instanceInfo.block.disabled");
+                      if (blockType === 1) return t("details.instanceInfo.block.socks");
+                      if (blockType === 2) return t("details.instanceInfo.block.http");
+                      if (blockType === 3) return t("details.instanceInfo.block.tls");
+                      return t("details.instanceInfo.block.notSet");
                     })()
                   }
                 />

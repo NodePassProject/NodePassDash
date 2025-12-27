@@ -117,14 +117,8 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 		return
 	}
 
-	// 保存 JTI 到数据库（实现 token 互踢：新登录会踢掉旧 token）
-	if err := h.authService.SetSystemConfig(auth.ConfigKeyCurrentTokenJTI, jti); err != nil {
-		c.JSON(http.StatusInternalServerError, auth.LoginResponse{
-			Success: false,
-			Error:   "保存 token 失败",
-		})
-		return
-	}
+	// 保存 JTI 到内存（实现 token 互踢：新登录会踢掉旧 token，避免启动时SQLite锁）
+	h.authService.SetCurrentJTI(jti)
 
 	// 检查是否是默认账号密码
 	isDefaultCredentials := h.authService.IsDefaultCredentials()
@@ -151,8 +145,8 @@ func (h *AuthHandler) HandleLogout(c *gin.Context) {
 		h.authService.DestroySession(sessionID)
 	}
 
-	// 清除数据库中的 JTI，使所有 token 失效
-	_ = h.authService.DeleteSystemConfig(auth.ConfigKeyCurrentTokenJTI)
+	// 清除内存中的 JTI，使所有 token 失效
+	h.authService.ClearCurrentJTI()
 
 	// 清除 cookie
 	c.SetCookie("session", "", -1, "/", "", false, true)
@@ -548,11 +542,8 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 		return
 	}
 
-	// 保存 JTI 到数据库（实现 token 互踢）
-	if err := h.authService.SetSystemConfig(auth.ConfigKeyCurrentTokenJTI, jti); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存 token 失败"})
-		return
-	}
+	// 保存 JTI 到内存（实现 token 互踢，避免启动时SQLite锁）
+	h.authService.SetCurrentJTI(jti)
 
 	// 如果请求携带 redirect 参数或 Accept text/html，则执行页面跳转；否则返回 JSON
 	redirectURL := c.Query("redirect")
@@ -751,11 +742,8 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 		return
 	}
 
-	// 保存 JTI 到数据库（实现 token 互踢）
-	if err := h.authService.SetSystemConfig(auth.ConfigKeyCurrentTokenJTI, jti); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "保存 token 失败"})
-		return
-	}
+	// 保存 JTI 到内存（实现 token 互踢，避免启动时SQLite锁）
+	h.authService.SetCurrentJTI(jti)
 
 	// 如果请求携带 redirect 参数或 Accept text/html，则执行页面跳转；否则返回 JSON
 	redirectURL := c.Query("redirect")

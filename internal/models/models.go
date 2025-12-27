@@ -100,6 +100,8 @@ type Tunnel struct {
 	Dial       *string `json:"dial,omitempty" gorm:"type:text;column:dial"` //出站源IP地址
 	PoolType   *int    `json:"poolType,omitempty" gorm:"type:int;column:pool_type"`
 	Dns        *string `json:"dns,omitempty" gorm:"type:text;column:dns"`
+	Sni        *string `json:"sni,omitempty" gorm:"type:text;column:sni"`   //SNI服务器名称指示
+	Block      *int    `json:"block,omitempty" gorm:"type:int;column:block"` //协议屏蔽：0-禁用, 1-SOCKS, 2-HTTP, 3-TLS
 
 	Sorts int64 `json:"sorts" gorm:"type:int;column:sorts;default:0"`
 

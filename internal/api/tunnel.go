@@ -841,6 +841,13 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		"sorts":       tunnel.Sorts,
 		"dial":        tunnel.Dial,
 		"dns":         tunnel.Dns,
+		"sni":         tunnel.Sni,
+		"block": func() interface{} {
+			if tunnel.Block != nil {
+				return *tunnel.Block
+			}
+			return nil
+		}(),
 		// endpoint 改为对象形式
 		"endpoint": map[string]interface{}{
 			"name":    endpointName,
@@ -874,6 +881,8 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			"dns":           parsedConfig.Dns,
 			"dial":          parsedConfig.Dial,
 			"listenType":    parsedConfig.ListenType,
+			"sni":           parsedConfig.Sni,
+			"block":         parsedConfig.Block,
 		},
 
 		// tags - GORM 自动反序列化为 *map[string]string

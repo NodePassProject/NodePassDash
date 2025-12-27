@@ -159,6 +159,8 @@ export default function SimpleCreateTunnelModal({
     dial: "",// Dial
     sorts: "",
     dns: "",
+    sni: "", // SNI服务器名称指示
+    block: "0", // 协议屏蔽：0-禁用, 1-SOCKS, 2-HTTP, 3-TLS (默认禁用)
   });
 
   // 当打开时加载端点，并在 edit 时从API获取隧道详情
@@ -239,6 +241,11 @@ export default function SimpleCreateTunnelModal({
               tunnel.poolType != null
                 ? String(tunnel.poolType)
                 : "",
+            sni: tunnel.sni || "",
+            block:
+              tunnel.block != null
+                ? String(tunnel.block)
+                : "0",
           }));
 
           // 如果有扩展目标地址，自动展开可选配置
@@ -293,6 +300,8 @@ export default function SimpleCreateTunnelModal({
       dial,
       sorts,
       dns,
+      sni,
+      block,
     } = formData;
 
     // 基本校验
@@ -397,6 +406,8 @@ export default function SimpleCreateTunnelModal({
           sorts: sorts !== "" ? parseInt(sorts) : undefined,
           resetTraffic: modalMode === "edit" ? resetChecked : undefined,
           dns: dns || undefined,
+          sni: sni || undefined,
+          block: block !== "" ? parseInt(block) : undefined,
         }),
       });
       const data = await res.json();
@@ -991,17 +1002,41 @@ export default function SimpleCreateTunnelModal({
                               value={formData.dial}
                               onValueChange={(v) => handleField("dial", v ? String(v) : "")}
                             />
-                            {isShowClientPoolMin &&
+                            {/* SNI - 只在客户端且mode=2时显示 */}
+                            {isClientType && formData.mode === 2 && (
                               <Input
-                                label={t("simpleCreate.fields.dnsTTL")}
-                                placeholder={t("simpleCreate.fields.dnsTTLPlaceholder")}
-                                value={formData.dns}
-                                onValueChange={(v) => handleField("dns", v ? String(v) : "")}
-                              />}
+                                label={t("simpleCreate.fields.sni")}
+                                placeholder={t("simpleCreate.fields.sniPlaceholder")}
+                                value={formData.sni}
+                                onValueChange={(v) => handleField("sni", v ? String(v) : "")}
+                              />
+                            )}
+                            {/* 协议屏蔽 */}
+                            <Select
+                              label={t("simpleCreate.fields.block")}
+                              selectedKeys={
+                                formData.block !== "" ? [formData.block] : ["0"]
+                              }
+                              onSelectionChange={(keys) => {
+                                const selectedKey = Array.from(keys)[0] as string;
+                                handleField("block", selectedKey);
+                              }}
+                            >
+                              <SelectItem key="0">{t("simpleCreate.blockTypes.disabled")}</SelectItem>
+                              <SelectItem key="1">{t("simpleCreate.blockTypes.socks")}</SelectItem>
+                              <SelectItem key="2">{t("simpleCreate.blockTypes.http")}</SelectItem>
+                              <SelectItem key="3">{t("simpleCreate.blockTypes.tls")}</SelectItem>
+                            </Select>
+                            <Input
+                              label={t("simpleCreate.fields.dnsTTL")}
+                              placeholder={t("simpleCreate.fields.dnsTTLPlaceholder")}
+                              value={formData.dns}
+                              onValueChange={(v) => handleField("dns", v ? String(v) : "")}
+                            />
                           </div>
 
                           {/* 数据读取超时、速率限制和最大连接数限制 */}
-                          <div className="grid grid-cols-1 gap-2">
+                          {/* <div className="grid grid-cols-1 gap-2">
                             {!isShowClientPoolMin &&
                               <Input
                                 label={t("simpleCreate.fields.dnsTTL")}
@@ -1009,7 +1044,7 @@ export default function SimpleCreateTunnelModal({
                                 value={formData.dns}
                                 onValueChange={(v) => handleField("dns", v ? String(v) : "")}
                               />}
-                          </div>
+                          </div> */}
 
 
                           {/* 扩展目标地址 */}

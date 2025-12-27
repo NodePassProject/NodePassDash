@@ -34,6 +34,8 @@ type TunnelConfig struct {
 	PoolType              string // 池类型 (0-TCP, 1-QUIC, 2-WebSocket, 3-HTTP/2)
 	Dial                  string // 出站源IP地址
 	Dns                   string // DNS服务器地址
+	Sni                   string // SNI服务器名称指示
+	Block                 string // 协议屏蔽 (0-禁用, 1-SOCKS, 2-HTTP, 3-TLS)
 }
 
 // ParseTunnelURL 解析隧道实例 URL 并返回 Tunnel 模型
@@ -244,6 +246,13 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 				if poolType, err := strconv.Atoi(val); err == nil && poolType >= 0 && poolType <= 3 {
 					tunnel.PoolType = &poolType
 				}
+			case "sni":
+				tunnel.Sni = &val
+			case "block":
+				// 协议屏蔽 (0=禁用, 1=SOCKS, 2=HTTP, 3=TLS)
+				if blockType, err := strconv.Atoi(val); err == nil && blockType >= 0 && blockType <= 3 {
+					tunnel.Block = &blockType
+				}
 			}
 		}
 	}
@@ -378,6 +387,12 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 	if tunnel.Dns != nil {
 		updates["dns"] = tunnel.Dns
 	}
+	if tunnel.Sni != nil {
+		updates["sni"] = tunnel.Sni
+	}
+	if tunnel.Block != nil {
+		updates["block"] = tunnel.Block
+	}
 	return updates
 }
 
@@ -456,6 +471,8 @@ func ParseTunnelConfig(rawURL string) *TunnelConfig {
 	noTCP := query.Get("notcp")
 	noUDP := query.Get("noudp")
 	cfg.Dns = query.Get("dns")
+	cfg.Sni = query.Get("sni")
+	cfg.Block = query.Get("block")
 
 	// 根据notcp和noudp参数的组合来设置listenType
 	if noTCP != "" || noUDP != "" {
@@ -583,6 +600,12 @@ func (c *TunnelConfig) BuildTunnelConfigURL() string {
 	}
 	if c.Dns != "" {
 		queryParams = append(queryParams, fmt.Sprintf("dns=%s", c.Dns))
+	}
+	if c.Sni != "" {
+		queryParams = append(queryParams, fmt.Sprintf("sni=%s", c.Sni))
+	}
+	if c.Block != "" {
+		queryParams = append(queryParams, fmt.Sprintf("block=%s", c.Block))
 	}
 
 	// 根据listenType生成notcp和noudp参数
@@ -765,6 +788,12 @@ func BuildTunnelURLs(tunnel models.Tunnel) string {
 	}
 	if tunnel.PoolType != nil {
 		queryParams = append(queryParams, fmt.Sprintf("type=%d", *tunnel.PoolType))
+	}
+	if tunnel.Sni != nil && *tunnel.Sni != "" {
+		queryParams = append(queryParams, fmt.Sprintf("sni=%s", *tunnel.Sni))
+	}
+	if tunnel.Block != nil {
+		queryParams = append(queryParams, fmt.Sprintf("block=%d", *tunnel.Block))
 	}
 
 	if tunnel.ProxyProtocol != nil {

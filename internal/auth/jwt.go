@@ -94,10 +94,10 @@ func (s *Service) ValidateToken(tokenString string) (string, error) {
 		return "", errors.New("invalid token")
 	}
 
-	// 验证 JTI 是否与数据库中的当前有效 JTI 匹配（实现 token 互踢）
-	currentJTI, err := s.GetSystemConfig(ConfigKeyCurrentTokenJTI)
+	// 验证 JTI 是否与内存中的当前有效 JTI 匹配（实现 token 互踢）
+	currentJTI, err := s.GetCurrentJTI()
 	if err != nil {
-		// 如果数据库中没有 JTI 配置，说明所有 token 都已失效
+		// 如果内存中没有 JTI，说明所有 token 都已失效（服务重启或登出）
 		return "", errors.New("token has been invalidated")
 	}
 

@@ -27,7 +27,9 @@ var (
 
 // Service 认证服务
 type Service struct {
-	db *gorm.DB
+	db         *gorm.DB
+	currentJTI string        // 当前有效的 JWT ID（内存存储，避免启动时SQLite锁）
+	jtiMutex   sync.RWMutex  // JTI 读写锁
 }
 
 // NewService 创建认证服务实例，需要传入GORM数据库连接
@@ -613,4 +615,28 @@ func (s *Service) ValidateOAuthState(state string) bool {
 		oauthStateCache.Delete(state)
 	}
 	return false
+}
+
+// SetCurrentJTI 设置当前有效的 JWT ID（内存存储）
+func (s *Service) SetCurrentJTI(jti string) {
+	s.jtiMutex.Lock()
+	defer s.jtiMutex.Unlock()
+	s.currentJTI = jti
+}
+
+// GetCurrentJTI 获取当前有效的 JWT ID（内存存储）
+func (s *Service) GetCurrentJTI() (string, error) {
+	s.jtiMutex.RLock()
+	defer s.jtiMutex.RUnlock()
+	if s.currentJTI == "" {
+		return "", errors.New("no valid token")
+	}
+	return s.currentJTI, nil
+}
+
+// ClearCurrentJTI 清除当前有效的 JWT ID（登出时使用）
+func (s *Service) ClearCurrentJTI() {
+	s.jtiMutex.Lock()
+	defer s.jtiMutex.Unlock()
+	s.currentJTI = ""
 }
