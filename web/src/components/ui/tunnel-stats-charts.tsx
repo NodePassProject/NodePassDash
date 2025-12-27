@@ -4,6 +4,7 @@ import React, { useState, useMemo } from "react";
 import { Card, cn, tv } from "@heroui/react";
 import { Area, AreaChart, ResponsiveContainer, YAxis } from "recharts";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 import {
   useTunnelMonitorWS,
@@ -352,6 +353,7 @@ export default function TunnelStatsCharts({
   instanceId,
   isExperimentalMode = true,
 }: TunnelStatsChartsProps) {
+  const { t } = useTranslation("tunnels");
   const [dataHistory, setDataHistory] = useState<TunnelMonitorData[]>([]);
   const [previousTcpRx, setPreviousTcpRx] = useState<number | null>(null);
   const [previousTcpTx, setPreviousTcpTx] = useState<number | null>(null);
@@ -386,8 +388,8 @@ export default function TunnelStatsCharts({
         setUdpTxRate(0);
 
         addToast({
-          title: "隧道监控WebSocket连接成功",
-          description: "开始接收实时隧道性能数据",
+          title: t("details.wsMonitor.connected"),
+          description: t("details.wsMonitor.connectedDesc"),
           color: "success",
         });
       },
@@ -556,11 +558,11 @@ export default function TunnelStatsCharts({
   // 使用实际速率数据，没有数据时提供最小默认图表数据
   const currentTcpData = useMemo(() => {
     const data = {
-      title: "TCP流量",
+      title: t("details.wsMonitor.tcpTraffic"),
       value1: formatBytes(tcpTxRate),
       value2: formatBytes(tcpRxRate),
-      label1: "发送",
-      label2: "接收",
+      label1: t("details.wsMonitor.send"),
+      label2: t("details.wsMonitor.receive"),
       chartData:
         tcpTrafficChartData.length > 0
           ? tcpTrafficChartData
@@ -573,15 +575,15 @@ export default function TunnelStatsCharts({
     };
 
     return data;
-  }, [tcpTxRate, tcpRxRate, tcpTrafficChartData]);
+  }, [tcpTxRate, tcpRxRate, tcpTrafficChartData, t]);
 
   const currentUdpData = useMemo(() => {
     const data = {
-      title: "UDP流量",
+      title: t("details.wsMonitor.udpTraffic"),
       value1: formatBytes(udpTxRate),
       value2: formatBytes(udpRxRate),
-      label1: "发送",
-      label2: "接收",
+      label1: t("details.wsMonitor.send"),
+      label2: t("details.wsMonitor.receive"),
       chartData:
         udpTrafficChartData.length > 0
           ? udpTrafficChartData
@@ -594,11 +596,11 @@ export default function TunnelStatsCharts({
     };
 
     return data;
-  }, [udpTxRate, udpRxRate, udpTrafficChartData]);
+  }, [udpTxRate, udpRxRate, udpTrafficChartData, t]);
 
   const currentLatencyData = useMemo(() => {
     const data = {
-      title: "延迟",
+      title: t("details.wsMonitor.latency"),
       value: `${latestData?.ping || 0}ms`,
       chartData:
         latencyChartData.length > 0
@@ -612,11 +614,11 @@ export default function TunnelStatsCharts({
     };
 
     return data;
-  }, [latestData?.ping, latencyChartData]);
+  }, [latestData?.ping, latencyChartData, t]);
 
   const currentPoolData = useMemo(() => {
     const data = {
-      title: "连接池",
+      title: t("details.wsMonitor.pool"),
       value: `${latestData?.pool || 0}`,
       chartData: dataHistory.map((item, index) => ({
         time: `${index}`,
@@ -634,15 +636,15 @@ export default function TunnelStatsCharts({
     }
 
     return data;
-  }, [latestData?.pool, dataHistory]);
+  }, [latestData?.pool, dataHistory, t]);
 
   const currentConnectionsData = useMemo(() => {
     const data = {
-      title: "连接数",
+      title: t("details.wsMonitor.connections"),
       value1: `${latestData?.tcps || 0}`,
       value2: `${latestData?.udps || 0}`,
-      label1: "TCP",
-      label2: "UDP",
+      label1: t("details.wsMonitor.tcp"),
+      label2: t("details.wsMonitor.udp"),
       chartData: dataHistory.map((item, index) => ({
         time: `${index}`,
         value1: item.tcps || 0,
@@ -660,7 +662,7 @@ export default function TunnelStatsCharts({
     }
 
     return data;
-  }, [latestData?.tcps, latestData?.udps, dataHistory]);
+  }, [latestData?.tcps, latestData?.udps, dataHistory, t]);
 
   // 如果不满足启动条件，不显示组件
   if (!shouldConnect) {

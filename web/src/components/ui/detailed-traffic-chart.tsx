@@ -9,6 +9,7 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
+import { useTranslation } from "react-i18next";
 
 import { type ChartConfig, ChartContainer } from "./chart";
 import { SharedChartTooltip } from "./shared-chart-tooltip";
@@ -61,101 +62,119 @@ const formatAxisTime = (timestamp: string): string => {
 };
 
 // 自定义Tooltip组件
-const DetailedTrafficTooltip = ({ active, payload, label }: any) => (
-  <SharedChartTooltip
-    active={active}
-    items={payload
-      ?.map((entry: any) => {
-        let name = "";
-        let color = "";
+const DetailedTrafficTooltip = ({ active, payload, label }: any) => {
+  const { t } = useTranslation("tunnels");
 
-        switch (entry.dataKey) {
-          case "tcpIn":
-            name = "TCP入站";
-            color = "text-blue-600 dark:text-blue-400";
-            break;
-          case "tcpOut":
-            name = "TCP出站";
-            color = "text-green-600 dark:text-green-400";
-            break;
-          case "udpIn":
-            name = "UDP入站";
-            color = "text-purple-600 dark:text-purple-400";
-            break;
-          case "udpOut":
-            name = "UDP出站";
-            color = "text-orange-600 dark:text-orange-400";
-            break;
-          default:
-            name = entry.name || entry.dataKey;
-            color = "text-default-600";
-        }
+  return (
+    <SharedChartTooltip
+      active={active}
+      items={payload
+        ?.map((entry: any) => {
+          let name = "";
+          let color = "";
 
-        return {
-          key: entry.dataKey,
-          name,
-          value: entry.value,
-          color,
-          unit: "traffic" as const,
-        };
-      })
-      .filter((item: any) => item.value !== null && item.value !== undefined)}
-    label={label}
-    payload={payload}
-  />
-);
+          switch (entry.dataKey) {
+            case "tcpIn":
+              name = t("details.chartTooltips.tcpInbound");
+              color = "text-blue-600 dark:text-blue-400";
+              break;
+            case "tcpOut":
+              name = t("details.chartTooltips.tcpOutbound");
+              color = "text-green-600 dark:text-green-400";
+              break;
+            case "udpIn":
+              name = t("details.chartTooltips.udpInbound");
+              color = "text-purple-600 dark:text-purple-400";
+              break;
+            case "udpOut":
+              name = t("details.chartTooltips.udpOutbound");
+              color = "text-orange-600 dark:text-orange-400";
+              break;
+            default:
+              name = entry.name || entry.dataKey;
+              color = "text-default-600";
+          }
+
+          return {
+            key: entry.dataKey,
+            name,
+            value: entry.value,
+            color,
+            unit: "traffic" as const,
+          };
+        })
+        .filter((item: any) => item.value !== null && item.value !== undefined)}
+      label={label}
+      payload={payload}
+    />
+  );
+};
 
 // 加载状态组件
 const LoadingState: React.FC<{ height: number; className?: string }> = ({
   height,
   className,
-}) => (
-  <div
-    className={`flex items-center justify-center ${className}`}
-    style={height ? { height } : {}}
-  >
-    <div className="space-y-1 text-center">
-      <div className="flex justify-center">
-        <div className="relative w-4 h-4">
-          <div className="absolute inset-0 rounded-full border-2 border-default-200 border-t-primary animate-spin" />
+}) => {
+  const { t } = useTranslation("tunnels");
+
+  return (
+    <div
+      className={`flex items-center justify-center ${className}`}
+      style={height ? { height } : {}}
+    >
+      <div className="space-y-1 text-center">
+        <div className="flex justify-center">
+          <div className="relative w-4 h-4">
+            <div className="absolute inset-0 rounded-full border-2 border-default-200 border-t-primary animate-spin" />
+          </div>
         </div>
+        <p className="text-default-500 animate-pulse text-xs">
+          {t("details.chartStates.loading")}
+        </p>
       </div>
-      <p className="text-default-500 animate-pulse text-xs">加载中...</p>
     </div>
-  </div>
-);
+  );
+};
 
 // 错误状态组件
 const ErrorState: React.FC<{
   error: string;
   height: number;
   className?: string;
-}> = ({ error, height, className }) => (
-  <div
-    className={`flex items-center justify-center ${className}`}
-    style={height ? { height } : {}}
-  >
-    <div className="text-center">
-      <p className="text-danger text-xs">加载失败</p>
-      <p className="text-default-400 text-xs mt-0.5">{error}</p>
+}> = ({ error, height, className }) => {
+  const { t } = useTranslation("tunnels");
+
+  return (
+    <div
+      className={`flex items-center justify-center ${className}`}
+      style={height ? { height } : {}}
+    >
+      <div className="text-center">
+        <p className="text-danger text-xs">{t("details.chartStates.loadFailed")}</p>
+        <p className="text-default-400 text-xs mt-0.5">{error}</p>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // 空状态组件
 const EmptyState: React.FC<{ height: number; className?: string }> = ({
   height,
   className,
-}) => (
-  <div
-    className={`flex items-center justify-center ${className}`}
-    style={height ? { height } : {}}
-  >
-    <div className="text-center">
-      <p className="text-default-400 text-xs">暂无数据</p>
+}) => {
+  const { t } = useTranslation("tunnels");
+
+  return (
+    <div
+      className={`flex items-center justify-center ${className}`}
+      style={height ? { height } : {}}
+    >
+      <div className="text-center">
+        <p className="text-default-400 text-xs">{t("details.chartStates.noData")}</p>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // 时间过滤函数 - 过滤出1小时内的数据
 const filterDataTo1Hour = (data: DetailedTrafficDataPoint[]) => {
@@ -183,21 +202,23 @@ export const DetailedTrafficChart: React.FC<DetailedTrafficChartProps> = ({
   className = "",
   showFullData = false,
 }) => {
+  const { t } = useTranslation("tunnels");
+
   const chartConfig = {
     tcpIn: {
-      label: "TCP入站",
+      label: t("details.chartTooltips.tcpInbound"),
       color: "hsl(217 91% 60%)",
     },
     tcpOut: {
-      label: "TCP出站",
+      label: t("details.chartTooltips.tcpOutbound"),
       color: "hsl(142 76% 36%)",
     },
     udpIn: {
-      label: "UDP入站",
+      label: t("details.chartTooltips.udpInbound"),
       color: "hsl(262 83% 58%)",
     },
     udpOut: {
-      label: "UDP出站",
+      label: t("details.chartTooltips.udpOutbound"),
       color: "hsl(25 95% 53%)",
     },
   } satisfies ChartConfig;

@@ -15,6 +15,7 @@ import {
   faPlug,
   faPlugCircleXmark,
 } from "@fortawesome/free-solid-svg-icons";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 import { LogViewer, LogEntry } from "@/components/ui/log-viewer";
@@ -43,6 +44,7 @@ interface EndpointDetail {
 }
 
 export default function SSEDebugPage() {
+  const { t } = useTranslation("endpoints");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const endpointId = searchParams.get("id");
@@ -78,7 +80,7 @@ export default function SSEDebugPage() {
         buildApiUrl(`/api/endpoints/${endpointId}/detail`),
       );
 
-      if (!res.ok) throw new Error("获取主控详情失败");
+      if (!res.ok) throw new Error(t("details.sseDebug.toast.fetchFailed"));
       const data = await res.json();
 
       if (data.success && data.endpoint) {
@@ -87,14 +89,14 @@ export default function SSEDebugPage() {
     } catch (err) {
       console.error(err);
       addToast({
-        title: "加载失败",
-        description: err instanceof Error ? err.message : "未知错误",
+        title: t("details.sseDebug.toast.loadFailed"),
+        description: err instanceof Error ? err.message : t("details.sseDebug.toast.unknownError"),
         color: "danger",
       });
     } finally {
       setDetailLoading(false);
     }
-  }, [endpointId]);
+  }, [endpointId, t]);
 
   // 使用useMemo稳定endpoint对象，避免频繁重新创建
   const endpoint = useMemo(() => {
@@ -134,13 +136,13 @@ export default function SSEDebugPage() {
           logMessage = data.message;
         } else if (data.type === "instance") {
           // 实例消息，格式化为可读的日志
-          logMessage = `[实例] ${JSON.stringify(data, null, 2)}`;
+          logMessage = `[${t("details.sseDebug.messageTypes.instance")}] ${JSON.stringify(data, null, 2)}`;
         } else if (data.type === "tunnel") {
           // 隧道消息
-          logMessage = `[隧道] ${JSON.stringify(data, null, 2)}`;
+          logMessage = `[${t("details.sseDebug.messageTypes.tunnel")}] ${JSON.stringify(data, null, 2)}`;
         } else if (data.type === "stats") {
           // 统计消息
-          logMessage = `[统计] ${JSON.stringify(data, null, 2)}`;
+          logMessage = `[${t("details.sseDebug.messageTypes.stats")}] ${JSON.stringify(data, null, 2)}`;
         } else if (data.message) {
           // 其他有message字段的消息
           logMessage = data.message;
@@ -220,7 +222,7 @@ export default function SSEDebugPage() {
           {endpointDetail ? (
             <div className="flex items-center gap-3 flex-wrap">
               <h1 className="text-lg md:text-2xl font-bold truncate">
-                {endpointDetail.name} - Debug
+                {endpointDetail.name} - {t("details.sseDebug.pageTitle")}
               </h1>
               {endpointDetail.ver && (
                 <Chip color="secondary" variant="flat">
@@ -229,7 +231,7 @@ export default function SSEDebugPage() {
               )}
             </div>
           ) : (
-            <h1 className="text-lg md:text-2xl font-bold truncate">SSE调试</h1>
+            <h1 className="text-lg md:text-2xl font-bold truncate">{t("details.sseDebug.pageSubtitle")}</h1>
           )}
         </div>
       </div>
@@ -239,7 +241,7 @@ export default function SSEDebugPage() {
         <CardHeader className="flex flex-col md:flex-row md:items-center gap-3 md:justify-between">
           <div className="flex items-center justify-between md:justify-start gap-3 w-full md:w-auto">
             <div className="flex items-center gap-3">
-              <h3 className="text-lg font-semibold">实时SSE推送</h3>
+              <h3 className="text-lg font-semibold">{t("details.sseDebug.cardTitle")}</h3>
               <div className="flex items-center gap-2">
                 <div
                   className={`w-2 h-2 rounded-full ${
@@ -252,12 +254,12 @@ export default function SSEDebugPage() {
                 />
                 <span className="text-sm text-default-500">
                   {isConnected
-                    ? "已连接"
+                    ? t("details.sseDebug.status.connected")
                     : isConnecting
-                      ? "连接中..."
+                      ? t("details.sseDebug.status.connecting")
                       : error
-                        ? "连接失败"
-                        : "未连接"}
+                        ? t("details.sseDebug.status.failed")
+                        : t("details.sseDebug.status.disconnected")}
                 </span>
               </div>
             </div>
@@ -273,7 +275,7 @@ export default function SSEDebugPage() {
                   variant="flat"
                   onPress={connect}
                 >
-                  连接
+                  {t("details.sseDebug.buttons.connect")}
                 </Button>
               ) : (
                 <Button
@@ -283,7 +285,7 @@ export default function SSEDebugPage() {
                   variant="flat"
                   onPress={disconnect}
                 >
-                  断开
+                  {t("details.sseDebug.buttons.disconnect")}
                 </Button>
               )}
             </div>
@@ -301,7 +303,7 @@ export default function SSEDebugPage() {
                   variant="flat"
                   onPress={connect}
                 >
-                  连接
+                  {t("details.sseDebug.buttons.connect")}
                 </Button>
               ) : (
                 <Button
@@ -311,7 +313,7 @@ export default function SSEDebugPage() {
                   variant="flat"
                   onPress={disconnect}
                 >
-                  断开
+                  {t("details.sseDebug.buttons.disconnect")}
                 </Button>
               )}
             </div>
@@ -329,7 +331,7 @@ export default function SSEDebugPage() {
                 logCounterRef.current = 0;
               }}
             >
-              清空日志
+              {t("details.sseDebug.buttons.clear")}
             </Button>
 
             {/* 重连按钮 - 仅在连接失败时显示 */}
@@ -344,7 +346,7 @@ export default function SSEDebugPage() {
                 variant="flat"
                 onPress={reconnect}
               >
-                重连
+                {t("details.sseDebug.buttons.reconnect")}
               </Button>
             )}
 
@@ -358,7 +360,7 @@ export default function SSEDebugPage() {
               variant="flat"
               onPress={scrollToTop}
             >
-              顶部
+              {t("details.sseDebug.buttons.scrollTop")}
             </Button>
 
             {/* 滚动到底部按钮 */}
@@ -371,7 +373,7 @@ export default function SSEDebugPage() {
               variant="flat"
               onPress={scrollToBottom}
             >
-              底部
+              {t("details.sseDebug.buttons.scrollBottom")}
             </Button>
           </div>
         </CardHeader>

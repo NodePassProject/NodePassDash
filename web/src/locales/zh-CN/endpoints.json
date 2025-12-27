@@ -253,7 +253,6 @@
   "details": {
     "pageTitle": "主控详情",
     "refresh": "刷新",
-    "sseDebug": "SSE调试",
     "tlsConfig": {
       "none": "无TLS",
       "selfSigned": "自签名证书",
@@ -454,6 +453,53 @@
       "refreshAllFailedDesc": "刷新失败",
       "qrCodeFailed": "生成二维码失败",
       "qrCodeFailedDesc": "未知错误"
+    },
+    "systemMonitor": {
+      "cpu": "CPU",
+      "ram": "RAM",
+      "memory": "内存",
+      "swap": "Swap",
+      "network": "网络",
+      "upload": "上行",
+      "download": "下行",
+      "disk": "磁盘",
+      "read": "读取",
+      "write": "写入",
+      "connecting": "正在连接系统监控服务...",
+      "connected": "已连接，等待数据...",
+      "unavailable": "系统监控图表不可用",
+      "osNotSupported": "操作系统不支持(当前: {{current}}, 需要: Linux)",
+      "versionNotSupported": "版本不支持(当前: {{current}}, 需要: >=1.6.0)"
+    },
+    "sseDebug": {
+      "button": "SSE调试",
+      "pageTitle": "Debug",
+      "pageSubtitle": "SSE调试",
+      "cardTitle": "实时SSE推送",
+      "status": {
+        "connected": "已连接",
+        "connecting": "连接中...",
+        "failed": "连接失败",
+        "disconnected": "未连接"
+      },
+      "buttons": {
+        "connect": "连接",
+        "disconnect": "断开",
+        "clear": "清空日志",
+        "reconnect": "重连",
+        "scrollTop": "顶部",
+        "scrollBottom": "底部"
+      },
+      "messageTypes": {
+        "instance": "实例",
+        "tunnel": "隧道",
+        "stats": "统计"
+      },
+      "toast": {
+        "fetchFailed": "获取主控详情失败",
+        "loadFailed": "加载失败",
+        "unknownError": "未知错误"
+      }
     }
   }
 }

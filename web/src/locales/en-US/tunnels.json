@@ -436,6 +436,47 @@
       "12h": "12 Hours",
       "24h": "24 Hours"
     },
+    "wsMonitor": {
+      "connected": "Tunnel monitoring WebSocket connected",
+      "connectedDesc": "Started receiving real-time tunnel performance data",
+      "tcpTraffic": "TCP Traffic",
+      "udpTraffic": "UDP Traffic",
+      "send": "Send",
+      "receive": "Receive",
+      "latency": "Latency",
+      "pool": "Pool",
+      "connections": "Connections",
+      "tcp": "TCP",
+      "udp": "UDP"
+    },
+    "chartLegends": {
+      "tcpIn": "TCP In",
+      "tcpOut": "TCP Out",
+      "udpIn": "UDP In",
+      "udpOut": "UDP Out",
+      "upload": "Upload",
+      "download": "Download",
+      "pool": "Pool",
+      "tcp": "TCP",
+      "udp": "UDP"
+    },
+    "chartTooltips": {
+      "tcpInbound": "TCP Inbound",
+      "tcpOutbound": "TCP Outbound",
+      "udpInbound": "UDP Inbound",
+      "udpOutbound": "UDP Outbound",
+      "upload": "Upload",
+      "download": "Download",
+      "pool": "Pool",
+      "latency": "Latency",
+      "tcp": "TCP",
+      "udp": "UDP"
+    },
+    "chartStates": {
+      "loading": "Loading...",
+      "loadFailed": "Load failed",
+      "noData": "No data"
+    },
     "status": {
       "running": "Running",
       "error": "Error",
@@ -620,7 +661,15 @@
       "clearRealtimeWarning": "This will clear the current realtime output.",
       "clearFileWarning": "This will clear the displayed content and all saved log files, and cannot be undone.",
       "confirmClearButton": "Confirm Clear",
-      "cancel": "Cancel"
+      "cancel": "Cancel",
+      "loading": "Loading file logs...",
+      "waitingForLogs": "Waiting for log push...",
+      "noLogs": "No log records",
+      "fetchFailed": "Failed to fetch logs",
+      "clearSuccess": "Clear successful",
+      "clearSuccessDesc": "Logs cleared",
+      "clearFailed": "Clear failed",
+      "clearFailedDesc": "Failed to clear logs"
     },
     "charts": {
       "traffic": "Traffic Statistics",

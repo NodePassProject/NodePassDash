@@ -2941,28 +2941,36 @@ export default function TunnelDetailPage() {
                         className="w-2 h-2 rounded-full"
                         style={{ backgroundColor: "hsl(217 91% 60%)" }}
                       />
-                      <span className="text-xs text-default-600">TCP入</span>
+                      <span className="text-xs text-default-600">
+                        {t("details.chartLegends.tcpIn")}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div
                         className="w-2 h-2 rounded-full"
                         style={{ backgroundColor: "hsl(142 76% 36%)" }}
                       />
-                      <span className="text-xs text-default-600">TCP出</span>
+                      <span className="text-xs text-default-600">
+                        {t("details.chartLegends.tcpOut")}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div
                         className="w-2 h-2 rounded-full"
                         style={{ backgroundColor: "hsl(262 83% 58%)" }}
                       />
-                      <span className="text-xs text-default-600">UDP入</span>
+                      <span className="text-xs text-default-600">
+                        {t("details.chartLegends.udpIn")}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div
                         className="w-2 h-2 rounded-full"
                         style={{ backgroundColor: "hsl(25 95% 53%)" }}
                       />
-                      <span className="text-xs text-default-600">UDP出</span>
+                      <span className="text-xs text-default-600">
+                        {t("details.chartLegends.udpOut")}
+                      </span>
                     </div>
                   </>
                 )}
@@ -2973,14 +2981,18 @@ export default function TunnelDetailPage() {
                         className="w-2 h-2 rounded-full"
                         style={{ backgroundColor: "hsl(220 70% 50%)" }}
                       />
-                      <span className="text-xs text-default-600">上传</span>
+                      <span className="text-xs text-default-600">
+                        {t("details.chartLegends.upload")}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div
                         className="w-2 h-2 rounded-full"
                         style={{ backgroundColor: "hsl(280 65% 60%)" }}
                       />
-                      <span className="text-xs text-default-600">下载</span>
+                      <span className="text-xs text-default-600">
+                        {t("details.chartLegends.download")}
+                      </span>
                     </div>
                   </>
                 )}
@@ -2991,21 +3003,27 @@ export default function TunnelDetailPage() {
                         className="w-2 h-2 rounded-full"
                         style={{ backgroundColor: "hsl(340 75% 55%)" }}
                       />
-                      <span className="text-xs text-default-600">池</span>
+                      <span className="text-xs text-default-600">
+                        {t("details.chartLegends.pool")}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div
                         className="w-2 h-2 rounded-full"
                         style={{ backgroundColor: "hsl(24 70% 50%)" }}
                       />
-                      <span className="text-xs text-default-600">TCP</span>
+                      <span className="text-xs text-default-600">
+                        {t("details.chartLegends.tcp")}
+                      </span>
                     </div>
                     <div className="flex items-center gap-1">
                       <div
                         className="w-2 h-2 rounded-full"
                         style={{ backgroundColor: "hsl(173 58% 39%)" }}
                       />
-                      <span className="text-xs text-default-600">UDP</span>
+                      <span className="text-xs text-default-600">
+                        {t("details.chartLegends.udp")}
+                      </span>
                     </div>
                   </>
                 )}
@@ -3020,11 +3038,26 @@ export default function TunnelDetailPage() {
                 variant="light"
                 onPress={() => {
                   const actionMap = {
-                    traffic: () => openFullscreenChart("traffic", "流量累计"),
-                    speed: () => openFullscreenChart("speed", "传输速率"),
-                    latency: () => openFullscreenChart("latency", "端内延迟"),
+                    traffic: () =>
+                      openFullscreenChart(
+                        "traffic",
+                        t("details.statsTabs.traffic"),
+                      ),
+                    speed: () =>
+                      openFullscreenChart(
+                        "speed",
+                        t("details.statsTabs.speed"),
+                      ),
+                    latency: () =>
+                      openFullscreenChart(
+                        "latency",
+                        t("details.statsTabs.latency"),
+                      ),
                     connections: () =>
-                      openFullscreenChart("connections", "连接数"),
+                      openFullscreenChart(
+                        "connections",
+                        t("details.statsTabs.connections"),
+                      ),
                   };
 
                   actionMap[selectedStatsTab as keyof typeof actionMap]?.();

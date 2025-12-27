@@ -1,5 +1,6 @@
 import React from "react";
 import { useTheme } from "next-themes";
+import { useTranslation } from "react-i18next";
 
 // 格式化时间函数 - 统一的时间格式化
 const formatFullTime = (timestamp: string | number): string => {
@@ -75,6 +76,7 @@ export const SharedChartTooltip: React.FC<SharedChartTooltipProps> = ({
   items,
 }) => {
   const { theme } = useTheme();
+  const { t } = useTranslation("common");
 
   if (!active || (!payload?.length && !items?.length)) return null;
 
@@ -101,7 +103,7 @@ export const SharedChartTooltip: React.FC<SharedChartTooltipProps> = ({
 
         return `${speed.value} ${speed.unit}`;
       case "pool":
-        return `${Math.round(value)} 个`;
+        return `${Math.round(value)}`;
       case "latency":
         return `${value.toFixed(2)}ms`;
       default:
@@ -131,71 +133,92 @@ export const SharedChartTooltip: React.FC<SharedChartTooltipProps> = ({
 };
 
 // 预定义的Tooltip组件
-export const TrafficTooltip = ({ active, payload, label }: any) => (
-  <SharedChartTooltip
-    active={active}
-    items={payload?.map((entry: any) => ({
-      key: entry.dataKey,
-      name: "流量用量",
-      value: entry.value,
-      color: "text-green-600 dark:text-green-400",
-      unit: "traffic" as const,
-    }))}
-    label={label}
-    payload={payload}
-  />
-);
+export const TrafficTooltip = ({ active, payload, label }: any) => {
+  const { t } = useTranslation("common");
 
-export const SpeedTooltip = ({ active, payload, label }: any) => (
-  <SharedChartTooltip
-    active={active}
-    items={payload?.map((entry: any) => ({
-      key: entry.dataKey,
-      name: entry.dataKey === "speed_in" ? "入站速度" : "出站速度",
-      value: entry.value,
-      color:
-        entry.dataKey === "speed_in"
-          ? "text-blue-600 dark:text-blue-400"
-          : "text-purple-600 dark:text-purple-400",
-      unit: "speed" as const,
-    }))}
-    label={label}
-    payload={payload}
-  />
-);
+  return (
+    <SharedChartTooltip
+      active={active}
+      items={payload?.map((entry: any) => ({
+        key: entry.dataKey,
+        name: t("traffic") || "Traffic",
+        value: entry.value,
+        color: "text-green-600 dark:text-green-400",
+        unit: "traffic" as const,
+      }))}
+      label={label}
+      payload={payload}
+    />
+  );
+};
 
-export const PoolTooltip = ({ active, payload, label }: any) => (
-  <SharedChartTooltip
-    active={active}
-    items={payload?.map((entry: any) => ({
-      key: entry.dataKey,
-      name: "连接池",
-      value: entry.value,
-      color: "text-red-600 dark:text-red-400",
-      unit: "pool" as const,
-    }))}
-    label={label}
-    payload={payload}
-  />
-);
+export const SpeedTooltip = ({ active, payload, label }: any) => {
+  const { t } = useTranslation("tunnels");
 
-export const LatencyTooltip = ({ active, payload, label }: any) => (
-  <SharedChartTooltip
-    active={active}
-    items={payload?.map((entry: any) => ({
-      key: entry.dataKey,
-      name: "延迟",
-      value: entry.value,
-      color: "text-warning",
-      unit: "latency" as const,
-    }))}
-    label={label}
-    payload={payload}
-  />
-);
+  return (
+    <SharedChartTooltip
+      active={active}
+      items={payload?.map((entry: any) => ({
+        key: entry.dataKey,
+        name:
+          entry.dataKey === "speed_in"
+            ? t("details.chartTooltips.upload")
+            : t("details.chartTooltips.download"),
+        value: entry.value,
+        color:
+          entry.dataKey === "speed_in"
+            ? "text-blue-600 dark:text-blue-400"
+            : "text-purple-600 dark:text-purple-400",
+        unit: "speed" as const,
+      }))}
+      label={label}
+      payload={payload}
+    />
+  );
+};
+
+export const PoolTooltip = ({ active, payload, label }: any) => {
+  const { t } = useTranslation("tunnels");
+
+  return (
+    <SharedChartTooltip
+      active={active}
+      items={payload?.map((entry: any) => ({
+        key: entry.dataKey,
+        name: t("details.chartTooltips.pool"),
+        value: entry.value,
+        color: "text-red-600 dark:text-red-400",
+        unit: "pool" as const,
+      }))}
+      label={label}
+      payload={payload}
+    />
+  );
+};
+
+export const LatencyTooltip = ({ active, payload, label }: any) => {
+  const { t } = useTranslation("tunnels");
+
+  return (
+    <SharedChartTooltip
+      active={active}
+      items={payload?.map((entry: any) => ({
+        key: entry.dataKey,
+        name: t("details.chartTooltips.latency"),
+        value: entry.value,
+        color: "text-warning",
+        unit: "latency" as const,
+      }))}
+      label={label}
+      payload={payload}
+    />
+  );
+};
 
 // 新的延迟Tooltip组件，用于新的LatencyChart
 export const LatencyTooltipV2 = ({ active, payload, label }: any) => {
+  const { t } = useTranslation("tunnels");
+
   if (!active || !payload?.length) return null;
 
   const entry = payload[0];
@@ -216,50 +239,55 @@ export const LatencyTooltipV2 = ({ active, payload, label }: any) => {
           : ""}
       </p>
       <p className="text-sm font-semibold text-foreground">
-        延迟: <span className="text-warning">{value.toFixed(2)}ms</span>
+        {t("details.chartTooltips.latency")}:{" "}
+        <span className="text-warning">{value.toFixed(2)}ms</span>
       </p>
     </div>
   );
 };
 
-export const ConnectionsTooltip = ({ active, payload, label }: any) => (
-  <SharedChartTooltip
-    active={active}
-    items={payload
-      ?.map((entry: any) => {
-        let name = "";
-        let color = "";
+export const ConnectionsTooltip = ({ active, payload, label }: any) => {
+  const { t } = useTranslation("tunnels");
 
-        switch (entry.dataKey) {
-          case "pool":
-            name = "池连接数";
-            color = "text-red-600 dark:text-red-400";
-            break;
-          case "tcps":
-            name = "TCP连接数";
-            color = "text-orange-600 dark:text-orange-400";
-            break;
-          case "udps":
-            name = "UDP连接数";
-            color = "text-teal-600 dark:text-teal-400";
-            break;
-          default:
-            name = entry.name || entry.dataKey;
-            color = "text-default-600";
-        }
+  return (
+    <SharedChartTooltip
+      active={active}
+      items={payload
+        ?.map((entry: any) => {
+          let name = "";
+          let color = "";
 
-        return {
-          key: entry.dataKey,
-          name,
-          value: entry.value,
-          color,
-          unit: "pool" as const,
-        };
-      })
-      .filter((item: any) => item.value !== null && item.value !== undefined)}
-    label={label}
-    payload={payload}
-  />
-);
+          switch (entry.dataKey) {
+            case "pool":
+              name = t("details.chartTooltips.pool");
+              color = "text-red-600 dark:text-red-400";
+              break;
+            case "tcps":
+              name = t("details.chartTooltips.tcp");
+              color = "text-orange-600 dark:text-orange-400";
+              break;
+            case "udps":
+              name = t("details.chartTooltips.udp");
+              color = "text-teal-600 dark:text-teal-400";
+              break;
+            default:
+              name = entry.name || entry.dataKey;
+              color = "text-default-600";
+          }
+
+          return {
+            key: entry.dataKey,
+            name,
+            value: entry.value,
+            color,
+            unit: "pool" as const,
+          };
+        })
+        .filter((item: any) => item.value !== null && item.value !== undefined)}
+      label={label}
+      payload={payload}
+    />
+  );
+};
 
 export default SharedChartTooltip;

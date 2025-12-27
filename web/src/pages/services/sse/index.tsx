@@ -19,6 +19,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 import { processAnsiColors } from "@/lib/utils/ansi";
@@ -41,6 +42,7 @@ interface ServiceDetails {
 }
 
 export default function ServiceSSEPage() {
+  const { t } = useTranslation("services");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
 
@@ -68,21 +70,21 @@ export default function ServiceSSEPage() {
   const getTypeLabel = (typeValue: string) => {
     switch (typeValue) {
       case "0":
-        return "通用单端转发";
+        return t("types.general");
       case "1":
-        return "本地内网穿透";
+        return t("types.localPenetration");
       case "2":
-        return "本地隧道转发";
+        return t("types.localTunnel");
       case "3":
-        return "外部内网穿透";
+        return t("types.externalPenetration");
       case "4":
-        return "外部隧道转发";
+        return t("types.externalTunnel");
       case "5":
-        return "均衡单端转发";
+        return t("types.balancedSingle");
       case "6":
-        return "均衡内网穿透";
+        return t("types.balancedPenetration");
       case "7":
-        return "均衡隧道转发";
+        return t("types.balancedTunnel");
       default:
         return typeValue;
     }
@@ -125,7 +127,7 @@ export default function ServiceSSEPage() {
       const response = await fetch(buildApiUrl(`/api/services/${sid}`));
 
       if (!response.ok) {
-        throw new Error("获取服务详情失败");
+        throw new Error(t("sse.toast.fetchFailed"));
       }
 
       const data = await response.json();
@@ -133,15 +135,15 @@ export default function ServiceSSEPage() {
     } catch (error) {
       console.error("获取服务详情失败:", error);
       addToast({
-        title: "获取服务详情失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("sse.toast.fetchFailed"),
+        description: error instanceof Error ? error.message : t("sse.toast.unknownError"),
         color: "danger",
       });
       navigate("/services");
     } finally {
       setLoading(false);
     }
-  }, [sid, navigate]);
+  }, [sid, navigate, t]);
 
   useEffect(() => {
     fetchServiceDetails();
@@ -273,7 +275,7 @@ export default function ServiceSSEPage() {
           <h3 className="text-lg font-semibold">{title}</h3>
 
           <div className="flex items-center gap-1">
-            <Tooltip content="滚动到底部" placement="top">
+            <Tooltip content={t("sse.buttons.scrollToBottom")} placement="top">
               <Button
                 isIconOnly
                 className="h-7 w-7 sm:h-8 sm:w-8 min-w-0"
@@ -303,9 +305,9 @@ export default function ServiceSSEPage() {
               </PopoverTrigger>
               <PopoverContent className="p-3">
                 <div className="space-y-3">
-                  <p className="text-sm font-medium">确认清空日志</p>
+                  <p className="text-sm font-medium">{t("sse.confirmClear.title")}</p>
                   <p className="text-xs text-default-500">
-                    此操作将清空当前实时输出的内容。
+                    {t("sse.confirmClear.message")}
                   </p>
                   <div className="flex gap-2">
                     <Button
@@ -317,7 +319,7 @@ export default function ServiceSSEPage() {
                         setClearPopoverOpen(false);
                       }}
                     >
-                      确认清空
+                      {t("sse.confirmClear.confirm")}
                     </Button>
                     <Button
                       className="flex-1"
@@ -325,7 +327,7 @@ export default function ServiceSSEPage() {
                       variant="flat"
                       onPress={() => setClearPopoverOpen(false)}
                     >
-                      取消
+                      {t("sse.confirmClear.cancel")}
                     </Button>
                   </div>
                 </div>
@@ -342,7 +344,7 @@ export default function ServiceSSEPage() {
               <div className="text-gray-400 flex items-center">
                 <div className="animate-pulse flex items-center">
                   <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce mr-2" />
-                  <span>正在等待日志推送...</span>
+                  <span>{t("sse.waitingForLogs")}</span>
                 </div>
               </div>
             ) : (
@@ -381,7 +383,7 @@ export default function ServiceSSEPage() {
           <div className="flex justify-center">
             <Spinner color="primary" size="lg" />
           </div>
-          <p className="text-default-500 animate-pulse">加载中...</p>
+          <p className="text-default-500 animate-pulse">{t("sse.loading")}</p>
         </div>
       </div>
     );
@@ -413,7 +415,7 @@ export default function ServiceSSEPage() {
       <div className={`flex-1 grid grid-cols-1 ${isSingleForward ? "" : "lg:grid-cols-2"} gap-4 overflow-hidden`}>
         {/* Server 端日志（单端转发模式不显示） */}
         {!isSingleForward && renderLogPanel(
-          "Server 端 SSE",
+          t("sse.serverLog"),
           serverLogs,
           () => scrollToBottom(serverLogContainerRef),
           serverClearPopoverOpen,
@@ -424,7 +426,7 @@ export default function ServiceSSEPage() {
 
         {/* Client 端日志 */}
         {renderLogPanel(
-          isSingleForward ? "实时日志" : "Client 端 SSE",
+          isSingleForward ? t("sse.realtimeLog") : t("sse.clientLog"),
           clientLogs,
           () => scrollToBottom(clientLogContainerRef),
           clientClearPopoverOpen,

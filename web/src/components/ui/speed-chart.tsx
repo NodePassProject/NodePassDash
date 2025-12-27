@@ -7,6 +7,7 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
+import { useTranslation } from "react-i18next";
 
 import { type ChartConfig, ChartContainer } from "./chart";
 import { SpeedTooltip } from "./shared-chart-tooltip";
@@ -79,53 +80,71 @@ const formatSpeedValue = (bytesPerSecond: number) => {
 const LoadingState: React.FC<{ height: number; className?: string }> = ({
   height,
   className,
-}) => (
-  <div
-    className={`flex items-center justify-center ${className}`}
-    style={height ? { height } : {}}
-  >
-    <div className="space-y-1 text-center">
-      <div className="flex justify-center">
-        <div className="relative w-4 h-4">
-          <div className="absolute inset-0 rounded-full border-2 border-default-200 border-t-primary animate-spin" />
+}) => {
+  const { t } = useTranslation("tunnels");
+
+  return (
+    <div
+      className={`flex items-center justify-center ${className}`}
+      style={height ? { height } : {}}
+    >
+      <div className="space-y-1 text-center">
+        <div className="flex justify-center">
+          <div className="relative w-4 h-4">
+            <div className="absolute inset-0 rounded-full border-2 border-default-200 border-t-primary animate-spin" />
+          </div>
         </div>
+        <p className="text-default-500 animate-pulse text-xs">
+          {t("details.chartStates.loading")}
+        </p>
       </div>
-      <p className="text-default-500 animate-pulse text-xs">加载中...</p>
     </div>
-  </div>
-);
+  );
+};
 
 // 错误状态组件
 const ErrorState: React.FC<{
   error: string;
   height: number;
   className?: string;
-}> = ({ error, height, className }) => (
-  <div
-    className={`flex items-center justify-center ${className}`}
-    style={height ? { height } : {}}
-  >
-    <div className="text-center">
-      <p className="text-danger text-xs">加载失败</p>
-      <p className="text-default-400 text-xs mt-0.5">{error}</p>
+}> = ({ error, height, className }) => {
+  const { t } = useTranslation("tunnels");
+
+  return (
+    <div
+      className={`flex items-center justify-center ${className}`}
+      style={height ? { height } : {}}
+    >
+      <div className="text-center">
+        <p className="text-danger text-xs">
+          {t("details.chartStates.loadFailed")}
+        </p>
+        <p className="text-default-400 text-xs mt-0.5">{error}</p>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // 空状态组件
 const EmptyState: React.FC<{ height: number; className?: string }> = ({
   height,
   className,
-}) => (
-  <div
-    className={`flex items-center justify-center ${className}`}
-    style={height ? { height } : {}}
-  >
-    <div className="text-center">
-      <p className="text-default-400 text-xs">暂无速率数据</p>
+}) => {
+  const { t } = useTranslation("tunnels");
+
+  return (
+    <div
+      className={`flex items-center justify-center ${className}`}
+      style={height ? { height } : {}}
+    >
+      <div className="text-center">
+        <p className="text-default-400 text-xs">
+          {t("details.chartStates.noData")}
+        </p>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // 时间过滤函数 - 过滤出1小时内的数据
 const filterDataTo1Hour = (data: SpeedDataPoint[]) => {
@@ -153,13 +172,15 @@ export const SpeedChart: React.FC<SpeedChartProps> = ({
   className = "",
   showFullData = false,
 }) => {
+  const { t } = useTranslation("tunnels");
+
   const chartConfig = {
     speed_in: {
-      label: "上传速度",
+      label: t("details.chartTooltips.upload"),
       color: "hsl(220 70% 50%)", // 蓝色
     },
     speed_out: {
-      label: "下载速度",
+      label: t("details.chartTooltips.download"),
       color: "hsl(280 65% 60%)", // 紫色
     },
   } satisfies ChartConfig;

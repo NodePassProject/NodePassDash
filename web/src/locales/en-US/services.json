@@ -91,6 +91,118 @@
       "upload": "Upload",
       "download": "Download",
       "pool": "Pool"
+    },
+    "loading": {
+      "refreshing": "Refreshing data...",
+      "loading": "Loading..."
+    },
+    "errors": {
+      "fetchServiceFailed": "Failed to fetch service details",
+      "fetchTunnelFailed": "Failed to fetch {{type}} tunnel details",
+      "refreshFailed": "Refresh failed",
+      "unknownError": "Unknown error"
+    },
+    "toast": {
+      "copied": "Copied",
+      "sidCopied": "Service SID copied to clipboard",
+      "startSuccess": "Started successfully",
+      "stopSuccess": "Stopped successfully",
+      "restartSuccess": "Restarted successfully",
+      "startFailed": "Failed to start",
+      "stopFailed": "Failed to stop",
+      "restartFailed": "Failed to restart",
+      "syncSuccess": "Synced successfully",
+      "syncFailed": "Failed to sync",
+      "dissolveSuccess": "Dissolved successfully",
+      "dissolveFailed": "Failed to dissolve",
+      "deleteSuccess": "Deleted successfully",
+      "deleteFailed": "Failed to delete",
+      "serviceActioned": "Service {{name}} has been {{action}}",
+      "actionNames": {
+        "start": "started",
+        "stop": "stopped",
+        "restart": "restarted",
+        "sync": "synced",
+        "dissolve": "dissolved",
+        "delete": "deleted"
+      }
+    },
+    "actions": {
+      "back": "Back",
+      "refresh": "Refresh",
+      "refreshData": "Refresh Data",
+      "start": "Start",
+      "stop": "Stop",
+      "restart": "Restart",
+      "test": "Test",
+      "sync": "Sync",
+      "delete": "Delete",
+      "dissolve": "Dissolve",
+      "cancel": "Cancel"
+    },
+    "serviceInfo": {
+      "title": "Service Info",
+      "sid": "Service SID",
+      "alias": "Service Alias",
+      "clientInstance": "Client Instance",
+      "serverInstance": "Server Instance",
+      "operations": "Operations",
+      "unnamed": "Unnamed",
+      "noInstance": "No instance",
+      "waitingActivation": "Waiting for activation"
+    },
+    "instanceCard": {
+      "instanceId": "Instance ID",
+      "endpoint": "Endpoint",
+      "version": "Version",
+      "portMapping": "Port Mapping",
+      "tunnelAddress": "Tunnel Address",
+      "targetAddress": "Target Address"
+    },
+    "status": {
+      "running": "Running",
+      "warning": "Warning",
+      "stopped": "Stopped",
+      "offline": "Offline",
+      "unknown": "Unknown"
+    },
+    "serviceCard": {
+      "serviceId": "Service ID",
+      "uniqueIdentifier": "Unique Node Identifier",
+      "forwardMode": "Forward Mode",
+      "modeCode": "Mode Code",
+      "relatedInstances": "Related Instances",
+      "createdAt": "Created At",
+      "updatedAt": "Updated At"
+    },
+    "quickActions": {
+      "title": "Quick Actions",
+      "subtitle": "Console",
+      "sseDebug": "SSE Debug",
+      "sseDebugDesc": "Real-time event tracking and diagnostics",
+      "networkTest": "Network Test",
+      "networkTestDesc": "Tcping end-to-end link verification",
+      "quickStart": "Quick Start",
+      "quickStartDesc": "Enable all tunnel instances",
+      "quickStop": "Quick Stop",
+      "quickStopDesc": "Stop service immediately",
+      "quickRestart": "Quick Restart",
+      "quickRestartDesc": "Safely reload configuration and recover",
+      "deleteService": "Delete Service",
+      "deleteServiceDesc": "Dangerous operation, proceed with caution",
+      "syncInstance": "Sync Instance",
+      "syncInstanceDesc": "Refresh node configuration and status",
+      "dissolveService": "Dissolve Service",
+      "dissolveServiceDesc": "Unbind both-end instance relationship"
+    },
+    "confirmDialog": {
+      "dissolveTitle": "Confirm Dissolve Service",
+      "deleteTitle": "Confirm Delete Service",
+      "dissolveMessage": "Are you sure you want to dissolve service \"{{name}}\"?",
+      "deleteMessage": "Are you sure you want to delete service \"{{name}}\"? This action cannot be undone!",
+      "confirm": "Confirm",
+      "dissolve": "Dissolve",
+      "delete": "Delete"
     }
   },
   "createModal": {
@@ -299,6 +411,27 @@
       "renameSuccess": "Renamed successfully",
       "renameFailed": "Rename failed",
       "renamedTo": "Service renamed to {{name}}",
+      "unknownError": "Unknown error"
+    }
+  },
+  "sse": {
+    "loading": "Loading...",
+    "serverLog": "Server SSE",
+    "clientLog": "Client SSE",
+    "realtimeLog": "Real-time Logs",
+    "buttons": {
+      "scrollToBottom": "Scroll to Bottom",
+      "clear": "Clear Logs"
+    },
+    "confirmClear": {
+      "title": "Confirm Clear Logs",
+      "message": "This will clear the current real-time output.",
+      "confirm": "Confirm",
+      "cancel": "Cancel"
+    },
+    "waitingForLogs": "Waiting for log push...",
+    "toast": {
+      "fetchFailed": "Failed to fetch service details",
       "unknownError": "Unknown error"
     }
   }

@@ -2,6 +2,7 @@
 
 import React, { useState, useEffect, useRef, useCallback } from "react";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 import { processAnsiColors } from "@/lib/utils/ansi";
 
 interface FileLogEntry {
@@ -39,6 +40,7 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
   triggerRefresh,
   isRealtimeMode = false,
 }) => {
+  const { t } = useTranslation("tunnels");
   const [logs, setLogs] = useState<FileLogEntry[]>([]);
   const [loading, setLoading] = useState(false);
   const [internalDate, setInternalDate] = useState<string>(""); // 内部日期状态（当外部没有提供时使用）
@@ -83,7 +85,7 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
       );
 
       if (!response.ok) {
-        throw new Error("获取文件日志失败");
+        throw new Error(t("details.logs.fetchFailed"));
       }
 
       const data = await response.json();
@@ -109,8 +111,9 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
     } catch (error) {
       console.error("获取文件日志失败:", error);
       addToast({
-        title: "获取日志失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("details.logs.fetchFailed"),
+        description:
+          error instanceof Error ? error.message : t("toast.unknownError"),
         color: "danger",
       });
       setLogs([]);
@@ -119,7 +122,7 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
       setLoading(false);
       onLoadingChangeRef.current?.(false);
     }
-  }, [endpointId, instanceId, date, scrollToBottom]);
+  }, [endpointId, instanceId, date, scrollToBottom, t]);
 
   // 稳定化清空日志的回调函数
   const onClearingChangeRef = useRef(onClearingChange);
@@ -144,7 +147,7 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
       );
 
       if (!response.ok) {
-        throw new Error("清空日志失败");
+        throw new Error(t("details.logs.clearFailedDesc"));
       }
 
       // 清空本地日志
@@ -155,22 +158,23 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
       onClearLogsRef.current?.();
 
       addToast({
-        title: "清空成功",
-        description: "日志已清空",
+        title: t("details.logs.clearSuccess"),
+        description: t("details.logs.clearSuccessDesc"),
         color: "success",
       });
     } catch (error) {
       console.error("清空日志失败:", error);
       addToast({
-        title: "清空失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("details.logs.clearFailed"),
+        description:
+          error instanceof Error ? error.message : t("toast.unknownError"),
         color: "danger",
       });
     } finally {
       setClearing(false);
       onClearingChangeRef.current?.(false);
     }
-  }, [endpointId, instanceId]);
+  }, [endpointId, instanceId, t]);
 
   // 移除自动获取可用日期的逻辑，避免多次API调用
 
@@ -256,19 +260,21 @@ export const FileLogViewer: React.FC<FileLogViewerProps> = ({
         {loading ? (
           <div className="animate-pulse">
             <span className="text-blue-400 ml-2">INFO:</span>
-            <span className="text-gray-300 ml-1">加载文件日志中...</span>
+            <span className="text-gray-300 ml-1">
+              {t("details.logs.loading")}
+            </span>
           </div>
         ) : logs.length === 0 ? (
           isRealtimeMode ? (
             <div className="text-gray-400 flex items-center">
               <div className="animate-pulse flex items-center">
                 <div className="w-2 h-2 bg-green-400 rounded-full animate-bounce mr-2" />
-                <span>正在等待日志推送...</span>
+                <span>{t("details.logs.waitingForLogs")}</span>
               </div>
             </div>
           ) : (
             <div className="text-gray-400">
-              暂无日志记录 {date ? `(${date})` : ""}
+              {t("details.logs.noLogs")} {date ? `(${date})` : ""}
             </div>
           )
         ) : (

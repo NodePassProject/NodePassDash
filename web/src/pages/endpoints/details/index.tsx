@@ -973,7 +973,7 @@ export default function EndpointDetailPage() {
             variant="flat"
             onPress={() => navigate(`/endpoints/sse-debug?id=${endpointId}`)}
           >
-            {t("details.sseDebug")}
+            {t("details.sseDebug.button")}
           </Button>
           <Button
             isIconOnly

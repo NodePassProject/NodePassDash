@@ -3,6 +3,7 @@ import { Card, cn } from "@heroui/react";
 import { tv } from "tailwind-variants";
 import { Area, AreaChart, ResponsiveContainer, YAxis } from "recharts";
 import { Icon } from "@iconify/react";
+import { useTranslation } from "react-i18next";
 
 import MiniCircularProgress from "./mini-circular-progress";
 
@@ -394,6 +395,7 @@ const MemoryChart = ({
   icon,
   index,
 }: any) => {
+  const { t } = useTranslation("endpoints");
   const classes = React.useMemo(() => chart({ color }), [color]);
 
   // 格式化字节为 GiB 单位（2位小数）
@@ -455,7 +457,7 @@ const MemoryChart = ({
                     "bg-foreground": color === "default",
                   })}
                 />
-                <span className="text-default-600 text-xs">内存</span>
+                <span className="text-default-600 text-xs">{t("details.systemMonitor.memory")}</span>
                 <MiniCircularProgress
                   color={cn({
                     "hsl(var(--heroui-success))": color === "success",
@@ -505,7 +507,7 @@ const MemoryChart = ({
                     "bg-foreground": color === "default",
                   })}
                 />
-                <span className="text-default-600 text-xs">Swap</span>
+                <span className="text-default-600 text-xs">{t("details.systemMonitor.swap")}</span>
                 <MiniCircularProgress
                   className="opacity-70"
                   color={cn({
@@ -662,6 +664,7 @@ export default function SystemStatsCharts({
   endpointOS,
   endpointVersion,
 }: SystemStatsChartsProps) {
+  const { t } = useTranslation("endpoints");
   const [dataHistory, setDataHistory] = useState<SystemMonitorData[]>([]);
   const [previousNetRx, setPreviousNetRx] = useState<number | null>(null);
   const [previousNetTx, setPreviousNetTx] = useState<number | null>(null);
@@ -995,11 +998,11 @@ export default function SystemStatsCharts({
 
   const currentNetworkData = useMemo(
     () => ({
-      title: "网络",
+      title: t("details.systemMonitor.network"),
       value1: formatBytes(netTxRate),
       value2: formatBytes(netRxRate),
-      label1: "上行",
-      label2: "下行",
+      label1: t("details.systemMonitor.upload"),
+      label2: t("details.systemMonitor.download"),
       chartData:
         networkChartData.length > 0
           ? networkChartData
@@ -1010,16 +1013,16 @@ export default function SystemStatsCharts({
       color: "success",
       icon: "solar:wi-fi-router-bold",
     }),
-    [netTxRate, netRxRate, networkChartData],
+    [t, netTxRate, netRxRate, networkChartData],
   );
 
   const currentDiskData = useMemo(
     () => ({
-      title: "磁盘",
+      title: t("details.systemMonitor.disk"),
       value1: formatBytes(diskRRate),
       value2: formatBytes(diskWRate),
-      label1: "读取",
-      label2: "写入",
+      label1: t("details.systemMonitor.read"),
+      label2: t("details.systemMonitor.write"),
       chartData:
         diskChartData.length > 0
           ? diskChartData
@@ -1030,7 +1033,7 @@ export default function SystemStatsCharts({
       color: "warning",
       icon: "solar:ssd-round-bold",
     }),
-    [diskRRate, diskWRate, diskChartData],
+    [t, diskRRate, diskWRate, diskChartData],
   );
 
   // 调试信息
@@ -1078,7 +1081,7 @@ export default function SystemStatsCharts({
 
       if (endpointOS?.toLowerCase() !== "linux") {
         reasons.push(
-          `操作系统不支持(当前: ${endpointOS || "未知"}, 需要: Linux)`,
+          t("details.systemMonitor.osNotSupported", { current: endpointOS || "未知" }),
         );
       }
       if (
@@ -1086,7 +1089,7 @@ export default function SystemStatsCharts({
         !isVersionGreaterOrEqual(endpointVersion, "1.6.0")
       ) {
         reasons.push(
-          `版本不支持(当前: ${endpointVersion || "未知"}, 需要: >=1.6.0)`,
+          t("details.systemMonitor.versionNotSupported", { current: endpointVersion || "未知" }),
         );
       }
 
@@ -1095,7 +1098,7 @@ export default function SystemStatsCharts({
           <div className="grid w-full grid-cols-1 gap-4 sm:grid-cols-2 lg:grid-cols-4">
             <Card className="sm:col-span-2 lg:col-span-4 p-4">
               <div className="text-center text-sm text-default-500">
-                <div className="mb-2">⚠️ 系统监控图表不可用</div>
+                <div className="mb-2">⚠️ {t("details.systemMonitor.unavailable")}</div>
                 <div className="text-xs space-y-1">
                   {reasons.map((reason, index) => (
                     <div key={index}>• {reason}</div>
@@ -1118,7 +1121,7 @@ export default function SystemStatsCharts({
         <Card className="p-3 bg-warning-50 dark:bg-warning-900/20 border-warning-200">
           <div className="flex items-center gap-2 text-warning-700 dark:text-warning-300">
             <div className="w-2 h-2 rounded-full bg-warning-500 animate-pulse" />
-            <span className="text-sm">正在连接系统监控服务...</span>
+            <span className="text-sm">{t("details.systemMonitor.connecting")}</span>
           </div>
         </Card>
       )}
@@ -1147,7 +1150,7 @@ export default function SystemStatsCharts({
         <Card className="p-3 bg-primary-50 dark:bg-primary-900/20 border-primary-200">
           <div className="flex items-center gap-2 text-primary-700 dark:text-primary-300">
             <div className="w-2 h-2 rounded-full bg-primary-500" />
-            <span className="text-sm">已连接，等待数据...</span>
+            <span className="text-sm">{t("details.systemMonitor.connected")}</span>
           </div>
         </Card>
       )}

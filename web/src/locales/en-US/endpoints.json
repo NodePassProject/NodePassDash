@@ -253,7 +253,6 @@
   "details": {
     "pageTitle": "Endpoint Details",
     "refresh": "Refresh",
-    "sseDebug": "SSE Debug",
     "tlsConfig": {
       "none": "No TLS",
       "selfSigned": "Self-signed Certificate",
@@ -454,6 +453,53 @@
       "refreshAllFailedDesc": "Refresh failed",
       "qrCodeFailed": "Failed to generate QR code",
       "qrCodeFailedDesc": "Unknown error"
+    },
+    "systemMonitor": {
+      "cpu": "CPU",
+      "ram": "RAM",
+      "memory": "Memory",
+      "swap": "Swap",
+      "network": "Network",
+      "upload": "Upload",
+      "download": "Download",
+      "disk": "Disk",
+      "read": "Read",
+      "write": "Write",
+      "connecting": "Connecting to system monitor service...",
+      "connected": "Connected, waiting for data...",
+      "unavailable": "System monitor charts unavailable",
+      "osNotSupported": "OS not supported (Current: {{current}}, Required: Linux)",
+      "versionNotSupported": "Version not supported (Current: {{current}}, Required: >=1.6.0)"
+    },
+    "sseDebug": {
+      "button": "SSE Debug",
+      "pageTitle": "Debug",
+      "pageSubtitle": "SSE Debug",
+      "cardTitle": "Real-time SSE Push",
+      "status": {
+        "connected": "Connected",
+        "connecting": "Connecting...",
+        "failed": "Connection Failed",
+        "disconnected": "Disconnected"
+      },
+      "buttons": {
+        "connect": "Connect",
+        "disconnect": "Disconnect",
+        "clear": "Clear Logs",
+        "reconnect": "Reconnect",
+        "scrollTop": "Top",
+        "scrollBottom": "Bottom"
+      },
+      "messageTypes": {
+        "instance": "Instance",
+        "tunnel": "Tunnel",
+        "stats": "Stats"
+      },
+      "toast": {
+        "fetchFailed": "Failed to fetch endpoint details",
+        "loadFailed": "Load failed",
+        "unknownError": "Unknown error"
+      }
     }
   }
 }

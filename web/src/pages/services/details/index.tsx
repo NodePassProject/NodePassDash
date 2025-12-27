@@ -262,21 +262,21 @@ export default function ServiceDetailsPage() {
   const getTypeLabel = (typeValue: string) => {
     switch (typeValue) {
       case "0":
-        return "通用单端转发";
+        return t("types.general");
       case "1":
-        return "本地内网穿透";
+        return t("types.localPenetration");
       case "2":
-        return "本地隧道转发";
+        return t("types.localTunnel");
       case "3":
-        return "外部内网穿透";
+        return t("types.externalPenetration");
       case "4":
-        return "外部隧道转发";
+        return t("types.externalTunnel");
       case "5":
-        return "均衡单端转发";
+        return t("types.balancedSingle");
       case "6":
-        return "均衡内网穿透";
+        return t("types.balancedPenetration");
       case "7":
-        return "均衡隧道转发";
+        return t("types.balancedTunnel");
       default:
         return typeValue;
     }
@@ -354,15 +354,15 @@ export default function ServiceDetailsPage() {
   const getStatusText = (status: string): string => {
     switch (status) {
       case "success":
-        return "运行中";
+        return t("details.status.running");
       case "warning":
-        return "有错误";
+        return t("details.status.warning");
       case "danger":
-        return "已停止";
+        return t("details.status.stopped");
       case "default":
-        return "已离线";
+        return t("details.status.offline");
       default:
-        return "未知";
+        return t("details.status.unknown");
     }
   };
   const formatDateTime = (value?: string) => {
@@ -388,7 +388,7 @@ export default function ServiceDetailsPage() {
       const response = await fetch(buildApiUrl(`/api/services/${sid}`));
 
       if (!response.ok) {
-        throw new Error("获取服务详情失败");
+        throw new Error(t("details.errors.fetchServiceFailed"));
       }
 
       const data = await response.json();
@@ -397,15 +397,15 @@ export default function ServiceDetailsPage() {
     } catch (error) {
       console.error("获取服务详情失败:", error);
       addToast({
-        title: "获取服务详情失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("details.errors.fetchServiceFailed"),
+        description: error instanceof Error ? error.message : t("details.errors.unknownError"),
         color: "danger",
       });
       navigate("/services");
     } finally {
       setLoading(false);
     }
-  }, [sid, navigate]);
+  }, [sid, navigate, t]);
 
   // 获取隧道详情
   const fetchTunnelDetails = useCallback(async (instanceId: string, type: "client" | "server") => {
@@ -414,7 +414,7 @@ export default function ServiceDetailsPage() {
       const response = await fetch(buildApiUrl(`/api/tunnels/${instanceId}/details`));
 
       if (!response.ok) {
-        throw new Error(`获取${type}隧道详情失败`);
+        throw new Error(t("details.errors.fetchTunnelFailed", { type }));
       }
 
       const data = await response.json();
@@ -427,14 +427,14 @@ export default function ServiceDetailsPage() {
     } catch (error) {
       console.error(`获取${type}隧道详情失败:`, error);
       addToast({
-        title: `获取${type}隧道详情失败`,
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("details.errors.fetchTunnelFailed", { type }),
+        description: error instanceof Error ? error.message : t("details.errors.unknownError"),
         color: "danger",
       });
     } finally {
       setTunnelLoading(false);
     }
-  }, []);
+  }, [t]);
 
   // 手动刷新页面数据的函数
   const handleRefresh = useCallback(async () => {
@@ -453,8 +453,8 @@ export default function ServiceDetailsPage() {
     } catch (error) {
       console.error("[前端手动刷新] 刷新数据失败:", error);
       addToast({
-        title: "刷新失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("details.errors.refreshFailed"),
+        description: error instanceof Error ? error.message : t("details.errors.unknownError"),
         color: "danger",
       });
     } finally {
@@ -466,7 +466,7 @@ export default function ServiceDetailsPage() {
         }
       }, 50);
     }
-  }, [refreshLoading, fetchServiceDetails, fetchTunnelDetails, service, currentSlideIndex]);
+  }, [refreshLoading, fetchServiceDetails, fetchTunnelDetails, service, currentSlideIndex, t]);
 
   // 数据转换函数 - 详细流量图表
   const transformDetailedTrafficData = useCallback((apiData: any) => {
@@ -623,14 +623,17 @@ export default function ServiceDetailsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "操作失败");
+        throw new Error(errorData.error || t("details.errors.unknownError"));
       }
 
-      const actionText =
-        action === "start" ? "启动" : action === "stop" ? "停止" : "重启";
+      const actionKey = action === "start" ? "start" : action === "stop" ? "stop" : "restart";
+      const actionText = t(`details.toast.actionNames.${actionKey}`);
       addToast({
-        title: `${actionText}成功`,
-        description: `服务 ${service.alias || service.sid} 已${actionText}`,
+        title: t(`details.toast.${actionKey}Success`),
+        description: t("details.toast.serviceActioned", {
+          name: service.alias || service.sid,
+          action: actionText
+        }),
         color: "success",
       });
 
@@ -638,11 +641,10 @@ export default function ServiceDetailsPage() {
       await handleRefresh();
     } catch (error) {
       console.error("操作失败:", error);
-      const actionText =
-        action === "start" ? "启动" : action === "stop" ? "停止" : "重启";
+      const actionKey = action === "start" ? "start" : action === "stop" ? "stop" : "restart";
       addToast({
-        title: `${actionText}失败`,
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t(`details.toast.${actionKey}Failed`),
+        description: error instanceof Error ? error.message : t("details.errors.unknownError"),
         color: "danger",
       });
     }
@@ -662,12 +664,15 @@ export default function ServiceDetailsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "同步失败");
+        throw new Error(errorData.error || t("details.toast.syncFailed"));
       }
 
       addToast({
-        title: "同步成功",
-        description: `服务 ${service.alias || service.sid} 已同步`,
+        title: t("details.toast.syncSuccess"),
+        description: t("details.toast.serviceActioned", {
+          name: service.alias || service.sid,
+          action: t("details.toast.actionNames.sync")
+        }),
         color: "success",
       });
 
@@ -676,8 +681,8 @@ export default function ServiceDetailsPage() {
     } catch (error) {
       console.error("同步失败:", error);
       addToast({
-        title: "同步失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("details.toast.syncFailed"),
+        description: error instanceof Error ? error.message : t("details.errors.unknownError"),
         color: "danger",
       });
     }
@@ -702,12 +707,19 @@ export default function ServiceDetailsPage() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "操作失败");
+        throw new Error(errorData.error || t("details.errors.unknownError"));
       }
 
+      const actionName = type === "dissolve"
+        ? t("details.toast.actionNames.dissolve")
+        : t("details.toast.actionNames.delete");
+
       addToast({
-        title: type === "dissolve" ? "解散成功" : "删除成功",
-        description: `服务 ${service.alias || service.sid} 已${type === "dissolve" ? "解散" : "删除"}`,
+        title: type === "dissolve" ? t("details.toast.dissolveSuccess") : t("details.toast.deleteSuccess"),
+        description: t("details.toast.serviceActioned", {
+          name: service.alias || service.sid,
+          action: actionName
+        }),
         color: "success",
       });
 
@@ -721,8 +733,8 @@ export default function ServiceDetailsPage() {
     } catch (error) {
       console.error("操作失败:", error);
       addToast({
-        title: type === "dissolve" ? "解散失败" : "删除失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: type === "dissolve" ? t("details.toast.dissolveFailed") : t("details.toast.deleteFailed"),
+        description: error instanceof Error ? error.message : t("details.errors.unknownError"),
         color: "danger",
       });
     }
@@ -757,7 +769,7 @@ export default function ServiceDetailsPage() {
           <div className="flex justify-center">
             <Spinner color="primary" size="lg" />
           </div>
-          <p className="text-default-500 animate-pulse">刷新数据中...</p>
+          <p className="text-default-500 animate-pulse">{t("details.loading.refreshing")}</p>
         </div>
       </div>
     );
@@ -770,7 +782,7 @@ export default function ServiceDetailsPage() {
           <div className="flex justify-center">
             <Spinner color="primary" size="lg" />
           </div>
-          <p className="text-default-500 animate-pulse">加载中...</p>
+          <p className="text-default-500 animate-pulse">{t("details.loading.loading")}</p>
         </div>
       </div>
     );
@@ -865,7 +877,7 @@ export default function ServiceDetailsPage() {
                     variant="flat"
                     onPress={handleRefresh}
                   >
-                    刷新
+                    {t("details.actions.refresh")}
                   </Button>
                 </div>
                 {/* 操作按钮组 - 移动端显示 */}
@@ -879,7 +891,7 @@ export default function ServiceDetailsPage() {
                     variant="flat"
                     onClick={handleRefresh}
                   >
-                    刷新
+                    {t("details.actions.refresh")}
                   </Button>
                 </div>
               </div>
@@ -892,7 +904,7 @@ export default function ServiceDetailsPage() {
                   <Card className="p-2  h-[332px]">
                     <CardHeader className="flex items-center justify-between pb-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-semibold">服务信息</h3>
+                        <h3 className="text-lg font-semibold">{t("details.serviceInfo.title")}</h3>
                       </div>
                     </CardHeader>
                     <CardBody>
@@ -900,7 +912,7 @@ export default function ServiceDetailsPage() {
                         {/* 服务 SID */}
                         <div>
                           <div className="flex items-center gap-1 mb-1">
-                            <p className="text-xs text-default-500">服务 SID</p>
+                            <p className="text-xs text-default-500">{t("details.serviceInfo.sid")}</p>
                             <Button
                               isIconOnly
                               className="h-4 w-4 min-w-0"
@@ -909,8 +921,8 @@ export default function ServiceDetailsPage() {
                               onPress={() => {
                                 navigator.clipboard.writeText(service.sid);
                                 addToast({
-                                  title: "已复制",
-                                  description: "服务 SID 已复制到剪贴板",
+                                  title: t("details.toast.copied"),
+                                  description: t("details.toast.sidCopied"),
                                   color: "success",
                                 });
                               }}
@@ -931,7 +943,7 @@ export default function ServiceDetailsPage() {
                         {/* 服务别名 */}
                         <div>
                           <div className="flex items-center gap-1 mb-1">
-                            <p className="text-xs text-default-500">服务别名</p>
+                            <p className="text-xs text-default-500">{t("details.serviceInfo.alias")}</p>
                             <Button
                               isIconOnly
                               className="h-4 w-4 min-w-0"
@@ -956,7 +968,7 @@ export default function ServiceDetailsPage() {
                         {service.clientInstanceId && (
                           <div>
                             <div className="flex items-center gap-1 mb-1">
-                              <p className="text-xs text-default-500">Client 实例</p>
+                              <p className="text-xs text-default-500">{t("details.serviceInfo.clientInstance")}</p>
                               <Button
                                 isIconOnly
                                 className="h-4 w-4 min-w-0"
@@ -1001,7 +1013,7 @@ export default function ServiceDetailsPage() {
                         {service.serverInstanceId && (
                           <div>
                             <div className="flex items-center gap-1 mb-1">
-                              <p className="text-xs text-default-500">Server 实例</p>
+                              <p className="text-xs text-default-500">{t("details.serviceInfo.serverInstance")}</p>
                               <Button
                                 isIconOnly
                                 className="h-4 w-4 min-w-0"
@@ -1049,7 +1061,7 @@ export default function ServiceDetailsPage() {
                   <Card className="p-2">
                     <CardHeader className="flex items-center justify-between pb-0">
                       <div className="flex items-center gap-2">
-                        <h3 className="text-lg font-semibold">操作</h3>
+                        <h3 className="text-lg font-semibold">{t("details.serviceInfo.operations")}</h3>
                       </div>
                     </CardHeader>
                     <CardBody>
@@ -1062,7 +1074,7 @@ export default function ServiceDetailsPage() {
                           onPress={() => handleServiceAction("start")}
                         >
                           <FontAwesomeIcon icon={faPlay} />
-                          <span>启动</span>
+                          <span>{t("details.actions.start")}</span>
                         </Button>
 
                         {/* 停止 */}
@@ -1073,7 +1085,7 @@ export default function ServiceDetailsPage() {
                           onPress={() => handleServiceAction("stop")}
                         >
                           <FontAwesomeIcon icon={faStop} />
-                          <span>停止</span>
+                          <span>{t("details.actions.stop")}</span>
                         </Button>
 
                         {/* 重启 */}
@@ -1084,7 +1096,7 @@ export default function ServiceDetailsPage() {
                           onPress={() => handleServiceAction("restart")}
                         >
                           <FontAwesomeIcon icon={faRotateRight} />
-                          <span>重启</span>
+                          <span>{t("details.actions.restart")}</span>
                         </Button>
 
                         {/* 调试 */}
@@ -1095,7 +1107,7 @@ export default function ServiceDetailsPage() {
                           onPress={() => setTcpingModalOpen(true)}
                         >
                           <FontAwesomeIcon icon={faGlobe} />
-                          <span>测试</span>
+                          <span>{t("details.actions.test")}</span>
                         </Button>
 
                         {/* 同步 */}
@@ -1106,7 +1118,7 @@ export default function ServiceDetailsPage() {
                           onPress={() => handleSyncService()}
                         >
                           <FontAwesomeIcon icon={faSync} />
-                          <span>同步</span>
+                          <span>{t("details.actions.sync")}</span>
                         </Button>
 
                         {/* 删除 */}
@@ -1120,7 +1132,7 @@ export default function ServiceDetailsPage() {
                           }}
                         >
                           <FontAwesomeIcon icon={faTrash} />
-                          <span>删除</span>
+                          <span>{t("details.actions.delete")}</span>
                         </Button>
                       </div>
                     </CardBody>
@@ -1385,7 +1397,7 @@ export default function ServiceDetailsPage() {
                       </Chip> */}
                       <div className="flex flex-wrap items-center gap-3">
                         <h1 className="text-3xl font-semibold leading-tight tracking-tight text-foreground">
-                          {service.alias || "未命名"}
+                          {service.alias || t("details.serviceInfo.unnamed")}
                         </h1>
                         <Chip size="sm" variant="flat" className="font-mono">
                           {service.sid}
@@ -1406,14 +1418,14 @@ export default function ServiceDetailsPage() {
                           variant="flat"
                           className="bg-white/60 text-default-700 dark:bg-white/10 dark:text-default-300"
                         >
-                          创建于 {formatDateTime(service.createdAt)}
+                          {t("details.serviceCard.createdAt")} {formatDateTime(service.createdAt)}
                         </Chip>
                         <Chip
                           size="sm"
                           variant="flat"
                           className="bg-white/60 text-default-700 dark:bg-white/10 dark:text-default-300"
                         >
-                          最近更新 {formatDateTime(service.updatedAt)}
+                          {t("details.serviceCard.updatedAt")} {formatDateTime(service.updatedAt)}
                         </Chip>
                       </div>
                     </div>
@@ -1425,7 +1437,7 @@ export default function ServiceDetailsPage() {
                         variant="bordered"
                         onPress={() => navigate(-1)}
                       >
-                        返回
+                        {t("details.actions.back")}
                       </Button>
                       <Button
                         className="min-w-[110px]"
@@ -1434,7 +1446,7 @@ export default function ServiceDetailsPage() {
                         variant="bordered"
                         onPress={handleRefresh}
                       >
-                        刷新数据
+                        {t("details.actions.refreshData")}
                       </Button>
                     </div>
                   </div>
@@ -1442,35 +1454,35 @@ export default function ServiceDetailsPage() {
                   <div className="grid gap-4 md:grid-cols-3 ">
                     <div className="rounded-2xl border border-white/40 bg-white/70 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-black/40">
                       <p className="text-xs uppercase tracking-wide text-default-500">
-                        服务 ID
+                        {t("details.serviceCard.serviceId")}
                       </p>
                       <Tooltip content={service.sid} placement="top">
                         <p className="mt-1 font-mono text-base text-foreground truncate">
                           {service.sid}
                         </p>
                       </Tooltip>
-                      <span className="text-xs text-default-500">节点唯一标识</span>
+                      <span className="text-xs text-default-500">{t("details.serviceCard.uniqueIdentifier")}</span>
                     </div>
                     <div className="rounded-2xl border border-white/40 bg-white/70 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-black/40">
                       <p className="text-xs uppercase tracking-wide text-default-500">
-                        转发模式
+                        {t("details.serviceCard.forwardMode")}
                       </p>
                       <div className="mt-1 flex items-center gap-2 text-lg font-semibold text-foreground">
                         <FontAwesomeIcon icon={getTypeIcon(service.type)} />
                         {getTypeEnglishLabel(service.type)}
                       </div>
                       <span className="text-xs text-default-500">
-                        {getTypeLabel(service.type)} · 模式代码 {service.type}
+                        {getTypeLabel(service.type)} · {t("details.serviceCard.modeCode")} {service.type}
                       </span>
                     </div>
                     <div className="rounded-2xl border border-white/40 bg-white/80 p-4 shadow-sm backdrop-blur dark:border-white/10 dark:bg-black/40">
                       <p className="text-xs uppercase tracking-wide text-default-500">
-                        关联实例
+                        {t("details.serviceCard.relatedInstances")}
                       </p>
                       <div className="mt-2 flex flex-col gap-2 text-sm text-default-600">
                         <div className="flex items-center justify-between gap-3">
                           <span className="text-default-500">Client</span>
-                          <Tooltip content={service.clientInstanceId || "暂无实例"}>
+                          <Tooltip content={service.clientInstanceId || t("details.serviceInfo.noInstance")}>
                             <span className="font-mono text-base text-foreground truncate">
                               {service.clientInstanceId
                                 ? service.clientInstanceId
@@ -1481,14 +1493,14 @@ export default function ServiceDetailsPage() {
                         <span className="text-xs text-default-500">
                           {clientTunnel
                             ? `${clientTunnel.listenPort} → ${clientTunnel.targetPort}`
-                            : "等待激活"}
+                            : t("details.serviceInfo.waitingActivation")}
                         </span>
                         {service.type !== "0" && (
                           <>
                             <div className="flex items-center justify-between gap-3">
                               <span className="text-default-500">Server</span>
                               <Tooltip
-                                content={service.serverInstanceId || "暂无实例"}
+                                content={service.serverInstanceId || t("details.serviceInfo.noInstance")}
                               >
                                 <span className="font-mono text-base text-foreground truncate">
                                   {service.serverInstanceId
@@ -1500,7 +1512,7 @@ export default function ServiceDetailsPage() {
                             <span className="text-xs text-default-500">
                               {serverTunnel
                                 ? `${serverTunnel.listenPort} → ${serverTunnel.targetPort}`
-                                : "等待激活"}
+                                : t("details.serviceInfo.waitingActivation")}
                             </span>
                           </>
                         )}
@@ -1552,7 +1564,7 @@ export default function ServiceDetailsPage() {
                       </CardHeader>
                       <CardBody className="pt-0 space-y-3 pl-4 pb-4 pr-4">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-default-500">实例 ID</span>
+                          <span className="text-sm text-default-500">{t("details.instanceCard.instanceId")}</span>
                           <Tooltip content={clientTunnel.instanceId}>
                             <span className="font-mono text-sm">
                               {clientTunnel.instanceId}
@@ -1560,31 +1572,31 @@ export default function ServiceDetailsPage() {
                           </Tooltip>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-default-500">主控</span>
+                          <span className="text-sm text-default-500">{t("details.instanceCard.endpoint")}</span>
                           <Chip size="sm" variant="flat">
                             {clientTunnel.endpoint.name}
                           </Chip>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-default-500">版本</span>
+                          <span className="text-sm text-default-500">{t("details.instanceCard.version")}</span>
                           <span className="text-sm font-mono">
                             {clientTunnel.endpoint.version || "< v1.4.0"}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-default-500">端口映射</span>
+                          <span className="text-sm text-default-500">{t("details.instanceCard.portMapping")}</span>
                           <span className="text-sm font-mono font-semibold">
                             {clientTunnel.listenPort} → {clientTunnel.targetPort}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-default-500">隧道地址</span>
+                          <span className="text-sm text-default-500">{t("details.instanceCard.tunnelAddress")}</span>
                           <span className="text-sm font-mono">
                             {formatAddress(clientTunnel.tunnelAddress)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-default-500">目标地址</span>
+                          <span className="text-sm text-default-500">{t("details.instanceCard.targetAddress")}</span>
                           <span className="text-sm font-mono">
                             {formatAddress(clientTunnel.targetAddress)}
                           </span>
@@ -1632,7 +1644,7 @@ export default function ServiceDetailsPage() {
                       </CardHeader>
                       <CardBody className="pt-0 space-y-3 pl-4 pb-4 pr-4">
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-default-500">实例 ID</span>
+                          <span className="text-sm text-default-500">{t("details.instanceCard.instanceId")}</span>
                           <Tooltip content={serverTunnel.instanceId}>
                             <span className="font-mono text-sm">
                               {serverTunnel.instanceId}
@@ -1640,31 +1652,31 @@ export default function ServiceDetailsPage() {
                           </Tooltip>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-default-500">主控</span>
+                          <span className="text-sm text-default-500">{t("details.instanceCard.endpoint")}</span>
                           <Chip size="sm" variant="flat">
                             {serverTunnel.endpoint.name}
                           </Chip>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-default-500">版本</span>
+                          <span className="text-sm text-default-500">{t("details.instanceCard.version")}</span>
                           <span className="text-sm font-mono">
                             {serverTunnel.endpoint.version || "< v1.4.0"}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-default-500">端口映射</span>
+                          <span className="text-sm text-default-500">{t("details.instanceCard.portMapping")}</span>
                           <span className="text-sm font-mono font-semibold">
                             {serverTunnel.listenPort} → {serverTunnel.targetPort}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-default-500">隧道地址</span>
+                          <span className="text-sm text-default-500">{t("details.instanceCard.tunnelAddress")}</span>
                           <span className="text-sm font-mono">
                             {formatAddress(serverTunnel.tunnelAddress)}
                           </span>
                         </div>
                         <div className="flex items-center justify-between">
-                          <span className="text-sm text-default-500">目标地址</span>
+                          <span className="text-sm text-default-500">{t("details.instanceCard.targetAddress")}</span>
                           <span className="text-sm font-mono">
                             {formatAddress(serverTunnel.targetAddress)}
                           </span>
@@ -1680,9 +1692,9 @@ export default function ServiceDetailsPage() {
                 <CardHeader className="flex flex-wrap items-start justify-between gap-3 pb-0 pt-4 pl-4 pr-4">
                   <div>
                     <h2 className="text-xl font-semibold text-foreground">
-                      即时操作
+                      {t("details.quickActions.title")}
                     </h2>
-                    <p className="text-tiny uppercase text-default-400">控制台</p>
+                    <p className="text-tiny uppercase text-default-400">{t("details.quickActions.subtitle")}</p>
                   </div>
                 </CardHeader>
                 <CardBody className="pt-2 pl-4 pr-4 pb-4">
@@ -1695,9 +1707,9 @@ export default function ServiceDetailsPage() {
                     >
                       <div className="flex items-center gap-2 text-sm font-semibold">
                         <FontAwesomeIcon icon={faBug} />
-                        SSE 调试
+                        {t("details.quickActions.sseDebug")}
                       </div>
-                      <p className="text-xs text-default-500">实时事件追踪与诊断</p>
+                      <p className="text-xs text-default-500">{t("details.quickActions.sseDebugDesc")}</p>
                     </Button>
 
                     <Button
@@ -1708,10 +1720,10 @@ export default function ServiceDetailsPage() {
                     >
                       <div className="flex items-center gap-2 text-sm font-semibold">
                         <FontAwesomeIcon icon={faGlobe} />
-                        网络测试
+                        {t("details.quickActions.networkTest")}
                       </div>
                       <p className="text-xs text-default-500">
-                        Tcping 端到端链路验证
+                        {t("details.quickActions.networkTestDesc")}
                       </p>
                     </Button>
 
@@ -1723,9 +1735,9 @@ export default function ServiceDetailsPage() {
                     >
                       <div className="flex items-center gap-2 text-sm font-semibold">
                         <FontAwesomeIcon icon={faPlay} />
-                        一键启动
+                        {t("details.quickActions.quickStart")}
                       </div>
-                      <p className="text-xs text-default-500">启用全部隧道实例</p>
+                      <p className="text-xs text-default-500">{t("details.quickActions.quickStartDesc")}</p>
                     </Button>
 
                     <Button
@@ -1736,9 +1748,9 @@ export default function ServiceDetailsPage() {
                     >
                       <div className="flex items-center gap-2 text-sm font-semibold">
                         <FontAwesomeIcon icon={faStop} />
-                        一键停止
+                        {t("details.quickActions.quickStop")}
                       </div>
-                      <p className="text-xs text-default-500">立即停止当前服务</p>
+                      <p className="text-xs text-default-500">{t("details.quickActions.quickStopDesc")}</p>
                     </Button>
 
                     <Button
@@ -1749,9 +1761,9 @@ export default function ServiceDetailsPage() {
                     >
                       <div className="flex items-center gap-2 text-sm font-semibold">
                         <FontAwesomeIcon icon={faRotateRight} />
-                        一键重启
+                        {t("details.quickActions.quickRestart")}
                       </div>
-                      <p className="text-xs text-default-500">安全重载配置并恢复</p>
+                      <p className="text-xs text-default-500">{t("details.quickActions.quickRestartDesc")}</p>
                     </Button>
 
                     <Button
@@ -1765,9 +1777,9 @@ export default function ServiceDetailsPage() {
                     >
                       <div className="flex items-center gap-2 text-sm font-semibold">
                         <FontAwesomeIcon icon={faTrash} />
-                        删除服务
+                        {t("details.quickActions.deleteService")}
                       </div>
-                      <p className="text-xs text-danger/80">危险操作，谨慎执行</p>
+                      <p className="text-xs text-danger/80">{t("details.quickActions.deleteServiceDesc")}</p>
                     </Button>
 
                     <Button
@@ -1778,9 +1790,9 @@ export default function ServiceDetailsPage() {
                     >
                       <div className="flex items-center gap-2 text-sm font-semibold">
                         <FontAwesomeIcon icon={faSync} />
-                        同步实例
+                        {t("details.quickActions.syncInstance")}
                       </div>
-                      <p className="text-xs text-default-500">刷新节点配置与状态</p>
+                      <p className="text-xs text-default-500">{t("details.quickActions.syncInstanceDesc")}</p>
                     </Button>
 
                     <Button
@@ -1794,9 +1806,9 @@ export default function ServiceDetailsPage() {
                     >
                       <div className="flex items-center gap-2 text-sm font-semibold">
                         <Icon className="text-base" icon="lucide:link-2-off" />
-                        解散服务
+                        {t("details.quickActions.dissolveService")}
                       </div>
-                      <p className="text-xs text-warning-600/80">解绑两端实例关系</p>
+                      <p className="text-xs text-warning-600/80">{t("details.quickActions.dissolveServiceDesc")}</p>
                     </Button>
                   </div>
                 </CardBody>
@@ -1827,13 +1839,13 @@ export default function ServiceDetailsPage() {
           {(onClose) => (
             <>
               <ModalHeader className="flex flex-col gap-1">
-                {confirmAction?.type === "dissolve" ? "确认解散服务" : "确认删除服务"}
+                {confirmAction?.type === "dissolve" ? t("details.confirmDialog.dissolveTitle") : t("details.confirmDialog.deleteTitle")}
               </ModalHeader>
               <ModalBody>
                 <p>
                   {confirmAction?.type === "dissolve"
-                    ? `确定要解散服务 "${service?.alias || service?.sid}" 吗？`
-                    : `确定要删除服务 "${service?.alias || service?.sid}" 吗？此操作不可撤销！`
+                    ? t("details.confirmDialog.dissolveMessage", { name: service?.alias || service?.sid })
+                    : t("details.confirmDialog.deleteMessage", { name: service?.alias || service?.sid })
                   }
                 </p>
               </ModalBody>
@@ -1842,7 +1854,7 @@ export default function ServiceDetailsPage() {
                   variant="light"
                   onPress={onClose}
                 >
-                  取消
+                  {t("details.actions.cancel")}
                 </Button>
                 <Button
                   color={confirmAction?.type === "dissolve" ? "warning" : "danger"}
@@ -1851,7 +1863,7 @@ export default function ServiceDetailsPage() {
                     onClose();
                   }}
                 >
-                  {confirmAction?.type === "dissolve" ? "解散" : "删除"}
+                  {confirmAction?.type === "dissolve" ? t("details.confirmDialog.dissolve") : t("details.confirmDialog.delete")}
                 </Button>
               </ModalFooter>
             </>

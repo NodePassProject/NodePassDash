@@ -436,6 +436,47 @@
       "12h": "12小时",
       "24h": "24小时"
     },
+    "wsMonitor": {
+      "connected": "隧道监控WebSocket连接成功",
+      "connectedDesc": "开始接收实时隧道性能数据",
+      "tcpTraffic": "TCP流量",
+      "udpTraffic": "UDP流量",
+      "send": "发送",
+      "receive": "接收",
+      "latency": "延迟",
+      "pool": "连接池",
+      "connections": "连接数",
+      "tcp": "TCP",
+      "udp": "UDP"
+    },
+    "chartLegends": {
+      "tcpIn": "TCP入",
+      "tcpOut": "TCP出",
+      "udpIn": "UDP入",
+      "udpOut": "UDP出",
+      "upload": "上传",
+      "download": "下载",
+      "pool": "池",
+      "tcp": "TCP",
+      "udp": "UDP"
+    },
+    "chartTooltips": {
+      "tcpInbound": "TCP入站",
+      "tcpOutbound": "TCP出站",
+      "udpInbound": "UDP入站",
+      "udpOutbound": "UDP出站",
+      "upload": "上传",
+      "download": "下载",
+      "pool": "池",
+      "latency": "延迟",
+      "tcp": "TCP",
+      "udp": "UDP"
+    },
+    "chartStates": {
+      "loading": "加载中...",
+      "loadFailed": "加载失败",
+      "noData": "暂无数据"
+    },
     "status": {
       "running": "运行中",
       "error": "有错误",
@@ -620,7 +661,15 @@
       "clearRealtimeWarning": "此操作将清空当前实时输出的内容。",
       "clearFileWarning": "此操作将清空页面显示和所有已保存的日志文件，且不可撤销。",
       "confirmClearButton": "确认清空",
-      "cancel": "取消"
+      "cancel": "取消",
+      "loading": "加载文件日志中...",
+      "waitingForLogs": "正在等待日志推送...",
+      "noLogs": "暂无日志记录",
+      "fetchFailed": "获取日志失败",
+      "clearSuccess": "清空成功",
+      "clearSuccessDesc": "日志已清空",
+      "clearFailed": "清空失败",
+      "clearFailedDesc": "清空日志失败"
     },
     "charts": {
       "traffic": "流量统计",
@@ -863,7 +912,7 @@
   },
   "simpleTagModal": {
     "title": "设置标签",
-    "description": "为当前实例选择一个标签，或选择"无标签"来清除现有标签",
+    "description": "为当前实例选择一个标签，或选择\"无标签\"来清除现有标签",
     "noTag": "无标签",
     "empty": {
       "title": "暂无可用标签",

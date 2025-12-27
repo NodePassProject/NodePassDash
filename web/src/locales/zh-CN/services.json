@@ -91,6 +91,118 @@
       "upload": "上传",
       "download": "下载",
       "pool": "池"
+    },
+    "loading": {
+      "refreshing": "刷新数据中...",
+      "loading": "加载中..."
+    },
+    "errors": {
+      "fetchServiceFailed": "获取服务详情失败",
+      "fetchTunnelFailed": "获取{{type}}隧道详情失败",
+      "refreshFailed": "刷新失败",
+      "unknownError": "未知错误"
+    },
+    "toast": {
+      "copied": "已复制",
+      "sidCopied": "服务 SID 已复制到剪贴板",
+      "startSuccess": "启动成功",
+      "stopSuccess": "停止成功",
+      "restartSuccess": "重启成功",
+      "startFailed": "启动失败",
+      "stopFailed": "停止失败",
+      "restartFailed": "重启失败",
+      "syncSuccess": "同步成功",
+      "syncFailed": "同步失败",
+      "dissolveSuccess": "解散成功",
+      "dissolveFailed": "解散失败",
+      "deleteSuccess": "删除成功",
+      "deleteFailed": "删除失败",
+      "serviceActioned": "服务 {{name}} 已{{action}}",
+      "actionNames": {
+        "start": "启动",
+        "stop": "停止",
+        "restart": "重启",
+        "sync": "同步",
+        "dissolve": "解散",
+        "delete": "删除"
+      }
+    },
+    "actions": {
+      "back": "返回",
+      "refresh": "刷新",
+      "refreshData": "刷新数据",
+      "start": "启动",
+      "stop": "停止",
+      "restart": "重启",
+      "test": "测试",
+      "sync": "同步",
+      "delete": "删除",
+      "dissolve": "解散",
+      "cancel": "取消"
+    },
+    "serviceInfo": {
+      "title": "服务信息",
+      "sid": "服务 SID",
+      "alias": "服务别名",
+      "clientInstance": "Client 实例",
+      "serverInstance": "Server 实例",
+      "operations": "操作",
+      "unnamed": "未命名",
+      "noInstance": "暂无实例",
+      "waitingActivation": "等待激活"
+    },
+    "instanceCard": {
+      "instanceId": "实例 ID",
+      "endpoint": "主控",
+      "version": "版本",
+      "portMapping": "端口映射",
+      "tunnelAddress": "隧道地址",
+      "targetAddress": "目标地址"
+    },
+    "status": {
+      "running": "运行中",
+      "warning": "警告",
+      "stopped": "已停止",
+      "offline": "已离线",
+      "unknown": "未知"
+    },
+    "serviceCard": {
+      "serviceId": "服务 ID",
+      "uniqueIdentifier": "节点唯一标识",
+      "forwardMode": "转发模式",
+      "modeCode": "模式代码",
+      "relatedInstances": "关联实例",
+      "createdAt": "创建于",
+      "updatedAt": "最近更新"
+    },
+    "quickActions": {
+      "title": "即时操作",
+      "subtitle": "控制台",
+      "sseDebug": "SSE 调试",
+      "sseDebugDesc": "实时事件追踪与诊断",
+      "networkTest": "网络测试",
+      "networkTestDesc": "Tcping 端到端链路验证",
+      "quickStart": "一键启动",
+      "quickStartDesc": "启用全部隧道实例",
+      "quickStop": "一键停止",
+      "quickStopDesc": "立即停止当前服务",
+      "quickRestart": "一键重启",
+      "quickRestartDesc": "安全重载配置并恢复",
+      "deleteService": "删除服务",
+      "deleteServiceDesc": "危险操作，谨慎执行",
+      "syncInstance": "同步实例",
+      "syncInstanceDesc": "刷新节点配置与状态",
+      "dissolveService": "解散服务",
+      "dissolveServiceDesc": "解绑两端实例关系"
+    },
+    "confirmDialog": {
+      "dissolveTitle": "确认解散服务",
+      "deleteTitle": "确认删除服务",
+      "dissolveMessage": "确定要解散服务 \"{{name}}\" 吗？",
+      "deleteMessage": "确定要删除服务 \"{{name}}\" 吗？此操作不可撤销！",
+      "confirm": "确认",
+      "dissolve": "解散",
+      "delete": "删除"
     }
   },
   "createModal": {
@@ -299,6 +411,27 @@
       "renameSuccess": "重命名成功",
       "renameFailed": "重命名失败",
       "renamedTo": "服务已重命名为 {{name}}",
+      "unknownError": "未知错误"
+    }
+  },
+  "sse": {
+    "loading": "加载中...",
+    "serverLog": "Server 端 SSE",
+    "clientLog": "Client 端 SSE",
+    "realtimeLog": "实时日志",
+    "buttons": {
+      "scrollToBottom": "滚动到底部",
+      "clear": "清空日志"
+    },
+    "confirmClear": {
+      "title": "确认清空日志",
+      "message": "此操作将清空当前实时输出的内容。",
+      "confirm": "确认清空",
+      "cancel": "取消"
+    },
+    "waitingForLogs": "正在等待日志推送...",
+    "toast": {
+      "fetchFailed": "获取服务详情失败",
       "unknownError": "未知错误"
     }
   }
