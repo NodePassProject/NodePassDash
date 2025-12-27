@@ -131,19 +131,169 @@
     "avatar": {
       "title": "Avatar",
       "description": "Upload your avatar image, square images recommended",
-      "uploadButton": "Upload New Avatar"
+      "uploadButton": "Upload New Avatar",
+      "changeButton": "Change Avatar"
     },
     "fields": {
       "username": "Username",
       "usernamePlaceholder": "Enter username",
-      "email": "Email Address",
-      "emailPlaceholder": "Enter email address",
+      "displayName": "Display Name",
+      "displayNamePlaceholder": "Enter display name",
+      "position": "Position",
+      "positionPlaceholder": "Enter your position",
+      "email": "Email",
+      "emailPlaceholder": "Enter email",
+      "location": "Location",
+      "locationPlaceholder": "Enter your location",
+      "bio": "Bio",
+      "bioPlaceholder": "Brief introduction about yourself",
       "password": "Change Password",
       "passwordPlaceholder": "Enter new password"
     },
     "actions": {
       "reset": "Reset",
       "save": "Save Changes"
+    }
+  },
+  "notifications": {
+    "alerts": {
+      "title": "Alert Settings",
+      "description": "Configure system alert thresholds and trigger conditions",
+      "systemResources": {
+        "title": "System Resource Alerts",
+        "cpuUsage": {
+          "title": "CPU Usage Alert",
+          "description": "Alert when CPU usage exceeds threshold"
+        },
+        "memoryUsage": {
+          "title": "Memory Usage Alert",
+          "description": "Alert when memory usage exceeds threshold"
+        },
+        "diskUsage": {
+          "title": "Disk Usage Alert",
+          "description": "Alert when disk usage exceeds threshold"
+        }
+      },
+      "security": {
+        "title": "Security Alerts",
+        "loginFailure": {
+          "title": "Login Failure Alert",
+          "description": "Alert when consecutive login failures exceed count",
+          "unit": "times"
+        },
+        "remoteLogin": {
+          "title": "Remote Login Alert",
+          "description": "Alert when remote login is detected"
+        },
+        "sensitiveOps": {
+          "title": "Sensitive Operation Alert",
+          "description": "Alert when sensitive operation is executed"
+        }
+      }
+    },
+    "channels": {
+      "title": "Notification Channels",
+      "description": "Manage system notification channels",
+      "addButton": "Add Notification Channel",
+      "telegram": {
+        "title": "Telegram Notification",
+        "description": "Send notifications via Telegram Bot",
+        "botToken": "Bot Token",
+        "botTokenPlaceholder": "Enter Telegram Bot Token",
+        "chatId": "Chat ID",
+        "chatIdPlaceholder": "Enter Chat ID"
+      },
+      "wechat": {
+        "title": "WeChat Work Notification",
+        "description": "Send notifications via WeChat Work Bot",
+        "webhookUrl": "Webhook URL",
+        "webhookUrlPlaceholder": "Enter WeChat Work Webhook URL"
+      },
+      "dingtalk": {
+        "title": "DingTalk Notification",
+        "description": "Send notifications via DingTalk Bot",
+        "webhookUrl": "Webhook URL",
+        "webhookUrlPlaceholder": "Enter DingTalk Webhook URL",
+        "secret": "Secret Key",
+        "secretPlaceholder": "Enter secret key (optional)"
+      },
+      "webhook": {
+        "title": "Webhook Notification",
+        "description": "Send notifications via custom Webhook",
+        "webhookUrl": "Webhook URL",
+        "webhookUrlPlaceholder": "Enter Webhook URL",
+        "method": "Request Method",
+        "headers": "Request Headers",
+        "headersPlaceholder": "Enter JSON format headers",
+        "template": "Message Template",
+        "templatePlaceholder": "Enter JSON format message template"
+      },
+      "gotify": {
+        "title": "Gotify Notification",
+        "description": "Send notifications via Gotify service",
+        "serverUrl": "Server Address",
+        "serverUrlPlaceholder": "Enter Gotify server address",
+        "appToken": "App Token",
+        "appTokenPlaceholder": "Enter app token"
+      },
+      "testButton": "Test Notification"
+    },
+    "groups": {
+      "title": "Notification Groups",
+      "description": "Manage notification recipient groups and members",
+      "addButton": "Add Notification Group",
+      "operations": {
+        "edit": "Edit",
+        "delete": "Delete"
+      },
+      "opsTeam": {
+        "title": "Operations Team",
+        "description": "Receive system operations related notifications"
+      },
+      "securityTeam": {
+        "title": "Security Team",
+        "description": "Receive security related alert notifications"
+      },
+      "addMember": "Add Member",
+      "members": {
+        "zhangsan": "Zhang San",
+        "lisi": "Li Si",
+        "wangwu": "Wang Wu"
+      }
+    },
+    "rules": {
+      "title": "Notification Rules",
+      "description": "Configure notification trigger rules and sending policies",
+      "addButton": "Add Rule",
+      "systemAlerts": {
+        "title": "System Resource Alert Rule",
+        "description": "Notify operations team when system resources exceed threshold"
+      },
+      "securityAlerts": {
+        "title": "Security Event Alert Rule",
+        "description": "Immediately notify security team when security event is detected"
+      },
+      "fields": {
+        "triggerCondition": "Trigger Condition",
+        "notificationGroup": "Notification Group",
+        "notificationChannel": "Notification Channel"
+      },
+      "exampleConditions": {
+        "cpuMemory": "CPU > 80% or Memory > 90%",
+        "securityEvents": "Detected abnormal login or sensitive operation"
+      },
+      "exampleGroups": {
+        "ops": "Operations Team",
+        "security": "Security Team"
+      },
+      "exampleChannels": {
+        "telegramWechat": "Telegram, WeChat Work",
+        "telegramDingtalk": "Telegram, DingTalk"
+      },
+      "operations": {
+        "edit": "Edit",
+        "delete": "Delete"
+      }
     }
   },
   "security": {

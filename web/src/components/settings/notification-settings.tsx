@@ -13,8 +13,11 @@ import {
 } from "@heroui/react";
 import React from "react";
 import { Icon } from "@iconify/react";
+import { useTranslation } from "react-i18next";
 
 export default function NotificationSettings() {
+  const { t } = useTranslation("settings");
+
   return (
     <div className="space-y-6">
       {/* 告警设置 */}
@@ -22,22 +25,22 @@ export default function NotificationSettings() {
         <CardBody className="gap-6">
           <div className="flex items-center justify-between">
             <div>
-              <h3 className="text-lg font-medium">告警设置</h3>
+              <h3 className="text-lg font-medium">{t("notifications.alerts.title")}</h3>
               <p className="text-sm text-default-500">
-                配置系统告警阈值和触发条件
+                {t("notifications.alerts.description")}
               </p>
             </div>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
             <div className="space-y-4">
-              <h4 className="text-base font-medium">系统资源告警</h4>
+              <h4 className="text-base font-medium">{t("notifications.alerts.systemResources.title")}</h4>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">CPU 使用率告警</p>
+                    <p className="font-medium">{t("notifications.alerts.systemResources.cpuUsage.title")}</p>
                     <p className="text-sm text-default-500">
-                      CPU 使用率超过阈值时告警
+                      {t("notifications.alerts.systemResources.cpuUsage.description")}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -53,9 +56,9 @@ export default function NotificationSettings() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">内存使用率告警</p>
+                    <p className="font-medium">{t("notifications.alerts.systemResources.memoryUsage.title")}</p>
                     <p className="text-sm text-default-500">
-                      内存使用率超过阈值时告警
+                      {t("notifications.alerts.systemResources.memoryUsage.description")}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -71,9 +74,9 @@ export default function NotificationSettings() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">磁盘使用率告警</p>
+                    <p className="font-medium">{t("notifications.alerts.systemResources.diskUsage.title")}</p>
                     <p className="text-sm text-default-500">
-                      磁盘使用率超过阈值时告警
+                      {t("notifications.alerts.systemResources.diskUsage.description")}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
@@ -91,19 +94,19 @@ export default function NotificationSettings() {
             </div>
 
             <div className="space-y-4">
-              <h4 className="text-base font-medium">安全告警</h4>
+              <h4 className="text-base font-medium">{t("notifications.alerts.security.title")}</h4>
               <div className="space-y-4">
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">登录失败告警</p>
+                    <p className="font-medium">{t("notifications.alerts.security.loginFailure.title")}</p>
                     <p className="text-sm text-default-500">
-                      连续登录失败超过次数时告警
+                      {t("notifications.alerts.security.loginFailure.description")}
                     </p>
                   </div>
                   <div className="flex items-center gap-3">
                     <Input
                       className="w-20"
-                      endContent="次"
+                      endContent={t("notifications.alerts.security.loginFailure.unit")}
                       placeholder="5"
                       type="number"
                       variant="bordered"
@@ -113,18 +116,18 @@ export default function NotificationSettings() {
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">异地登录告警</p>
+                    <p className="font-medium">{t("notifications.alerts.security.remoteLogin.title")}</p>
                     <p className="text-sm text-default-500">
-                      检测到异地登录时告警
+                      {t("notifications.alerts.security.remoteLogin.description")}
                     </p>
                   </div>
                   <Switch defaultSelected />
                 </div>
                 <div className="flex items-center justify-between">
                   <div>
-                    <p className="font-medium">敏感操作告警</p>
+                    <p className="font-medium">{t("notifications.alerts.security.sensitiveOps.title")}</p>
                     <p className="text-sm text-default-500">
-                      执行敏感操作时告警
+                      {t("notifications.alerts.security.sensitiveOps.description")}
                     </p>
                   </div>
                   <Switch defaultSelected />

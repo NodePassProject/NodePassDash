@@ -17,11 +17,13 @@ import { Icon } from "@iconify/react";
 import { useState, useRef } from "react";
 import { addToast } from "@heroui/toast";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { useAuth } from "@/components/auth/auth-provider";
 import { buildApiUrl } from "@/lib/utils";
 
 export const NavbarUser = () => {
+  const { t } = useTranslation("common");
   const { user, logout } = useAuth();
   const navigate = useNavigate();
   const {
@@ -61,8 +63,8 @@ export const NavbarUser = () => {
       !passwordForm.confirmPassword
     ) {
       addToast({
-        title: "表单验证失败",
-        description: "请填写所有密码字段",
+        title: t("navbarUser.toast.passwordValidationFailed"),
+        description: t("navbarUser.toast.passwordValidationFailedDesc"),
         color: "danger",
       });
 
@@ -71,8 +73,8 @@ export const NavbarUser = () => {
 
     if (passwordForm.newPassword !== passwordForm.confirmPassword) {
       addToast({
-        title: "密码不匹配",
-        description: "新密码和确认密码不一致",
+        title: t("navbarUser.toast.passwordMismatch"),
+        description: t("navbarUser.toast.passwordMismatchDesc"),
         color: "danger",
       });
 
@@ -81,8 +83,8 @@ export const NavbarUser = () => {
 
     if (passwordForm.newPassword.length < 6) {
       addToast({
-        title: "密码太短",
-        description: "新密码长度至少为6位",
+        title: t("navbarUser.toast.passwordTooShort"),
+        description: t("navbarUser.toast.passwordTooShortDesc"),
         color: "danger",
       });
 
@@ -107,8 +109,8 @@ export const NavbarUser = () => {
 
       if (response.ok && result.success) {
         addToast({
-          title: "密码修改成功",
-          description: "您的密码已成功更新",
+          title: t("navbarUser.toast.passwordChangeSuccess"),
+          description: t("navbarUser.toast.passwordChangeSuccessDesc"),
           color: "success",
         });
 
@@ -121,16 +123,16 @@ export const NavbarUser = () => {
         onPasswordOpenChange();
       } else {
         addToast({
-          title: "密码修改失败",
-          description: result.message || "请检查您的当前密码是否正确",
+          title: t("navbarUser.toast.passwordChangeFailed"),
+          description: result.message || t("navbarUser.toast.passwordChangeFailedDesc"),
           color: "danger",
         });
       }
     } catch (error) {
       console.error("修改密码失败:", error);
       addToast({
-        title: "网络错误",
-        description: "请检查网络连接后重试",
+        title: t("navbarUser.toast.networkError"),
+        description: t("navbarUser.toast.networkErrorDesc"),
         color: "danger",
       });
     } finally {
@@ -149,8 +151,8 @@ export const NavbarUser = () => {
     // 验证表单
     if (!newUsername) {
       addToast({
-        title: "表单验证失败",
-        description: "请填写新用户名",
+        title: t("navbarUser.toast.usernameValidationFailed"),
+        description: t("navbarUser.toast.usernameValidationFailedDesc"),
         color: "danger",
       });
 
@@ -159,8 +161,8 @@ export const NavbarUser = () => {
 
     if (newUsername === user?.username) {
       addToast({
-        title: "用户名相同",
-        description: "新用户名不能与当前用户名相同",
+        title: t("navbarUser.toast.usernameSame"),
+        description: t("navbarUser.toast.usernameSameDesc"),
         color: "danger",
       });
 
@@ -184,8 +186,8 @@ export const NavbarUser = () => {
 
       if (response.ok && result.success) {
         addToast({
-          title: "用户名修改成功",
-          description: "您的用户名已成功更新",
+          title: t("navbarUser.toast.usernameChangeSuccess"),
+          description: t("navbarUser.toast.usernameChangeSuccessDesc"),
           color: "success",
         });
 
@@ -196,16 +198,16 @@ export const NavbarUser = () => {
         window.location.reload();
       } else {
         addToast({
-          title: "用户名修改失败",
-          description: result.message || "修改用户名时发生错误",
+          title: t("navbarUser.toast.usernameChangeFailed"),
+          description: result.message || t("navbarUser.toast.usernameChangeFailedDesc"),
           color: "danger",
         });
       }
     } catch (error) {
       console.error("修改用户名失败:", error);
       addToast({
-        title: "网络错误",
-        description: "请检查网络连接后重试",
+        title: t("navbarUser.toast.networkError"),
+        description: t("navbarUser.toast.networkErrorDesc"),
         color: "danger",
       });
     } finally {
@@ -218,7 +220,7 @@ export const NavbarUser = () => {
       const response = await fetch(buildApiUrl("/api/data/export"));
 
       if (!response.ok) {
-        throw new Error("导出失败");
+        throw new Error(t("navbarUser.toast.exportFailed"));
       }
 
       const blob = await response.blob();
@@ -233,15 +235,15 @@ export const NavbarUser = () => {
       document.body.removeChild(a);
 
       addToast({
-        title: "导出成功",
-        description: "数据已成功导出到文件",
+        title: t("navbarUser.toast.exportSuccess"),
+        description: t("navbarUser.toast.exportSuccessDesc"),
         color: "success",
       });
     } catch (error) {
       console.error("导出数据失败:", error);
       addToast({
-        title: "导出失败",
-        description: "导出数据时发生错误",
+        title: t("navbarUser.toast.exportFailed"),
+        description: t("navbarUser.toast.exportFailedDesc"),
         color: "danger",
       });
     }
@@ -253,8 +255,8 @@ export const NavbarUser = () => {
     if (file) {
       if (file.type !== "application/json") {
         addToast({
-          title: "文件格式错误",
-          description: "请选择 JSON 格式的文件",
+          title: t("navbarUser.toast.fileFormatError"),
+          description: t("navbarUser.toast.fileFormatErrorDesc"),
           color: "danger",
         });
 
@@ -267,8 +269,8 @@ export const NavbarUser = () => {
   const handleImportData = async () => {
     if (!selectedFile) {
       addToast({
-        title: "请选择文件",
-        description: "请先选择要导入的端点配置文件",
+        title: t("navbarUser.toast.fileRequired"),
+        description: t("navbarUser.toast.fileRequiredDesc"),
         color: "danger",
       });
 
@@ -292,7 +294,7 @@ export const NavbarUser = () => {
 
       if (response.ok) {
         addToast({
-          title: "导入成功",
+          title: t("navbarUser.toast.importSuccess"),
           description: result.message,
           color: "success",
         });
@@ -306,14 +308,14 @@ export const NavbarUser = () => {
           window.location.reload();
         }, 1000);
       } else {
-        throw new Error(result.error || "导入失败");
+        throw new Error(result.error || t("navbarUser.toast.importFailed"));
       }
     } catch (error) {
       console.error("导入数据失败:", error);
       addToast({
-        title: "导入失败",
+        title: t("navbarUser.toast.importFailed"),
         description:
-          error instanceof Error ? error.message : "导入数据时发生错误",
+          error instanceof Error ? error.message : t("navbarUser.toast.importFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -340,7 +342,7 @@ export const NavbarUser = () => {
           />
         </DropdownTrigger>
         <DropdownMenu
-          aria-label="用户菜单"
+          aria-label={t("navbarUser.menu.ariaLabel")}
           className="w-[240px]"
           variant="flat"
           onAction={(key) => {
@@ -361,7 +363,7 @@ export const NavbarUser = () => {
         >
           {/* 用户信息 */}
           <DropdownItem key="profile" className="h-14 gap-2">
-            <p className="font-semibold">已登录为</p>
+            <p className="font-semibold">{t("navbarUser.menu.loggedInAs")}</p>
             <p className="font-semibold">{user?.username}</p>
           </DropdownItem>
 
@@ -370,7 +372,7 @@ export const NavbarUser = () => {
             key="change-username"
             startContent={<Icon icon="solar:user-id-linear" width={18} />}
           >
-            修改用户名
+            {t("navbarUser.menu.changeUsername")}
           </DropdownItem>
 
           {/* 修改密码 */}
@@ -378,7 +380,7 @@ export const NavbarUser = () => {
             key="change-password"
             startContent={<Icon icon="solar:key-linear" width={18} />}
           >
-            修改密码
+            {t("navbarUser.menu.changePassword")}
           </DropdownItem>
 
           {/* 导出数据 */}
@@ -387,7 +389,7 @@ export const NavbarUser = () => {
             isDisabled={isSubmitting}
             startContent={<Icon icon="solar:upload-square-linear" width={18} />}
           >
-            导出数据
+            {t("navbarUser.menu.exportData")}
           </DropdownItem>
 
           {/* 导入数据 */}
@@ -398,7 +400,7 @@ export const NavbarUser = () => {
               <Icon icon="solar:download-square-linear" width={18} />
             }
           >
-            导入数据
+            {t("navbarUser.menu.importData")}
           </DropdownItem>
 
           {/* 系统设置 */}
@@ -406,7 +408,7 @@ export const NavbarUser = () => {
             key="system-settings"
             startContent={<Icon icon="solar:settings-linear" width={18} />}
           >
-            系统设置
+            {t("navbarUser.menu.systemSettings")}
           </DropdownItem>
 
           {/* 退出登录 */}
@@ -415,7 +417,7 @@ export const NavbarUser = () => {
             color="danger"
             startContent={<Icon icon="solar:logout-3-linear" width={18} />}
           >
-            退出登录
+            {t("navbarUser.menu.logout")}
           </DropdownItem>
         </DropdownMenu>
       </Dropdown>
@@ -441,14 +443,14 @@ export const NavbarUser = () => {
                     icon="solar:key-bold"
                     width={24}
                   />
-                  修改密码
+                  {t("navbarUser.changePassword.title")}
                 </div>
               </ModalHeader>
               <ModalBody>
                 <div className="flex flex-col gap-4">
                   <Input
-                    label="当前密码"
-                    placeholder="请输入当前密码"
+                    label={t("navbarUser.changePassword.currentPassword")}
+                    placeholder={t("navbarUser.changePassword.currentPasswordPlaceholder")}
                     startContent={
                       <Icon icon="solar:lock-password-linear" width={18} />
                     }
@@ -461,8 +463,8 @@ export const NavbarUser = () => {
                   />
 
                   <Input
-                    label="新密码"
-                    placeholder="请输入新密码"
+                    label={t("navbarUser.changePassword.newPassword")}
+                    placeholder={t("navbarUser.changePassword.newPasswordPlaceholder")}
                     startContent={<Icon icon="solar:key-linear" width={18} />}
                     type="password"
                     value={passwordForm.newPassword}
@@ -473,8 +475,8 @@ export const NavbarUser = () => {
                   />
 
                   <Input
-                    label="确认新密码"
-                    placeholder="请再次输入新密码"
+                    label={t("navbarUser.changePassword.confirmPassword")}
+                    placeholder={t("navbarUser.changePassword.confirmPasswordPlaceholder")}
                     startContent={<Icon icon="solar:key-linear" width={18} />}
                     type="password"
                     value={passwordForm.confirmPassword}
@@ -485,8 +487,8 @@ export const NavbarUser = () => {
                   />
 
                   <div className="text-small text-default-500">
-                    <p>• 密码长度至少为6位</p>
-                    <p>• 建议包含字母、数字和特殊字符</p>
+                    <p>{t("navbarUser.changePassword.hint1")}</p>
+                    <p>{t("navbarUser.changePassword.hint2")}</p>
                   </div>
                 </div>
               </ModalBody>
@@ -497,7 +499,7 @@ export const NavbarUser = () => {
                   variant="light"
                   onPress={onClose}
                 >
-                  取消
+                  {t("navbarUser.changePassword.cancel")}
                 </Button>
                 <Button
                   color="primary"
@@ -509,7 +511,7 @@ export const NavbarUser = () => {
                   }
                   onPress={handlePasswordChange}
                 >
-                  {isSubmitting ? "修改中..." : "确认修改"}
+                  {isSubmitting ? t("navbarUser.changePassword.submitting") : t("navbarUser.changePassword.submit")}
                 </Button>
               </ModalFooter>
             </>
@@ -538,14 +540,14 @@ export const NavbarUser = () => {
                     icon="solar:user-id-bold"
                     width={24}
                   />
-                  修改用户名
+                  {t("navbarUser.changeUsername.title")}
                 </div>
               </ModalHeader>
               <ModalBody>
                 <div className="flex flex-col gap-4">
                   <Input
-                    label="新用户名"
-                    placeholder="请输入新用户名"
+                    label={t("navbarUser.changeUsername.newUsername")}
+                    placeholder={t("navbarUser.changeUsername.newUsernamePlaceholder")}
                     startContent={<Icon icon="solar:user-linear" width={18} />}
                     value={newUsername}
                     variant="bordered"
@@ -553,8 +555,8 @@ export const NavbarUser = () => {
                   />
 
                   <div className="text-small text-default-500">
-                    <p>• 用户名将用于系统显示和登录</p>
-                    <p>• 修改后需要重新登录</p>
+                    <p>{t("navbarUser.changeUsername.hint1")}</p>
+                    <p>{t("navbarUser.changeUsername.hint2")}</p>
                   </div>
                 </div>
               </ModalBody>
@@ -565,7 +567,7 @@ export const NavbarUser = () => {
                   variant="light"
                   onPress={onClose}
                 >
-                  取消
+                  {t("navbarUser.changeUsername.cancel")}
                 </Button>
                 <Button
                   color="primary"
@@ -577,7 +579,7 @@ export const NavbarUser = () => {
                   }
                   onPress={handleUsernameChange}
                 >
-                  {isSubmitting ? "修改中..." : "确认修改"}
+                  {isSubmitting ? t("navbarUser.changeUsername.submitting") : t("navbarUser.changeUsername.submit")}
                 </Button>
               </ModalFooter>
             </>
@@ -606,7 +608,7 @@ export const NavbarUser = () => {
                     icon="solar:import-bold"
                     width={24}
                   />
-                  导入数据
+                  {t("navbarUser.importData.title")}
                 </div>
               </ModalHeader>
               <ModalBody>
@@ -624,10 +626,10 @@ export const NavbarUser = () => {
                       variant="light"
                       onPress={() => fileInputRef.current?.click()}
                     >
-                      选择文件
+                      {t("navbarUser.importData.selectFile")}
                     </Button>
                     <span className="text-small text-default-500">
-                      {selectedFile ? selectedFile.name : "未选择文件"}
+                      {selectedFile ? selectedFile.name : t("navbarUser.importData.noFileSelected")}
                     </span>
                     <input
                       ref={fileInputRef}
@@ -639,9 +641,9 @@ export const NavbarUser = () => {
                   </div>
 
                   <div className="text-small text-default-500">
-                    <p>• 请选择之前导出的 JSON 格式数据文件</p>
-                    <p>• 导入过程中请勿关闭窗口</p>
-                    <p>• 重复的数据将被自动跳过</p>
+                    <p>{t("navbarUser.importData.hint1")}</p>
+                    <p>{t("navbarUser.importData.hint2")}</p>
+                    <p>{t("navbarUser.importData.hint3")}</p>
                   </div>
                 </div>
               </ModalBody>
@@ -652,7 +654,7 @@ export const NavbarUser = () => {
                   variant="light"
                   onPress={onClose}
                 >
-                  取消
+                  {t("navbarUser.importData.cancel")}
                 </Button>
                 <Button
                   color="primary"
@@ -664,7 +666,7 @@ export const NavbarUser = () => {
                   }
                   onPress={handleImportData}
                 >
-                  {isSubmitting ? "导入中..." : "开始导入"}
+                  {isSubmitting ? t("navbarUser.importData.submitting") : t("navbarUser.importData.submit")}
                 </Button>
               </ModalFooter>
             </>

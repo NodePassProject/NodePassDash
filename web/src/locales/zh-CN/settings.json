@@ -131,19 +131,169 @@
     "avatar": {
       "title": "头像",
       "description": "上传您的头像图片，建议使用正方形图片",
-      "uploadButton": "上传新头像"
+      "uploadButton": "上传新头像",
+      "changeButton": "更换头像"
     },
     "fields": {
       "username": "用户名",
-      "usernamePlaceholder": "请输入用户名",
-      "email": "邮箱地址",
-      "emailPlaceholder": "请输入邮箱地址",
+      "usernamePlaceholder": "输入用户名",
+      "displayName": "显示名称",
+      "displayNamePlaceholder": "输入显示名称",
+      "position": "职位",
+      "positionPlaceholder": "输入您的职位",
+      "email": "电子邮箱",
+      "emailPlaceholder": "输入电子邮箱",
+      "location": "所在地",
+      "locationPlaceholder": "输入您的所在地",
+      "bio": "个人简介",
+      "bioPlaceholder": "简单介绍一下自己",
       "password": "修改密码",
       "passwordPlaceholder": "输入新密码"
     },
     "actions": {
       "reset": "重置",
       "save": "保存更改"
+    }
+  },
+  "notifications": {
+    "alerts": {
+      "title": "告警设置",
+      "description": "配置系统告警阈值和触发条件",
+      "systemResources": {
+        "title": "系统资源告警",
+        "cpuUsage": {
+          "title": "CPU 使用率告警",
+          "description": "CPU 使用率超过阈值时告警"
+        },
+        "memoryUsage": {
+          "title": "内存使用率告警",
+          "description": "内存使用率超过阈值时告警"
+        },
+        "diskUsage": {
+          "title": "磁盘使用率告警",
+          "description": "磁盘使用率超过阈值时告警"
+        }
+      },
+      "security": {
+        "title": "安全告警",
+        "loginFailure": {
+          "title": "登录失败告警",
+          "description": "连续登录失败超过次数时告警",
+          "unit": "次"
+        },
+        "remoteLogin": {
+          "title": "异地登录告警",
+          "description": "检测到异地登录时告警"
+        },
+        "sensitiveOps": {
+          "title": "敏感操作告警",
+          "description": "执行敏感操作时告警"
+        }
+      }
+    },
+    "channels": {
+      "title": "通知渠道",
+      "description": "管理系统通知的发送渠道",
+      "addButton": "添加通知渠道",
+      "telegram": {
+        "title": "Telegram 通知",
+        "description": "通过 Telegram Bot 发送通知",
+        "botToken": "Bot Token",
+        "botTokenPlaceholder": "输入 Telegram Bot Token",
+        "chatId": "Chat ID",
+        "chatIdPlaceholder": "输入 Chat ID"
+      },
+      "wechat": {
+        "title": "企业微信通知",
+        "description": "通过企业微信机器人发送通知",
+        "webhookUrl": "Webhook URL",
+        "webhookUrlPlaceholder": "输入企业微信 Webhook URL"
+      },
+      "dingtalk": {
+        "title": "钉钉通知",
+        "description": "通过钉钉机器人发送通知",
+        "webhookUrl": "Webhook URL",
+        "webhookUrlPlaceholder": "输入钉钉 Webhook URL",
+        "secret": "安全密钥",
+        "secretPlaceholder": "输入安全密钥（可选）"
+      },
+      "webhook": {
+        "title": "Webhook 通知",
+        "description": "通过自定义 Webhook 发送通知",
+        "webhookUrl": "Webhook URL",
+        "webhookUrlPlaceholder": "输入 Webhook URL",
+        "method": "请求方法",
+        "headers": "请求头",
+        "headersPlaceholder": "输入 JSON 格式的请求头",
+        "template": "消息模板",
+        "templatePlaceholder": "输入 JSON 格式的消息模板"
+      },
+      "gotify": {
+        "title": "Gotify 通知",
+        "description": "通过 Gotify 服务发送通知",
+        "serverUrl": "服务器地址",
+        "serverUrlPlaceholder": "输入 Gotify 服务器地址",
+        "appToken": "应用令牌",
+        "appTokenPlaceholder": "输入应用令牌"
+      },
+      "testButton": "测试通知"
+    },
+    "groups": {
+      "title": "通知组",
+      "description": "管理通知接收组和接收人",
+      "addButton": "添加通知组",
+      "operations": {
+        "edit": "编辑",
+        "delete": "删除"
+      },
+      "opsTeam": {
+        "title": "运维团队",
+        "description": "接收系统运维相关的通知"
+      },
+      "securityTeam": {
+        "title": "安全团队",
+        "description": "接收安全相关的告警通知"
+      },
+      "addMember": "添加成员",
+      "members": {
+        "zhangsan": "张三",
+        "lisi": "李四",
+        "wangwu": "王五"
+      }
+    },
+    "rules": {
+      "title": "通知规则",
+      "description": "配置通知的触发规则和发送策略",
+      "addButton": "添加规则",
+      "systemAlerts": {
+        "title": "系统资源告警规则",
+        "description": "当系统资源超过阈值时通知运维团队"
+      },
+      "securityAlerts": {
+        "title": "安全事件告警规则",
+        "description": "发现安全事件时立即通知安全团队"
+      },
+      "fields": {
+        "triggerCondition": "触发条件",
+        "notificationGroup": "通知组",
+        "notificationChannel": "通知渠道"
+      },
+      "exampleConditions": {
+        "cpuMemory": "CPU > 80% 或 内存 > 90%",
+        "securityEvents": "检测到异常登录或敏感操作"
+      },
+      "exampleGroups": {
+        "ops": "运维团队",
+        "security": "安全团队"
+      },
+      "exampleChannels": {
+        "telegramWechat": "Telegram, 企业微信",
+        "telegramDingtalk": "Telegram, 钉钉"
+      },
+      "operations": {
+        "edit": "编辑",
+        "delete": "删除"
+      }
     }
   },
   "security": {
