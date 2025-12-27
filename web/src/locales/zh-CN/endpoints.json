@@ -230,5 +230,230 @@
     "refreshSuccessDesc": "隧道信息已刷新",
     "refreshFailed": "刷新失败",
     "refreshFailedDesc": "刷新请求失败"
+  },
+  "editApiKeyModal": {
+    "title": "修改 API 密钥",
+    "endpoint": "主控",
+    "warningTitle": "⚠️ 重要提醒",
+    "warningMessage": "修改API密钥后，当前连接将断开，需要使用新密钥重新连接主控。",
+    "newApiKey": "新 API 密钥",
+    "newApiKeyPlaceholder": "请输入新的API密钥",
+    "cancel": "取消",
+    "confirm": "确认修改",
+    "saving": "保存中..."
+  },
+  "renameModal": {
+    "title": "重命名主控",
+    "label": "主控名称",
+    "placeholder": "请输入新的主控名称",
+    "cancel": "取消",
+    "save": "保存",
+    "saving": "保存中..."
+  },
+  "details": {
+    "pageTitle": "主控详情",
+    "refresh": "刷新",
+    "sseDebug": "SSE调试",
+    "tlsConfig": {
+      "none": "无TLS",
+      "selfSigned": "自签名证书",
+      "custom": "自定义证书"
+    },
+    "uptimeUnit": {
+      "days": "天",
+      "hours": "h",
+      "minutes": "m",
+      "seconds": "s"
+    },
+    "instanceStatus": {
+      "running": "运行中",
+      "stopped": "已停止",
+      "error": "错误",
+      "starting": "启动中",
+      "stopping": "停止中",
+      "unknown": "未知"
+    },
+    "stats": {
+      "title": "主控统计",
+      "description": "当前主控的数据统计概览",
+      "tunnelCount": "实例总数量",
+      "activeTunnels": "活跃实例",
+      "logFileCount": "日志文件数",
+      "logFiles": "日志文件",
+      "logFileSize": "日志文件大小",
+      "diskUsage": "磁盘占用",
+      "totalTraffic": "总流量",
+      "noData": "无法获取统计数据"
+    },
+    "actions": {
+      "title": "主控操作",
+      "addInstance": "添加实例",
+      "syncInstances": "同步实例",
+      "networkDebug": "网络调试",
+      "disconnect": "断开连接",
+      "connect": "连接主控",
+      "copyConfig": "复制配置",
+      "editConfig": "修改配置",
+      "resetKey": "重置密钥",
+      "delete": "删除主控"
+    },
+    "info": {
+      "title": "主控信息",
+      "qrCodeTitle": "显示二维码",
+      "serverAddress": "服务地址",
+      "apiKey": "API Key",
+      "os": "操作系统",
+      "arch": "架构",
+      "logLevel": "日志级别",
+      "tlsConfig": "TLS配置",
+      "uptime": "在线时长",
+      "certPath": "证书路径",
+      "keyPath": "密钥路径",
+      "createdAt": "创建时间：",
+      "updatedAt": "更新时间：",
+      "lastCheck": "最后检查："
+    },
+    "instances": {
+      "title": "主控实例",
+      "noData": "暂无实例数据",
+      "server": "服务端",
+      "client": "客户端",
+      "unnamed": "未命名"
+    },
+    "modals": {
+      "extractInstances": {
+        "title": "实例URL提取",
+        "copyAll": "复制全部",
+        "close": "关闭",
+        "copied": "已复制"
+      },
+      "addInstance": {
+        "title": "添加实例",
+        "nameLabel": "实例名称",
+        "namePlaceholder": "请输入实例名称（可选）",
+        "urlLabel": "隧道URL",
+        "urlPlaceholder": "例如：server://0.0.0.0:8080/127.0.0.1:3000",
+        "formatHint": "格式：server://bind_addr:bind_port/target_host:target_port 或 client://server_host:server_port/local_host:local_port",
+        "cancel": "取消",
+        "add": "添加"
+      },
+      "editConfig": {
+        "title": "修改主控配置",
+        "warning": "⚠️ 修改URL地址或密钥将会断开当前连接并使用新配置重新连接",
+        "nameLabel": "主控名称",
+        "namePlaceholder": "请输入主控名称",
+        "urlLabel": "URL 地址",
+        "urlPlaceholder": "http(s)://example.com:9090/api/v1",
+        "apiKeyLabel": "API密钥",
+        "apiKeyPlaceholder": "留空表示不修改密钥",
+        "apiKeyDescription": "留空表示不修改密钥",
+        "hostnameLabel": "连接 IP",
+        "hostnamePlaceholder": "例如：192.168.1.1",
+        "hostnameDescription": "用于实例连接的地址",
+        "cancel": "取消",
+        "confirm": "确定修改"
+      },
+      "importUrl": {
+        "title": "导入URL",
+        "placeholder": "在此粘贴 URL，每行一个...",
+        "confirm": "确定",
+        "cancel": "取消"
+      },
+      "resetApiKey": {
+        "title": "重置API密钥",
+        "warningTitle": "⚠️ 重要提醒",
+        "warningMessage": "重置API密钥后，当前连接将断开，需要使用新密钥重新连接主控。",
+        "confirmMessage": "您确定要重置此主控的API密钥吗？此操作将：",
+        "consequences": {
+          "newKey": "生成新的API密钥",
+          "disconnect": "断开当前连接",
+          "reconnect": "需要使用新密钥重新连接"
+        },
+        "cancel": "取消",
+        "confirm": "确认重置"
+      },
+      "deleteEndpoint": {
+        "title": "删除主控",
+        "warningTitle": "⚠️ 危险操作",
+        "warningMessage": "删除主控后，所有相关的实例和配置信息将永久丢失，无法恢复。",
+        "confirmMessage": "您确定要删除主控",
+        "confirmMessageEnd": "吗？此操作将：",
+        "consequences": {
+          "deleteConfig": "永久删除主控配置",
+          "deleteInstances": "删除所有关联的实例",
+          "clearHistory": "清除所有历史数据",
+          "irreversible": "此操作不可撤销"
+        },
+        "cancel": "取消",
+        "confirm": "确认删除"
+      },
+      "qrCode": {
+        "title": "主控配置二维码",
+        "description": "扫描此二维码可快速配置主控连接",
+        "downloadApp": "下载移动端应用",
+        "iosVersion": "iOS 版本",
+        "androidVersion": "Android 版本",
+        "androidInDevelopment": "正在开发中",
+        "androidDescription": "Android 版本正在开发中，敬请期待！"
+      }
+    },
+    "toasts": {
+      "fetchDetailFailed": "获取主控详情失败",
+      "loadFailed": "加载失败",
+      "fetchStatsFailed": "获取统计信息失败",
+      "fetchInstancesFailed": "获取实例列表失败",
+      "connectSuccess": "连接成功",
+      "connectSuccessDesc": "主控连接请求已发送",
+      "connectFailed": "连接失败",
+      "connectFailedDesc": "连接请求失败",
+      "disconnectSuccess": "断开连接成功",
+      "disconnectSuccessDesc": "主控连接已断开",
+      "disconnectFailed": "断开连接失败",
+      "disconnectFailedDesc": "断开连接失败",
+      "refreshSuccess": "刷新成功",
+      "refreshSuccessDesc": "隧道信息已刷新",
+      "refreshFailed": "刷新失败",
+      "refreshFailedDesc": "刷新请求失败",
+      "configCopied": "已复制",
+      "configCopiedDesc": "配置信息已复制到剪贴板",
+      "resetKeyStart": "开始重置密钥",
+      "resetKeyDisconnecting": "正在断开当前连接...",
+      "resetKeySuccess": "密钥重置成功",
+      "resetKeySuccessDesc": "新密钥已生成，正在重新连接...",
+      "resetKeyFailed": "密钥重置失败",
+      "resetKeyFailedDesc": "重置失败",
+      "deleteSuccess": "删除成功",
+      "deleteSuccessDesc": "主控已删除",
+      "deleteFailed": "删除失败",
+      "deleteFailedDesc": "删除失败",
+      "addInstanceUrlRequired": "请输入 URL",
+      "addInstanceUrlRequiredDesc": "隧道 URL 不能为空",
+      "addInstanceSuccess": "创建成功",
+      "addInstanceSuccessDesc": "隧道已创建",
+      "addInstanceFailed": "创建失败",
+      "addInstanceFailedDesc": "无法创建隧道",
+      "editConfigValidation": "请填写完整信息",
+      "editConfigValidationDesc": "名称和URL地址不能为空",
+      "editConfigNoChange": "没有变更",
+      "editConfigNoChangeDesc": "未检测到任何配置变更",
+      "editConfigStartUpdate": "开始更新配置",
+      "editConfigStartUpdateDesc": "正在处理配置更新...",
+      "editConfigDisconnecting": "断开连接中",
+      "editConfigDisconnectingDesc": "正在断开当前连接...",
+      "editConfigUpdating": "更新配置中",
+      "editConfigUpdatingDesc": "正在提交配置更新...",
+      "editConfigSuccess": "配置更新成功",
+      "editConfigSuccessDesc": "配置已更新，正在刷新数据...",
+      "editConfigReconnecting": "重新连接中",
+      "editConfigReconnectingDesc": "正在尝试重新连接...",
+      "editConfigFailed": "配置更新失败",
+      "editConfigFailedDesc": "更新失败",
+      "refreshAllSuccess": "刷新成功",
+      "refreshAllSuccessDesc": "所有数据已刷新",
+      "refreshAllFailed": "刷新失败",
+      "refreshAllFailedDesc": "刷新失败",
+      "qrCodeFailed": "生成二维码失败",
+      "qrCodeFailedDesc": "未知错误"
+    }
   }
 }

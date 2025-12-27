@@ -8,6 +8,7 @@ import {
   ModalHeader,
 } from "@heroui/react";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faPen } from "@fortawesome/free-solid-svg-icons";
 
@@ -26,6 +27,7 @@ export default function RenameEndpointModal({
   currentName,
   onRename,
 }: RenameEndpointModalProps) {
+  const { t } = useTranslation("endpoints");
   const [newName, setNewName] = useState("");
   const [isLoading, setIsLoading] = useState(false);
 
@@ -62,7 +64,7 @@ export default function RenameEndpointModal({
             <ModalHeader className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-primary" icon={faPen} />
-                <span>重命名主控</span>
+                <span>{t("renameModal.title")}</span>
               </div>
             </ModalHeader>
 
@@ -71,8 +73,8 @@ export default function RenameEndpointModal({
                 autoFocus
                 isRequired
                 description={textLimit.description}
-                label="主控名称"
-                placeholder="请输入新的主控名称"
+                label={t("renameModal.label")}
+                placeholder={t("renameModal.placeholder")}
                 value={newName}
                 variant="bordered"
                 onKeyDown={(e) => {
@@ -91,7 +93,7 @@ export default function RenameEndpointModal({
                 variant="light"
                 onPress={onClose}
               >
-                取消
+                {t("renameModal.cancel")}
               </Button>
               <Button
                 color="primary"
@@ -103,7 +105,7 @@ export default function RenameEndpointModal({
                 isLoading={isLoading}
                 onPress={handleSubmit}
               >
-                {isLoading ? "保存中..." : "保存"}
+                {isLoading ? t("renameModal.saving") : t("renameModal.save")}
               </Button>
             </ModalFooter>
           </>

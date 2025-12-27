@@ -48,6 +48,7 @@ import { useNavigate } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
 import { addToast } from "@heroui/toast";
 import QRCode from "qrcode";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl, formatUrlWithPrivacy } from "@/lib/utils";
 import { OSIcon } from "@/components/ui/os-icon";
@@ -92,6 +93,7 @@ interface EndpointStats {
 }
 
 export default function EndpointDetailPage() {
+  const { t } = useTranslation("endpoints");
   const navigate = useNavigate();
   const [searchParams] = useSearchParams();
   const endpointId = searchParams.get("id");

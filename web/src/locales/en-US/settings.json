@@ -95,6 +95,36 @@
       "resetSuccessDesc": "Settings have been restored to default values"
     }
   },
+  "auth": {
+    "title": "Authentication",
+    "description": "Manage authentication and OAuth2 authorization configuration",
+    "loginMethods": {
+      "title": "Login Methods",
+      "local": {
+        "title": "Local Account Password",
+        "description": "Login with username and password"
+      },
+      "github": {
+        "title": "GitHub OAuth",
+        "description": "Login with GitHub account"
+      },
+      "cloudflare": {
+        "title": "Cloudflare OAuth",
+        "description": "Login with Cloudflare account"
+      }
+    },
+    "oauth2Config": {
+      "title": "OAuth2 Configuration",
+      "clientId": "Client ID",
+      "clientIdPlaceholder": "Enter OAuth2 Client ID",
+      "clientSecret": "Client Secret",
+      "clientSecretPlaceholder": "Enter OAuth2 Client Secret"
+    },
+    "actions": {
+      "reset": "Reset",
+      "save": "Save Changes"
+    }
+  },
   "profile": {
     "title": "Personal Profile",
     "description": "Manage your personal information and account settings",

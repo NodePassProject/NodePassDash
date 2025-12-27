@@ -1,0 +1,12 @@
+{
+  "confirmation": {
+    "defaultConfirm": "Confirm",
+    "defaultCancel": "Cancel"
+  },
+  "manualCopy": {
+    "defaultTitle": "Manual Copy",
+    "description": "Auto-copy failed, please manually select and copy the following content:",
+    "hint": "💡 Tip: Click the text box above to select all content, then use Ctrl+C (Windows) or Cmd+C (Mac) to copy",
+    "understood": "Got it"
+  }
+}

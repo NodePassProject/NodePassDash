@@ -1,0 +1,12 @@
+{
+  "confirmation": {
+    "defaultConfirm": "确认",
+    "defaultCancel": "取消"
+  },
+  "manualCopy": {
+    "defaultTitle": "手动复制",
+    "description": "自动复制失败，请手动选择并复制以下内容：",
+    "hint": "💡 提示：点击上方文本框可全选内容，然后使用 Ctrl+C (Windows) 或 Cmd+C (Mac) 复制",
+    "understood": "知道了"
+  }
+}

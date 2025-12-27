@@ -8,6 +8,7 @@ import {
   ModalHeader,
 } from "@heroui/react";
 import { useState, useEffect } from "react";
+import { useTranslation } from "react-i18next";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faKey, faEye, faEyeSlash } from "@fortawesome/free-solid-svg-icons";
 
@@ -26,6 +27,7 @@ export default function EditApiKeyModal({
   endpointName,
   onSave,
 }: EditApiKeyModalProps) {
+  const { t } = useTranslation("endpoints");
   const [newApiKey, setNewApiKey] = useState("");
   const [showApiKey, setShowApiKey] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
@@ -61,10 +63,10 @@ export default function EditApiKeyModal({
             <ModalHeader className="flex flex-col gap-1">
               <div className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-warning" icon={faKey} />
-                <span>修改 API 密钥</span>
+                <span>{t("editApiKeyModal.title")}</span>
               </div>
               <p className="text-small text-default-500">
-                主控：{endpointName}
+                {t("editApiKeyModal.endpoint")}: {endpointName}
               </p>
             </ModalHeader>
 
@@ -78,10 +80,10 @@ export default function EditApiKeyModal({
                     />
                     <div>
                       <h4 className="font-semibold text-warning-800 mb-1">
-                        ⚠️ 重要提醒
+                        {t("editApiKeyModal.warningTitle")}
                       </h4>
                       <p className="text-sm text-warning-700">
-                        修改API密钥后，当前连接将断开，需要使用新密钥重新连接主控。
+                        {t("editApiKeyModal.warningMessage")}
                       </p>
                     </div>
                   </div>
@@ -102,8 +104,8 @@ export default function EditApiKeyModal({
                       />
                     </button>
                   }
-                  label="新 API 密钥"
-                  placeholder="请输入新的API密钥"
+                  label={t("editApiKeyModal.newApiKey")}
+                  placeholder={t("editApiKeyModal.newApiKeyPlaceholder")}
                   type={showApiKey ? "text" : "password"}
                   value={newApiKey}
                   variant="bordered"
@@ -124,7 +126,7 @@ export default function EditApiKeyModal({
                 variant="light"
                 onPress={onClose}
               >
-                取消
+                {t("editApiKeyModal.cancel")}
               </Button>
               <Button
                 color="warning"
@@ -132,7 +134,7 @@ export default function EditApiKeyModal({
                 isLoading={isLoading}
                 onPress={handleSubmit}
               >
-                {isLoading ? "保存中..." : "确认修改"}
+                {isLoading ? t("editApiKeyModal.saving") : t("editApiKeyModal.confirm")}
               </Button>
             </ModalFooter>
           </>

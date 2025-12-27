@@ -1,4 +1,3 @@
-import React from "react";
 import {
   Card,
   CardHeader,
@@ -7,25 +6,28 @@ import {
   Button,
   Input,
 } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faIdCard, faKey } from "@fortawesome/free-solid-svg-icons";
 import { Icon } from "@iconify/react";
 
 export function AuthSettings() {
+  const { t } = useTranslation("settings");
+
   return (
     <Card>
       <CardHeader>
         <div className="flex flex-col gap-1">
-          <h3 className="text-xl font-semibold text-foreground">身份验证</h3>
+          <h3 className="text-xl font-semibold text-foreground">{t("auth.title")}</h3>
           <p className="text-small text-default-500">
-            管理身份验证和 OAuth2 授权配置
+            {t("auth.description")}
           </p>
         </div>
       </CardHeader>
       <CardBody className="space-y-6">
         {/* Authentication Method */}
         <div className="space-y-4">
-          <h4 className="text-medium font-medium text-foreground">登录方式</h4>
+          <h4 className="text-medium font-medium text-foreground">{t("auth.loginMethods.title")}</h4>
 
           {/* Local Authentication */}
           <div className="flex items-center justify-between">
@@ -37,9 +39,9 @@ export function AuthSettings() {
                 />
               </span>
               <div>
-                <p className="text-foreground">本地账号密码</p>
+                <p className="text-foreground">{t("auth.loginMethods.local.title")}</p>
                 <p className="text-small text-default-500">
-                  使用用户名和密码登录
+                  {t("auth.loginMethods.local.description")}
                 </p>
               </div>
             </div>
@@ -53,9 +55,9 @@ export function AuthSettings() {
                 <Icon className="w-5 h-5 text-default-500" icon="mdi:github" />
               </span>
               <div>
-                <p className="text-foreground">GitHub OAuth</p>
+                <p className="text-foreground">{t("auth.loginMethods.github.title")}</p>
                 <p className="text-small text-default-500">
-                  使用 GitHub 账号登录
+                  {t("auth.loginMethods.github.description")}
                 </p>
               </div>
             </div>
@@ -72,9 +74,9 @@ export function AuthSettings() {
                 />
               </span>
               <div>
-                <p className="text-foreground">Cloudflare OAuth</p>
+                <p className="text-foreground">{t("auth.loginMethods.cloudflare.title")}</p>
                 <p className="text-small text-default-500">
-                  使用 Cloudflare 账号登录
+                  {t("auth.loginMethods.cloudflare.description")}
                 </p>
               </div>
             </div>
@@ -85,13 +87,13 @@ export function AuthSettings() {
         {/* OAuth2 Settings */}
         <div className="space-y-4">
           <h4 className="text-medium font-medium text-foreground">
-            OAuth2 配置
+            {t("auth.oauth2Config.title")}
           </h4>
 
           {/* Client ID */}
           <Input
-            label="Client ID"
-            placeholder="请输入 OAuth2 Client ID"
+            label={t("auth.oauth2Config.clientId")}
+            placeholder={t("auth.oauth2Config.clientIdPlaceholder")}
             startContent={
               <FontAwesomeIcon
                 className="text-default-400 pointer-events-none flex-shrink-0"
@@ -103,8 +105,8 @@ export function AuthSettings() {
 
           {/* Client Secret */}
           <Input
-            label="Client Secret"
-            placeholder="请输入 OAuth2 Client Secret"
+            label={t("auth.oauth2Config.clientSecret")}
+            placeholder={t("auth.oauth2Config.clientSecretPlaceholder")}
             startContent={
               <FontAwesomeIcon
                 className="text-default-400 pointer-events-none flex-shrink-0"
@@ -118,9 +120,9 @@ export function AuthSettings() {
         {/* Actions */}
         <div className="flex justify-end gap-3 pt-4">
           <Button color="danger" variant="light">
-            重置
+            {t("auth.actions.reset")}
           </Button>
-          <Button color="primary">保存更改</Button>
+          <Button color="primary">{t("auth.actions.save")}</Button>
         </div>
       </CardBody>
     </Card>

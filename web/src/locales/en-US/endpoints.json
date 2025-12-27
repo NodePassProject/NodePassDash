@@ -230,5 +230,230 @@
     "refreshSuccessDesc": "Tunnel information has been refreshed",
     "refreshFailed": "Refresh Failed",
     "refreshFailedDesc": "Refresh request failed"
+  },
+  "editApiKeyModal": {
+    "title": "Modify API Key",
+    "endpoint": "Endpoint",
+    "warningTitle": "⚠️ Important Reminder",
+    "warningMessage": "After modifying the API key, the current connection will be disconnected and you need to reconnect to the endpoint with the new key.",
+    "newApiKey": "New API Key",
+    "newApiKeyPlaceholder": "Enter new API key",
+    "cancel": "Cancel",
+    "confirm": "Confirm Modification",
+    "saving": "Saving..."
+  },
+  "renameModal": {
+    "title": "Rename Endpoint",
+    "label": "Endpoint Name",
+    "placeholder": "Enter new endpoint name",
+    "cancel": "Cancel",
+    "save": "Save",
+    "saving": "Saving..."
+  },
+  "details": {
+    "pageTitle": "Endpoint Details",
+    "refresh": "Refresh",
+    "sseDebug": "SSE Debug",
+    "tlsConfig": {
+      "none": "No TLS",
+      "selfSigned": "Self-signed Certificate",
+      "custom": "Custom Certificate"
+    },
+    "uptimeUnit": {
+      "days": "d",
+      "hours": "h",
+      "minutes": "m",
+      "seconds": "s"
+    },
+    "instanceStatus": {
+      "running": "Running",
+      "stopped": "Stopped",
+      "error": "Error",
+      "starting": "Starting",
+      "stopping": "Stopping",
+      "unknown": "Unknown"
+    },
+    "stats": {
+      "title": "Endpoint Statistics",
+      "description": "Data statistics overview for current endpoint",
+      "tunnelCount": "Total Instances",
+      "activeTunnels": "Active Instances",
+      "logFileCount": "Log File Count",
+      "logFiles": "Log Files",
+      "logFileSize": "Log File Size",
+      "diskUsage": "Disk Usage",
+      "totalTraffic": "Total Traffic",
+      "noData": "Unable to fetch statistics data"
+    },
+    "actions": {
+      "title": "Endpoint Actions",
+      "addInstance": "Add Instance",
+      "syncInstances": "Sync Instances",
+      "networkDebug": "Network Debug",
+      "disconnect": "Disconnect",
+      "connect": "Connect",
+      "copyConfig": "Copy Config",
+      "editConfig": "Edit Config",
+      "resetKey": "Reset Key",
+      "delete": "Delete Endpoint"
+    },
+    "info": {
+      "title": "Endpoint Information",
+      "qrCodeTitle": "Show QR Code",
+      "serverAddress": "Server Address",
+      "apiKey": "API Key",
+      "os": "Operating System",
+      "arch": "Architecture",
+      "logLevel": "Log Level",
+      "tlsConfig": "TLS Configuration",
+      "uptime": "Uptime",
+      "certPath": "Certificate Path",
+      "keyPath": "Key Path",
+      "createdAt": "Created At: ",
+      "updatedAt": "Updated At: ",
+      "lastCheck": "Last Check: "
+    },
+    "instances": {
+      "title": "Endpoint Instances",
+      "noData": "No instance data",
+      "server": "Server",
+      "client": "Client",
+      "unnamed": "Unnamed"
+    },
+    "modals": {
+      "extractInstances": {
+        "title": "Extract Instance URLs",
+        "copyAll": "Copy All",
+        "close": "Close",
+        "copied": "Copied"
+      },
+      "addInstance": {
+        "title": "Add Instance",
+        "nameLabel": "Instance Name",
+        "namePlaceholder": "Enter instance name (optional)",
+        "urlLabel": "Tunnel URL",
+        "urlPlaceholder": "Example: server://0.0.0.0:8080/127.0.0.1:3000",
+        "formatHint": "Format: server://bind_addr:bind_port/target_host:target_port or client://server_host:server_port/local_host:local_port",
+        "cancel": "Cancel",
+        "add": "Add"
+      },
+      "editConfig": {
+        "title": "Edit Endpoint Configuration",
+        "warning": "⚠️ Modifying URL or API key will disconnect current connection and reconnect with new configuration",
+        "nameLabel": "Endpoint Name",
+        "namePlaceholder": "Enter endpoint name",
+        "urlLabel": "URL Address",
+        "urlPlaceholder": "http(s)://example.com:9090/api/v1",
+        "apiKeyLabel": "API Key",
+        "apiKeyPlaceholder": "Leave blank to keep current key",
+        "apiKeyDescription": "Leave blank to keep current key",
+        "hostnameLabel": "Connection IP",
+        "hostnamePlaceholder": "Example: 192.168.1.1",
+        "hostnameDescription": "Address for instance connection",
+        "cancel": "Cancel",
+        "confirm": "Confirm Modification"
+      },
+      "importUrl": {
+        "title": "Import URLs",
+        "placeholder": "Paste URLs here, one per line...",
+        "confirm": "Confirm",
+        "cancel": "Cancel"
+      },
+      "resetApiKey": {
+        "title": "Reset API Key",
+        "warningTitle": "⚠️ Important Reminder",
+        "warningMessage": "After resetting the API key, the current connection will be disconnected and you need to reconnect with the new key.",
+        "confirmMessage": "Are you sure you want to reset the API key for this endpoint? This action will:",
+        "consequences": {
+          "newKey": "Generate a new API key",
+          "disconnect": "Disconnect current connection",
+          "reconnect": "Require reconnection with new key"
+        },
+        "cancel": "Cancel",
+        "confirm": "Confirm Reset"
+      },
+      "deleteEndpoint": {
+        "title": "Delete Endpoint",
+        "warningTitle": "⚠️ Dangerous Operation",
+        "warningMessage": "After deleting the endpoint, all related instances and configuration information will be permanently lost and cannot be recovered.",
+        "confirmMessage": "Are you sure you want to delete endpoint",
+        "confirmMessageEnd": "? This action will:",
+        "consequences": {
+          "deleteConfig": "Permanently delete endpoint configuration",
+          "deleteInstances": "Delete all associated instances",
+          "clearHistory": "Clear all historical data",
+          "irreversible": "This action cannot be undone"
+        },
+        "cancel": "Cancel",
+        "confirm": "Confirm Delete"
+      },
+      "qrCode": {
+        "title": "Endpoint Configuration QR Code",
+        "description": "Scan this QR code to quickly configure endpoint connection",
+        "downloadApp": "Download Mobile App",
+        "iosVersion": "iOS Version",
+        "androidVersion": "Android Version",
+        "androidInDevelopment": "In Development",
+        "androidDescription": "Android version is under development, stay tuned!"
+      }
+    },
+    "toasts": {
+      "fetchDetailFailed": "Failed to fetch endpoint details",
+      "loadFailed": "Load failed",
+      "fetchStatsFailed": "Failed to fetch statistics",
+      "fetchInstancesFailed": "Failed to fetch instance list",
+      "connectSuccess": "Connect successful",
+      "connectSuccessDesc": "Endpoint connection request sent",
+      "connectFailed": "Connect failed",
+      "connectFailedDesc": "Connection request failed",
+      "disconnectSuccess": "Disconnect successful",
+      "disconnectSuccessDesc": "Endpoint connection has been disconnected",
+      "disconnectFailed": "Disconnect failed",
+      "disconnectFailedDesc": "Disconnect failed",
+      "refreshSuccess": "Refresh successful",
+      "refreshSuccessDesc": "Tunnel information has been refreshed",
+      "refreshFailed": "Refresh failed",
+      "refreshFailedDesc": "Refresh request failed",
+      "configCopied": "Copied",
+      "configCopiedDesc": "Configuration copied to clipboard",
+      "resetKeyStart": "Starting key reset",
+      "resetKeyDisconnecting": "Disconnecting current connection...",
+      "resetKeySuccess": "Key reset successful",
+      "resetKeySuccessDesc": "New key generated, reconnecting...",
+      "resetKeyFailed": "Key reset failed",
+      "resetKeyFailedDesc": "Reset failed",
+      "deleteSuccess": "Delete successful",
+      "deleteSuccessDesc": "Endpoint has been deleted",
+      "deleteFailed": "Delete failed",
+      "deleteFailedDesc": "Delete failed",
+      "addInstanceUrlRequired": "Please enter URL",
+      "addInstanceUrlRequiredDesc": "Tunnel URL cannot be empty",
+      "addInstanceSuccess": "Create successful",
+      "addInstanceSuccessDesc": "Tunnel has been created",
+      "addInstanceFailed": "Create failed",
+      "addInstanceFailedDesc": "Unable to create tunnel",
+      "editConfigValidation": "Please fill in complete information",
+      "editConfigValidationDesc": "Name and URL address cannot be empty",
+      "editConfigNoChange": "No changes",
+      "editConfigNoChangeDesc": "No configuration changes detected",
+      "editConfigStartUpdate": "Starting configuration update",
+      "editConfigStartUpdateDesc": "Processing configuration update...",
+      "editConfigDisconnecting": "Disconnecting",
+      "editConfigDisconnectingDesc": "Disconnecting current connection...",
+      "editConfigUpdating": "Updating configuration",
+      "editConfigUpdatingDesc": "Submitting configuration update...",
+      "editConfigSuccess": "Configuration update successful",
+      "editConfigSuccessDesc": "Configuration updated, refreshing data...",
+      "editConfigReconnecting": "Reconnecting",
+      "editConfigReconnectingDesc": "Attempting to reconnect...",
+      "editConfigFailed": "Configuration update failed",
+      "editConfigFailedDesc": "Update failed",
+      "refreshAllSuccess": "Refresh successful",
+      "refreshAllSuccessDesc": "All data has been refreshed",
+      "refreshAllFailed": "Refresh failed",
+      "refreshAllFailedDesc": "Refresh failed",
+      "qrCodeFailed": "Failed to generate QR code",
+      "qrCodeFailedDesc": "Unknown error"
+    }
   }
 }

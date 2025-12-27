@@ -7,6 +7,7 @@ import {
   ModalFooter,
   Button,
 } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 import { Icon } from "@iconify/react";
 
 interface ConfirmationModalProps {
@@ -29,13 +30,15 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
   onConfirm,
   title,
   message,
-  confirmText = "确认",
-  cancelText = "取消",
+  confirmText,
+  cancelText,
   confirmColor = "danger",
   isLoading = false,
   icon = "solar:danger-triangle-bold",
   iconColor = "text-warning",
 }) => {
+  const { t } = useTranslation("modals");
+
   return (
     <Modal isOpen={isOpen} onClose={onClose}>
       <ModalContent>
@@ -50,14 +53,14 @@ export const ConfirmationModal: React.FC<ConfirmationModalProps> = ({
         </ModalBody>
         <ModalFooter>
           <Button disabled={isLoading} variant="light" onPress={onClose}>
-            {cancelText}
+            {cancelText || t("confirmation.defaultCancel")}
           </Button>
           <Button
             color={confirmColor}
             isLoading={isLoading}
             onPress={onConfirm}
           >
-            {confirmText}
+            {confirmText || t("confirmation.defaultConfirm")}
           </Button>
         </ModalFooter>
       </ModalContent>
