@@ -765,9 +765,9 @@ func (s *TunnelShared) copyTunnel(src *models.Tunnel) *models.Tunnel {
 		dial := *src.Dial
 		dst.Dial = &dial
 	}
-	if src.Quic != nil {
-		quic := *src.Quic
-		dst.Quic = &quic
+	if src.PoolType != nil {
+		poolType := *src.PoolType
+		dst.PoolType = &poolType
 	}
 	if src.Dns != nil {
 		dns := *src.Dns

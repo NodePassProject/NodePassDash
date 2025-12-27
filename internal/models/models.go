@@ -98,7 +98,7 @@ type Tunnel struct {
 	ConfigLine *string `json:"configLine,omitempty" gorm:"type:text;column:config_line"`
 	Peer       *Peer   `json:"peer,omitempty" gorm:"type:text;serializer:json;column:peer"`
 	Dial       *string `json:"dial,omitempty" gorm:"type:text;column:dial"` //出站源IP地址
-	Quic       *bool   `json:"quic,omitempty" gorm:"type:bool;column:quic"`
+	PoolType   *int    `json:"poolType,omitempty" gorm:"type:int;column:pool_type"`
 	Dns        *string `json:"dns,omitempty" gorm:"type:text;column:dns"`
 
 	Sorts int64 `json:"sorts" gorm:"type:int;column:sorts;default:0"`

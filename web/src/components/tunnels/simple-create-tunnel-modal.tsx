@@ -155,7 +155,7 @@ export default function SimpleCreateTunnelModal({
     proxyProtocol: "", // Proxy Protocol 支持：开启/关闭
     loadBalancingIPs: "", // 负载均衡IP地址，一行一个
     extendTargetAddresses: "", // 扩展目标地址，一行一个
-    quic: "", // QUIC 支持：启用/关闭
+    poolType: "0", // 池类型：0-TCP, 1-QUIC, 2-WebSocket, 3-HTTP/2 (默认TCP)
     dial: "",// Dial
     sorts: "",
     dns: "",
@@ -235,11 +235,9 @@ export default function SimpleCreateTunnelModal({
                 ? tunnel.extendTargetAddress.join("\n")
                 : tunnel.extendTargetAddress
               : "",
-            quic:
-              tunnel.quic != null
-                ? tunnel.quic
-                  ? "true"
-                  : "false"
+            poolType:
+              tunnel.poolType != null
+                ? String(tunnel.poolType)
                 : "",
           }));
 
@@ -291,7 +289,7 @@ export default function SimpleCreateTunnelModal({
       loadBalancingIPs,
       listenType,
       extendTargetAddresses,
-      quic,
+      poolType,
       dial,
       sorts,
       dns,
@@ -394,7 +392,7 @@ export default function SimpleCreateTunnelModal({
               .map((addr) => addr.trim())
               .filter((addr) => addr.length > 0)
             : undefined,
-          quic: quic !== "" ? quic === "true" : undefined,
+          poolType: poolType !== "" ? parseInt(poolType) : undefined,
           dial: dial || undefined,
           sorts: sorts !== "" ? parseInt(sorts) : undefined,
           resetTraffic: modalMode === "edit" ? resetChecked : undefined,
@@ -970,24 +968,22 @@ export default function SimpleCreateTunnelModal({
                               onValueChange={(v) => handleField("slot", v ? String(v) : "")}
                             />
                             {proxyProtocolSelect}
-                            {/* 启用 QUIC */}
-                            {formData.type == 'server' &&
-                              <>
-                                <Select
-                                  label={t("simpleCreate.fields.enableQuic")}
-                                  selectedKeys={
-                                    formData.quic ? [formData.quic] : ["false"]
-                                  }
-                                  onSelectionChange={(keys) => {
-                                    const selectedKey = Array.from(keys)[0] as string;
-                                    handleField("quic", selectedKey);
-                                  }}
-                                >
-                                  <SelectItem key="false">{t("simpleCreate.switch.disable")}</SelectItem>
-                                  <SelectItem key="true">{t("simpleCreate.switch.enable")}</SelectItem>
-                                </Select>
-                              </>
-                            }
+                            {/* 池类型 */}
+                            <Select
+                              label={t("simpleCreate.fields.poolType")}
+                              selectedKeys={
+                                formData.poolType !== "" ? [formData.poolType] : ["0"]
+                              }
+                              onSelectionChange={(keys) => {
+                                const selectedKey = Array.from(keys)[0] as string;
+                                handleField("poolType", selectedKey);
+                              }}
+                            >
+                              <SelectItem key="0">{t("simpleCreate.poolTypes.tcp")}</SelectItem>
+                              <SelectItem key="1">{t("simpleCreate.poolTypes.quic")}</SelectItem>
+                              <SelectItem key="2">{t("simpleCreate.poolTypes.websocket")}</SelectItem>
+                              <SelectItem key="3">{t("simpleCreate.poolTypes.http2")}</SelectItem>
+                            </Select>
                             {sortInput}
                             <Input
                               label={t("simpleCreate.fields.outboundIP")}

@@ -106,7 +106,7 @@ interface TunnelInfo {
   read?: string;
   restart: boolean;
   slot?: number | null;
-  quic?: boolean | null;
+  poolType?: number | null;
   dial?: string | null;
   dns?: string | null;
   targetPort: number;
@@ -2305,22 +2305,27 @@ export default function TunnelDetailPage() {
                     })()
                   }
                 />
-                {tunnelInfo?.type === "server" && (
-                  <CellValue
-                    icon={
-                      <Icon
-                        className="text-default-600"
-                        height={18}
-                        icon="lucide:zap"
-                        width={18}
-                      />
-                    }
-                    label={t("details.instanceInfo.quic.label")}
-                    value={
-                      tunnelInfo?.quic ? t("details.instanceInfo.quic.enabled") : t("details.instanceInfo.quic.disabled")
-                    }
-                  />
-                )}
+                <CellValue
+                  icon={
+                    <Icon
+                      className="text-default-600"
+                      height={18}
+                      icon="lucide:zap"
+                      width={18}
+                    />
+                  }
+                  label={t("details.instanceInfo.poolType.label")}
+                  value={
+                    (() => {
+                      const poolType = tunnelInfo?.poolType;
+                      if (poolType === 0) return t("details.instanceInfo.poolType.tcp");
+                      if (poolType === 1) return t("details.instanceInfo.poolType.quic");
+                      if (poolType === 2) return t("details.instanceInfo.poolType.websocket");
+                      if (poolType === 3) return t("details.instanceInfo.poolType.http2");
+                      return t("details.instanceInfo.poolType.notSet");
+                    })()
+                  }
+                />
                 <CellValue
                   icon={
                     <Icon

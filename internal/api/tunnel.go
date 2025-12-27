@@ -828,9 +828,9 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			}
 			return nil
 		}(),
-		"quic": func() interface{} {
-			if tunnel.Quic != nil {
-				return *tunnel.Quic
+		"poolType": func() interface{} {
+			if tunnel.PoolType != nil {
+				return *tunnel.PoolType
 			}
 			return nil
 		}(),
@@ -870,7 +870,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			"rate":          parsedConfig.Rate,
 			"slot":          parsedConfig.Slot,
 			"proxy":         parsedConfig.Proxy,
-			"quic":          parsedConfig.Quic,
+			"poolType":      parsedConfig.PoolType,
 			"dns":           parsedConfig.Dns,
 			"dial":          parsedConfig.Dial,
 			"listenType":    parsedConfig.ListenType,

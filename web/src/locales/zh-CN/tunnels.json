@@ -343,7 +343,7 @@
       "maxConnections": "最大连接数限制",
       "maxConnectionsPlaceholder": "100",
       "proxyProtocol": "Proxy Protocol",
-      "enableQuic": "启用 QUIC",
+      "poolType": "池类型",
       "weight": "权重(越大越前)",
       "weightPlaceholder": "0",
       "outboundIP": "出站源IP",
@@ -365,6 +365,12 @@
       "all": "ALL",
       "tcp": "TCP",
       "udp": "UDP"
+    },
+    "poolTypes": {
+      "tcp": "TCP",
+      "quic": "QUIC",
+      "websocket": "WebSocket",
+      "http2": "HTTP/2"
     },
     "tls": {
       "inherit": "继承",
@@ -623,10 +629,13 @@
         "off": "关闭"
       },
       "listenType": "监听类型",
-      "quic": {
-        "label": "启用 QUIC",
-        "enabled": "启用",
-        "disabled": "关闭"
+      "poolType": {
+        "label": "池类型",
+        "tcp": "TCP",
+        "quic": "QUIC",
+        "websocket": "WebSocket",
+        "http2": "HTTP/2",
+        "notSet": "未设置"
       },
       "outboundIP": "出站源IP",
       "bindService": {

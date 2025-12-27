@@ -31,9 +31,9 @@ type TunnelConfig struct {
 	Rate                  string
 	Slot                  string
 	Proxy                 string // proxy protocol 支持 (0|1)
-	Quic                  string // proxy protocol 支持 (0|1)
-	Dial                  string // proxy protocol 支持 (0|1)
-	Dns                   string // proxy protocol 支持 (0|1)
+	PoolType              string // 池类型 (0-TCP, 1-QUIC, 2-WebSocket, 3-HTTP/2)
+	Dial                  string // 出站源IP地址
+	Dns                   string // DNS服务器地址
 }
 
 // ParseTunnelURL 解析隧道实例 URL 并返回 Tunnel 模型
@@ -239,15 +239,10 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 				}
 			case "dns":
 				tunnel.Dns = &val
-			case "quic":
-				// QUIC控制 (0=启用, 1=禁用)
-				switch val {
-				case "0":
-					enableQuic := false
-					tunnel.Quic = &enableQuic
-				case "1":
-					enableQuic := true
-					tunnel.Quic = &enableQuic
+			case "type":
+				// 池类型 (0=TCP, 1=QUIC, 2=WebSocket, 3=HTTP/2)
+				if poolType, err := strconv.Atoi(val); err == nil && poolType >= 0 && poolType <= 3 {
+					tunnel.PoolType = &poolType
 				}
 			}
 		}
@@ -377,8 +372,8 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 		}
 	}
 	// 处理新字段
-	if tunnel.Quic != nil {
-		updates["quic"] = tunnel.Quic
+	if tunnel.PoolType != nil {
+		updates["pool_type"] = tunnel.PoolType
 	}
 	if tunnel.Dns != nil {
 		updates["dns"] = tunnel.Dns
@@ -449,7 +444,7 @@ func ParseTunnelConfig(rawURL string) *TunnelConfig {
 	cfg.Rate = query.Get("rate")
 	cfg.Slot = query.Get("slot")
 	cfg.Proxy = query.Get("proxy")
-	cfg.Quic = query.Get("quic")
+	cfg.PoolType = query.Get("type")
 	// dial 参数需要URL解码，因为可能包含IP地址等特殊字符
 	if dialVal := query.Get("dial"); dialVal != "" {
 		if decodedVal, err := url.QueryUnescape(dialVal); err == nil {
@@ -580,8 +575,8 @@ func (c *TunnelConfig) BuildTunnelConfigURL() string {
 	if c.Proxy != "" {
 		queryParams = append(queryParams, fmt.Sprintf("proxy=%s", c.Proxy))
 	}
-	if c.Quic != "" {
-		queryParams = append(queryParams, fmt.Sprintf("quic=%s", c.Quic))
+	if c.PoolType != "" {
+		queryParams = append(queryParams, fmt.Sprintf("type=%s", c.PoolType))
 	}
 	if c.Dial != "" {
 		queryParams = append(queryParams, fmt.Sprintf("dial=%s", url.QueryEscape(c.Dial)))
@@ -768,12 +763,8 @@ func BuildTunnelURLs(tunnel models.Tunnel) string {
 	if tunnel.Dns != nil {
 		queryParams = append(queryParams, fmt.Sprintf("dns=%s", *tunnel.Dns))
 	}
-	if tunnel.Quic != nil && protocol == "server" {
-		quicVal := "0"
-		if *tunnel.Quic {
-			quicVal = "1"
-		}
-		queryParams = append(queryParams, fmt.Sprintf("quic=%s", quicVal))
+	if tunnel.PoolType != nil {
+		queryParams = append(queryParams, fmt.Sprintf("type=%d", *tunnel.PoolType))
 	}
 
 	if tunnel.ProxyProtocol != nil {

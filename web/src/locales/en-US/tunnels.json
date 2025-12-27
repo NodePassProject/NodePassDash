@@ -343,7 +343,7 @@
       "maxConnections": "Max Connections Limit",
       "maxConnectionsPlaceholder": "100",
       "proxyProtocol": "Proxy Protocol",
-      "enableQuic": "Enable QUIC",
+      "poolType": "Pool Type",
       "weight": "Weight (higher first)",
       "weightPlaceholder": "0",
       "outboundIP": "Outbound Source IP",
@@ -365,6 +365,12 @@
       "all": "ALL",
       "tcp": "TCP",
       "udp": "UDP"
+    },
+    "poolTypes": {
+      "tcp": "TCP",
+      "quic": "QUIC",
+      "websocket": "WebSocket",
+      "http2": "HTTP/2"
     },
     "tls": {
       "inherit": "Inherit",
@@ -623,10 +629,13 @@
         "off": "Off"
       },
       "listenType": "Listen Type",
-      "quic": {
-        "label": "Enable QUIC",
-        "enabled": "Enabled",
-        "disabled": "Disabled"
+      "poolType": {
+        "label": "Pool Type",
+        "tcp": "TCP",
+        "quic": "QUIC",
+        "websocket": "WebSocket",
+        "http2": "HTTP/2",
+        "notSet": "Not Set"
       },
       "outboundIP": "Outbound Source IP",
       "bindService": {
