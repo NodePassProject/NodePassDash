@@ -1,7 +1,10 @@
 package auth
 
 import (
+	"crypto/rand"
+	"encoding/base64"
 	"errors"
+	"log"
 	"os"
 	"time"
 
@@ -27,10 +30,23 @@ type JWTClaims struct {
 func getJWTSecret() string {
 	secret := os.Getenv("JWT_SECRET")
 	if secret == "" {
-		// 默认密钥（生产环境应该设置环境变量）
-		return "nodepass-default-jwt-secret-please-change-in-production"
+		// 每次启动时自动生成随机密钥（注意：重启应用会导致所有 token 失效）
+		randomSecret := generateRandomSecret(32)
+		log.Println("JWT_SECRET not set, using randomly generated secret (tokens will expire on restart)")
+		return randomSecret
 	}
 	return secret
+}
+
+// generateRandomSecret 生成指定长度的随机密钥
+func generateRandomSecret(length int) string {
+	bytes := make([]byte, length)
+	if _, err := rand.Read(bytes); err != nil {
+		// 如果随机生成失败，使用 UUID 作为后备方案
+		log.Printf("Failed to generate random secret: %v, using UUID fallback", err)
+		return uuid.New().String() + uuid.New().String()
+	}
+	return base64.URLEncoding.EncodeToString(bytes)
 }
 
 // GenerateToken 生成 JWT token，返回 token 字符串、过期时间和 JTI
