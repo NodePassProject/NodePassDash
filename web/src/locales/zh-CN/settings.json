@@ -52,6 +52,59 @@
   "system": {
     "title": "系统设置",
     "description": "自定义系统外观和行为偏好",
+    "form": {
+      "validation": {
+        "systemNameRequired": "系统名称不能为空"
+      },
+      "basicSettings": {
+        "title": "基础设置",
+        "systemName": "系统名称",
+        "systemNamePlaceholder": "输入系统名称",
+        "systemLanguage": "系统语言",
+        "zhCN": "简体中文",
+        "enUS": "English"
+      },
+      "performanceSettings": {
+        "title": "性能设置",
+        "maxConnections": {
+          "title": "最大连接数",
+          "description": "单个隧道允许的最大并发连接数"
+        },
+        "connectionTimeout": {
+          "title": "连接超时时间",
+          "description": "空闲连接的超时时间（秒）"
+        }
+      },
+      "logSettings": {
+        "title": "日志设置",
+        "logLevel": {
+          "title": "日志级别",
+          "description": "设置系统日志记录的详细程度"
+        },
+        "logRetentionDays": {
+          "title": "日志保留天数",
+          "description": "系统日志的保留时间"
+        }
+      },
+      "backupSettings": {
+        "title": "备份设置",
+        "autoBackup": {
+          "title": "自动备份",
+          "description": "定期备份系统配置和数据"
+        },
+        "backupInterval": {
+          "title": "备份周期",
+          "description": "自动备份的时间间隔",
+          "daily": "每天",
+          "weekly": "每周",
+          "monthly": "每月"
+        },
+        "backupRetention": {
+          "title": "保留备份数",
+          "description": "最多保留的备份文件数量"
+        }
+      }
+    },
     "themeSettings": {
       "title": "主题设置"
     },

@@ -887,5 +887,29 @@
       "clearSuccess": "成功",
       "clearSuccessDesc": "标签已清除"
     }
+  },
+  "groupInstancesModal": {
+    "title": "分组{{name}}实例管理",
+    "selectedCount": "[已选择 {{selected}} / {{total}} ]",
+    "selectAll": "全选",
+    "clearAll": "清空",
+    "selectPlaceholder": "选择要绑定分组的实例",
+    "selectAriaLabel": "选择实例",
+    "endpoint": "主控",
+    "empty": {
+      "title": "暂无实例",
+      "description": "请先创建实例后再绑定分组"
+    },
+    "buttons": {
+      "cancel": "取消",
+      "save": "保存设置"
+    },
+    "toast": {
+      "fetchFailed": "错误",
+      "fetchFailedDesc": "获取实例列表失败",
+      "saveFailed": "设置实例分组失败",
+      "saveSuccess": "成功",
+      "saveSuccessDesc": "已为 {{count}} 个实例绑定分组\"{{name}}\""
+    }
   }
 }

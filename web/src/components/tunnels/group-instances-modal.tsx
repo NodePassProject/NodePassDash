@@ -20,6 +20,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 import { Selection } from "@react-types/shared";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -56,6 +57,7 @@ export default function GroupInstancesModal({
   onOpenChange,
   onSaved,
 }: GroupInstancesModalProps) {
+  const { t } = useTranslation("tunnels");
   const [tunnels, setTunnels] = useState<Tunnel[]>([]);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
@@ -65,15 +67,15 @@ export default function GroupInstancesModal({
   const getStatusInfo = (status: string) => {
     switch (status) {
       case "running":
-        return { type: "success" as const, text: "运行" };
+        return { type: "success" as const, text: t("status.running") };
       case "stopped":
-        return { type: "danger" as const, text: "停止" };
+        return { type: "danger" as const, text: t("status.stopped") };
       case "error":
-        return { type: "warning" as const, text: "错误" };
+        return { type: "warning" as const, text: t("status.error") };
       case "offline":
-        return { type: "default" as const, text: "离线" };
+        return { type: "default" as const, text: t("status.offline") };
       default:
-        return { type: "default" as const, text: "未知" };
+        return { type: "default" as const, text: t("status.unknown") };
     }
   };
 
@@ -83,7 +85,7 @@ export default function GroupInstancesModal({
       setLoading(true);
       const response = await fetch(buildApiUrl("/api/tunnels?page_size=1000"));
 
-      if (!response.ok) throw new Error("获取实例列表失败");
+      if (!response.ok) throw new Error(t("groupInstancesModal.toast.fetchFailedDesc"));
       const result = await response.json();
 
       const tunnelList = result.data || [];
@@ -102,8 +104,8 @@ export default function GroupInstancesModal({
     } catch (error) {
       console.error("获取实例列表失败:", error);
       addToast({
-        title: "错误",
-        description: "获取实例列表失败",
+        title: t("groupInstancesModal.toast.fetchFailed"),
+        description: t("groupInstancesModal.toast.fetchFailedDesc"),
         color: "danger",
       });
     } finally {
@@ -143,12 +145,12 @@ export default function GroupInstancesModal({
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.message || "设置实例分组失败");
+        throw new Error(error.message || t("groupInstancesModal.toast.saveFailed"));
       }
 
       addToast({
-        title: "成功",
-        description: `已为 ${tunnelIds.length} 个实例绑定分组"${group.name}"`,
+        title: t("groupInstancesModal.toast.saveSuccess"),
+        description: t("groupInstancesModal.toast.saveSuccessDesc", { count: tunnelIds.length, name: group.name }),
         color: "success",
       });
 
@@ -157,9 +159,9 @@ export default function GroupInstancesModal({
     } catch (error) {
       console.error("设置实例分组失败:", error);
       addToast({
-        title: "错误",
+        title: t("groupInstancesModal.toast.fetchFailed"),
         description:
-          error instanceof Error ? error.message : "设置实例分组失败",
+          error instanceof Error ? error.message : t("groupInstancesModal.toast.saveFailed"),
         color: "danger",
       });
     } finally {
@@ -169,7 +171,7 @@ export default function GroupInstancesModal({
 
   // 获取类型显示文本
   const getTypeDisplayText = (type: "server" | "client"): string => {
-    return type === "server" ? "服务端" : "客户端";
+    return type === "server" ? t("type.server") : t("type.client");
   };
 
   // 获取已选择的实例数量
@@ -210,9 +212,9 @@ export default function GroupInstancesModal({
                   <FontAwesomeIcon className="text-secondary" icon={faLink} />
                   {group && (
                     <>
-                      分组{group.name}实例管理{" "}
+                      {t("groupInstancesModal.title", { name: group.name })}{" "}
                       <span className="text-sm">
-                        [已选择 {getSelectedCount()} / {tunnels.length} ]
+                        {t("groupInstancesModal.selectedCount", { selected: getSelectedCount(), total: tunnels.length })}
                       </span>
                     </>
                   )}
@@ -228,14 +230,14 @@ export default function GroupInstancesModal({
                       setSelectedTunnels(new Set(allIds));
                     }}
                   >
-                    全选
+                    {t("groupInstancesModal.selectAll")}
                   </Button>
                   <Button
                     size="sm"
                     variant="flat"
                     onClick={() => setSelectedTunnels(new Set())}
                   >
-                    清空
+                    {t("groupInstancesModal.clearAll")}
                   </Button>
                 </div>
               </div>
@@ -248,13 +250,13 @@ export default function GroupInstancesModal({
               ) : (
                 <div className="space-y-4">
                   <Select
-                    aria-label="选择实例"
+                    aria-label={t("groupInstancesModal.selectAriaLabel")}
                     classNames={{
                       trigger: "min-h-12",
                       listbox: "max-h-[400px] overflow-auto",
                     }}
                     disallowEmptySelection={false}
-                    placeholder="选择要绑定分组的实例"
+                    placeholder={t("groupInstancesModal.selectPlaceholder")}
                     scrollShadowProps={{
                       isEnabled: false,
                     }}
@@ -285,7 +287,7 @@ export default function GroupInstancesModal({
                               >
                                 {getTypeDisplayText(tunnel.type)}
                               </Chip>
-                              <span>主控: {tunnel.endpoint}</span>
+                              <span>{t("groupInstancesModal.endpoint")}: {tunnel.endpoint}</span>
                               {tunnel.group &&
                                 tunnel.group.id !== group?.id && (
                                   <Chip
@@ -324,10 +326,10 @@ export default function GroupInstancesModal({
                         </div>
                         <div className="space-y-2">
                           <p className="text-default-500 text-sm font-medium">
-                            暂无实例
+                            {t("groupInstancesModal.empty.title")}
                           </p>
                           <p className="text-default-400 text-xs">
-                            请先创建实例后再绑定分组
+                            {t("groupInstancesModal.empty.description")}
                           </p>
                         </div>
                       </div>
@@ -343,7 +345,7 @@ export default function GroupInstancesModal({
                 variant="light"
                 onPress={onClose}
               >
-                取消
+                {t("groupInstancesModal.buttons.cancel")}
               </Button>
               <Button
                 color="primary"
@@ -352,7 +354,7 @@ export default function GroupInstancesModal({
                 startContent={<FontAwesomeIcon icon={faCheck} />}
                 onPress={handleSave}
               >
-                保存设置
+                {t("groupInstancesModal.buttons.save")}
               </Button>
             </ModalFooter>
           </>

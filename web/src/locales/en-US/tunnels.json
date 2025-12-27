@@ -887,5 +887,29 @@
       "clearSuccess": "Success",
       "clearSuccessDesc": "Tag has been cleared"
     }
+  },
+  "groupInstancesModal": {
+    "title": "Group {{name}} Instance Management",
+    "selectedCount": "[Selected {{selected}} / {{total}} ]",
+    "selectAll": "Select All",
+    "clearAll": "Clear All",
+    "selectPlaceholder": "Select instances to bind to group",
+    "selectAriaLabel": "Select instances",
+    "endpoint": "Endpoint",
+    "empty": {
+      "title": "No Instances",
+      "description": "Please create instances before binding to groups"
+    },
+    "buttons": {
+      "cancel": "Cancel",
+      "save": "Save Settings"
+    },
+    "toast": {
+      "fetchFailed": "Error",
+      "fetchFailedDesc": "Failed to fetch instance list",
+      "saveFailed": "Failed to set instance group",
+      "saveSuccess": "Success",
+      "saveSuccessDesc": "Bound {{count}} instances to group \"{{name}}\""
+    }
   }
 }

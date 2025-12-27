@@ -137,6 +137,18 @@
     "fair": "Fair",
     "poor": "Poor"
   },
+  "poolQuality": {
+    "noIdle": "No Idle",
+    "heavyLoad": "Heavy Load",
+    "mediumLoad": "Medium Load",
+    "lightLoad": "Light Load",
+    "idle": "Idle"
+  },
+  "networkQuality": {
+    "title": "Network Quality",
+    "latency": "Latency",
+    "pool": "Pool"
+  },
   "theme": {
     "light": "Light",
     "dark": "Dark",

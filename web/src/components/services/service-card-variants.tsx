@@ -25,6 +25,7 @@ import {
   faUserSlash,
   faSync,
 } from "@fortawesome/free-solid-svg-icons";
+import { useTranslation } from "react-i18next";
 import { formatBytes } from "@/lib/utils";
 
 // 服务类型定义
@@ -92,6 +93,8 @@ export function GlassmorphismCard({
   onNavigate,
   onAction,
 }: ServiceCardProps) {
+  const { t } = useTranslation("services");
+
   return (
     <div className="group relative">
       {/* 背景光晕效果 */}
@@ -133,28 +136,28 @@ export function GlassmorphismCard({
                 <FontAwesomeIcon icon={faEllipsisVertical} />
               </Button>
             </DropdownTrigger>
-            <DropdownMenu aria-label="服务操作" onAction={onAction}>
-              <DropdownSection showDivider title="实例操作">
+            <DropdownMenu aria-label={t("card.menu.ariaLabel")} onAction={onAction}>
+              <DropdownSection showDivider title={t("card.menu.instanceActions")}>
                 <DropdownItem
                   key="start"
                   className="text-success"
                   startContent={<FontAwesomeIcon fixedWidth icon={faPlay} />}
                 >
-                  启动
+                  {t("actions.start")}
                 </DropdownItem>
                 <DropdownItem
                   key="stop"
                   className="text-warning"
                   startContent={<FontAwesomeIcon fixedWidth icon={faStop} />}
                 >
-                  停止
+                  {t("actions.stop")}
                 </DropdownItem>
                 <DropdownItem
                   key="restart"
                   className="text-primary"
                   startContent={<FontAwesomeIcon fixedWidth icon={faRotateRight} />}
                 >
-                  重启
+                  {t("actions.restart")}
                 </DropdownItem>
                 <DropdownItem
                   key="delete"
@@ -162,22 +165,22 @@ export function GlassmorphismCard({
                   color="danger"
                   startContent={<FontAwesomeIcon fixedWidth icon={faTrash} />}
                 >
-                  删除
+                  {t("actions.delete")}
                 </DropdownItem>
               </DropdownSection>
-              <DropdownSection title="服务操作">
+              <DropdownSection title={t("card.menu.serviceActions")}>
                 <DropdownItem
                   key="sync"
                   className="text-primary"
                   startContent={<FontAwesomeIcon fixedWidth icon={faSync} />}
                 >
-                  同步
+                  {t("actions.sync")}
                 </DropdownItem>
                 <DropdownItem
                   key="rename"
                   startContent={<FontAwesomeIcon fixedWidth icon={faEdit} />}
                 >
-                  重命名
+                  {t("actions.rename")}
                 </DropdownItem>
                 <DropdownItem
                   key="dissolve"
@@ -185,7 +188,7 @@ export function GlassmorphismCard({
                   color="warning"
                   startContent={<FontAwesomeIcon fixedWidth icon={faUserSlash} />}
                 >
-                  解散
+                  {t("actions.dissolve")}
                 </DropdownItem>
               </DropdownSection>
             </DropdownMenu>
@@ -244,7 +247,7 @@ export function GlassmorphismCard({
               className="flex items-center gap-2 p-2 rounded-lg bg-white/50 dark:bg-gray-800/30 backdrop-blur-sm border border-white/20"
             >
               <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400 w-10">
-                入口
+                {t("card.entry")}
               </span>
               <span className="text-[11px] font-mono font-semibold text-gray-900 dark:text-white flex-1 truncate">
                 {formatHost(service.entranceHost)}:{service.entrancePort}
@@ -254,7 +257,7 @@ export function GlassmorphismCard({
               className="flex items-center gap-2 p-2 rounded-lg bg-white/50 dark:bg-gray-800/30 backdrop-blur-sm border border-white/20"
             >
               <span className="text-[11px] font-medium text-gray-500 dark:text-gray-400 w-10">
-                出口
+                {t("card.exit")}
               </span>
               <span className="text-[11px] font-mono font-semibold text-gray-900 dark:text-white flex-1 truncate">
                 {formatHost(service.exitHost)}:{service.exitPort}
@@ -271,7 +274,7 @@ export function GlassmorphismCard({
                 <span className="text-white text-[10px] font-bold">↑</span>
               </div>
               <div className="flex flex-col">
-                <span className="text-[9px] text-gray-500 dark:text-gray-400 leading-tight">上传</span>
+                <span className="text-[9px] text-gray-500 dark:text-gray-400 leading-tight">{t("card.upload")}</span>
                 <span className="text-[11px] font-mono font-semibold text-gray-900 dark:text-white leading-tight">
                   {formatBytes(service.totalTx || 0)}
                 </span>
@@ -283,7 +286,7 @@ export function GlassmorphismCard({
                 <span className="text-white text-[10px] font-bold">↓</span>
               </div>
               <div className="flex flex-col">
-                <span className="text-[9px] text-gray-500 dark:text-gray-400 leading-tight">下载</span>
+                <span className="text-[9px] text-gray-500 dark:text-gray-400 leading-tight">{t("card.download")}</span>
                 <span className="text-[11px] font-mono font-semibold text-gray-900 dark:text-white leading-tight">
                   {formatBytes(service.totalRx || 0)}
                 </span>

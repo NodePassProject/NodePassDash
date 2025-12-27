@@ -52,6 +52,59 @@
   "system": {
     "title": "System Settings",
     "description": "Customize system appearance and behavior preferences",
+    "form": {
+      "validation": {
+        "systemNameRequired": "System name cannot be empty"
+      },
+      "basicSettings": {
+        "title": "Basic Settings",
+        "systemName": "System Name",
+        "systemNamePlaceholder": "Enter system name",
+        "systemLanguage": "System Language",
+        "zhCN": "简体中文",
+        "enUS": "English"
+      },
+      "performanceSettings": {
+        "title": "Performance Settings",
+        "maxConnections": {
+          "title": "Max Connections",
+          "description": "Maximum concurrent connections per tunnel"
+        },
+        "connectionTimeout": {
+          "title": "Connection Timeout",
+          "description": "Idle connection timeout (seconds)"
+        }
+      },
+      "logSettings": {
+        "title": "Log Settings",
+        "logLevel": {
+          "title": "Log Level",
+          "description": "Set system logging detail level"
+        },
+        "logRetentionDays": {
+          "title": "Log Retention Days",
+          "description": "System log retention period"
+        }
+      },
+      "backupSettings": {
+        "title": "Backup Settings",
+        "autoBackup": {
+          "title": "Auto Backup",
+          "description": "Periodically backup system configuration and data"
+        },
+        "backupInterval": {
+          "title": "Backup Interval",
+          "description": "Automatic backup frequency",
+          "daily": "Daily",
+          "weekly": "Weekly",
+          "monthly": "Monthly"
+        },
+        "backupRetention": {
+          "title": "Backup Retention",
+          "description": "Maximum number of backup files to retain"
+        }
+      }
+    },
     "themeSettings": {
       "title": "Theme Settings"
     },

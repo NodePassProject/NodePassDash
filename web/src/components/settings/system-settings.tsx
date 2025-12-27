@@ -13,21 +13,23 @@ import React, { forwardRef, useImperativeHandle } from "react";
 import { z } from "zod";
 import { useForm } from "react-hook-form";
 import { zodResolver } from "@hookform/resolvers/zod";
+import { useTranslation } from "react-i18next";
 
-// 定义表单验证 schema
-const systemSettingsSchema = z.object({
-  systemName: z.string().min(1, "系统名称不能为空"),
-  language: z.enum(["zh", "en"]),
-  maxConnections: z.number().int().min(1).max(1000),
-  connectionTimeout: z.number().int().min(1).max(3600),
-  logLevel: z.enum(["debug", "info", "warn", "error", "event"]),
-  logRetentionDays: z.number().int().min(1).max(365),
-  autoBackup: z.boolean(),
-  backupInterval: z.enum(["daily", "weekly", "monthly"]),
-  backupRetention: z.number().int().min(1).max(100),
-});
+// 定义表单验证 schema (将在组件内创建以使用翻译)
+const createSystemSettingsSchema = (t: (key: string) => string) =>
+  z.object({
+    systemName: z.string().min(1, t("system.form.validation.systemNameRequired")),
+    language: z.enum(["zh", "en"]),
+    maxConnections: z.number().int().min(1).max(1000),
+    connectionTimeout: z.number().int().min(1).max(3600),
+    logLevel: z.enum(["debug", "info", "warn", "error", "event"]),
+    logRetentionDays: z.number().int().min(1).max(365),
+    autoBackup: z.boolean(),
+    backupInterval: z.enum(["daily", "weekly", "monthly"]),
+    backupRetention: z.number().int().min(1).max(100),
+  });
 
-type SystemSettingsForm = z.infer<typeof systemSettingsSchema>;
+type SystemSettingsForm = z.infer<ReturnType<typeof createSystemSettingsSchema>>;
 
 // 定义组件 ref 类型
 export type SystemSettingsRef = {
@@ -36,6 +38,8 @@ export type SystemSettingsRef = {
 };
 
 const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
+  const { t } = useTranslation("settings");
+
   // 初始化表单
   const {
     register,
@@ -45,7 +49,7 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
     reset,
     formState: { errors },
   } = useForm<SystemSettingsForm>({
-    resolver: zodResolver(systemSettingsSchema),
+    resolver: zodResolver(createSystemSettingsSchema(t)),
     defaultValues: {
       systemName: "NodePass",
       language: "zh",
@@ -85,20 +89,20 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
         <CardBody className="gap-6">
           {/* 基础设置 */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">基础设置</h3>
+            <h3 className="text-lg font-medium">{t("system.form.basicSettings.title")}</h3>
             <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
               <div className="space-y-2">
-                <label className="text-sm text-default-700">系统名称</label>
+                <label className="text-sm text-default-700">{t("system.form.basicSettings.systemName")}</label>
                 <Input
                   {...register("systemName")}
                   errorMessage={errors.systemName?.message}
                   isInvalid={!!errors.systemName}
-                  placeholder="输入系统名称"
+                  placeholder={t("system.form.basicSettings.systemNamePlaceholder")}
                   variant="bordered"
                 />
               </div>
               <div className="space-y-2">
-                <label className="text-sm text-default-700">系统语言</label>
+                <label className="text-sm text-default-700">{t("system.form.basicSettings.systemLanguage")}</label>
                 <Select
                   selectedKeys={[watch("language")]}
                   variant="bordered"
@@ -106,8 +110,8 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
                     setValue("language", e.target.value as "zh" | "en")
                   }
                 >
-                  <SelectItem key="zh">简体中文</SelectItem>
-                  <SelectItem key="en">English</SelectItem>
+                  <SelectItem key="zh">{t("system.form.basicSettings.zhCN")}</SelectItem>
+                  <SelectItem key="en">{t("system.form.basicSettings.enUS")}</SelectItem>
                 </Select>
               </div>
             </div>
@@ -117,13 +121,13 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
 
           {/* 性能设置 */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">性能设置</h3>
+            <h3 className="text-lg font-medium">{t("system.form.performanceSettings.title")}</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">最大连接数</p>
+                  <p className="font-medium">{t("system.form.performanceSettings.maxConnections.title")}</p>
                   <p className="text-sm text-default-500">
-                    单个隧道允许的最大并发连接数
+                    {t("system.form.performanceSettings.maxConnections.description")}
                   </p>
                 </div>
                 <Input
@@ -137,9 +141,9 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">连接超时时间</p>
+                  <p className="font-medium">{t("system.form.performanceSettings.connectionTimeout.title")}</p>
                   <p className="text-sm text-default-500">
-                    空闲连接的超时时间（秒）
+                    {t("system.form.performanceSettings.connectionTimeout.description")}
                   </p>
                 </div>
                 <Input
@@ -158,13 +162,13 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
 
           {/* 日志设置 */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">日志设置</h3>
+            <h3 className="text-lg font-medium">{t("system.form.logSettings.title")}</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">日志级别</p>
+                  <p className="font-medium">{t("system.form.logSettings.logLevel.title")}</p>
                   <p className="text-sm text-default-500">
-                    设置系统日志记录的详细程度
+                    {t("system.form.logSettings.logLevel.description")}
                   </p>
                 </div>
                 <Select
@@ -192,8 +196,8 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
               </div>
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">日志保留天数</p>
-                  <p className="text-sm text-default-500">系统日志的保留时间</p>
+                  <p className="font-medium">{t("system.form.logSettings.logRetentionDays.title")}</p>
+                  <p className="text-sm text-default-500">{t("system.form.logSettings.logRetentionDays.description")}</p>
                 </div>
                 <Input
                   {...register("logRetentionDays", { valueAsNumber: true })}
@@ -211,13 +215,13 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
 
           {/* 备份设置 */}
           <div className="space-y-4">
-            <h3 className="text-lg font-medium">备份设置</h3>
+            <h3 className="text-lg font-medium">{t("system.form.backupSettings.title")}</h3>
             <div className="space-y-4">
               <div className="flex items-center justify-between">
                 <div>
-                  <p className="font-medium">自动备份</p>
+                  <p className="font-medium">{t("system.form.backupSettings.autoBackup.title")}</p>
                   <p className="text-sm text-default-500">
-                    定期备份系统配置和数据
+                    {t("system.form.backupSettings.autoBackup.description")}
                   </p>
                 </div>
                 <Switch
@@ -229,9 +233,9 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
                 <>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium">备份周期</p>
+                      <p className="font-medium">{t("system.form.backupSettings.backupInterval.title")}</p>
                       <p className="text-sm text-default-500">
-                        自动备份的时间间隔
+                        {t("system.form.backupSettings.backupInterval.description")}
                       </p>
                     </div>
                     <Select
@@ -245,16 +249,16 @@ const SystemSettings = forwardRef<SystemSettingsRef>((props, ref) => {
                         )
                       }
                     >
-                      <SelectItem key="daily">每天</SelectItem>
-                      <SelectItem key="weekly">每周</SelectItem>
-                      <SelectItem key="monthly">每月</SelectItem>
+                      <SelectItem key="daily">{t("system.form.backupSettings.backupInterval.daily")}</SelectItem>
+                      <SelectItem key="weekly">{t("system.form.backupSettings.backupInterval.weekly")}</SelectItem>
+                      <SelectItem key="monthly">{t("system.form.backupSettings.backupInterval.monthly")}</SelectItem>
                     </Select>
                   </div>
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-medium">保留备份数</p>
+                      <p className="font-medium">{t("system.form.backupSettings.backupRetention.title")}</p>
                       <p className="text-sm text-default-500">
-                        最多保留的备份文件数量
+                        {t("system.form.backupSettings.backupRetention.description")}
                       </p>
                     </div>
                     <Input

@@ -137,6 +137,18 @@
     "fair": "一般",
     "poor": "较差"
   },
+  "poolQuality": {
+    "noIdle": "无空闲",
+    "heavyLoad": "重负载",
+    "mediumLoad": "中负载",
+    "lightLoad": "轻负载",
+    "idle": "空负载"
+  },
+  "networkQuality": {
+    "title": "网络质量",
+    "latency": "延迟",
+    "pool": "池"
+  },
   "theme": {
     "light": "浅色",
     "dark": "深色",

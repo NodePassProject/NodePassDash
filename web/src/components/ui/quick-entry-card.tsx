@@ -7,6 +7,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 /**
  * QuickEntry Card 快捷操作卡片组件
@@ -14,12 +15,13 @@ import { useNavigate } from "react-router-dom";
  */
 export function QuickEntryCard() {
   const navigate = useNavigate();
+  const { t } = useTranslation("dashboard");
 
   const quickActions = [
     {
       id: "add-endpoint",
       icon: faServer,
-      label: "添加主控",
+      label: t("quickActions.addEndpoint"),
       route: "/endpoints",
       color: "bg-blue-500 hover:bg-blue-600",
       iconType: "fontawesome",
@@ -28,7 +30,7 @@ export function QuickEntryCard() {
     {
       id: "create-tunnel",
       icon: "solar:transmission-bold",
-      label: "创建实例",
+      label: t("quickActions.createTunnel"),
       route: "/tunnels/create",
       color: "bg-green-500 hover:bg-green-600",
       iconType: "iconify",
@@ -37,7 +39,7 @@ export function QuickEntryCard() {
     {
       id: "template-create",
       icon: faLayerGroup,
-      label: "场景创建",
+      label: t("quickActions.scenarioCreate"),
       route: "/templates",
       color: "bg-purple-500 hover:bg-purple-600",
       iconType: "fontawesome",
@@ -46,7 +48,7 @@ export function QuickEntryCard() {
     {
       id: "settings",
       icon: "solar:settings-bold",
-      label: "设置",
+      label: t("quickActions.settings"),
       route: "/settings",
       color: "bg-gray-500 hover:bg-gray-600",
       iconType: "iconify",
@@ -55,7 +57,7 @@ export function QuickEntryCard() {
     {
       id: "docs",
       icon: "solar:document-text-bold",
-      label: "文档",
+      label: t("quickActions.docs"),
       route: "/docs",
       color: "bg-indigo-500 hover:bg-indigo-600",
       iconType: "iconify",
@@ -64,7 +66,7 @@ export function QuickEntryCard() {
     {
       id: "debug-tools",
       icon: faBug,
-      label: "调试工具",
+      label: t("quickActions.debugTools"),
       route: "/debug",
       color: "bg-teal-500 hover:bg-teal-600",
       iconType: "fontawesome",
@@ -77,7 +79,7 @@ export function QuickEntryCard() {
       <CardBody className="p-5 h-full flex flex-col justify-between">
         {/* 标题 */}
         <span className="text-base font-semibold text-foreground">
-          快捷操作
+          {t("quickActions.title")}
         </span>
         {/* 按钮行 */}
         <div className="flex pt-5 justify-between">

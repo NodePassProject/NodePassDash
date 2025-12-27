@@ -1,4 +1,5 @@
 import { Card, CardBody, CardHeader } from "@heroui/react";
+import { useTranslation } from "react-i18next";
 
 interface NetworkQualityData {
   ping?: number | null;
@@ -12,26 +13,27 @@ interface NetworkQualityCardProps {
 export const NetworkQualityCard = ({
   networkData,
 }: NetworkQualityCardProps) => {
+  const { t } = useTranslation("common");
   const ping = networkData.ping || 0;
   const pool = networkData.pool || 0;
 
   // 计算延迟质量等级 (越低越好)
   const getLatencyQuality = (latency: number) => {
     if (latency === 0) return { level: "", percentage: 0 };
-    if (latency <= 50) return { level: "优秀", percentage: 90 };
-    if (latency <= 100) return { level: "良好", percentage: 70 };
-    if (latency <= 200) return { level: "一般", percentage: 50 };
+    if (latency <= 50) return { level: t("latencyQuality.excellent"), percentage: 90 };
+    if (latency <= 100) return { level: t("latencyQuality.good"), percentage: 70 };
+    if (latency <= 200) return { level: t("latencyQuality.fair"), percentage: 50 };
 
-    return { level: "较差", percentage: 30 };
+    return { level: t("latencyQuality.poor"), percentage: 30 };
   };
 
   // 计算连接池质量等级 (适中最好)
   const getPoolQuality = (poolCount: number) => {
-    if (poolCount === 0) return { level: "无空闲", percentage: 50 };
-    if (poolCount <= 10) return { level: "重负载", percentage: 80 };
-    if (poolCount <= 50) return { level: "中负载", percentage: 90 };
-    if (poolCount <= 100) return { level: "轻负载", percentage: 70 };
-    return { level: "空负载", percentage: 40 };
+    if (poolCount === 0) return { level: t("poolQuality.noIdle"), percentage: 50 };
+    if (poolCount <= 10) return { level: t("poolQuality.heavyLoad"), percentage: 80 };
+    if (poolCount <= 50) return { level: t("poolQuality.mediumLoad"), percentage: 90 };
+    if (poolCount <= 100) return { level: t("poolQuality.lightLoad"), percentage: 70 };
+    return { level: t("poolQuality.idle"), percentage: 40 };
   };
 
   const latencyQuality = getLatencyQuality(ping);
@@ -68,7 +70,7 @@ export const NetworkQualityCard = ({
             />
           </svg>
           <div className="flex items-center gap-2">
-            <h3 className="text-base font-semibold">网络质量</h3>
+            <h3 className="text-base font-semibold">{t("networkQuality.title")}</h3>
           </div>
         </CardHeader>
         <CardBody>
@@ -86,7 +88,7 @@ export const NetworkQualityCard = ({
                   {ping >= 0 ? `${ping}ms` : "—"}
                 </div>
                 <div className="text-xs font-medium opacity-90 text-pink-600 dark:text-pink-400">
-                  延迟 {latencyQuality.level}
+                  {t("networkQuality.latency")} {latencyQuality.level}
                 </div>
               </div>
 
@@ -101,7 +103,7 @@ export const NetworkQualityCard = ({
                   {pool}
                 </div>
                 <div className="text-xs font-medium opacity-90 text-cyan-600 dark:text-cyan-400">
-                  池 {poolQuality.level}
+                  {t("networkQuality.pool")} {poolQuality.level}
                 </div>
               </div>
             </div>
