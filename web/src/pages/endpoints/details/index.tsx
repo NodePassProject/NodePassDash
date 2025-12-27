@@ -187,11 +187,11 @@ export default function EndpointDetailPage() {
   const getTlsDescription = (tls: string) => {
     switch (tls) {
       case "0":
-        return "无TLS";
+        return t("details.tlsConfig.none");
       case "1":
-        return "自签名证书";
+        return t("details.tlsConfig.selfSigned");
       case "2":
-        return "自定义证书";
+        return t("details.tlsConfig.custom");
       default:
         return tls;
     }
@@ -228,17 +228,17 @@ export default function EndpointDetailPage() {
 
     // 如果大于等于1天，只显示天数
     if (days >= 1) {
-      return `${days}天`;
+      return `${days}${t("details.uptimeUnit.days")}`;
     }
 
     // 小于1天的情况
     const parts = [];
 
-    if (hours > 0) parts.push(`${hours}h`);
-    if (minutes > 0) parts.push(`${minutes}m`);
-    if (secs > 0 && parts.length === 0) parts.push(`${secs}s`); // 只有在没有小时和分钟时才显示秒数
+    if (hours > 0) parts.push(`${hours}${t("details.uptimeUnit.hours")}`);
+    if (minutes > 0) parts.push(`${minutes}${t("details.uptimeUnit.minutes")}`);
+    if (secs > 0 && parts.length === 0) parts.push(`${secs}${t("details.uptimeUnit.seconds")}`); // 只有在没有小时和分钟时才显示秒数
 
-    return parts.join("") || "0s";
+    return parts.join("") || `0${t("details.uptimeUnit.seconds")}`;
   };
 
   // 获取实例状态指示器
@@ -246,32 +246,32 @@ export default function EndpointDetailPage() {
     const statusConfig = {
       running: {
         color: "bg-green-500",
-        label: "运行中",
+        label: t("details.instanceStatus.running"),
         animate: false,
       },
       stopped: {
         color: "bg-red-500",
-        label: "已停止",
+        label: t("details.instanceStatus.stopped"),
         animate: false,
       },
       error: {
         color: "bg-red-500",
-        label: "错误",
+        label: t("details.instanceStatus.error"),
         animate: true,
       },
       starting: {
         color: "bg-yellow-500",
-        label: "启动中",
+        label: t("details.instanceStatus.starting"),
         animate: true,
       },
       stopping: {
         color: "bg-orange-500",
-        label: "停止中",
+        label: t("details.instanceStatus.stopping"),
         animate: true,
       },
       unknown: {
         color: "bg-gray-400",
-        label: "未知",
+        label: t("details.instanceStatus.unknown"),
         animate: false,
       },
     };
@@ -299,7 +299,7 @@ export default function EndpointDetailPage() {
         buildApiUrl(`/api/endpoints/${endpointId}/detail`),
       );
 
-      if (!res.ok) throw new Error("获取主控详情失败");
+      if (!res.ok) throw new Error(t("details.toasts.fetchDetailFailed"));
       const data = await res.json();
 
       if (data.success && data.endpoint) {
@@ -308,14 +308,14 @@ export default function EndpointDetailPage() {
     } catch (err) {
       console.error(err);
       addToast({
-        title: "加载失败",
-        description: err instanceof Error ? err.message : "未知错误",
+        title: t("details.toasts.loadFailed"),
+        description: err instanceof Error ? err.message : t("details.toasts.qrCodeFailedDesc"),
         color: "danger",
       });
     } finally {
       setDetailLoading(false);
     }
-  }, [endpointId]);
+  }, [endpointId, t]);
 
   // 获取端点统计信息
   const fetchEndpointStats = useCallback(async () => {
@@ -327,23 +327,23 @@ export default function EndpointDetailPage() {
         buildApiUrl(`/api/endpoints/${endpointId}/stats`),
       );
 
-      if (!res.ok) throw new Error("获取统计信息失败");
+      if (!res.ok) throw new Error(t("details.toasts.fetchStatsFailed"));
       const data = await res.json();
 
       if (data.success && data.data) {
         setEndpointStats(data.data);
       }
     } catch (err) {
-      console.error("获取统计信息失败:", err);
+      console.error(t("details.toasts.fetchStatsFailed"), err);
       addToast({
-        title: "获取统计信息失败",
-        description: err instanceof Error ? err.message : "未知错误",
+        title: t("details.toasts.fetchStatsFailed"),
+        description: err instanceof Error ? err.message : t("details.toasts.qrCodeFailedDesc"),
         color: "warning",
       });
     } finally {
       setStatsLoading(false);
     }
-  }, [endpointId]);
+  }, [endpointId, t]);
 
   // 获取实例列表
   const fetchInstances = useCallback(async () => {
@@ -354,7 +354,7 @@ export default function EndpointDetailPage() {
         buildApiUrl(`/api/endpoints/${endpointId}/instances`),
       );
 
-      if (!res.ok) throw new Error("获取实例列表失败");
+      if (!res.ok) throw new Error(t("details.toasts.fetchInstancesFailed"));
       const data = await res.json();
 
       if (data.success && Array.isArray(data.data)) {
@@ -387,14 +387,14 @@ export default function EndpointDetailPage() {
     } catch (e) {
       console.error(e);
       addToast({
-        title: "获取实例失败",
-        description: e instanceof Error ? e.message : "未知错误",
+        title: t("details.toasts.fetchInstancesFailed"),
+        description: e instanceof Error ? e.message : t("details.toasts.qrCodeFailedDesc"),
         color: "danger",
       });
     } finally {
       setInstancesLoading(false);
     }
-  }, [endpointId]);
+  }, [endpointId, t]);
 
   // 使用useCallback优化函数引用，添加正确的依赖项
   const memoizedFetchEndpointDetail = useCallback(fetchEndpointDetail, [
@@ -423,14 +423,14 @@ export default function EndpointDetailPage() {
       if (!response.ok) {
         const errorData = await response.json();
 
-        throw new Error(errorData.error || "连接失败");
+        throw new Error(errorData.error || t("details.toasts.connectFailed"));
       }
 
       const result = await response.json();
 
       addToast({
-        title: "连接成功",
-        description: result.message || "主控连接请求已发送",
+        title: t("details.toasts.connectSuccess"),
+        description: result.message || t("details.toasts.connectSuccessDesc"),
         color: "success",
       });
 
@@ -438,8 +438,8 @@ export default function EndpointDetailPage() {
       await fetchEndpointDetail();
     } catch (error) {
       addToast({
-        title: "连接失败",
-        description: error instanceof Error ? error.message : "连接请求失败",
+        title: t("details.toasts.connectFailed"),
+        description: error instanceof Error ? error.message : t("details.toasts.connectFailedDesc"),
         color: "danger",
       });
     }
@@ -462,14 +462,14 @@ export default function EndpointDetailPage() {
       if (!response.ok) {
         const errorData = await response.json();
 
-        throw new Error(errorData.error || "断开连接失败");
+        throw new Error(errorData.error || t("details.toasts.disconnectFailed"));
       }
 
       const result = await response.json();
 
       addToast({
-        title: "断开连接成功",
-        description: result.message || "主控连接已断开",
+        title: t("details.toasts.disconnectSuccess"),
+        description: result.message || t("details.toasts.disconnectSuccessDesc"),
         color: "success",
       });
 
@@ -477,8 +477,8 @@ export default function EndpointDetailPage() {
       await fetchEndpointDetail();
     } catch (error) {
       addToast({
-        title: "断开连接失败",
-        description: error instanceof Error ? error.message : "断开连接失败",
+        title: t("details.toasts.disconnectFailed"),
+        description: error instanceof Error ? error.message : t("details.toasts.disconnectFailedDesc"),
         color: "danger",
       });
     }
@@ -498,18 +498,18 @@ export default function EndpointDetailPage() {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.error || "刷新失败");
+        throw new Error(data.error || t("details.toasts.refreshFailed"));
       }
       addToast({
-        title: "刷新成功",
-        description: data.message || "隧道信息已刷新",
+        title: t("details.toasts.refreshSuccess"),
+        description: data.message || t("details.toasts.refreshSuccessDesc"),
         color: "success",
       });
       await fetchInstances();
     } catch (error) {
       addToast({
-        title: "刷新失败",
-        description: error instanceof Error ? error.message : "刷新请求失败",
+        title: t("details.toasts.refreshFailed"),
+        description: error instanceof Error ? error.message : t("details.toasts.refreshFailedDesc"),
         color: "danger",
       });
     }
@@ -521,8 +521,8 @@ export default function EndpointDetailPage() {
 
     navigator.clipboard.writeText(config).then(() => {
       addToast({
-        title: "已复制",
-        description: "配置信息已复制到剪贴板",
+        title: t("details.toasts.configCopied"),
+        description: t("details.toasts.configCopiedDesc"),
         color: "success",
       });
     });
@@ -533,8 +533,8 @@ export default function EndpointDetailPage() {
 
     try {
       addToast({
-        title: "开始重置密钥",
-        description: "正在断开当前连接...",
+        title: t("details.toasts.resetKeyStart"),
+        description: t("details.toasts.resetKeyDisconnecting"),
         color: "primary",
       });
 
@@ -552,14 +552,14 @@ export default function EndpointDetailPage() {
       if (!response.ok) {
         const errorData = await response.json();
 
-        throw new Error(errorData.error || "重置密钥失败");
+        throw new Error(errorData.error || t("details.toasts.resetKeyFailed"));
       }
 
       const result = await response.json();
 
       addToast({
-        title: "密钥重置成功",
-        description: "新密钥已生成，正在重新连接...",
+        title: t("details.toasts.resetKeySuccess"),
+        description: t("details.toasts.resetKeySuccessDesc"),
         color: "success",
       });
 
@@ -574,8 +574,8 @@ export default function EndpointDetailPage() {
       }, 1500);
     } catch (error) {
       addToast({
-        title: "密钥重置失败",
-        description: error instanceof Error ? error.message : "重置失败",
+        title: t("details.toasts.resetKeyFailed"),
+        description: error instanceof Error ? error.message : t("details.toasts.resetKeyFailedDesc"),
         color: "danger",
       });
     }
@@ -595,12 +595,12 @@ export default function EndpointDetailPage() {
       if (!response.ok) {
         const error = await response.json();
 
-        throw new Error(error.message || "删除失败");
+        throw new Error(error.message || t("details.toasts.deleteFailed"));
       }
 
       addToast({
-        title: "删除成功",
-        description: "主控已删除",
+        title: t("details.toasts.deleteSuccess"),
+        description: t("details.toasts.deleteSuccessDesc"),
         color: "success",
       });
 
@@ -610,8 +610,8 @@ export default function EndpointDetailPage() {
       navigate("/endpoints");
     } catch (error) {
       addToast({
-        title: "删除失败",
-        description: error instanceof Error ? error.message : "删除失败",
+        title: t("details.toasts.deleteFailed"),
+        description: error instanceof Error ? error.message : t("details.toasts.deleteFailedDesc"),
         color: "danger",
       });
     }
@@ -628,8 +628,8 @@ export default function EndpointDetailPage() {
     if (!endpointId) return;
     if (!tunnelUrl.trim()) {
       addToast({
-        title: "请输入 URL",
-        description: "隧道 URL 不能为空",
+        title: t("details.toasts.addInstanceUrlRequired"),
+        description: t("details.toasts.addInstanceUrlRequiredDesc"),
         color: "warning",
       });
 
@@ -648,19 +648,19 @@ export default function EndpointDetailPage() {
       const data = await res.json();
 
       if (!res.ok || !data.success) {
-        throw new Error(data.error || "创建隧道失败");
+        throw new Error(data.error || t("details.toasts.addInstanceFailed"));
       }
       addToast({
-        title: "创建成功",
-        description: data.message || "隧道已创建",
+        title: t("details.toasts.addInstanceSuccess"),
+        description: data.message || t("details.toasts.addInstanceSuccessDesc"),
         color: "success",
       });
       onAddTunnelOpenChange();
       await fetchInstances();
     } catch (err) {
       addToast({
-        title: "创建失败",
-        description: err instanceof Error ? err.message : "无法创建隧道",
+        title: t("details.toasts.addInstanceFailed"),
+        description: err instanceof Error ? err.message : t("details.toasts.addInstanceFailedDesc"),
         color: "danger",
       });
     }
@@ -704,8 +704,8 @@ export default function EndpointDetailPage() {
     // 验证必填字段
     if (!configForm.name.trim() || !configForm.url.trim()) {
       addToast({
-        title: "请填写完整信息",
-        description: "名称和URL地址不能为空",
+        title: t("details.toasts.editConfigValidation"),
+        description: t("details.toasts.editConfigValidationDesc"),
         color: "warning",
       });
 
@@ -723,8 +723,8 @@ export default function EndpointDetailPage() {
 
     if (!hasNameChange && !hasUrlChange && !hasApiKeyChange) {
       addToast({
-        title: "没有变更",
-        description: "未检测到任何配置变更",
+        title: t("details.toasts.editConfigNoChange"),
+        description: t("details.toasts.editConfigNoChangeDesc"),
         color: "warning",
       });
 
@@ -736,8 +736,8 @@ export default function EndpointDetailPage() {
 
     // 显示开始处理的 toast
     addToast({
-      title: "开始更新配置",
-      description: "正在处理配置更新...",
+      title: t("details.toasts.editConfigStartUpdate"),
+      description: t("details.toasts.editConfigStartUpdateDesc"),
       color: "primary",
     });
 
@@ -747,8 +747,8 @@ export default function EndpointDetailPage() {
         // 如果有URL或密钥变更，需要先断开连接
         if (hasUrlChange || hasApiKeyChange) {
           addToast({
-            title: "断开连接中",
-            description: "正在断开当前连接...",
+            title: t("details.toasts.editConfigDisconnecting"),
+            description: t("details.toasts.editConfigDisconnectingDesc"),
             color: "primary",
           });
 
@@ -771,8 +771,8 @@ export default function EndpointDetailPage() {
         }
 
         addToast({
-          title: "更新配置中",
-          description: "正在提交配置更新...",
+          title: t("details.toasts.editConfigUpdating"),
+          description: t("details.toasts.editConfigUpdatingDesc"),
           color: "primary",
         });
 
@@ -787,12 +787,12 @@ export default function EndpointDetailPage() {
         if (!response.ok) {
           const errorData = await response.json();
 
-          throw new Error(errorData.error || "配置更新失败");
+          throw new Error(errorData.error || t("details.toasts.editConfigFailed"));
         }
 
         addToast({
-          title: "配置更新成功",
-          description: "配置已更新，正在刷新数据...",
+          title: t("details.toasts.editConfigSuccess"),
+          description: t("details.toasts.editConfigSuccessDesc"),
           color: "success",
         });
 
@@ -802,8 +802,8 @@ export default function EndpointDetailPage() {
         // 如果有URL或密钥变更，延迟重新连接
         if (hasUrlChange || hasApiKeyChange) {
           addToast({
-            title: "重新连接中",
-            description: "正在尝试重新连接...",
+            title: t("details.toasts.editConfigReconnecting"),
+            description: t("details.toasts.editConfigReconnectingDesc"),
             color: "primary",
           });
 
@@ -813,8 +813,8 @@ export default function EndpointDetailPage() {
         }
       } catch (error) {
         addToast({
-          title: "配置更新失败",
-          description: error instanceof Error ? error.message : "更新失败",
+          title: t("details.toasts.editConfigFailed"),
+          description: error instanceof Error ? error.message : t("details.toasts.editConfigFailedDesc"),
           color: "danger",
         });
       }
@@ -832,14 +832,14 @@ export default function EndpointDetailPage() {
       ]);
 
       addToast({
-        title: "刷新成功",
-        description: "所有数据已刷新",
+        title: t("details.toasts.refreshAllSuccess"),
+        description: t("details.toasts.refreshAllSuccessDesc"),
         color: "success",
       });
     } catch (error) {
       addToast({
-        title: "刷新失败",
-        description: error instanceof Error ? error.message : "刷新失败",
+        title: t("details.toasts.refreshAllFailed"),
+        description: error instanceof Error ? error.message : t("details.toasts.refreshAllFailedDesc"),
         color: "danger",
       });
     }
@@ -888,14 +888,14 @@ export default function EndpointDetailPage() {
       setQrCodeDataUrl(dataUrl);
       onQrCodeOpen();
     } catch (error) {
-      console.error("生成二维码失败:", error);
+      console.error(t("details.toasts.qrCodeFailed"), error);
       addToast({
-        title: "生成二维码失败",
-        description: error instanceof Error ? error.message : "未知错误",
+        title: t("details.toasts.qrCodeFailed"),
+        description: error instanceof Error ? error.message : t("details.toasts.qrCodeFailedDesc"),
         color: "danger",
       });
     }
-  }, [endpointDetail, onQrCodeOpen]);
+  }, [endpointDetail, onQrCodeOpen, t]);
 
   return (
     <div className="space-y-6 ">
@@ -933,16 +933,16 @@ export default function EndpointDetailPage() {
                 variant="flat"
               >
                 {endpointDetail.status === "ONLINE"
-                  ? "在线"
+                  ? t("status.online")
                   : endpointDetail.status === "FAIL"
-                    ? "异常"
+                    ? t("status.fail")
                     : endpointDetail.status === "DISCONNECT"
-                      ? "断开"
-                      : "离线"}
+                      ? t("status.disconnect")
+                      : t("status.offline")}
               </Chip>
             </div>
           ) : (
-            <h1 className="text-lg md:text-2xl font-bold truncate">主控详情</h1>
+            <h1 className="text-lg md:text-2xl font-bold truncate">{t("details.pageTitle")}</h1>
           )}
         </div>
         <div className="flex items-center gap-2 md:gap-4 flex-wrap">
@@ -954,7 +954,7 @@ export default function EndpointDetailPage() {
             variant="flat"
             onPress={handleRefreshAll}
           >
-            刷新
+            {t("details.refresh")}
           </Button>
           <Button
             isIconOnly
@@ -973,7 +973,7 @@ export default function EndpointDetailPage() {
             variant="flat"
             onPress={() => navigate(`/endpoints/sse-debug?id=${endpointId}`)}
           >
-            SSE调试
+            {t("details.sseDebug")}
           </Button>
           <Button
             isIconOnly
@@ -998,8 +998,8 @@ export default function EndpointDetailPage() {
       <Card className="p-2">
         <CardHeader>
           <div className="flex flex-col flex-1">
-            <p className="text-lg font-semibold">主控统计</p>
-            <p className="text-sm text-default-500">当前主控的数据统计概览</p>
+            <p className="text-lg font-semibold">{t("details.stats.title")}</p>
+            <p className="text-sm text-default-500">{t("details.stats.description")}</p>
           </div>
         </CardHeader>
         <CardBody>
@@ -1028,11 +1028,11 @@ export default function EndpointDetailPage() {
                   icon={faLayerGroup}
                 />
                 <div>
-                  <p className="text-xs text-default-600">实例总数量</p>
+                  <p className="text-xs text-default-600">{t("details.stats.tunnelCount")}</p>
                   <p className="text-xl font-bold text-primary">
                     {endpointStats.tunnelCount}
                   </p>
-                  <p className="text-xs text-default-500">活跃实例</p>
+                  <p className="text-xs text-default-500">{t("details.stats.activeTunnels")}</p>
                 </div>
               </div>
 
@@ -1043,11 +1043,11 @@ export default function EndpointDetailPage() {
                   icon={faFileLines}
                 />
                 <div>
-                  <p className="text-xs text-default-600">日志文件数</p>
+                  <p className="text-xs text-default-600">{t("details.stats.logFileCount")}</p>
                   <p className="text-xl font-bold text-secondary">
                     {endpointStats.fileLogCount}
                   </p>
-                  <p className="text-xs text-default-500">日志文件</p>
+                  <p className="text-xs text-default-500">{t("details.stats.logFiles")}</p>
                 </div>
               </div>
 
@@ -1058,11 +1058,11 @@ export default function EndpointDetailPage() {
                   icon={faHardDrive}
                 />
                 <div>
-                  <p className="text-xs text-default-600">日志文件大小</p>
+                  <p className="text-xs text-default-600">{t("details.stats.logFileSize")}</p>
                   <p className="text-xl font-bold text-success">
                     {formatFileSize(endpointStats.fileLogSize)}
                   </p>
-                  <p className="text-xs text-default-500">磁盘占用</p>
+                  <p className="text-xs text-default-500">{t("details.stats.diskUsage")}</p>
                 </div>
               </div>
 
@@ -1073,7 +1073,7 @@ export default function EndpointDetailPage() {
                   icon={faWifi}
                 />
                 <div>
-                  <p className="text-xs text-default-600">总流量</p>
+                  <p className="text-xs text-default-600">{t("details.stats.totalTraffic")}</p>
                   <p className="text-lg font-bold text-warning">
                     ↑{formatTraffic(endpointStats.totalTrafficOut)}
                   </p>
@@ -1085,7 +1085,7 @@ export default function EndpointDetailPage() {
             </div>
           ) : (
             <div className="text-center py-8">
-              <p className="text-default-500">无法获取统计数据</p>
+              <p className="text-default-500">{t("details.stats.noData")}</p>
             </div>
           )}
         </CardBody>
@@ -1095,7 +1095,7 @@ export default function EndpointDetailPage() {
       {endpointDetail && (
         <Card className="p-2">
           <CardHeader>
-            <h3 className="text-lg font-semibold">主控操作</h3>
+            <h3 className="text-lg font-semibold">{t("details.actions.title")}</h3>
           </CardHeader>
           <CardBody>
             <div className="flex flex-wrap items-center gap-3">
@@ -1106,7 +1106,7 @@ export default function EndpointDetailPage() {
                 variant="flat"
                 onPress={handleAddTunnel}
               >
-                添加实例
+                {t("details.actions.addInstance")}
               </Button>
 
               {/* 同步实例 */}
@@ -1116,7 +1116,7 @@ export default function EndpointDetailPage() {
                 variant="flat"
                 onPress={handleRefreshTunnels}
               >
-                同步实例
+                {t("details.actions.syncInstances")}
               </Button>
 
               {/* 分隔线 */}
@@ -1130,7 +1130,7 @@ export default function EndpointDetailPage() {
                 variant="flat"
                 onPress={onNetworkDebugOpen}
               >
-                网络调试
+                {t("details.actions.networkDebug")}
               </Button>
 
               {/* 连接/断开按钮 */}
@@ -1141,7 +1141,7 @@ export default function EndpointDetailPage() {
                   variant="flat"
                   onPress={handleDisconnect}
                 >
-                  断开连接
+                  {t("details.actions.disconnect")}
                 </Button>
               ) : (
                 <Button
@@ -1150,7 +1150,7 @@ export default function EndpointDetailPage() {
                   variant="flat"
                   onPress={handleConnect}
                 >
-                  连接主控
+                  {t("details.actions.connect")}
                 </Button>
               )}
 
@@ -1164,7 +1164,7 @@ export default function EndpointDetailPage() {
                 variant="flat"
                 onPress={handleCopyConfig}
               >
-                复制配置
+                {t("details.actions.copyConfig")}
               </Button>
 
               {/* 修改配置 */}
@@ -1174,7 +1174,7 @@ export default function EndpointDetailPage() {
                 variant="flat"
                 onPress={handleEditConfig}
               >
-                修改配置
+                {t("details.actions.editConfig")}
               </Button>
 
               {/* 重置密钥 */}
@@ -1184,7 +1184,7 @@ export default function EndpointDetailPage() {
                 variant="flat"
                 onPress={onResetApiKeyOpen}
               >
-                重置密钥
+                {t("details.actions.resetKey")}
               </Button>
 
               {/* 删除主控 */}
@@ -1194,7 +1194,7 @@ export default function EndpointDetailPage() {
                 variant="flat"
                 onPress={onDeleteEndpointOpen}
               >
-                删除主控
+                {t("details.actions.delete")}
               </Button>
             </div>
           </CardBody>
@@ -1206,12 +1206,12 @@ export default function EndpointDetailPage() {
         <Card className="p-2">
           <CardHeader className="flex items-center justify-between">
             <div className="flex items-center gap-2">
-              <h3 className="text-lg font-semibold">主控信息</h3>
+              <h3 className="text-lg font-semibold">{t("details.info.title")}</h3>
               <Button
                 isIconOnly
                 color="primary"
                 size="sm"
-                title="显示二维码"
+                title={t("details.info.qrCodeTitle")}
                 variant="flat"
                 onPress={generateQRCode}
               >
@@ -1227,7 +1227,7 @@ export default function EndpointDetailPage() {
                 <div className="space-y-2">
                   <div className="flex items-center gap-2 text-small text-default-500">
                     <FontAwesomeIcon icon={faServer} />
-                    <span>服务地址</span>
+                    <span>{t("details.info.serverAddress")}</span>
                   </div>
                   <p className="text-small font-mono truncate">
                     {formatUrlWithPrivacy(
@@ -1243,7 +1243,7 @@ export default function EndpointDetailPage() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faKey} />
-                      <span>API Key</span>
+                      <span>{t("details.info.apiKey")}</span>
                     </div>
                     <p className="text-small font-mono truncate">
                       ••••••••••••••••••••••••••••••••
@@ -1256,7 +1256,7 @@ export default function EndpointDetailPage() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faDesktop} />
-                      <span>操作系统</span>
+                      <span>{t("details.info.os")}</span>
                     </div>
                     <Chip
                       className="font-mono"
@@ -1276,7 +1276,7 @@ export default function EndpointDetailPage() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faCode} />
-                      <span>架构</span>
+                      <span>{t("details.info.arch")}</span>
                     </div>
                     <Chip
                       className="font-mono"
@@ -1300,7 +1300,7 @@ export default function EndpointDetailPage() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faGlobe} />
-                      <span>日志级别</span>
+                      <span>{t("details.info.logLevel")}</span>
                     </div>
                     <Chip
                       className="font-mono"
@@ -1317,7 +1317,7 @@ export default function EndpointDetailPage() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faLock} />
-                      <span>TLS配置</span>
+                      <span>{t("details.info.tlsConfig")}</span>
                     </div>
                     <div className="flex items-center gap-2">
                       <Chip
@@ -1329,9 +1329,6 @@ export default function EndpointDetailPage() {
                       >
                         {getTlsDescription(endpointDetail.tls)}
                       </Chip>
-                      {/* <span className="text-tiny text-default-400">
-                        (Level {endpointDetail.tls})
-                      </span> */}
                     </div>
                   </div>
                 )}
@@ -1341,7 +1338,7 @@ export default function EndpointDetailPage() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faClock} />
-                      <span>在线时长</span>
+                      <span>{t("details.info.uptime")}</span>
                     </div>
                     <Chip
                       className="font-mono"
@@ -1359,7 +1356,7 @@ export default function EndpointDetailPage() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faCertificate} />
-                      <span>证书路径</span>
+                      <span>{t("details.info.certPath")}</span>
                     </div>
                     <p className="text-small font-mono truncate">
                       {endpointDetail.crt}
@@ -1371,7 +1368,7 @@ export default function EndpointDetailPage() {
                   <div className="space-y-2">
                     <div className="flex items-center gap-2 text-small text-default-500">
                       <FontAwesomeIcon icon={faKey} />
-                      <span>密钥路径</span>
+                      <span>{t("details.info.keyPath")}</span>
                     </div>
                     <p className="text-small font-mono truncate">
                       {endpointDetail.keyPath}
@@ -1384,15 +1381,15 @@ export default function EndpointDetailPage() {
               <Divider />
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4 text-small text-default-500">
                 <div>
-                  <span className="font-medium">创建时间：</span>
+                  <span className="font-medium">{t("details.info.createdAt")}</span>
                   {new Date(endpointDetail.createdAt).toLocaleString("zh-CN")}
                 </div>
                 <div>
-                  <span className="font-medium">更新时间：</span>
+                  <span className="font-medium">{t("details.info.updatedAt")}</span>
                   {new Date(endpointDetail.updatedAt).toLocaleString("zh-CN")}
                 </div>
                 <div>
-                  <span className="font-medium">最后检查：</span>
+                  <span className="font-medium">{t("details.info.lastCheck")}</span>
                   {new Date(endpointDetail.lastCheck).toLocaleString("zh-CN")}
                 </div>
               </div>
@@ -1405,7 +1402,7 @@ export default function EndpointDetailPage() {
       <Card className="p-2">
         <CardHeader className="flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <h3 className="text-lg font-semibold">主控实例</h3>
+            <h3 className="text-lg font-semibold">{t("details.instances.title")}</h3>
             {/* <span className="text-sm text-default-500">({instances.length} 个实例)</span> */}
             {/* 类型和状态提示 */}
             {/* <div className="flex items-center gap-3 text-tiny">
@@ -1448,7 +1445,7 @@ export default function EndpointDetailPage() {
             </div>
           ) : instances.length === 0 ? (
             <div className="text-center py-8">
-              <p className="text-default-500 text-sm">暂无实例数据</p>
+              <p className="text-default-500 text-sm">{t("details.instances.noData")}</p>
             </div>
           ) : (
             <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-3 max-h-[324px] overflow-y-auto [&::-webkit-scrollbar]:hidden [-ms-overflow-style:none] [scrollbar-width:none]">
@@ -1488,7 +1485,7 @@ export default function EndpointDetailPage() {
                           className="text-xs font-medium truncate"
                           title={ins.alias || ins.instanceId}
                         >
-                          {ins.alias || "未命名"}
+                          {ins.alias || t("details.instances.unnamed")}
                         </p>
                         {/* 第二行：实例ID */}
                         <p
@@ -1508,7 +1505,7 @@ export default function EndpointDetailPage() {
                         size="sm"
                         variant="flat"
                       >
-                        {ins.type === "server" ? "服务端" : "客户端"}
+                        {ins.type === "server" ? t("details.instances.server") : t("details.instances.client")}
                       </Chip>
                     </div>
                   </CardBody>
@@ -1528,7 +1525,7 @@ export default function EndpointDetailPage() {
         <ModalContent>
           {() => (
             <>
-              <ModalHeader>实例URL提取</ModalHeader>
+              <ModalHeader>{t("details.modals.extractInstances.title")}</ModalHeader>
               <ModalBody>
                 <Textarea
                   readOnly
@@ -1543,12 +1540,12 @@ export default function EndpointDetailPage() {
                     navigator.clipboard.writeText(
                       instances.map((i) => i.commandLine).join("\n"),
                     );
-                    addToast({ title: "已复制", color: "success" });
+                    addToast({ title: t("details.modals.extractInstances.copied"), color: "success" });
                   }}
                 >
-                  复制全部
+                  {t("details.modals.extractInstances.copyAll")}
                 </Button>
-                <Button onPress={() => setExtractOpen(false)}>关闭</Button>
+                <Button onPress={() => setExtractOpen(false)}>{t("details.modals.extractInstances.close")}</Button>
               </ModalFooter>
             </>
           )}
@@ -1564,34 +1561,33 @@ export default function EndpointDetailPage() {
         <ModalContent>
           {(onClose) => (
             <>
-              <ModalHeader>添加实例</ModalHeader>
+              <ModalHeader>{t("details.modals.addInstance.title")}</ModalHeader>
               <ModalBody>
                 <div className="space-y-3">
                   <Input
-                    label="实例名称"
-                    placeholder="请输入实例名称（可选）"
+                    label={t("details.modals.addInstance.nameLabel")}
+                    placeholder={t("details.modals.addInstance.namePlaceholder")}
                     value={tunnelName}
                     onValueChange={setTunnelName}
                   />
                   <Input
                     isRequired
-                    label="隧道URL"
-                    placeholder="例如：server://0.0.0.0:8080/127.0.0.1:3000"
+                    label={t("details.modals.addInstance.urlLabel")}
+                    placeholder={t("details.modals.addInstance.urlPlaceholder")}
                     value={tunnelUrl}
                     onValueChange={setTunnelUrl}
                   />
                   <p className="text-tiny text-default-500">
-                    格式：server://bind_addr:bind_port/target_host:target_port
-                    或 client://server_host:server_port/local_host:local_port
+                    {t("details.modals.addInstance.formatHint")}
                   </p>
                 </div>
               </ModalBody>
               <ModalFooter>
                 <Button variant="light" onPress={onClose}>
-                  取消
+                  {t("details.modals.addInstance.cancel")}
                 </Button>
                 <Button color="primary" onPress={handleSubmitAddTunnel}>
-                  添加
+                  {t("details.modals.addInstance.add")}
                 </Button>
               </ModalFooter>
             </>
@@ -1609,11 +1605,11 @@ export default function EndpointDetailPage() {
         <ModalContent>
           {(onClose) => (
             <>
-              <ModalHeader>修改主控配置</ModalHeader>
+              <ModalHeader>{t("details.modals.editConfig.title")}</ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
                   <p className="text-sm text-warning-600">
-                    ⚠️ 修改URL地址或密钥将会断开当前连接并使用新配置重新连接
+                    {t("details.modals.editConfig.warning")}
                   </p>
 
                   <Input
@@ -1623,9 +1619,9 @@ export default function EndpointDetailPage() {
                         {configForm.name.length}/25
                       </span>
                     }
-                    label="主控名称"
+                    label={t("details.modals.editConfig.nameLabel")}
                     maxLength={25}
-                    placeholder="请输入主控名称"
+                    placeholder={t("details.modals.editConfig.namePlaceholder")}
                     value={configForm.name}
                     onValueChange={(value) =>
                       setConfigForm((prev) => ({ ...prev, name: value }))
@@ -1634,8 +1630,8 @@ export default function EndpointDetailPage() {
 
                   <Input
                     isRequired
-                    label="URL 地址"
-                    placeholder="http(s)://example.com:9090/api/v1"
+                    label={t("details.modals.editConfig.urlLabel")}
+                    placeholder={t("details.modals.editConfig.urlPlaceholder")}
                     type="url"
                     value={configForm.url}
                     onValueChange={(value) =>
@@ -1644,9 +1640,9 @@ export default function EndpointDetailPage() {
                   />
 
                   <Input
-                    description="留空表示不修改密钥"
-                    label="API密钥"
-                    placeholder="留空表示不修改密钥"
+                    description={t("details.modals.editConfig.apiKeyDescription")}
+                    label={t("details.modals.editConfig.apiKeyLabel")}
+                    placeholder={t("details.modals.editConfig.apiKeyPlaceholder")}
                     type="password"
                     value={configForm.apiKey}
                     onValueChange={(value) =>
@@ -1655,9 +1651,9 @@ export default function EndpointDetailPage() {
                   />
 
                   <Input
-                    description="用于实例连接的地址"
-                    label="连接 IP"
-                    placeholder="例如：192.168.1.1"
+                    description={t("details.modals.editConfig.hostnameDescription")}
+                    label={t("details.modals.editConfig.hostnameLabel")}
+                    placeholder={t("details.modals.editConfig.hostnamePlaceholder")}
                     value={configForm.hostname}
                     onValueChange={(value) =>
                       setConfigForm((prev) => ({ ...prev, hostname: value }))
@@ -1667,10 +1663,10 @@ export default function EndpointDetailPage() {
               </ModalBody>
               <ModalFooter>
                 <Button variant="light" onPress={onClose}>
-                  取消
+                  {t("details.modals.editConfig.cancel")}
                 </Button>
                 <Button color="warning" onPress={handleSubmitEditConfig}>
-                  确定修改
+                  {t("details.modals.editConfig.confirm")}
                 </Button>
               </ModalFooter>
             </>
@@ -1683,18 +1679,18 @@ export default function EndpointDetailPage() {
         <ModalContent>
           {() => (
             <>
-              <ModalHeader>导入URL</ModalHeader>
+              <ModalHeader>{t("details.modals.importUrl.title")}</ModalHeader>
               <ModalBody>
                 <Textarea
                   minRows={10}
-                  placeholder="在此粘贴 URL，每行一个..."
+                  placeholder={t("details.modals.importUrl.placeholder")}
                 />
               </ModalBody>
               <ModalFooter>
                 <Button color="secondary" onPress={() => setImportOpen(false)}>
-                  确定
+                  {t("details.modals.importUrl.confirm")}
                 </Button>
-                <Button onPress={() => setImportOpen(false)}>取消</Button>
+                <Button onPress={() => setImportOpen(false)}>{t("details.modals.importUrl.cancel")}</Button>
               </ModalFooter>
             </>
           )}
@@ -1721,7 +1717,7 @@ export default function EndpointDetailPage() {
             <>
               <ModalHeader className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-warning" icon={faKey} />
-                <span>重置API密钥</span>
+                <span>{t("details.modals.resetApiKey.title")}</span>
               </ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
@@ -1733,30 +1729,30 @@ export default function EndpointDetailPage() {
                       />
                       <div>
                         <h4 className="font-semibold text-warning-800 mb-1">
-                          ⚠️ 重要提醒
+                          {t("details.modals.resetApiKey.warningTitle")}
                         </h4>
                         <p className="text-sm text-warning-700">
-                          重置API密钥后，当前连接将断开，需要使用新密钥重新连接主控。
+                          {t("details.modals.resetApiKey.warningMessage")}
                         </p>
                       </div>
                     </div>
                   </div>
                   <p className="text-sm text-default-600">
-                    您确定要重置此主控的API密钥吗？此操作将：
+                    {t("details.modals.resetApiKey.confirmMessage")}
                   </p>
                   <ul className="text-sm text-default-600 list-disc list-inside space-y-1 ml-4">
-                    <li>生成新的API密钥</li>
-                    <li>断开当前连接</li>
-                    <li>需要使用新密钥重新连接</li>
+                    <li>{t("details.modals.resetApiKey.consequences.newKey")}</li>
+                    <li>{t("details.modals.resetApiKey.consequences.disconnect")}</li>
+                    <li>{t("details.modals.resetApiKey.consequences.reconnect")}</li>
                   </ul>
                 </div>
               </ModalBody>
               <ModalFooter>
                 <Button variant="light" onPress={onClose}>
-                  取消
+                  {t("details.modals.resetApiKey.cancel")}
                 </Button>
                 <Button color="warning" onPress={handleResetApiKey}>
-                  确认重置
+                  {t("details.modals.resetApiKey.confirm")}
                 </Button>
               </ModalFooter>
             </>
@@ -1775,7 +1771,7 @@ export default function EndpointDetailPage() {
             <>
               <ModalHeader className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-danger" icon={faTrash} />
-                <span>删除主控</span>
+                <span>{t("details.modals.deleteEndpoint.title")}</span>
               </ModalHeader>
               <ModalBody>
                 <div className="space-y-4">
@@ -1787,32 +1783,33 @@ export default function EndpointDetailPage() {
                       />
                       <div>
                         <h4 className="font-semibold text-danger-800 mb-1">
-                          ⚠️ 危险操作
+                          {t("details.modals.deleteEndpoint.warningTitle")}
                         </h4>
                         <p className="text-sm text-danger-700">
-                          删除主控后，所有相关的实例和配置信息将永久丢失，无法恢复。
+                          {t("details.modals.deleteEndpoint.warningMessage")}
                         </p>
                       </div>
                     </div>
                   </div>
                   <p className="text-sm text-default-600">
-                    您确定要删除主控 <strong>{endpointDetail?.name}</strong>{" "}
-                    吗？此操作将：
+                    {t("details.modals.deleteEndpoint.confirmMessage")}{" "}
+                    <strong>{endpointDetail?.name}</strong>{" "}
+                    {t("details.modals.deleteEndpoint.confirmMessageEnd")}
                   </p>
                   <ul className="text-sm text-default-600 list-disc list-inside space-y-1 ml-4">
-                    <li>永久删除主控配置</li>
-                    <li>删除所有关联的实例</li>
-                    <li>清除所有历史数据</li>
-                    <li>此操作不可撤销</li>
+                    <li>{t("details.modals.deleteEndpoint.consequences.deleteConfig")}</li>
+                    <li>{t("details.modals.deleteEndpoint.consequences.deleteInstances")}</li>
+                    <li>{t("details.modals.deleteEndpoint.consequences.clearHistory")}</li>
+                    <li>{t("details.modals.deleteEndpoint.consequences.irreversible")}</li>
                   </ul>
                 </div>
               </ModalBody>
               <ModalFooter>
                 <Button variant="light" onPress={onClose}>
-                  取消
+                  {t("details.modals.deleteEndpoint.cancel")}
                 </Button>
                 <Button color="danger" onPress={handleDeleteEndpoint}>
-                  确认删除
+                  {t("details.modals.deleteEndpoint.confirm")}
                 </Button>
               </ModalFooter>
             </>
@@ -1832,7 +1829,7 @@ export default function EndpointDetailPage() {
             <>
               <ModalHeader className="flex items-center gap-2">
                 <FontAwesomeIcon className="text-primary" icon={faQrcode} />
-                <span>主控配置二维码</span>
+                <span>{t("details.modals.qrCode.title")}</span>
               </ModalHeader>
               <ModalBody>
                 <div className="flex flex-col items-center space-y-6 pb-4">
@@ -1840,19 +1837,19 @@ export default function EndpointDetailPage() {
                     <>
                       <div className="p-4 bg-white rounded-lg border">
                         <img
-                          alt="主控配置二维码"
+                          alt={t("details.modals.qrCode.title")}
                           className="w-64 h-64"
                           src={qrCodeDataUrl}
                         />
                       </div>
                       <p className="text-sm text-default-500 text-center">
-                        扫描此二维码可快速配置主控连接
+                        {t("details.modals.qrCode.description")}
                       </p>
 
                       {/* 应用下载链接 */}
                       <div className="w-full">
                         <p className="text-sm font-medium text-default-700 mb-3 text-center">
-                          下载移动端应用
+                          {t("details.modals.qrCode.downloadApp")}
                         </p>
                         <div className="flex items-center justify-center gap-4">
                           {/* iOS 应用 */}
@@ -1867,7 +1864,7 @@ export default function EndpointDetailPage() {
                               icon="simple-icons:apple"
                             />
                             <span className="text-sm font-medium">
-                              iOS 版本
+                              {t("details.modals.qrCode.iosVersion")}
                             </span>
                           </a>
 
@@ -1876,9 +1873,8 @@ export default function EndpointDetailPage() {
                             className="flex items-center gap-2 px-4 py-2 bg-green-600 text-white rounded-lg hover:bg-green-700 transition-colors cursor-pointer"
                             onClick={() => {
                               addToast({
-                                title: "正在开发中",
-                                description:
-                                  "Android 版本正在开发中，敬请期待！",
+                                title: t("details.modals.qrCode.androidInDevelopment"),
+                                description: t("details.modals.qrCode.androidDescription"),
                                 color: "warning",
                               });
                             }}
@@ -1888,7 +1884,7 @@ export default function EndpointDetailPage() {
                               icon="simple-icons:android"
                             />
                             <span className="text-sm font-medium">
-                              Android 版本
+                              {t("details.modals.qrCode.androidVersion")}
                             </span>
                           </button>
                         </div>
