@@ -1,0 +1,84 @@
+{
+  "title": "Welcome to NodePassDash",
+  "subtitle": "Let's take a few minutes to complete the initial setup",
+  "progress": {
+    "label": "Setup Progress"
+  },
+  "steps": {
+    "step1": "Theme & Language",
+    "step2": "Account Setup",
+    "step3": "Feature Configuration"
+  },
+  "step1": {
+    "title": "Choose Your Preferences",
+    "description": "Personalize your experience, these settings can be changed later",
+    "theme": {
+      "label": "Interface Theme",
+      "description": "Click to select a theme and preview instantly",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "Follow System"
+    },
+    "language": {
+      "label": "Interface Language",
+      "description": "Select your preferred language",
+      "zh": "简体中文",
+      "en": "English"
+    }
+  },
+  "step2": {
+    "title": "Set Up Your Account",
+    "description": "Default credentials detected. For security, please update your username and password immediately",
+    "newUsername": {
+      "label": "New Username",
+      "placeholder": "Enter new username",
+      "description": "Set a personalized username"
+    },
+    "newPassword": {
+      "label": "New Password",
+      "placeholder": "Enter new password",
+      "description": "At least 6 characters, should include letters, numbers and symbols"
+    },
+    "confirmPassword": {
+      "label": "Confirm New Password",
+      "placeholder": "Enter new password again"
+    },
+    "securityTips": {
+      "title": "Security Tips:",
+      "tip1": "Do not use the same password as the default password",
+      "tip2": "Use a strong password with uppercase, lowercase, numbers and special characters",
+      "tip3": "You will need to sign in again after completing setup"
+    }
+  },
+  "step3": {
+    "title": "Configure Features",
+    "description": "Enable or disable the following features based on your needs, can be modified in settings later",
+    "privacyMode": {
+      "title": "Privacy Mode",
+      "description": "When enabled, automatically masks sensitive information such as IP addresses to protect your privacy",
+      "demoLabel": "IP Address Example"
+    },
+    "experimentalMode": {
+      "title": "Experimental Features",
+      "description": "Enable new features under testing, may be unstable, not recommended for production environments"
+    }
+  },
+  "buttons": {
+    "next": "Next",
+    "back": "Back",
+    "finish": "Complete Setup",
+    "finishing": "Setting up..."
+  },
+  "errors": {
+    "allFieldsRequired": "Please fill in all required fields",
+    "passwordMismatch": "New password and confirmation password do not match",
+    "passwordTooShort": "New password must be at least 6 characters",
+    "sameAsDefault": "New password cannot be the same as the default password",
+    "updateFailed": "Failed to update account information",
+    "networkError": "Network error, please try again later"
+  },
+  "success": {
+    "title": "Setup Complete",
+    "description": "Your account information and preferences have been saved successfully"
+  }
+}

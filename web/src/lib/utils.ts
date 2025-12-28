@@ -27,6 +27,35 @@ export function buildApiUrl(path: string): string {
   return path;
 }
 
+/**
+ * 构建 WebSocket URL（确保为 ws/wss 的绝对 URL）
+ * @param path WebSocket 路径（通常为 /api/ws/... 或 http(s)://...）
+ * @returns 完整的 ws/wss URL
+ */
+export function buildWsUrl(path: string): string {
+  if (typeof window === "undefined") return path;
+
+  // 已经是 ws(s)://
+  if (path.startsWith("ws://") || path.startsWith("wss://")) return path;
+
+  const wsProtocol = window.location.protocol === "https:" ? "wss:" : "ws:";
+
+  // http(s):// -> ws(s)://
+  if (path.startsWith("http://") || path.startsWith("https://")) {
+    const url = new URL(path);
+    url.protocol = wsProtocol;
+    return url.toString();
+  }
+
+  // /api/ws/... -> ws(s)://host/api/ws/...
+  return `${wsProtocol}//${window.location.host}${path}`;
+}
+
+export function getAuthToken(): string | null {
+  if (typeof window === "undefined") return null;
+  return localStorage.getItem("nodepass.token");
+}
+
 // 实例缓存
 const instanceCache = new Map<string, { data: Instance; timestamp: number }>();
 const CACHE_TTL = 60000; // 1分钟缓存时间

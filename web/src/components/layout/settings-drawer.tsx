@@ -361,7 +361,6 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                         wrapper: "group-data-[hover=true]:bg-primary-100",
                       }}
                       color="primary"
-                      isDisabled={true}
                       isSelected={settings.autoCheckUpdates}
                       size="lg"
                       onValueChange={toggleAutoCheckUpdates}

@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
-import { buildApiUrl } from "@/lib/utils";
+import { buildApiUrl, buildWsUrl, getAuthToken } from "@/lib/utils";
 
 export interface SystemMonitorData {
   endpointId: number;
@@ -86,10 +86,15 @@ export function useSystemMonitorWS(
     setError(null);
 
     try {
-      // 构建WebSocket URL，直接传递端点ID
-      const wsUrl = buildApiUrl(
-        `/api/ws/system-monitor?endpointId=${endpointId}`,
-      ).replace("http", "ws");
+      const token = getAuthToken();
+      const url = new URL(
+        buildApiUrl(`/api/ws/system-monitor?endpointId=${endpointId}`),
+        window.location.origin,
+      );
+      if (token) url.searchParams.set("token", token);
+
+      // 构建 WebSocket URL（确保为绝对 ws/wss）
+      const wsUrl = buildWsUrl(url.toString());
 
       console.log("[System Monitor WS] 连接到:", wsUrl);
 

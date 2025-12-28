@@ -19,6 +19,8 @@ import {
   ModalHeader,
   useDisclosure,
   cn,
+  Link,
+  Alert,
 } from "@heroui/react";
 import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Icon } from "@iconify/react";
@@ -42,6 +44,8 @@ import { ServerIconRed } from "@/components/ui/server-red-icon";
 import { useSettings } from "@/components/providers/settings-provider";
 import { WeeklyStatsChart } from "@/components/ui/weekly-stats-chart";
 import { DailyStatsChart } from "@/components/ui/daily-stats-chart";
+import { checkForUpdates, formatReleaseTime, type VersionInfo } from "@/lib/utils/version-check";
+import { getVersion } from "@/lib/version";
 
 // 统计数据类型
 interface TunnelStats {
@@ -170,6 +174,10 @@ export default function DashboardPage() {
   } = useDisclosure();
   const [clearingLogs, setClearingLogs] = useState(false);
 
+  // 版本更新检查状态
+  const [newVersion, setNewVersion] = useState<VersionInfo | null>(null);
+  const [showUpdateAlert, setShowUpdateAlert] = useState(true);
+
   // 添加组件挂载状态检查
   const isMountedRef = useRef(true);
 
@@ -216,6 +224,72 @@ export default function DashboardPage() {
 
     return () => clearInterval(timer);
   }, []);
+
+  // 检查版本更新
+  useEffect(() => {
+    const checkVersion = async () => {
+      try {
+        console.log('[版本检查] 开始检查...');
+        console.log('[版本检查] 自动检查设置:', settings.autoCheckUpdates);
+
+        // 只有在开启自动检查更新时才执行
+        if (!settings.autoCheckUpdates) {
+          console.log('[版本检查] 自动检查已关闭，跳过');
+          return;
+        }
+
+        const currentVersion = getVersion();
+        console.log('[版本检查] 当前版本:', currentVersion);
+
+        const today = new Date().toDateString(); // 获取今天的日期字符串
+        const LAST_CHECK_KEY = 'nodepass-last-update-check';
+        const lastCheckDate = localStorage.getItem(LAST_CHECK_KEY);
+
+        console.log('[版本检查] 今天日期:', today);
+        console.log('[版本检查] 上次检查:', lastCheckDate);
+
+        // 检查是否是今天首次访问
+        if (lastCheckDate === today) {
+          console.log('[版本检查] 今天已经检查过了，跳过');
+          return;
+        }
+
+        console.log('[版本检查] 开始从 GitHub 获取最新版本...');
+        // 执行版本检查
+        const update = await checkForUpdates(currentVersion);
+
+        if (update && isMountedRef.current) {
+          console.log('[版本检查] 发现新版本:', update);
+          setNewVersion(update);
+          setShowUpdateAlert(true);
+
+          // 记录检查时间
+          localStorage.setItem(LAST_CHECK_KEY, today);
+        } else if (isMountedRef.current) {
+          // 即使没有新版本，也记录检查时间
+          localStorage.setItem(LAST_CHECK_KEY, today);
+          console.log('[版本检查] 当前已是最新版本');
+        }
+      } catch (error) {
+        console.error('[版本检查] 检查失败:', error);
+      }
+    };
+
+    checkVersion();
+  }, [settings.autoCheckUpdates]);
+
+  // 自动关闭更新提示（10秒后）
+  useEffect(() => {
+    if (newVersion && showUpdateAlert) {
+      const timer = setTimeout(() => {
+        if (isMountedRef.current) {
+          setShowUpdateAlert(false);
+        }
+      }, 10000); // 10秒后自动关闭
+
+      return () => clearTimeout(timer);
+    }
+  }, [newVersion, showUpdateAlert]);
 
   // 获取tunnel统计数据
   const fetchTunnelStats = useCallback(async () => {
@@ -626,6 +700,50 @@ export default function DashboardPage() {
     <div
       className={cn("space-y-4 md:space-y-6 p-4 md:p-0", fontSans.className)}
     >
+      {/* 版本更新提示 */}
+      {newVersion && showUpdateAlert && (
+        <Alert
+          classNames={{
+            base: "border-2 border-primary-200 dark:border-primary-800",
+          }}
+          color="primary"
+          endContent={
+            <div className="flex items-center gap-2">
+              <Button
+                as={Link}
+                color="default"
+                href={newVersion.releaseUrl}
+                isExternal
+                className="bg-default-100 text-default-700 font-medium border-1 border-default-200 shadow-small hover:bg-default-200"
+                size="sm"
+                variant="bordered"
+              >
+                {t("update.viewRelease")}
+              </Button>
+              <Button
+                isIconOnly
+                className="hover:text-default-600"
+                size="sm"
+                variant="light"
+                onPress={() => setShowUpdateAlert(false)}
+              >
+                <Icon className="w-4 h-4" icon="solar:close-circle-bold" />
+              </Button>
+            </div>
+          }
+          title={
+            <div className="flex items-center gap-2 flex-wrap">
+              <span>{t("update.newVersionAvailable")}</span>
+              {newVersion.version}
+              <span className="text-xs  font-normal">
+                ({formatReleaseTime(newVersion.publishedAt)})
+              </span>
+            </div>
+          }
+          variant="solid"
+        />
+      )}
+
       <div className="flex justify-between items-start">
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>

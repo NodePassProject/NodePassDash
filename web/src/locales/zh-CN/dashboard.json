@@ -93,5 +93,10 @@
     },
     "select": "选择"
   },
+  "update": {
+    "newVersionAvailable": "发现新版本",
+    "defaultMessage": "点击查看更新内容和下载链接",
+    "viewRelease": "查看"
+  },
   "loading": "加载中..."
 }

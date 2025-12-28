@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useCallback } from "react";
 
-import { buildApiUrl } from "@/lib/utils";
+import { buildApiUrl, buildWsUrl, getAuthToken } from "@/lib/utils";
 
 export interface TunnelMonitorData {
   instanceId: string;
@@ -74,10 +74,14 @@ export function useTunnelMonitorWS(
     setError(null);
 
     try {
-      // 构建WebSocket URL，直接传递实例ID
-      const wsUrl = buildApiUrl(
-        `/api/ws/tunnel-monitor?instanceId=${instanceId}`,
-      ).replace("http", "ws");
+      const token = getAuthToken();
+      const url = new URL(
+        buildApiUrl(`/api/ws/tunnel-monitor?instanceId=${instanceId}`),
+        window.location.origin,
+      );
+      if (token) url.searchParams.set("token", token);
+
+      const wsUrl = buildWsUrl(url.toString());
 
       const websocket = new WebSocket(wsUrl);
 

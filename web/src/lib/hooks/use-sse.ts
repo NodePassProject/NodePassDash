@@ -1,6 +1,6 @@
 import { useEffect, useRef, useCallback } from "react";
 
-import { buildApiUrl } from "@/lib/utils";
+import { buildApiUrl, getAuthToken } from "@/lib/utils";
 
 interface SSEOptions {
   onMessage?: (event: any) => void;
@@ -36,9 +36,14 @@ export function useTunnelSSE(instanceId: string, options: SSEOptions = {}) {
     }
 
     isMountedRef.current = true;
-    const url = buildApiUrl(`/api/sse/tunnel/${instanceId}`);
+    const token = getAuthToken();
+    const url = new URL(
+      buildApiUrl(`/api/sse/tunnel/${instanceId}`),
+      window.location.origin,
+    );
+    if (token) url.searchParams.set("token", token);
 
-    const eventSource = new EventSource(url);
+    const eventSource = new EventSource(url.toString());
 
     eventSourceRef.current = eventSource;
 
@@ -304,10 +309,12 @@ export function useSSE(endpoint: string, options: SSEOptions) {
     isMountedRef.current = true;
 
     // 构建 SSE URL
-    const url = buildApiUrl(`/api/sse${endpoint}`);
+    const token = getAuthToken();
+    const url = new URL(buildApiUrl(`/api/sse${endpoint}`), window.location.origin);
+    if (token) url.searchParams.set("token", token);
 
     // 创建 EventSource 实例
-    const eventSource = new EventSource(url);
+    const eventSource = new EventSource(url.toString());
 
     // 保存引用
     eventSourceRef.current = eventSource;

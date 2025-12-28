@@ -2319,12 +2319,17 @@ export default function TunnelDetailPage() {
                   label={t("details.instanceInfo.poolType.label")}
                   value={
                     (() => {
-                      const poolType = tunnelInfo?.poolType;
+                      const poolType = tunnelInfo?.poolType !== undefined && tunnelInfo?.poolType !== null
+                        ? tunnelInfo.poolType
+                        : tunnelInfo.config?.poolType;
+
                       if (poolType === 0) return t("details.instanceInfo.poolType.tcp");
                       if (poolType === 1) return t("details.instanceInfo.poolType.quic");
                       if (poolType === 2) return t("details.instanceInfo.poolType.websocket");
                       if (poolType === 3) return t("details.instanceInfo.poolType.http2");
-                      return t("details.instanceInfo.poolType.notSet");
+
+                      // 如果都没有值，默认显示 TCP
+                      return t("details.instanceInfo.poolType.tcp");
                     })()
                   }
                 />

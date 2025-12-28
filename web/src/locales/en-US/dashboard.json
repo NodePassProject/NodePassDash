@@ -93,5 +93,10 @@
     },
     "select": "Select"
   },
+  "update": {
+    "newVersionAvailable": "New Version Available",
+    "defaultMessage": "Click to view update details and download",
+    "viewRelease": "View"
+  },
   "loading": "Loading..."
 }

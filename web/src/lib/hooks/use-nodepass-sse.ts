@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState, useCallback } from "react";
 
-import { buildApiUrl } from "@/lib/utils";
+import { buildApiUrl, getAuthToken } from "@/lib/utils";
 
 interface NodePassSSEOptions {
   onMessage?: (data: any) => void;
@@ -103,6 +103,7 @@ export function useNodePassSSE(
         setError(null);
 
         // 使用后端代理接口连接NodePass SSE
+        const token = getAuthToken();
         const proxyUrl = buildApiUrl(
           `/api/sse/nodepass-proxy?endpointId=${btoa(
             JSON.stringify({
@@ -115,21 +116,12 @@ export function useNodePassSSE(
 
         console.log("[NodePass SSE] 通过代理连接:", proxyUrl);
 
-        // 修复URL构建逻辑 - 避免重复的/api路径
-        let fullUrl;
+        const fullUrl = new URL(proxyUrl, window.location.origin);
+        if (token) fullUrl.searchParams.set("token", token);
 
-        if (process.env.NODE_ENV === "development") {
-          // 在开发环境下，buildApiUrl已经返回了正确的路径，不需要再添加apiBase
-          fullUrl = proxyUrl;
-        } else {
-          // 生产环境下确保URL是完整的
-          fullUrl = proxyUrl.startsWith("http")
-            ? proxyUrl
-            : `${window.location.origin}${proxyUrl}`;
-        }
-        console.log("[NodePass SSE] 完整URL:", fullUrl);
+        console.log("[NodePass SSE] 完整URL:", fullUrl.toString());
 
-        const eventSource = new EventSource(fullUrl);
+        const eventSource = new EventSource(fullUrl.toString());
 
         // 存储EventSource引用以便清理
         eventSourceRef.current = eventSource;
