@@ -16,8 +16,6 @@ import {
   DropdownTrigger,
   DropdownMenu,
   DropdownItem,
-  Select,
-  SelectItem,
 } from "@heroui/react";
 import { Icon } from "@iconify/react";
 import { useTranslation } from "react-i18next";
@@ -41,11 +39,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
     updateLanguage,
     togglePrivacyMode,
     toggleExperimentalMode,
-    updateSettings,
     toggleAutoCheckUpdates,
-    toggleUpdateNotifications,
-    toggleSilentDownload,
-    handleManualCheck,
   } = useSettings();
 
   return (
@@ -345,7 +339,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                     </div>
                   </div>
                 </CardHeader>
-                <CardBody className="pt-0 pb-4 space-y-4">
+                <CardBody className="pt-0 pb-4">
                   {/* 主开关 */}
                   <div className="flex items-start justify-between gap-4">
                     <div className="flex-1 min-w-0">
@@ -366,90 +360,6 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                       onValueChange={toggleAutoCheckUpdates}
                     />
                   </div>
-
-                  {/* 检查频率设置 */}
-                  {settings.autoCheckUpdates && (
-                    <div className="space-y-3 pt-2 border-t border-divider/20">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-default-700 font-medium">
-                          {t("drawer.updates.frequency")}
-                        </span>
-                        <Select
-                          className="w-32"
-                          selectedKeys={[settings.updateCheckFrequency]}
-                          size="sm"
-                          onSelectionChange={(keys) => {
-                            const frequency = Array.from(keys)[0] as
-                              | "daily"
-                              | "weekly"
-                              | "monthly"
-                              | "never";
-
-                            updateSettings({ updateCheckFrequency: frequency });
-                          }}
-                        >
-                          <SelectItem key="daily">{t("drawer.updates.daily")}</SelectItem>
-                          <SelectItem key="weekly">{t("drawer.updates.weekly")}</SelectItem>
-                          <SelectItem key="monthly">{t("drawer.updates.monthly")}</SelectItem>
-                          <SelectItem key="never">{t("drawer.updates.never")}</SelectItem>
-                        </Select>
-                      </div>
-
-                      {/* 具体时间设置 */}
-                      {settings.updateCheckFrequency !== "never" && (
-                        <div className="flex items-center justify-between">
-                          <span className="text-sm text-default-700 font-medium">
-                            {t("drawer.updates.time")}
-                          </span>
-                          <Select
-                            className="w-32"
-                            selectedKeys={[settings.updateCheckTime]}
-                            size="sm"
-                            onSelectionChange={(keys) => {
-                              const time = Array.from(keys)[0] as string;
-
-                              updateSettings({ updateCheckTime: time });
-                            }}
-                          >
-                            <SelectItem key="00:00">{t("drawer.updates.midnight")}</SelectItem>
-                            <SelectItem key="06:00">{t("drawer.updates.morning")}</SelectItem>
-                            <SelectItem key="12:00">{t("drawer.updates.noon")}</SelectItem>
-                            <SelectItem key="18:00">{t("drawer.updates.evening")}</SelectItem>
-                            <SelectItem key="22:00">{t("drawer.updates.night")}</SelectItem>
-                          </Select>
-                        </div>
-                      )}
-                    </div>
-                  )}
-
-                  {/* 更新通知设置 */}
-                  {settings.autoCheckUpdates && (
-                    <div className="space-y-3 pt-2 border-divider/20">
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-default-700 font-medium">
-                          {t("drawer.updates.notifications")}
-                        </span>
-                        <Switch
-                          color="primary"
-                          isSelected={settings.updateNotifications}
-                          size="sm"
-                          onValueChange={toggleUpdateNotifications}
-                        />
-                      </div>
-
-                      <div className="flex items-center justify-between">
-                        <span className="text-sm text-default-700 font-medium">
-                          {t("drawer.updates.silentDownload")}
-                        </span>
-                        <Switch
-                          color="primary"
-                          isSelected={settings.silentDownload}
-                          size="sm"
-                          onValueChange={toggleSilentDownload}
-                        />
-                      </div>
-                    </div>
-                  )}
                 </CardBody>
               </Card>
             </div>
