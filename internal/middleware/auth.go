@@ -12,27 +12,39 @@ import (
 // AuthMiddleware JWT 认证中间件
 func AuthMiddleware(authService *auth.Service) gin.HandlerFunc {
 	return func(c *gin.Context) {
-		// 从 Authorization header 中提取 token
+		// 优先从 Authorization header 中提取 token
 		authHeader := c.GetHeader("Authorization")
-		if authHeader == "" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Missing authorization header",
-			})
-			c.Abort()
-			return
-		}
+		token := ""
 
-		// 检查格式：Bearer <token>
-		parts := strings.SplitN(authHeader, " ", 2)
-		if len(parts) != 2 || parts[0] != "Bearer" {
-			c.JSON(http.StatusUnauthorized, gin.H{
-				"error": "Invalid authorization header format. Expected: Bearer <token>",
-			})
-			c.Abort()
-			return
-		}
+		if authHeader != "" {
+			// 检查格式：Bearer <token>
+			parts := strings.SplitN(authHeader, " ", 2)
+			if len(parts) != 2 || parts[0] != "Bearer" {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"error": "Invalid authorization header format. Expected: Bearer <token>",
+				})
+				c.Abort()
+				return
+			}
 
-		token := parts[1]
+			token = parts[1]
+		} else {
+			// WebSocket / SSE 在浏览器端无法方便地自定义 Authorization header，
+			// 允许仅对 /api/ws/* 与 /api/sse/* 使用 query 参数透传 token。
+			path := c.Request.URL.Path
+			if c.Request.Method == http.MethodGet &&
+				(strings.HasPrefix(path, "/api/ws/") || strings.HasPrefix(path, "/api/sse/")) {
+				token = c.Query("token")
+			}
+
+			if token == "" {
+				c.JSON(http.StatusUnauthorized, gin.H{
+					"error": "Missing authorization header",
+				})
+				c.Abort()
+				return
+			}
+		}
 
 		// 验证 token
 		username, err := authService.ValidateToken(token)
