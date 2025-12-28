@@ -18,6 +18,7 @@ type DBConfig struct {
 	MaxIdleTime  time.Duration // 空闲连接最大生命周期
 	LogLevel     string        // 日志级别
 	WALMode      bool          // 是否启用WAL模式
+	AutoDedup    bool          // 启动时自动去重并尝试创建关键唯一索引
 }
 
 // GetDBConfig 获取数据库配置，支持多种来源
@@ -25,12 +26,13 @@ func GetDBConfig(dbDir string) DBConfig {
 	config := DBConfig{
 		// 默认值 - SQLite配置
 		Database:     dbDir + "/database.db", // 默认数据库文件路径
-		MaxOpenConns: 10,                     // SQLite推荐的连接数较小
-		MaxIdleConns: 5,
+		MaxOpenConns: 1, // SQLite 单写者模型：默认用更小连接数降低 lock 竞争（可用环境变量覆盖）
+		MaxIdleConns: 1,
 		MaxLifetime:  5 * time.Minute,
 		MaxIdleTime:  2 * time.Minute,
 		LogLevel:     "silent",
 		WALMode:      true, // 启用WAL模式以提高并发性能
+		AutoDedup:    true, // 默认开启：避免用户手工修复重复数据导致的长期性能退化
 	}
 
 	// 1. 从命令行参数读取
@@ -114,6 +116,9 @@ func loadFromEnv(config *DBConfig) {
 	if value := os.Getenv("DB_WAL_MODE"); value != "" {
 		config.WALMode = value == "true"
 	}
+	if value := os.Getenv("DB_AUTO_DEDUP"); value != "" {
+		config.AutoDedup = value == "true" || value == "1"
+	}
 }
 
 // loadFromFile 从配置文件加载配置（简化实现）
@@ -172,4 +177,5 @@ func (c *DBConfig) PrintConfig() {
 	log.Infof("  空闲超时: %v", c.MaxIdleTime)
 	log.Infof("  日志级别: %s", c.LogLevel)
 	log.Infof("  WAL模式: %v", c.WALMode)
+	log.Infof("  自动去重: %v", c.AutoDedup)
 }

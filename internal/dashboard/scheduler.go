@@ -13,7 +13,6 @@ type TrafficScheduler struct {
 	db             *gorm.DB
 	trafficService *TrafficService
 	cleanupService *CleanupService
-	ticker         *time.Ticker
 	ctx            context.Context
 	cancel         context.CancelFunc
 }
@@ -35,16 +34,27 @@ func NewTrafficScheduler(db *gorm.DB) *TrafficScheduler {
 func (s *TrafficScheduler) Start() {
 	log.Println("[流量调度器] 启动定时任务...")
 
-	// 每小时执行一次数据聚合
-	s.ticker = time.NewTicker(1 * time.Hour)
-
 	// 立即执行一次初始化，汇总最近24小时的数据
 	go func() {
+		// 启动后稍作延迟，减少与 SSE 初始写入的锁竞争
+		time.Sleep(10 * time.Second)
+
 		log.Println("[流量调度器] 开始初始化最近24小时流量汇总数据...")
 		start := time.Now()
 
-		if err := s.trafficService.InitializeRecentTrafficData(); err != nil {
-			log.Printf("[流量调度器] 初始化24小时汇总数据失败: %v", err)
+		// 对 SQLite locked 做有限重试
+		var err error
+		for attempt := 1; attempt <= 5; attempt++ {
+			err = s.trafficService.InitializeRecentTrafficData()
+			if err == nil {
+				break
+			}
+			log.Printf("[流量调度器] 初始化24小时汇总数据失败(第%d次): %v", attempt, err)
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+		}
+
+		if err != nil {
+			log.Printf("[流量调度器] 初始化24小时汇总数据最终失败: %v", err)
 		} else {
 			duration := time.Since(start)
 			log.Printf("[流量调度器] 初始化24小时汇总数据完成，耗时: %v", duration)
@@ -52,15 +62,23 @@ func (s *TrafficScheduler) Start() {
 
 		// 然后执行上一小时的常规聚合（如果有遗漏）
 		log.Println("[流量调度器] 执行启动时常规数据聚合...")
-		if err := s.trafficService.AggregateTrafficData(); err != nil {
-			log.Printf("[流量调度器] 启动时常规数据聚合失败: %v", err)
+		for attempt := 1; attempt <= 5; attempt++ {
+			err = s.trafficService.AggregateTrafficData()
+			if err == nil {
+				break
+			}
+			log.Printf("[流量调度器] 启动时常规数据聚合失败(第%d次): %v", attempt, err)
+			time.Sleep(time.Duration(attempt) * 2 * time.Second)
+		}
+		if err != nil {
+			log.Printf("[流量调度器] 启动时常规数据聚合最终失败: %v", err)
 		} else {
 			log.Println("[流量调度器] 启动时常规数据聚合完成")
 		}
 	}()
 
 	// 启动定时任务
-	go s.run()
+	go s.runAligned()
 
 	// 启动数据清理任务（每天凌晨3点执行）
 	go s.runCleanupTask()
@@ -72,22 +90,28 @@ func (s *TrafficScheduler) Start() {
 func (s *TrafficScheduler) Stop() {
 	log.Println("[流量调度器] 停止定时任务...")
 
-	if s.ticker != nil {
-		s.ticker.Stop()
-	}
-
 	s.cancel()
 	log.Println("[流量调度器] 定时任务已停止")
 }
 
-// run 运行主要的聚合任务
-func (s *TrafficScheduler) run() {
+// runAligned 在每个整点后延迟一小段时间执行聚合，减少与分钟写入尖峰的冲突
+func (s *TrafficScheduler) runAligned() {
+	const delayAfterHour = 2 * time.Minute
+
+	now := time.Now()
+	nextRun := now.Truncate(time.Hour).Add(1 * time.Hour).Add(delayAfterHour)
+	timer := time.NewTimer(time.Until(nextRun))
+	defer timer.Stop()
+
 	for {
 		select {
 		case <-s.ctx.Done():
 			return
-		case <-s.ticker.C:
+		case <-timer.C:
 			s.executeAggregation()
+
+			nextRun = nextRun.Add(1 * time.Hour)
+			timer.Reset(time.Until(nextRun))
 		}
 	}
 }

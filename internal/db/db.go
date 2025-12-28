@@ -103,6 +103,9 @@ func GetDB() *gorm.DB {
 			log.Fatalf("数据库迁移失败: %v", err)
 		}
 
+		// 创建/校验关键索引；如存在历史重复数据，可按配置自动去重后重试
+		ensureOptimizedIndexes(gormDB, config)
+
 		// 打印配置信息
 		config.PrintConfig()
 		log.Printf("SQLite数据库连接成功并完成表结构迁移")
@@ -114,10 +117,90 @@ func GetDB() *gorm.DB {
 	return gormDB
 }
 
+// ensureOptimizedIndexes 创建关键索引以降低聚合扫描成本
+// 注意：对于 UNIQUE 索引，如果表内已存在重复数据，创建会失败；这里仅记录日志，不做数据删除。
+func ensureOptimizedIndexes(db *gorm.DB, config DBConfig) {
+	type indexStmt struct {
+		name string
+		sql  string
+	}
+
+	// 先创建非 UNIQUE 索引（对重复数据不敏感）
+	stmts := []indexStmt{
+		// service_history: API 查询 + 小时聚合所需
+		{
+			name: "idx_service_history_instance_time",
+			sql:  "CREATE INDEX IF NOT EXISTS idx_service_history_instance_time ON service_history(instance_id, record_time)",
+		},
+		{
+			name: "idx_service_history_endpoint_instance_time",
+			sql:  "CREATE INDEX IF NOT EXISTS idx_service_history_endpoint_instance_time ON service_history(endpoint_id, instance_id, record_time)",
+		},
+		// traffic_hourly_summary: 帮助按小时清理/查询（不影响唯一性）
+		{
+			name: "idx_traffic_hourly_summary_hour_time",
+			sql:  "CREATE INDEX IF NOT EXISTS idx_traffic_hourly_summary_hour_time ON traffic_hourly_summary(hour_time)",
+		},
+	}
+
+	for _, stmt := range stmts {
+		if err := db.Exec(stmt.sql).Error; err != nil {
+			applog.Warnf("[DB]创建索引 %s 失败（可能存在重复数据或锁冲突）: %v", stmt.name, err)
+		} else {
+			applog.Debugf("[DB]索引已就绪: %s", stmt.name)
+		}
+	}
+
+	// 再尝试创建 UNIQUE 索引：失败时可选择自动去重并重试
+	uniqueName := "uniq_traffic_hourly_summary_hour_endpoint_instance"
+	uniqueSQL := "CREATE UNIQUE INDEX IF NOT EXISTS uniq_traffic_hourly_summary_hour_endpoint_instance ON traffic_hourly_summary(hour_time, endpoint_id, instance_id)"
+	if err := db.Exec(uniqueSQL).Error; err != nil {
+		applog.Warnf("[DB]创建索引 %s 失败（可能存在重复数据或锁冲突）: %v", uniqueName, err)
+		if config.AutoDedup && stringContains(err.Error(), "UNIQUE constraint failed") {
+			applog.Warnf("[DB]检测到 traffic_hourly_summary 存在重复 key，准备自动去重后重试创建唯一索引（可用 DB_AUTO_DEDUP=false 关闭）")
+			if dedupErr := dedupTrafficHourlySummary(db); dedupErr != nil {
+				applog.Errorf("[DB]自动去重 traffic_hourly_summary 失败: %v", dedupErr)
+				return
+			}
+			if retryErr := db.Exec(uniqueSQL).Error; retryErr != nil {
+				applog.Errorf("[DB]去重后仍无法创建索引 %s: %v", uniqueName, retryErr)
+				return
+			}
+			applog.Infof("[DB]去重完成，唯一索引已创建: %s", uniqueName)
+		}
+	} else {
+		applog.Debugf("[DB]索引已就绪: %s", uniqueName)
+	}
+}
+
+func dedupTrafficHourlySummary(db *gorm.DB) error {
+	start := time.Now()
+
+	// 去重：每个 (hour_time, endpoint_id, instance_id) 保留最大 id 的一条
+	// 说明：该语句会扫描表一次；在启动期执行可避免要求用户手工执行修复命令。
+	res := db.Exec(`
+		DELETE FROM traffic_hourly_summary
+		WHERE id NOT IN (
+			SELECT MAX(id)
+			FROM traffic_hourly_summary
+			GROUP BY hour_time, endpoint_id, instance_id
+		)
+	`)
+	if res.Error != nil {
+		return res.Error
+	}
+
+	applog.Infof("[DB]traffic_hourly_summary 自动去重完成，删除 %d 行，耗时 %v", res.RowsAffected, time.Since(start))
+	return nil
+}
+
 // startConnectionHealthCheck 启动连接健康检查（支持优雅关闭）
 func startConnectionHealthCheck(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second) // 每30秒检查一次
 	defer ticker.Stop()
+
+	var lastWaitCount int64
+	var lastWaitDuration time.Duration
 
 	for {
 		select {
@@ -148,9 +231,21 @@ func startConnectionHealthCheck(ctx context.Context) {
 
 		// 检查连接池状态
 		stats := sqlDB.Stats()
-		if stats.OpenConnections > int(float64(stats.MaxOpenConnections)*0.8) {
-			log.Printf("警告：连接池使用率较高 %d/%d", stats.OpenConnections, stats.MaxOpenConnections)
+
+		// 对于 SQLite 默认 MaxOpenConnections=1，OpenConnections=1 属于正常现象；
+		// 仅在出现等待（WaitCount 增长）时提示可能存在锁竞争或长事务。
+		if stats.MaxOpenConnections <= 1 {
+			if stats.WaitCount > lastWaitCount || stats.WaitDuration > lastWaitDuration {
+				log.Printf("警告：连接池出现等待(可能存在长事务/锁竞争) open=%d in_use=%d idle=%d max=%d wait_count=%d wait_dur=%v",
+					stats.OpenConnections, stats.InUse, stats.Idle, stats.MaxOpenConnections, stats.WaitCount, stats.WaitDuration)
+			}
+		} else if stats.OpenConnections > int(float64(stats.MaxOpenConnections)*0.8) {
+			log.Printf("警告：连接池使用率较高 open=%d in_use=%d idle=%d max=%d wait_count=%d wait_dur=%v",
+				stats.OpenConnections, stats.InUse, stats.Idle, stats.MaxOpenConnections, stats.WaitCount, stats.WaitDuration)
 		}
+
+		lastWaitCount = stats.WaitCount
+		lastWaitDuration = stats.WaitDuration
 	}
 }
 
