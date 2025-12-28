@@ -25,17 +25,19 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { Icon } from "@iconify/react";
 import { addToast } from "@heroui/toast";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 import { useSettings } from "@/components/providers/settings-provider";
+import { useAuth } from "@/components/auth/auth-provider";
 
 // IP脱敏动画组件
-const IPMaskingDemo = ({ isPrivacyMode }: { isPrivacyMode: boolean }) => {
+const IPMaskingDemo = ({ isPrivacyMode, t }: { isPrivacyMode: boolean; t: any }) => {
   return (
     <div className="relative h-24 bg-default-100 rounded-lg p-4 overflow-hidden">
       <div className="flex items-center justify-center h-full">
         <div className="text-center">
-          <p className="text-xs text-default-500 mb-2">IP地址示例</p>
+          <p className="text-xs text-default-500 mb-2">{t("step3.privacyMode.demoLabel")}</p>
           <motion.div className="font-mono text-lg font-semibold">
             <AnimatePresence mode="wait">
               {!isPrivacyMode ? (
@@ -92,14 +94,16 @@ const IPMaskingDemo = ({ isPrivacyMode }: { isPrivacyMode: boolean }) => {
 const StepIndicator = ({
   currentStep,
   totalSteps,
+  t,
 }: {
   currentStep: number;
   totalSteps: number;
+  t: any;
 }) => {
   const steps = [
-    { number: 1, title: "主题与语言" },
-    { number: 2, title: "账号设置" },
-    { number: 3, title: "功能配置" },
+    { number: 1, title: t("steps.step1") },
+    { number: 2, title: t("steps.step2") },
+    { number: 3, title: t("steps.step3") },
   ];
 
   return (
@@ -108,7 +112,7 @@ const StepIndicator = ({
         {/* 进度条背景 */}
         <div className="absolute top-5 left-0 right-0 h-1 bg-default-200 rounded-full" />
         <Progress
-          aria-label="设置进度"
+          aria-label={t("progress.label")}
           className="absolute top-5 left-0 right-0"
           classNames={{
             indicator: "bg-gradient-to-r from-primary to-success",
@@ -167,6 +171,8 @@ const StepIndicator = ({
 export default function SetupGuidePage() {
   const navigate = useNavigate();
   const { settings, updateTheme, updateLanguage, updateSettings } = useSettings();
+  const { t } = useTranslation("setup-guide");
+  const { setUserDirectly, setToken } = useAuth();
 
   // 步骤管理
   const [currentStep, setCurrentStep] = useState(1);
@@ -177,7 +183,7 @@ export default function SetupGuidePage() {
     settings.theme || "system"
   );
   const [selectedLanguage, setSelectedLanguage] = useState<"zh" | "en">(
-    settings.language || "zh"
+    settings.language === "zh-CN" ? "zh" : "en"
   );
 
   // 第二步：用户名和密码
@@ -214,19 +220,19 @@ export default function SetupGuidePage() {
     } else if (currentStep === 2) {
       // 验证用户名和密码
       if (!formData.newUsername || !formData.newPassword || !formData.confirmPassword) {
-        setError("请填写所有必填字段");
+        setError(t("errors.allFieldsRequired"));
         return;
       }
       if (formData.newPassword !== formData.confirmPassword) {
-        setError("新密码和确认密码不一致");
+        setError(t("errors.passwordMismatch"));
         return;
       }
       if (formData.newPassword.length < 6) {
-        setError("新密码长度至少为6位");
+        setError(t("errors.passwordTooShort"));
         return;
       }
       if (formData.newPassword === "Np123456") {
-        setError("新密码不能与默认密码相同");
+        setError(t("errors.sameAsDefault"));
         return;
       }
       setError("");
@@ -246,11 +252,21 @@ export default function SetupGuidePage() {
     setError("");
 
     try {
-      // 1. 更新用户名和密码
+      // 1. 获取当前 token（用于认证）
+      const token = localStorage.getItem("nodepass.token");
+      if (!token) {
+        setError("未登录，请先登录");
+        setIsLoading(false);
+        navigate("/login");
+        return;
+      }
+
+      // 2. 更新用户名和密码
       const response = await fetch(buildApiUrl("/api/auth/update-security"), {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
+          "Authorization": `Bearer ${token}`,
         },
         body: JSON.stringify({
           currentPassword: formData.currentPassword,
@@ -262,27 +278,43 @@ export default function SetupGuidePage() {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // 2. 保存功能配置
+        // 3. 保存功能配置
         updateSettings({
           isPrivacyMode: privacyMode,
           isExperimentalMode: experimentalMode,
         });
 
+        // 4. 更新 token 和用户信息（后端返回了新的 token）
+        if (result.token && result.username) {
+          // 保存新 token
+          setToken(result.token, result.expiresAt);
+
+          // 保存新用户信息到 localStorage
+          const user = { username: result.username };
+          if (typeof window !== "undefined") {
+            localStorage.setItem("nodepass.user", JSON.stringify(user));
+          }
+
+          // 更新 AuthProvider 的用户状态
+          setUserDirectly(user);
+        }
+
         addToast({
-          title: "设置完成",
-          description: "您的账号信息和偏好设置已成功保存",
+          title: t("success.title"),
+          description: t("success.description"),
           color: "success",
         });
 
+        // 5. 跳转到仪表盘
         setTimeout(() => {
-          navigate("/login");
+          navigate("/dashboard");
         }, 500);
       } else {
-        setError(result.message || "更新账号信息失败");
+        setError(result.message || t("errors.updateFailed"));
       }
     } catch (error) {
       console.error("设置失败:", error);
-      setError("网络错误，请稍后重试");
+      setError(t("errors.networkError"));
     } finally {
       setIsLoading(false);
     }
@@ -302,10 +334,10 @@ export default function SetupGuidePage() {
           >
             <div>
               <h3 className="text-lg font-semibold mb-4 text-foreground">
-                选择您的偏好设置
+                {t("step1.title")}
               </h3>
               <p className="text-sm text-default-500 mb-6">
-                个性化您的使用体验，这些设置稍后也可以更改
+                {t("step1.description")}
               </p>
             </div>
 
@@ -313,16 +345,16 @@ export default function SetupGuidePage() {
             <div className="space-y-3">
               <label className="text-sm font-medium text-foreground flex items-center gap-2">
                 <Icon icon="lucide:palette" width={18} />
-                界面主题
+                {t("step1.theme.label")}
               </label>
               <p className="text-xs text-default-400">
-                点击选择主题，立即预览效果
+                {t("step1.theme.description")}
               </p>
               <div className="grid grid-cols-3 gap-3">
                 {[
-                  { key: "light", label: "浅色", icon: "solar:sun-bold" },
-                  { key: "dark", label: "深色", icon: "solar:moon-bold" },
-                  { key: "system", label: "跟随系统", icon: "lucide:monitor" },
+                  { key: "light", label: t("step1.theme.light"), icon: "solar:sun-bold" },
+                  { key: "dark", label: t("step1.theme.dark"), icon: "solar:moon-bold" },
+                  { key: "system", label: t("step1.theme.system"), icon: "lucide:monitor" },
                 ].map((theme) => (
                   <motion.button
                     key={theme.key}
@@ -388,15 +420,15 @@ export default function SetupGuidePage() {
             <div className="space-y-3">
               <label className="text-sm font-medium text-foreground flex items-center gap-2">
                 <Icon icon="lucide:languages" width={18} />
-                界面语言
+                {t("step1.language.label")}
               </label>
               <p className="text-xs text-default-400">
-                选择您偏好的语言（当前仅用于设置存储）
+                {t("step1.language.description")}
               </p>
               <div className="grid grid-cols-2 gap-3">
                 {[
-                  { key: "zh", label: "简体中文", icon: "circle-flags:cn" },
-                  { key: "en", label: "English", icon: "circle-flags:us" },
+                  { key: "zh", label: t("step1.language.zh"), icon: "circle-flags:cn" },
+                  { key: "en", label: t("step1.language.en"), icon: "circle-flags:us" },
                 ].map((lang) => (
                   <motion.button
                     key={lang.key}
@@ -410,8 +442,8 @@ export default function SetupGuidePage() {
                     whileTap={{ scale: 0.95 }}
                     onClick={() => {
                       setSelectedLanguage(lang.key as any);
-                      // 立即应用语言设置
-                      updateLanguage(lang.key as any);
+                      // 立即应用语言设置，将简短代码转换为完整语言代码
+                      updateLanguage(lang.key === "zh" ? "zh-CN" : "en-US");
                     }}
                   >
                     <motion.div
@@ -467,10 +499,10 @@ export default function SetupGuidePage() {
           >
             <div>
               <h3 className="text-lg font-semibold mb-4 text-foreground">
-                设置您的账号信息
+                {t("step2.title")}
               </h3>
               <p className="text-sm text-default-500 mb-6">
-                检测到使用默认凭据，为了账户安全，请立即更新您的用户名和密码
+                {t("step2.description")}
               </p>
             </div>
 
@@ -487,9 +519,9 @@ export default function SetupGuidePage() {
             <div className="space-y-4">
               <Input
                 isRequired
-                description="设置一个个性化的用户名"
-                label="新用户名"
-                placeholder="请输入新的用户名"
+                description={t("step2.newUsername.description")}
+                label={t("step2.newUsername.label")}
+                placeholder={t("step2.newUsername.placeholder")}
                 startContent={
                   <FontAwesomeIcon className="text-default-400" icon={faUser} />
                 }
@@ -501,7 +533,7 @@ export default function SetupGuidePage() {
 
               <Input
                 isRequired
-                description="至少6位，建议包含字母、数字和符号"
+                description={t("step2.newPassword.description")}
                 endContent={
                   <button
                     className="focus:outline-none"
@@ -514,8 +546,8 @@ export default function SetupGuidePage() {
                     />
                   </button>
                 }
-                label="新密码"
-                placeholder="请输入新密码"
+                label={t("step2.newPassword.label")}
+                placeholder={t("step2.newPassword.placeholder")}
                 startContent={
                   <FontAwesomeIcon className="text-default-400" icon={faLock} />
                 }
@@ -539,8 +571,8 @@ export default function SetupGuidePage() {
                     />
                   </button>
                 }
-                label="确认新密码"
-                placeholder="请再次输入新密码"
+                label={t("step2.confirmPassword.label")}
+                placeholder={t("step2.confirmPassword.placeholder")}
                 startContent={
                   <FontAwesomeIcon className="text-default-400" icon={faLock} />
                 }
@@ -558,11 +590,11 @@ export default function SetupGuidePage() {
                   icon={faExclamationTriangle}
                 />
                 <div className="text-xs text-warning-700">
-                  <p className="font-medium">安全提示：</p>
+                  <p className="font-medium">{t("step2.securityTips.title")}</p>
                   <ul className="mt-1 space-y-1">
-                    <li>• 不要使用与默认密码相同的密码</li>
-                    <li>• 建议使用强密码包含大小写字母、数字和特殊字符</li>
-                    <li>• 完成设置后需要重新登录</li>
+                    <li>• {t("step2.securityTips.tip1")}</li>
+                    <li>• {t("step2.securityTips.tip2")}</li>
+                    <li>• {t("step2.securityTips.tip3")}</li>
                   </ul>
                 </div>
               </div>
@@ -582,10 +614,10 @@ export default function SetupGuidePage() {
           >
             <div>
               <h3 className="text-lg font-semibold mb-4 text-foreground">
-                配置功能选项
+                {t("step3.title")}
               </h3>
               <p className="text-sm text-default-500 mb-6">
-                根据您的需求启用或关闭以下功能，稍后可在设置中修改
+                {t("step3.description")}
               </p>
             </div>
 
@@ -600,10 +632,10 @@ export default function SetupGuidePage() {
                         icon="lucide:shield"
                         width={20}
                       />
-                      <h4 className="font-semibold text-foreground">隐私模式</h4>
+                      <h4 className="font-semibold text-foreground">{t("step3.privacyMode.title")}</h4>
                     </div>
                     <p className="text-sm text-default-500 leading-relaxed">
-                      启用后将自动脱敏IP地址等敏感信息，保护您的隐私数据安全
+                      {t("step3.privacyMode.description")}
                     </p>
                   </div>
                   <Switch
@@ -618,7 +650,7 @@ export default function SetupGuidePage() {
                 </div>
 
                 {/* IP脱敏动画演示 */}
-                <IPMaskingDemo isPrivacyMode={privacyMode} />
+                <IPMaskingDemo isPrivacyMode={privacyMode} t={t} />
               </CardBody>
             </Card>
 
@@ -634,11 +666,11 @@ export default function SetupGuidePage() {
                         width={20}
                       />
                       <h4 className="font-semibold text-foreground">
-                        实验性功能
+                        {t("step3.experimentalMode.title")}
                       </h4>
                     </div>
                     <p className="text-sm text-default-500 leading-relaxed">
-                      启用正在测试中的新特性，可能不稳定，不建议在生产环境使用
+                      {t("step3.experimentalMode.description")}
                     </p>
                   </div>
                   <Switch
@@ -697,16 +729,16 @@ export default function SetupGuidePage() {
                 </div>
               </motion.div>
               <h1 className="text-2xl font-bold text-foreground">
-                欢迎使用 NodePassDash
+                {t("title")}
               </h1>
               <p className="text-small text-default-500 text-center">
-                让我们花几分钟完成初始设置
+                {t("subtitle")}
               </p>
             </CardHeader>
 
             <CardBody className="px-8 pb-8">
               {/* 步骤指示器 */}
-              <StepIndicator currentStep={currentStep} totalSteps={totalSteps} />
+              <StepIndicator currentStep={currentStep} totalSteps={totalSteps} t={t} />
 
               {/* 步骤内容 */}
               <AnimatePresence mode="wait">{renderStepContent()}</AnimatePresence>
@@ -721,7 +753,7 @@ export default function SetupGuidePage() {
                     variant="bordered"
                     onPress={handleBack}
                   >
-                    上一步
+                    {t("buttons.back")}
                   </Button>
                 )}
                 {currentStep < totalSteps ? (
@@ -731,7 +763,7 @@ export default function SetupGuidePage() {
                     size="lg"
                     onPress={handleNext}
                   >
-                    下一步
+                    {t("buttons.next")}
                   </Button>
                 ) : (
                   <Button
@@ -741,7 +773,7 @@ export default function SetupGuidePage() {
                     size="lg"
                     onPress={handleSubmit}
                   >
-                    {isLoading ? "设置中..." : "完成设置"}
+                    {isLoading ? t("buttons.finishing") : t("buttons.finish")}
                   </Button>
                 )}
               </div>

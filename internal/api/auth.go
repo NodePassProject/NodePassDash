@@ -238,127 +238,165 @@ type SecurityUpdateRequest struct {
 
 // HandleChangePassword 修改密码
 func (h *AuthHandler) HandleChangePassword(c *gin.Context) {
-	// 获取 session cookie
-	sessionID, err := c.Cookie("session")
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "未登录"})
+	// 从 context 中获取用户名（由 AuthMiddleware 注入）
+	username, exists := c.Get("username")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "未登录",
+		})
 		return
 	}
 
-	if !h.authService.ValidateSession(sessionID) {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "会话无效"})
-		return
-	}
-
-	sess, ok := h.authService.GetSession(sessionID)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "会话无效"})
-		return
-	}
+	currentUsername := username.(string)
 
 	var req PasswordChangeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "无效请求体"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效请求体",
+		})
 		return
 	}
 
 	if req.CurrentPassword == "" || req.NewPassword == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "缺少字段"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "缺少字段",
+		})
 		return
 	}
 
-	ok2, msg := h.authService.ChangePassword(sess.Username, req.CurrentPassword, req.NewPassword)
+	ok2, msg := h.authService.ChangePassword(currentUsername, req.CurrentPassword, req.NewPassword)
 	if !ok2 {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": msg})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": msg,
+		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": msg})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": msg,
+	})
 }
 
 // HandleChangeUsername 修改用户名
 func (h *AuthHandler) HandleChangeUsername(c *gin.Context) {
-	sessionID, err := c.Cookie("session")
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "未登录"})
+	// 从 context 中获取用户名（由 AuthMiddleware 注入）
+	username, exists := c.Get("username")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "未登录",
+		})
 		return
 	}
 
-	if !h.authService.ValidateSession(sessionID) {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "会话无效"})
-		return
-	}
-
-	sess, ok := h.authService.GetSession(sessionID)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "会话无效"})
-		return
-	}
+	currentUsername := username.(string)
 
 	var req UsernameChangeRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "无效请求体"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效请求体",
+		})
 		return
 	}
 
 	if req.NewUsername == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "新用户名不能为空"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "新用户名不能为空",
+		})
 		return
 	}
 
-	ok2, msg := h.authService.ChangeUsername(sess.Username, req.NewUsername)
+	ok2, msg := h.authService.ChangeUsername(currentUsername, req.NewUsername)
 	if !ok2 {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": msg})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": msg,
+		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": msg})
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": msg,
+	})
 }
 
 // HandleUpdateSecurity 同时修改用户名和密码
 func (h *AuthHandler) HandleUpdateSecurity(c *gin.Context) {
-	// 获取 session cookie
-	sessionID, err := c.Cookie("session")
-	if err != nil {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "未登录"})
+	// 从 context 中获取用户名（由 AuthMiddleware 注入）
+	username, exists := c.Get("username")
+	if !exists {
+		c.JSON(http.StatusUnauthorized, gin.H{
+			"success": false,
+			"message": "未登录",
+		})
 		return
 	}
 
-	if !h.authService.ValidateSession(sessionID) {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "会话无效"})
-		return
-	}
-
-	sess, ok := h.authService.GetSession(sessionID)
-	if !ok {
-		c.JSON(http.StatusUnauthorized, gin.H{"success": false, "message": "会话无效"})
-		return
-	}
+	currentUsername := username.(string)
 
 	// 验证系统是否仍使用默认凭据，只有使用默认凭据时才允许此操作
 	if !h.authService.IsDefaultCredentials() {
-		c.JSON(http.StatusForbidden, gin.H{"success": false, "message": "此操作仅在首次设置时可用"})
+		c.JSON(http.StatusForbidden, gin.H{
+			"success": false,
+			"message": "此操作仅在首次设置时可用",
+		})
 		return
 	}
 
 	var req SecurityUpdateRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "无效请求体"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "无效请求体",
+		})
 		return
 	}
 
 	if req.CurrentPassword == "" || req.NewUsername == "" || req.NewPassword == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": "缺少必填字段"})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": "缺少必填字段",
+		})
 		return
 	}
 
-	ok2, msg := h.authService.UpdateSecurity(sess.Username, req.CurrentPassword, req.NewUsername, req.NewPassword)
+	ok2, msg := h.authService.UpdateSecurity(currentUsername, req.CurrentPassword, req.NewUsername, req.NewPassword)
 	if !ok2 {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "message": msg})
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"message": msg,
+		})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": msg})
+	// 修改成功后，生成新的 JWT token（基于新用户名）
+	token, expiresAt, jti, err := h.authService.GenerateToken(req.NewUsername)
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{
+			"success": false,
+			"message": "生成新 token 失败",
+		})
+		return
+	}
+
+	// 保存新的 JTI 到内存（使旧 token 失效）
+	h.authService.SetCurrentJTI(jti)
+
+	c.JSON(http.StatusOK, gin.H{
+		"success":   true,
+		"message":   msg,
+		"token":     token,
+		"expiresAt": expiresAt.Format(time.RFC3339),
+		"username":  req.NewUsername,
+	})
 }
 
 // HandleCheckDefaultCredentials 检查系统是否仍使用默认凭据
@@ -787,12 +825,11 @@ type OAuth2ConfigRequest struct {
 func (h *AuthHandler) HandleOAuth2Config(c *gin.Context) {
 	switch c.Request.Method {
 	case http.MethodGet:
-		// 若请求携带有效 session，则返回完整配置；否则只返回 provider
+		// 检查是否通过 JWT 认证（由 authMiddleware 注入）
 		includeCfg := false
-		if sessionID, err := c.Cookie("session"); err == nil {
-			if h.authService.ValidateSession(sessionID) {
-				includeCfg = true
-			}
+		if _, exists := c.Get("username"); exists {
+			// 已通过 JWT 认证，返回完整配置
+			includeCfg = true
 		}
 
 		curProvider, _ := h.authService.GetSystemConfig("oauth2_provider")
