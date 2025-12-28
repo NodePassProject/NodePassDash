@@ -38,11 +38,7 @@ interface SettingsContextType {
   updateLanguage: (language: SupportedLanguage) => void;
   togglePrivacyMode: () => void;
   toggleExperimentalMode: () => void;
-  updateSettings: (newSettings: Partial<Settings>) => void;
   toggleAutoCheckUpdates: () => void;
-  toggleUpdateNotifications: () => void;
-  toggleSilentDownload: () => void;
-  handleManualCheck: () => void;
 }
 
 // 创建上下文
@@ -174,41 +170,6 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     saveSettings(newSettings);
   };
 
-  // 切换更新通知
-  const toggleUpdateNotifications = () => {
-    const newSettings = {
-      ...settings,
-      updateNotifications: !settings.updateNotifications,
-    };
-
-    setSettings(newSettings);
-    saveSettings(newSettings);
-  };
-
-  // 切换静默下载
-  const toggleSilentDownload = () => {
-    const newSettings = {
-      ...settings,
-      silentDownload: !settings.silentDownload,
-    };
-
-    setSettings(newSettings);
-    saveSettings(newSettings);
-  };
-
-  // 手动检查更新
-  const handleManualCheck = () => {
-    console.log("手动检查更新...");
-  };
-
-  // 更新多个设置
-  const updateSettings = (newSettings: Partial<Settings>) => {
-    const updatedSettings = { ...settings, ...newSettings };
-
-    setSettings(updatedSettings);
-    saveSettings(updatedSettings);
-  };
-
   // 等待设置加载完成
   if (!isLoaded) {
     return null;
@@ -220,11 +181,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     updateLanguage,
     togglePrivacyMode,
     toggleExperimentalMode,
-    updateSettings,
     toggleAutoCheckUpdates,
-    toggleUpdateNotifications,
-    toggleSilentDownload,
-    handleManualCheck,
   };
 
   return (
