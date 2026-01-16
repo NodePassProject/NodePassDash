@@ -4,7 +4,7 @@ services:
     image: ghcr.io/nodepassproject/nodepassdash:latest
     container_name: nodepassdash
     ports:
-      - "3000:3000"  # 整合的Next.js应用
+      - "3000:3000"  # Web UI + API (single port)
     # environment:
     #   - PORT=3000
     #   - LOG-LEVEL=INFO
@@ -13,16 +13,13 @@ services:
     #   - DISABLE_LOGIN=true
     volumes:
       - /etc/localtime:/etc/localtime:ro 
-      # TLS证书
+      # TLS certificates
       # - /path/to/cert.pem:/path/to/cert.pem
       # - /path/to/key.pem:/path/to/key.pem
-      # 挂载日志
-      - ./log:/app/log:ro
-      # SQLite 数据库文件
+      # Persist data
       - ./db:/app/db
-      # 日志和数据目录,如需挂载，请先赋予文件夹权限```chmod 777 logs```，否则可能会导致容器启动失败
-      # - ./logs:/app/logs
-      # - ./data:/app/data
+      # Persist file logs (optional but recommended)
+      - ./logs:/app/logs
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]

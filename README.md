@@ -2,185 +2,95 @@
   <img src="docs/nodepassdash-logo.svg" alt="NodePassDash" height="80">
 </div>
 
-![Version](https://img.shields.io/badge/version-3.3.1-blue.svg)
+**Language:** English | [简体中文](docs/zh-CN/README.md)
+
+![Version](https://img.shields.io/badge/version-3.4.0--beta1-blue.svg)
 ![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)
 
-NodePassDash是一个现代化的 NodePass 管理界面，基于 Go 后端 + React + Vite、HeroUI 和 TypeScript 构建。提供实时隧道监控、流量统计和端点管理功能。
+NodePassDash is a modern web dashboard for managing **NodePass** endpoints, tunnels, and services. It ships as a single Go binary (Gin + GORM + SQLite) with an embedded React (Vite + TypeScript + HeroUI) frontend, and provides real-time telemetry via SSE/WebSocket.
 
-> ## 📋 2.x 升级到 3.x 迁移指南
-> **version 3.x 是一个重大版本更新！** 核心架构全面重构，从 Next.js 打包更换为 Vite 打包，后端重构为 GORM + Gin 架构。
->
-> ### 升级步骤
->
-> 1. **导出主控数据**
->
->    - 在 2.x 版本的主控列表中，使用导出功能保存所有主控配置数据
->
-> 2. **更新 Docker 配置**
->
->    - 从仓库获取最新的 `docker-compose.yml` 配置文件
->
-> 3. **拉取最新镜像**
->
->    ```bash
->    docker pull ghcr.io/nodepassproject/nodepassdash:latest
->    ```
->
-> 4. **重启容器**
->
->    ```bash
->    # 在容器所在的compose文件目录运行
->    docker compose down && docker compose up -d
->    ```
->
-> 5. **重新导入数据**
->
->    - 访问新版本界面，重新创建主控配置
->    - 导入之前导出的主控数据
->    - 验证所有功能正常工作
->
-> ### ⚠️ 注意事项
-> ***此版本不向下兼容，升级前请务必备份/导出主控数据，建议全新创建主控避免旧数据的影响！***
-> - **数据库不兼容**: 3.x 版本使用全新的数据库表结构，无法直接迁移 2.x 数据
-> - **配置格式变更**: 主控配置格式有所调整，建议手动重新配置重要隧道
-> - **功能变化**: 部分功能界面和操作方式有所变化，建议查看新版本文档
+## Demo
 
-## ✨ 主要特性
+- Live demo: https://dash.nodepass.eu/
+- Demo account: `nodepass` / `Np123456.`
 
-- 🚀 **架构全新升级**: 从 Next.js 迁移至 Vite，构建速度显著提升；后端升级至 GORM + Gin 架构
-- 🎯 **实时监控升级**: 通过 SSE 实时推送隧道状态、流量数据和日志信息
-- 📊 **数据可视化增强**: 支持多时间段切换（24h/12h/6h/1h）和图表放大查看
-- 🎨 **个性化配置**: 新增个性化配置按钮，支持隐私设置、新手模式等
-- 🎬 **场景化创建**: 参考 iOS 版本设计，提供场景化隧道创建体验
-- 🔍 **网络诊断工具**: 内置网络调试和诊断功能，方便问题排查
-- 📱 **移动端APP联动**: 增加适配移动端APP的二维码导入显示
-- 🐳 **Docker 优化**: 多阶段构建，支持多架构部署
+> Important: demo environment — do not change the password and do not submit any sensitive information.
 
-## 📸 界面预览
+## Highlights
 
-| | | |
-|---|---|---|
-| ![截图0](docs/00.png) | ![截图1](docs/01.png) | ![截图2](docs/02.png) |
-| ![截图3](docs/03.png) | ![截图4](docs/04.png) | ![截图5](docs/05.png) |
+- **Modern, clean dashboard**: responsive UI built with React + Vite + TypeScript + HeroUI.
+- **Real-time monitoring**: SSE/WebSocket updates for tunnel status, traffic, and logs.
+- **Multi-dimensional charts**: traffic trends (hour/day/week) with detailed drill-down views.
+- **Powerful NodePass management**: endpoints, tunnels, and services in one place (including batch actions & sorting).
+- **Scenario-based creation**: guided wizards/templates to create common setups faster and safer.
+- **OAuth2 login support**: configure providers (e.g. GitHub / Cloudflare) and optionally disable password login.
+- **i18n**: built-in multilingual UI support.
+- **Personalization**: privacy mode, theme/language onboarding, and configurable experience.
+- **Operational tooling**: file-log viewer, network debugging utilities, and endpoint system stats charts.
+- **Mobile-friendly workflows**: QR code output for importing into the mobile app.
+- **Safer at scale**: search/filter/sort, grouping, tagging, and batch operations for day-to-day maintenance.
+- **Release awareness**: built-in version visibility and update notifications to help you stay current.
+- **Portable architecture**: embedded frontend + single-service runtime, easy to run as a container or a systemd service.
 
-## 📂 目录结构（简化）
-```text
-├─ web/                 前端应用 (React + Vite + HeroUI)
-│  ├─ src/              React 组件和页面
-│  ├─ public/           静态资源 (logo, favicon 等)
-│  └─ package.json      前端依赖和构建脚本
-├─ internal/            Go 业务代码
-├─ cmd/server/          Go 应用入口
-├─ Dockerfile           多阶段容器构建
-├─ build.sh             本地构建脚本
-└─ .github/workflows/   CI/CD 自动化构建
-```
+## Screenshots
 
-## ⚡️ 快速开始
+|                                                           |                                                             |                                                               |
+|-----------------------------------------------------------|-------------------------------------------------------------|---------------------------------------------------------------|
+| ![Login](docs/screenshots/00-login.gif)                   | ![Dashboard](docs/screenshots/01-dashboard.gif)             | ![Tunnels](docs/screenshots/02-tunnels.gif)                   |
+| ![Tunnel Details](docs/screenshots/03-tunnel-details.gif) | ![Endpoints](docs/screenshots/04-endpoints.gif)             | ![Endpoint Details](docs/screenshots/05-endpoint-details.gif) |
+| ![Services](docs/screenshots/06-services.gif)             | ![Service Details](docs/screenshots/07-service-details.gif) | ![Settings](docs/screenshots/09-setting.gif)         |
 
-<div style="display: flex; align-items: center; gap: 12px;">
-  <a href="https://dash.nodepass.eu/">
-    <img src="https://img.shields.io/badge/点击体验_Demo-000?style=for-the-badge&logo=heroui&logoColor=white&labelColor=000" alt="Deploy to NodePassDash">
-  </a>
-  <span><strong>演示账号：</strong> <code>nodepass</code> / <code>Np123456.</code></span>
-</div>
 
-> ⚠️ **重要提醒：演示环境，请勿更改密码，请勿填写任何敏感信息**
+## Quick Start
 
-我们提供三种部署方式，请根据你的需求选择：
+- **Docker (recommended):** `docs/en/DOCKER.md`
+- **Binary + systemd:** `docs/en/BINARY.md`
+- **Development:** `docs/en/DEVELOPMENT.md`
 
-### 🐳 方式一：Docker 部署（推荐）
+## Documentation
 
-> 适合生产环境，开箱即用，自动处理依赖和环境配置。
+- **Migration Guide:** [docs/en/MIGRATION.md](docs/en/MIGRATION.md)
+- **Docker Guide:** [docs/en/DOCKER.md](docs/en/DOCKER.md)
+- **Binary Guide:** [docs/en/BINARY.md](docs/en/BINARY.md)
+- **Development Guide:** [docs/en/DEVELOPMENT.md](docs/en/DEVELOPMENT.md)
 
-📚 查看 [Docker 完整部署文档](docs/DOCKER.md) 了解详细配置
-
-### 📦 方式二：二进制部署
-
-> 适合 VPS/服务器环境，性能最优，支持 systemd 服务管理。
-
-📚 查看 [二进制部署文档](docs/BINARY.md) 了解详细配置
-
-### 🛠️ 方式三：开发环境
-
-> 适合开发者本地开发和调试。
-
-📚 查看 [开发环境文档](docs/DEVELOPMENT.md) 了解完整开发流程
-
-## 🔧 命令行工具
-
-NodePassDash v3.0.0 提供了命令行参数来管理和配置应用：
-
-### 基本参数
+## CLI Flags
 
 ```bash
-# 指定端口启动（默认 3000）
-./nodepassdash --port 8080
-# 配置证书以启动https访问
-./nodepassdash --cert /path/to/cert.pem --key /path/to/cert.key
-# 启动时指定日志等级
-./nodepassdash --log-level debug
-# 显示帮助信息
 ./nodepassdash --help
-# 显示版本信息
 ./nodepassdash --version
-# 禁用用户名密码登录
+./nodepassdash --port 8080
+./nodepassdash --log-level INFO
+./nodepassdash --cert /path/to/cert.pem --key /path/to/key.pem
 ./nodepassdash --disable-login
-```
-
-### 管理工具
-
-```bash
-# 重置管理员密码，注：重置后需要重启服务
+./nodepassdash --sse-debug-log
 ./nodepassdash --resetpwd
-# 系统会提示输入新的用户名和密码
-# 数据库维护（检查和修复）
-./nodepassdash --db-check
-# 清理日志文件（保留最近30天）
-./nodepassdash --clean-logs
 ```
 
-### Docker 环境下使用
+## License
 
-```bash
-# 在运行中的容器内重置密码，注：重置后需要重启容器
-docker exec -it nodepassdash ./nodepassdash --resetpwd
+BSD-3-Clause. See `LICENSE`.
 
-# 使用自定义端口启动容器
-docker run -d \
-  --name nodepassdash \
-  -p 8080:8080 \
-  ghcr.io/nodepassproject/nodepassdash:latest \
-  ./nodepassdash --port 8080
-```
+## Disclaimer
 
-## 📄 许可证
+This project is provided “as is”, without any express or implied warranties. You are responsible for complying with local laws and regulations and using it only for lawful purposes. The authors are not liable for any direct, indirect, incidental, or consequential damages. The authors reserve the right to modify features and this statement at any time.
 
-本项目基于 [BSD-3-Clause 许可证](LICENSE) 开源。
+## Support
 
-## ⚖️ 免责声明
+- Issues: https://github.com/NodePassProject/NodePassDash/issues
+- Telegram: https://t.me/NodePassGroup
+- Telegram Channel: https://t.me/NodePassChannel
 
-本项目以“现状”提供，开发者不提供任何明示或暗示的保证。用户使用风险自担，需遵守当地法律法规，仅限合法用途。开发者对任何直接、间接、偶然或后果性损害概不负责。进行二次开发须承诺合法使用并自负法律责任。开发者保留随时修改软件功能及本声明的权利。最终解释权归开发者所有。
-
-## 📞 支持
-
-- 🐛 问题报告: [GitHub Issues](https://github.com/NodePassProject/NodePassDash/issues)
-- 💬 社区讨论: [Telegram 群组](https://t.me/NodePassGroup)
-- 📢 频道: [Telegram 频道](https://t.me/NodePassChannel)
-
-## 🤝 Sponsors
+## Sponsors
 
 <table>
   <tr>
     <td width="240" align="center">
-      <a href="https://vps.town"><img src="https://cdn.yobc.de/assets/vpstown.png"></a>
+      <a href="https://vps.town"><img src="https://camo.githubusercontent.com/9ec623bd5609749c17a6d806b09d9d67d4e0b436d4893b369f7bc0d9f5158081/68747470733a2f2f6e6f6465706173732e65752f6173736574732f767073746f776e2e706e67"></a>
     </td>
   </tr>
 </table>
 
----
-
-⭐ 如果这个项目对你有帮助，请给我们一个 Star！
+## Stargazers
 
 [![Star History Chart](https://api.star-history.com/svg?repos=NodePassProject/NodePassDash&type=Date)](https://star-history.com/#NodePassProject/NodePassDash&Date)
-

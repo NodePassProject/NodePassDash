@@ -5,7 +5,7 @@ services:
     container_name: nodepassdash
     # network_mode: "host" # 如需要ipv6，可考虑使用host模式
     ports:
-      - "3000:3000"  # 整合的Next.js应用
+      - "3000:3000"  # Web UI + API (single port)
     # environment:
     #   - PORT=3000
     #   - LOG-LEVEL=INFO
@@ -14,13 +14,13 @@ services:
     #   - DISABLE_LOGIN=true
     volumes:
       - /etc/localtime:/etc/localtime:ro 
-      # TLS证书
+      # TLS certificates
       # - /path/to/cert.pem:/path/to/cert.pem
       # - /path/to/key.pem:/path/to/key.pem
-      # 挂载日志
-      - ./log:/app/log:ro
-      # SQLite 数据库文件
+      # Persist data
       - ./db:/app/db
+      # Persist file logs (optional but recommended)
+      - ./logs:/app/logs
     restart: unless-stopped
     healthcheck:
       test: ["CMD", "wget", "--no-verbose", "--tries=1", "--spider", "http://localhost:3000/api/health"]

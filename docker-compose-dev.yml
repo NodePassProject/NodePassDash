@@ -15,13 +15,13 @@ services:
     #   - DISABLE_LOGIN=true
     volumes:
       - /etc/localtime:/etc/localtime:ro 
-      # TLS证书
+      # TLS certificates
       # - /path/to/cert.pem:/path/to/cert.pem
       # - /path/to/key.pem:/path/to/key.pem
-      # 挂载日志
-      - ./log:/app/log:ro
-      # SQLite 数据库文件
+      # Persist data
       - ./db:/app/db
+      # Persist file logs (optional but recommended)
+      - ./logs:/app/logs
     restart: unless-stopped
     # 健康检查
     healthcheck:
