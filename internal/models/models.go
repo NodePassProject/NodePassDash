@@ -102,6 +102,7 @@ type Tunnel struct {
 	Dns        *string `json:"dns,omitempty" gorm:"type:text;column:dns"`
 	Sni        *string `json:"sni,omitempty" gorm:"type:text;column:sni"`   //SNI服务器名称指示
 	Block      *int    `json:"block,omitempty" gorm:"type:int;column:block"` //协议屏蔽：0-禁用, 1-SOCKS, 2-HTTP, 3-TLS
+	Lbs        *int    `json:"lbs,omitempty" gorm:"type:int;column:lbs"`     //负载均衡策略：0-轮询转移, 1-最优延迟, 2-主备回落
 
 	Sorts int64 `json:"sorts" gorm:"type:int;column:sorts;default:0"`
 

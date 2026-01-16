@@ -848,6 +848,12 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			}
 			return nil
 		}(),
+		"lbs": func() interface{} {
+			if tunnel.Lbs != nil {
+				return *tunnel.Lbs
+			}
+			return nil
+		}(),
 		// endpoint 改为对象形式
 		"endpoint": map[string]interface{}{
 			"name":    endpointName,
@@ -883,6 +889,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			"listenType":    parsedConfig.ListenType,
 			"sni":           parsedConfig.Sni,
 			"block":         parsedConfig.Block,
+			"lbs":           parsedConfig.Lbs,
 		},
 
 		// tags - GORM 自动反序列化为 *map[string]string

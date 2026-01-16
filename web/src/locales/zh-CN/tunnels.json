@@ -351,10 +351,11 @@
       "sni": "SNI",
       "sniPlaceholder": "example.com",
       "block": "协议屏蔽",
+      "lbs": "负载均衡策略",
       "dnsTTL": "DNS TTL",
       "dnsTTLPlaceholder": "5m",
       "extendedTargets": "附加目标地址",
-      "extendedTargetsPlaceholder": "192.168.1.1:80&#10;192.168.1.2:80",
+      "extendedTargetsPlaceholder": "192.168.1.1:80\n192.168.1.2:80",
       "extendedTargetsTooltip": "通过增加目标地址达到负载均衡的效果"
     },
     "modes": {
@@ -380,6 +381,11 @@
       "socks": "SOCKS",
       "http": "HTTP",
       "tls": "TLS"
+    },
+    "lbsTypes": {
+      "roundRobin": "轮询转移",
+      "leastLatency": "最优延迟",
+      "failover": "主备回落"
     },
     "tls": {
       "inherit": "继承",
@@ -654,6 +660,13 @@
         "socks": "SOCKS",
         "http": "HTTP",
         "tls": "TLS",
+        "notSet": "未设置"
+      },
+      "lbs": {
+        "label": "负载均衡策略",
+        "roundRobin": "轮询转移",
+        "leastLatency": "最优延迟",
+        "failover": "主备回落",
         "notSet": "未设置"
       },
       "bindService": {

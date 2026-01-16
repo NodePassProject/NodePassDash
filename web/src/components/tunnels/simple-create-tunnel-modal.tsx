@@ -161,6 +161,7 @@ export default function SimpleCreateTunnelModal({
     dns: "",
     sni: "", // SNI服务器名称指示
     block: "0", // 协议屏蔽：0-禁用, 1-SOCKS, 2-HTTP, 3-TLS (默认禁用)
+    lbs: "0", // 负载均衡策略：0-轮询转移, 1-最优延迟, 2-主备回落 (默认轮询转移)
   });
 
   // 当打开时加载端点，并在 edit 时从API获取隧道详情
@@ -246,6 +247,10 @@ export default function SimpleCreateTunnelModal({
               tunnel.block != null
                 ? String(tunnel.block)
                 : "0",
+            lbs:
+              tunnel.lbs != null
+                ? String(tunnel.lbs)
+                : "0",
           }));
 
           // 如果有扩展目标地址，自动展开可选配置
@@ -302,6 +307,7 @@ export default function SimpleCreateTunnelModal({
       dns,
       sni,
       block,
+      lbs,
     } = formData;
 
     // 基本校验
@@ -408,6 +414,7 @@ export default function SimpleCreateTunnelModal({
           dns: dns || undefined,
           sni: sni || undefined,
           block: block !== "" ? parseInt(block) : undefined,
+          lbs: lbs !== "" ? parseInt(lbs) : undefined,
         }),
       });
       const data = await res.json();
@@ -1027,6 +1034,23 @@ export default function SimpleCreateTunnelModal({
                               <SelectItem key="2">{t("simpleCreate.blockTypes.http")}</SelectItem>
                               <SelectItem key="3">{t("simpleCreate.blockTypes.tls")}</SelectItem>
                             </Select>
+                            {/* 负载均衡策略 - 只在启用负载均衡时显示 */}
+                            {isEnableLoadBalancing && (
+                              <Select
+                                label={t("simpleCreate.fields.lbs")}
+                                selectedKeys={
+                                  formData.lbs !== "" ? [formData.lbs] : ["0"]
+                                }
+                                onSelectionChange={(keys) => {
+                                  const selectedKey = Array.from(keys)[0] as string;
+                                  handleField("lbs", selectedKey);
+                                }}
+                              >
+                                <SelectItem key="0">{t("simpleCreate.lbsTypes.roundRobin")}</SelectItem>
+                                <SelectItem key="1">{t("simpleCreate.lbsTypes.leastLatency")}</SelectItem>
+                                <SelectItem key="2">{t("simpleCreate.lbsTypes.failover")}</SelectItem>
+                              </Select>
+                            )}
                             <Input
                               label={t("simpleCreate.fields.dnsTTL")}
                               placeholder={t("simpleCreate.fields.dnsTTLPlaceholder")}

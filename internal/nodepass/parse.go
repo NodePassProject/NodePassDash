@@ -36,6 +36,7 @@ type TunnelConfig struct {
 	Dns                   string // DNS服务器地址
 	Sni                   string // SNI服务器名称指示
 	Block                 string // 协议屏蔽 (0-禁用, 1-SOCKS, 2-HTTP, 3-TLS)
+	Lbs                   string // 负载均衡策略 (0-轮询转移, 1-最优延迟, 2-主备回落)
 }
 
 // ParseTunnelURL 解析隧道实例 URL 并返回 Tunnel 模型
@@ -253,6 +254,11 @@ func ParseTunnelURL(rawURL string) *models.Tunnel {
 				if blockType, err := strconv.Atoi(val); err == nil && blockType >= 0 && blockType <= 3 {
 					tunnel.Block = &blockType
 				}
+			case "lbs":
+				// 负载均衡策略 (0=轮询转移, 1=最优延迟, 2=主备回落)
+				if lbsType, err := strconv.Atoi(val); err == nil && lbsType >= 0 && lbsType <= 2 {
+					tunnel.Lbs = &lbsType
+				}
 			}
 		}
 	}
@@ -393,6 +399,9 @@ func TunnelToMap(tunnel *models.Tunnel) map[string]interface{} {
 	if tunnel.Block != nil {
 		updates["block"] = tunnel.Block
 	}
+	if tunnel.Lbs != nil {
+		updates["lbs"] = tunnel.Lbs
+	}
 	return updates
 }
 
@@ -473,6 +482,7 @@ func ParseTunnelConfig(rawURL string) *TunnelConfig {
 	cfg.Dns = query.Get("dns")
 	cfg.Sni = query.Get("sni")
 	cfg.Block = query.Get("block")
+	cfg.Lbs = query.Get("lbs")
 
 	// 根据notcp和noudp参数的组合来设置listenType
 	if noTCP != "" || noUDP != "" {
@@ -606,6 +616,9 @@ func (c *TunnelConfig) BuildTunnelConfigURL() string {
 	}
 	if c.Block != "" {
 		queryParams = append(queryParams, fmt.Sprintf("block=%s", c.Block))
+	}
+	if c.Lbs != "" {
+		queryParams = append(queryParams, fmt.Sprintf("lbs=%s", c.Lbs))
 	}
 
 	// 根据listenType生成notcp和noudp参数
@@ -794,6 +807,9 @@ func BuildTunnelURLs(tunnel models.Tunnel) string {
 	}
 	if tunnel.Block != nil {
 		queryParams = append(queryParams, fmt.Sprintf("block=%d", *tunnel.Block))
+	}
+	if tunnel.Lbs != nil {
+		queryParams = append(queryParams, fmt.Sprintf("lbs=%d", *tunnel.Lbs))
 	}
 
 	if tunnel.ProxyProtocol != nil {
