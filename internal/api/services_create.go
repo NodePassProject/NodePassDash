@@ -47,7 +47,7 @@ func (h *ServicesHandler) CreateService(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(400, gin.H{
 			"success": false,
-			"error":   "无效的请求数据",
+			"error":   "Invalid request data",
 		})
 		return
 	}
@@ -64,7 +64,7 @@ func (h *ServicesHandler) CreateService(c *gin.Context) {
 	default:
 		c.JSON(400, gin.H{
 			"success": false,
-			"error":   "不支持的服务模式: " + req.Mode,
+			"error":   "Unsupported service mode: " + req.Mode,
 		})
 	}
 }
@@ -74,7 +74,7 @@ func (h *ServicesHandler) handleSingleMode(c *gin.Context, req *ServiceCreateReq
 	if req.Inbounds == nil {
 		c.JSON(400, gin.H{
 			"success": false,
-			"error":   "单端模式缺少inbounds配置",
+			"error":   "Single mode is missing inbounds configuration",
 		})
 		return
 	}
@@ -90,13 +90,13 @@ func (h *ServicesHandler) handleSingleMode(c *gin.Context, req *ServiceCreateReq
 		if err == sql.ErrNoRows {
 			c.JSON(400, gin.H{
 				"success": false,
-				"error":   "指定的中转主控不存在",
+				"error":   "Specified transit master does not exist",
 			})
 			return
 		}
 		c.JSON(500, gin.H{
 			"success": false,
-			"error":   "查询中转主控失败",
+			"error":   "Failed to query transit master",
 		})
 		return
 	}
@@ -152,7 +152,7 @@ func (h *ServicesHandler) handleSingleMode(c *gin.Context, req *ServiceCreateReq
 	if err := h.tunnelService.QuickCreateTunnelDirectURL(req.Inbounds.MasterID, tunnelURL, tunnelName, 3*time.Second); err != nil {
 		c.JSON(400, gin.H{
 			"success": false,
-			"error":   "创建单端隧道失败: " + err.Error(),
+			"error":   "Failed to create single-end tunnel: " + err.Error(),
 		})
 		return
 	}
@@ -194,7 +194,7 @@ func (h *ServicesHandler) handleSingleMode(c *gin.Context, req *ServiceCreateReq
 
 	c.JSON(200, gin.H{
 		"success":    true,
-		"message":    "单端转发服务创建成功",
+		"message":    "Single-end forwarding service created successfully",
 		"tunnel_ids": []int64{tunnelID},
 	})
 }
@@ -204,7 +204,7 @@ func (h *ServicesHandler) handleBothwayMode(c *gin.Context, req *ServiceCreateRe
 	if req.Inbounds == nil || req.Outbounds == nil {
 		c.JSON(400, gin.H{
 			"success": false,
-			"error":   "双端模式缺少inbounds或outbounds配置",
+			"error":   "Two-way mode is missing inbounds or outbounds configuration",
 		})
 		return
 	}
@@ -240,13 +240,13 @@ func (h *ServicesHandler) handleBothwayMode(c *gin.Context, req *ServiceCreateRe
 		if err == sql.ErrNoRows {
 			c.JSON(400, gin.H{
 				"success": false,
-				"error":   "指定的服务端主控不存在",
+				"error":   "Specified server master does not exist",
 			})
 			return
 		}
 		c.JSON(500, gin.H{
 			"success": false,
-			"error":   "查询服务端主控失败",
+			"error":   "Failed to query server master",
 		})
 		return
 	}
@@ -260,13 +260,13 @@ func (h *ServicesHandler) handleBothwayMode(c *gin.Context, req *ServiceCreateRe
 		if err == sql.ErrNoRows {
 			c.JSON(400, gin.H{
 				"success": false,
-				"error":   "指定的客户端主控不存在",
+				"error":   "Specified client master does not exist",
 			})
 			return
 		}
 		c.JSON(500, gin.H{
 			"success": false,
-			"error":   "查询客户端主控失败",
+			"error":   "Failed to query client master",
 		})
 		return
 	}
@@ -357,7 +357,7 @@ func (h *ServicesHandler) handleBothwayMode(c *gin.Context, req *ServiceCreateRe
 		log.Errorf("[API] 创建server端隧道失败: %v", err)
 		c.JSON(400, gin.H{
 			"success": false,
-			"error":   "创建server端隧道失败: " + err.Error(),
+			"error":   "Failed to create server-side tunnel: " + err.Error(),
 		})
 		return
 	}
@@ -369,7 +369,7 @@ func (h *ServicesHandler) handleBothwayMode(c *gin.Context, req *ServiceCreateRe
 		log.Errorf("[API] 创建client端隧道失败: %v", err)
 		c.JSON(400, gin.H{
 			"success": false,
-			"error":   "创建client端隧道失败: " + err.Error(),
+			"error":   "Failed to create client-side tunnel: " + err.Error(),
 		})
 		return
 	}
@@ -429,7 +429,7 @@ func (h *ServicesHandler) handleBothwayMode(c *gin.Context, req *ServiceCreateRe
 
 	c.JSON(200, gin.H{
 		"success":    true,
-		"message":    "双端转发服务创建成功",
+		"message":    "Two-way forwarding service created successfully",
 		"tunnel_ids": tunnelIDs,
 	})
 }
@@ -439,7 +439,7 @@ func (h *ServicesHandler) handleIntranetMode(c *gin.Context, req *ServiceCreateR
 	if req.Inbounds == nil || req.Outbounds == nil {
 		c.JSON(400, gin.H{
 			"success": false,
-			"error":   "内网穿透模式缺少inbounds或outbounds配置",
+			"error":   "Intranet penetration mode is missing inbounds or outbounds configuration",
 		})
 		return
 	}
@@ -475,13 +475,13 @@ func (h *ServicesHandler) handleIntranetMode(c *gin.Context, req *ServiceCreateR
 		if err == sql.ErrNoRows {
 			c.JSON(400, gin.H{
 				"success": false,
-				"error":   "指定的服务端主控不存在",
+				"error":   "Specified server master does not exist",
 			})
 			return
 		}
 		c.JSON(500, gin.H{
 			"success": false,
-			"error":   "查询服务端主控失败",
+			"error":   "Failed to query server master",
 		})
 		return
 	}
@@ -495,13 +495,13 @@ func (h *ServicesHandler) handleIntranetMode(c *gin.Context, req *ServiceCreateR
 		if err == sql.ErrNoRows {
 			c.JSON(400, gin.H{
 				"success": false,
-				"error":   "指定的客户端主控不存在",
+				"error":   "Specified client master does not exist",
 			})
 			return
 		}
 		c.JSON(500, gin.H{
 			"success": false,
-			"error":   "查询客户端主控失败",
+			"error":   "Failed to query client master",
 		})
 		return
 	}
@@ -595,7 +595,7 @@ func (h *ServicesHandler) handleIntranetMode(c *gin.Context, req *ServiceCreateR
 		log.Errorf("[API] 创建server端隧道失败: %v", err)
 		c.JSON(400, gin.H{
 			"success": false,
-			"error":   "创建server端隧道失败: " + err.Error(),
+			"error":   "Failed to create server-side tunnel: " + err.Error(),
 		})
 		return
 	}
@@ -607,7 +607,7 @@ func (h *ServicesHandler) handleIntranetMode(c *gin.Context, req *ServiceCreateR
 		log.Errorf("[API] 创建client端隧道失败: %v", err)
 		c.JSON(400, gin.H{
 			"success": false,
-			"error":   "创建client端隧道失败: " + err.Error(),
+			"error":   "Failed to create client-side tunnel: " + err.Error(),
 		})
 		return
 	}
@@ -666,7 +666,7 @@ func (h *ServicesHandler) handleIntranetMode(c *gin.Context, req *ServiceCreateR
 
 	c.JSON(200, gin.H{
 		"success":    true,
-		"message":    "内网穿透服务创建成功",
+		"message":    "Intranet penetration service created successfully",
 		"tunnel_ids": tunnelIDs,
 	})
 }

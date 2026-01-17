@@ -67,7 +67,7 @@ func (h *ServicesHandler) GetServiceByID(c *gin.Context) {
 
 	service, err := h.servicesService.GetServiceByID(sid)
 	if err != nil {
-		c.JSON(http.StatusNotFound, gin.H{"error": "服务不存在"})
+		c.JSON(http.StatusNotFound, gin.H{"error": "Service not found"})
 		return
 	}
 
@@ -99,18 +99,18 @@ func (h *ServicesHandler) GetAvailableInstances(c *gin.Context) {
 func (h *ServicesHandler) AssembleService(c *gin.Context) {
 	var req services.AssembleServiceRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters: " + err.Error()})
 		return
 	}
 
 	if err := h.servicesService.AssembleService(&req); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "组装服务失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to assemble service: " + err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "组装服务成功",
+		"message": "Service assembled successfully",
 	})
 }
 
@@ -119,13 +119,13 @@ func (h *ServicesHandler) StartService(c *gin.Context) {
 	sid := c.Param("sid")
 
 	if err := h.servicesService.StartService(sid); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "启动服务失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to start service: " + err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "启动服务成功",
+		"message": "Service started successfully",
 	})
 }
 
@@ -134,13 +134,13 @@ func (h *ServicesHandler) StopService(c *gin.Context) {
 	sid := c.Param("sid")
 
 	if err := h.servicesService.StopService(sid); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "停止服务失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to stop service: " + err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "停止服务成功",
+		"message": "Service stopped successfully",
 	})
 }
 
@@ -149,13 +149,13 @@ func (h *ServicesHandler) RestartService(c *gin.Context) {
 	sid := c.Param("sid")
 
 	if err := h.servicesService.RestartService(sid); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "重启服务失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to restart service: " + err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "重启服务成功",
+		"message": "Service restarted successfully",
 	})
 }
 
@@ -164,13 +164,13 @@ func (h *ServicesHandler) DeleteService(c *gin.Context) {
 	sid := c.Param("sid")
 
 	if err := h.servicesService.DeleteService(sid); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "删除服务失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to delete service: " + err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "删除服务成功",
+		"message": "Service deleted successfully",
 	})
 }
 
@@ -181,18 +181,18 @@ func (h *ServicesHandler) RenameService(c *gin.Context) {
 		Name string `json:"name" binding:"required"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters: " + err.Error()})
 		return
 	}
 
 	if err := h.servicesService.RenameService(sid, req.Name); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "重命名服务失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to rename service: " + err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "重命名服务成功",
+		"message": "Service renamed successfully",
 	})
 }
 
@@ -201,13 +201,13 @@ func (h *ServicesHandler) DissolveService(c *gin.Context) {
 	sid := c.Param("sid")
 
 	if err := h.servicesService.DissolveService(sid); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "解散服务失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to dissolve service: " + err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "解散服务成功",
+		"message": "Service dissolved successfully",
 	})
 }
 
@@ -216,13 +216,13 @@ func (h *ServicesHandler) SyncService(c *gin.Context) {
 	sid := c.Param("sid")
 
 	if err := h.servicesService.SyncService(sid); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "同步服务失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to sync service: " + err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "同步服务成功",
+		"message": "Service synced successfully",
 	})
 }
 
@@ -230,18 +230,18 @@ func (h *ServicesHandler) SyncService(c *gin.Context) {
 func (h *ServicesHandler) UpdateServicesSorts(c *gin.Context) {
 	var req services.UpdateServicesSortsRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "请求参数错误: " + err.Error()})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid request parameters: " + err.Error()})
 		return
 	}
 
 	if err := h.servicesService.UpdateServicesSorts(&req); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新排序失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update sort order: " + err.Error()})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "排序已保存",
+		"message": "Sort order saved",
 	})
 }
 

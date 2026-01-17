@@ -78,7 +78,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 	if disableLogin == "true" {
 		c.JSON(http.StatusForbidden, auth.LoginResponse{
 			Success: false,
-			Error:   "用户名密码登录已禁用，请使用 OAuth2 登录",
+			Error:   "Username and password login is disabled, please use OAuth2 login",
 		})
 		return
 	}
@@ -93,7 +93,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 	if req.Username == "" || req.Password == "" {
 		c.JSON(http.StatusOK, auth.LoginResponse{
 			Success: false,
-			Error:   "用户名和密码不能为空",
+			Error:   "Username and password cannot be empty",
 		})
 		return
 	}
@@ -102,7 +102,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 	if !h.authService.AuthenticateUser(req.Username, req.Password) {
 		c.JSON(http.StatusUnauthorized, auth.LoginResponse{
 			Success: false,
-			Error:   "用户名或密码错误",
+			Error:   "Invalid username or password",
 		})
 		return
 	}
@@ -112,7 +112,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, auth.LoginResponse{
 			Success: false,
-			Error:   "生成 token 失败",
+			Error:   "Failed to generate token",
 		})
 		return
 	}
@@ -126,7 +126,7 @@ func (h *AuthHandler) HandleLogin(c *gin.Context) {
 	// 返回成功响应，包含 JWT token
 	response := map[string]interface{}{
 		"success":              true,
-		"message":              "登录成功",
+		"message":              "Login successful",
 		"token":                token,
 		"expiresAt":            expiresAt.Format(time.RFC3339),
 		"isDefaultCredentials": isDefaultCredentials,
@@ -153,7 +153,7 @@ func (h *AuthHandler) HandleLogout(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "登出成功",
+		"message": "Logout successful",
 	})
 }
 
@@ -180,7 +180,7 @@ func (h *AuthHandler) HandleInitSystem(c *gin.Context) {
 	// 检查系统是否已初始化
 	if h.authService.IsSystemInitialized() {
 		c.JSON(http.StatusBadRequest, gin.H{
-			"error": "系统已初始化",
+			"error": "System already initialized",
 		})
 		return
 	}
@@ -189,7 +189,7 @@ func (h *AuthHandler) HandleInitSystem(c *gin.Context) {
 	username, password, err := h.authService.InitializeSystem()
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "系统初始化失败",
+			"error": "System initialization failed",
 		})
 		return
 	}
@@ -208,7 +208,7 @@ func (h *AuthHandler) HandleGetMe(c *gin.Context) {
 	username, exists := c.Get("username")
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
-			"error": "未登录",
+			"error": "Not logged in",
 		})
 		return
 	}
@@ -243,7 +243,7 @@ func (h *AuthHandler) HandleChangePassword(c *gin.Context) {
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
-			"message": "未登录",
+			"message": "Not logged in",
 		})
 		return
 	}
@@ -254,7 +254,7 @@ func (h *AuthHandler) HandleChangePassword(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "无效请求体",
+			"message": "Invalid request body",
 		})
 		return
 	}
@@ -262,7 +262,7 @@ func (h *AuthHandler) HandleChangePassword(c *gin.Context) {
 	if req.CurrentPassword == "" || req.NewPassword == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "缺少字段",
+			"message": "Missing fields",
 		})
 		return
 	}
@@ -289,7 +289,7 @@ func (h *AuthHandler) HandleChangeUsername(c *gin.Context) {
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
-			"message": "未登录",
+			"message": "Not logged in",
 		})
 		return
 	}
@@ -300,7 +300,7 @@ func (h *AuthHandler) HandleChangeUsername(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "无效请求体",
+			"message": "Invalid request body",
 		})
 		return
 	}
@@ -308,7 +308,7 @@ func (h *AuthHandler) HandleChangeUsername(c *gin.Context) {
 	if req.NewUsername == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "新用户名不能为空",
+			"message": "New username cannot be empty",
 		})
 		return
 	}
@@ -335,7 +335,7 @@ func (h *AuthHandler) HandleUpdateSecurity(c *gin.Context) {
 	if !exists {
 		c.JSON(http.StatusUnauthorized, gin.H{
 			"success": false,
-			"message": "未登录",
+			"message": "Not logged in",
 		})
 		return
 	}
@@ -346,7 +346,7 @@ func (h *AuthHandler) HandleUpdateSecurity(c *gin.Context) {
 	if !h.authService.IsDefaultCredentials() {
 		c.JSON(http.StatusForbidden, gin.H{
 			"success": false,
-			"message": "此操作仅在首次设置时可用",
+			"message": "This operation is only available during initial setup",
 		})
 		return
 	}
@@ -355,7 +355,7 @@ func (h *AuthHandler) HandleUpdateSecurity(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "无效请求体",
+			"message": "Invalid request body",
 		})
 		return
 	}
@@ -363,7 +363,7 @@ func (h *AuthHandler) HandleUpdateSecurity(c *gin.Context) {
 	if req.CurrentPassword == "" || req.NewUsername == "" || req.NewPassword == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"message": "缺少必填字段",
+			"message": "Missing required fields",
 		})
 		return
 	}
@@ -382,7 +382,7 @@ func (h *AuthHandler) HandleUpdateSecurity(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"message": "生成新 token 失败",
+			"message": "Failed to generate new token",
 		})
 		return
 	}
@@ -428,7 +428,7 @@ func (h *AuthHandler) HandleOAuth2Callback(c *gin.Context) {
 	if provider == "" || code == "" {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   "缺少 provider 或 code 参数",
+			"error":   "Missing provider or code parameter",
 		})
 		return
 	}
@@ -444,7 +444,7 @@ func (h *AuthHandler) HandleOAuth2Callback(c *gin.Context) {
 	default:
 		c.JSON(http.StatusOK, gin.H{
 			"success": false,
-			"error":   "未知 provider",
+			"error":   "Unknown provider",
 		})
 	}
 }
@@ -454,7 +454,7 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 	// 读取配置
 	cfgStr, err := h.authService.GetSystemConfig("oauth2_config")
 	if err != nil || cfgStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "GitHub OAuth2 未配置"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "GitHub OAuth2 not configured"})
 		return
 	}
 
@@ -469,7 +469,7 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 	_ = json.Unmarshal([]byte(cfgStr), &cfg)
 
 	if cfg.ClientID == "" || cfg.ClientSecret == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "GitHub OAuth2 配置不完整"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "GitHub OAuth2 configuration incomplete"})
 		return
 	}
 
@@ -502,7 +502,7 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 	resp, err := proxyClient.Do(tokenReq)
 	if err != nil {
 		fmt.Printf("❌ GitHub Token 请求错误: %v\n", err)
-		c.JSON(http.StatusBadGateway, gin.H{"error": "请求 GitHub Token 失败"})
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to request GitHub token"})
 		return
 	}
 	defer resp.Body.Close()
@@ -510,7 +510,7 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 	if resp.StatusCode >= 400 {
 		bodyBytes, _ := ioutil.ReadAll(resp.Body)
 		fmt.Printf("❌ GitHub Token 错误 %d: %s\n", resp.StatusCode, string(bodyBytes))
-		c.JSON(http.StatusBadGateway, gin.H{"error": "GitHub Token 接口返回错误"})
+		c.JSON(http.StatusBadGateway, gin.H{"error": "GitHub token endpoint returned error"})
 		return
 	}
 
@@ -524,7 +524,7 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 	}
 	_ = json.Unmarshal(body, &tokenRes)
 	if tokenRes.AccessToken == "" {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "获取 AccessToken 失败"})
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to get access token"})
 		return
 	}
 
@@ -536,7 +536,7 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 	// 使用支持代理的HTTP客户端
 	userResp, err := proxyClient.Do(userReq)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "获取用户信息失败"})
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to get user information"})
 		return
 	}
 	defer userResp.Body.Close()
@@ -576,7 +576,7 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 	// 生成 JWT token
 	token, expiresAt, jti, err := h.authService.GenerateToken(username)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成 token 失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
 
@@ -607,7 +607,7 @@ func (h *AuthHandler) handleGitHubOAuth(c *gin.Context, code string) {
 		"success":   true,
 		"provider":  "github",
 		"username":  username,
-		"message":   "登录成功",
+		"message":   "Login successful",
 		"token":     token,
 		"expiresAt": expiresAt.Format(time.RFC3339),
 	})
@@ -618,7 +618,7 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 	// 读取配置
 	cfgStr, err := h.authService.GetSystemConfig("oauth2_config")
 	if err != nil || cfgStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cloudflare OAuth2 未配置"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cloudflare OAuth2 not configured"})
 		return
 	}
 
@@ -633,7 +633,7 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 	_ = json.Unmarshal([]byte(cfgStr), &cfg)
 
 	if cfg.ClientID == "" || cfg.ClientSecret == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "Cloudflare OAuth2 配置不完整"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Cloudflare OAuth2 configuration incomplete"})
 		return
 	}
 
@@ -662,7 +662,7 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 	proxyClient := h.createProxyClient()
 	resp, err := proxyClient.Do(tokenReq)
 	if err != nil {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "请求 Cloudflare Token 失败"})
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to request Cloudflare token"})
 		return
 	}
 	defer resp.Body.Close()
@@ -670,7 +670,7 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 	if resp.StatusCode >= 400 {
 		bodyBytes, _ := ioutil.ReadAll(resp.Body)
 		fmt.Printf("❌ Cloudflare Token 错误 %d: %s\n", resp.StatusCode, string(bodyBytes))
-		c.JSON(http.StatusBadGateway, gin.H{"error": "Cloudflare Token 接口返回错误"})
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Cloudflare token endpoint returned error"})
 		return
 	}
 
@@ -685,7 +685,7 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 	}
 	_ = json.Unmarshal(body, &tokenRes)
 	if tokenRes.AccessToken == "" {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "获取 AccessToken 失败"})
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Failed to get access token"})
 		return
 	}
 
@@ -718,7 +718,7 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 	}
 
 	if len(userData) == 0 {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "无法获取 Cloudflare 用户信息"})
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Unable to get Cloudflare user information"})
 		return
 	}
 
@@ -734,7 +734,7 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 
 	// 最终验证 providerID 是否有效
 	if providerID == "<nil>" || providerID == "" {
-		c.JSON(http.StatusBadGateway, gin.H{"error": "无法获取 Cloudflare 用户唯一标识"})
+		c.JSON(http.StatusBadGateway, gin.H{"error": "Unable to get Cloudflare user unique identifier"})
 		return
 	}
 
@@ -776,7 +776,7 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 	// 生成 JWT token
 	token, expiresAt, jti, err := h.authService.GenerateToken(username)
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "生成 token 失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to generate token"})
 		return
 	}
 
@@ -807,7 +807,7 @@ func (h *AuthHandler) handleCloudflareOAuth(c *gin.Context, code string) {
 		"success":   true,
 		"provider":  "cloudflare",
 		"username":  username,
-		"message":   "登录成功",
+		"message":   "Login successful",
 		"token":     token,
 		"expiresAt": expiresAt.Format(time.RFC3339),
 	})

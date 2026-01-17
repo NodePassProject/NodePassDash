@@ -53,7 +53,7 @@ func (h *DashboardHandler) HandleGetOverallStats(c *gin.Context) {
 	if err := h.dashboardService.DB().Raw("SELECT COUNT(*) FROM endpoints").Scan(&stats.TotalEndpoints).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "获取主控总数失败: " + err.Error(),
+			"error":   "Failed to get endpoints count: " + err.Error(),
 		})
 		return
 	}
@@ -62,7 +62,7 @@ func (h *DashboardHandler) HandleGetOverallStats(c *gin.Context) {
 	if err := h.dashboardService.DB().Raw("SELECT COUNT(*) FROM tunnels").Scan(&stats.TotalTunnels).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "获取实例总数失败: " + err.Error(),
+			"error":   "Failed to get tunnels count: " + err.Error(),
 		})
 		return
 	}
@@ -75,7 +75,7 @@ func (h *DashboardHandler) HandleGetOverallStats(c *gin.Context) {
 	`).Scan(&totalBytes).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "获取总流量失败: " + err.Error(),
+			"error":   "Failed to get total traffic: " + err.Error(),
 		})
 		return
 	}
@@ -113,7 +113,7 @@ func (h *DashboardHandler) HandleGetStats(c *gin.Context) {
 	if !validRange {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   "无效的时间范围参数",
+			"error":   "Invalid time range parameter",
 		})
 		return
 	}
@@ -122,7 +122,7 @@ func (h *DashboardHandler) HandleGetStats(c *gin.Context) {
 	stats, err := h.dashboardService.GetStats(dashboard.TimeRange(timeRange))
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
-			"error": "获取仪表盘数据失败: " + err.Error(),
+			"error": "Failed to get dashboard data: " + err.Error(),
 		})
 		return
 	}
@@ -195,7 +195,7 @@ func (h *DashboardHandler) HandleGetTunnelStats(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "获取主控总数失败: " + err.Error(),
+			"error":   "Failed to get endpoints count: " + err.Error(),
 		})
 		return
 	}
@@ -205,7 +205,7 @@ func (h *DashboardHandler) HandleGetTunnelStats(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "获取服务总数失败: " + err.Error(),
+			"error":   "Failed to get services count: " + err.Error(),
 		})
 		return
 	}
@@ -222,7 +222,7 @@ func (h *DashboardHandler) HandleWeeklyStats(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
-			"error":   "获取每周统计数据失败: " + err.Error(),
+			"error":   "Failed to get weekly stats: " + err.Error(),
 		})
 		return
 	}
