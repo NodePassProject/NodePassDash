@@ -54,7 +54,7 @@ func serveStaticFile(c *gin.Context, fsys fs.FS, fileName, contentType string) {
 }
 
 // parseFlags 解析命令行参数并处理基础配置
-func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, disableLogin, sseDebugLog bool) {
+func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, disableLogin, sseDebugLog, disableSSELog bool) {
 	// 命令行参数处理
 	resetPwdCmd := flag.Bool("resetpwd", false, "重置管理员密码")
 	portFlag := flag.String("port", "", "HTTP 服务端口 (优先级高于环境变量 PORT)，默认 3000")
@@ -68,6 +68,8 @@ func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, d
 	disableLoginFlag := flag.Bool("disable-login", false, "禁用用户名密码登录，仅允许 OAuth2 登录")
 	// SSE 调试日志参数
 	sseDebugLogFlag := flag.Bool("sse-debug-log", false, "启用 SSE 消息调试日志")
+	// 禁用 SSE 日志记录参数
+	disableSSELogFlag := flag.Bool("disable-sse-log", false, "禁用 SSE 日志记录到文件")
 
 	flag.Parse()
 
@@ -120,7 +122,16 @@ func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, d
 		}
 	}
 
-	return *resetPwdCmd, port, certFile, keyFile, *versionFlag || *vFlag, disableLogin, sseDebugLog
+	// 设置禁用 SSE 日志记录配置
+	// 优先级：命令行参数 > 环境变量
+	disableSSELog = *disableSSELogFlag
+	if !disableSSELog {
+		if env := os.Getenv("DISABLE_SSE_LOG"); env == "true" || env == "1" {
+			disableSSELog = true
+		}
+	}
+
+	return *resetPwdCmd, port, certFile, keyFile, *versionFlag || *vFlag, disableLogin, sseDebugLog, disableSSELog
 }
 
 // setupStaticFiles 配置静态文件服务
@@ -190,7 +201,7 @@ func setupStaticFiles(ginRouter *gin.Engine) error {
 }
 
 // initializeServices 初始化所有服务
-func initializeServices(sseDebugLog bool) (*gorm.DB, *auth.Service, *endpoint.Service, *tunnel.Service, *dashboard.Service, *sse.Service, *sse.Manager, *websocket.Service, error) {
+func initializeServices(sseDebugLog, disableSSELog bool) (*gorm.DB, *auth.Service, *endpoint.Service, *tunnel.Service, *dashboard.Service, *sse.Service, *sse.Manager, *websocket.Service, error) {
 	// 获取GORM数据库连接
 	gormDB := dbPkg.GetDB()
 	log.Info("数据库连接成功")
@@ -214,7 +225,7 @@ func initializeServices(sseDebugLog bool) (*gorm.DB, *auth.Service, *endpoint.Se
 	dashboardService := dashboard.NewService(gormDB)
 
 	// 创建SSE服务和管理器（延迟启动避免数据库竞争）
-	sseService := sse.NewService(gormDB, endpointService)
+	sseService := sse.NewService(gormDB, endpointService, disableSSELog)
 	// 临时解决方案：从GORM获取底层的sql.DB用于SSE Manager
 	sqlDB, err := gormDB.DB()
 	if err != nil {
@@ -338,7 +349,7 @@ func gracefulShutdown(server *http.Server, trafficScheduler *dashboard.TrafficSc
 }
 
 func main() {
-	resetPwd, port, certFile, keyFile, showVersion, disableLogin, sseDebugLog := parseFlags()
+	resetPwd, port, certFile, keyFile, showVersion, disableLogin, sseDebugLog, disableSSELog := parseFlags()
 
 	// 如果指定了版本参数，显示版本信息后退出
 	if showVersion {
@@ -360,7 +371,7 @@ func main() {
 	}
 
 	// 初始化所有服务
-	gormDB, authService, endpointService, tunnelService, dashboardService, sseService, sseManager, wsService, err := initializeServices(sseDebugLog)
+	gormDB, authService, endpointService, tunnelService, dashboardService, sseService, sseManager, wsService, err := initializeServices(sseDebugLog, disableSSELog)
 	if err != nil {
 		log.Errorf("服务初始化失败: %v", err)
 		return

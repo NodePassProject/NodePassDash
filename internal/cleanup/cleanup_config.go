@@ -100,7 +100,7 @@ func DefaultCleanupConfig() *CleanupConfig {
 	return &CleanupConfig{
 		Enabled: true,
 		RetentionPolicy: RetentionPolicyConfig{
-			RealtimeDataRetentionHours:     24,  // 实时数据保留1天
+			RealtimeDataRetentionHours:     1,   // 实时数据保留1小时
 			TrafficStatsRetentionDays:      90,  // 流量统计保留3个月
 			MonitoringRecordsRetentionDays: 30,  // 监控记录保留30天
 			DeletedEndpointRetentionDays:   7,   // 已删除端点保留7天

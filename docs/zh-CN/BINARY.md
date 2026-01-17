@@ -83,6 +83,61 @@ sudo systemctl restart nodepassdash
 
 生产环境也可以让 NodePassDash 监听内网端口，再由 Nginx/Caddy 等反代并签发证书。
 
+## 启动参数说明
+
+NodePassDash 支持多种启动参数来配置服务行为：
+
+### 基础参数
+
+- `--port <端口号>`：指定 HTTP 服务端口（默认：3000）
+- `--log-level <级别>`：设置日志级别（DEBUG, INFO, WARN, ERROR）
+- `--version` 或 `-v`：显示版本信息
+
+### TLS/HTTPS
+
+- `--cert <证书路径>`：TLS 证书文件路径
+- `--key <私钥路径>`：TLS 私钥文件路径
+
+### 认证配置
+
+- `--disable-login`：禁用用户名密码登录，仅允许 OAuth2 登录
+- `--resetpwd`：重置管理员密码
+
+### 调试与日志
+
+- `--sse-debug-log`：启用 SSE 消息调试日志
+- `--disable-sse-log`：禁用 SSE 日志记录到文件（推荐在磁盘空间有限时使用）
+
+### 环境变量支持
+
+以下参数也可以通过环境变量配置（命令行参数优先级更高）：
+
+- `PORT`：服务端口
+- `LOG_LEVEL`：日志级别
+- `TLS_CERT`：TLS 证书路径
+- `TLS_KEY`：TLS 私钥路径
+- `DISABLE_LOGIN`：禁用密码登录（值为 `true` 或 `1` 时启用）
+- `SSE_DEBUG_LOG`：SSE 调试日志（值为 `true` 或 `1` 时启用）
+- `DISABLE_SSE_LOG`：禁用 SSE 日志文件（值为 `true` 或 `1` 时启用）
+
+示例：
+
+```bash
+# 使用命令行参数
+./bin/nodepassdash --port 3000 --disable-sse-log
+
+# 使用环境变量
+export PORT=3000
+export DISABLE_SSE_LOG=true
+./bin/nodepassdash
+```
+
+### 关于 SSE 日志记录
+
+默认情况下，NodePassDash 会将隧道的 SSE 事件日志记录到 `logs/` 目录下的文件中，便于后续查看和调试。如果你的服务器磁盘空间有限，或者不需要长期保存这些日志，可以使用 `--disable-sse-log` 参数禁用文件记录。
+
+**注意：** 禁用后，SSE 日志仍会实时推送到前端界面，但不会保存到文件中。
+
 ## 升级
 
 - 脚本安装：按脚本提供的升级方式操作（如有）。

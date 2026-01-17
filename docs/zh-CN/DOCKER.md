@@ -94,6 +94,28 @@ services:
 
 启用前请先在界面中配置好 OAuth2，否则可能会无法登录。
 
+### 禁用 SSE 日志文件记录
+
+默认情况下，NodePassDash 会将隧道的 SSE 事件日志记录到 `logs/` 目录。如果磁盘空间有限或不需要保留日志文件，可以禁用：
+
+```bash
+./nodepassdash --disable-sse-log
+```
+
+或在 docker-compose.yml 中：
+
+```yaml
+services:
+  nodepassdash:
+    image: ghcr.io/nodepassproject/nodepassdash:latest
+    environment:
+      - DISABLE_SSE_LOG=true
+    # 或者使用 command
+    command: ["./nodepassdash","--disable-sse-log"]
+```
+
+**注意：** 禁用后，SSE 日志仍会实时推送到前端界面，但不会保存到文件中。
+
 ## 备份与恢复
 
 - 备份：拷贝 `db/`（SQLite 数据库），需要的话也可备份 `logs/`。

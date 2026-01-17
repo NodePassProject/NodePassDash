@@ -64,6 +64,7 @@ NodePassDash is a modern web dashboard for managing **NodePass** endpoints, tunn
 ./nodepassdash --cert /path/to/cert.pem --key /path/to/key.pem
 ./nodepassdash --disable-login
 ./nodepassdash --sse-debug-log
+./nodepassdash --disable-sse-log         # Disable SSE log recording to files
 ./nodepassdash --resetpwd
 ```
 

@@ -39,17 +39,29 @@ type Service struct {
 	// 文件日志管理器
 	fileLogger *log.FileLogger // 文件日志管理器
 
+	// 配置选项
+	disableLogStore bool // 禁用日志记录到文件
+
 	// 上下文控制
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
 // NewService 创建SSE服务实例
-func NewService(db *gorm.DB, endpointService *endpoint.Service) *Service {
+func NewService(db *gorm.DB, endpointService *endpoint.Service, disableLogStore bool) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// 创建日志目录路径
 	logDir := filepath.Join("logs")
+
+	// 如果禁用日志存储，fileLogger 设置为 nil
+	var fileLogger *log.FileLogger
+	if !disableLogStore {
+		fileLogger = log.NewFileLogger(logDir)
+		log.Info("SSE 日志文件记录已启用")
+	} else {
+		log.Info("SSE 日志文件记录已禁用")
+	}
 
 	s := &Service{
 		clients:         make(map[string]*Client),
@@ -57,7 +69,8 @@ func NewService(db *gorm.DB, endpointService *endpoint.Service) *Service {
 		db:              db,
 		endpointService: endpointService,
 		historyWorker:   NewHistoryWorker(db),
-		fileLogger:      log.NewFileLogger(logDir),
+		fileLogger:      fileLogger,
+		disableLogStore: disableLogStore,
 		ctx:             ctx,
 		cancel:          cancel,
 	}
@@ -338,6 +351,14 @@ func (s *Service) handleDeleteEvent(payload SSEResp) {
 func (s *Service) handleLogEvent(payload SSEResp) {
 	// 日志事件需要写入文件日志系统
 	log.Debugf("[Master-%d]处理日志事件: 隧道 %s", payload.EndpointID, payload.Instance.ID)
+
+	// 如果禁用了日志存储，只推流不写文件
+	if s.disableLogStore {
+		log.Debugf("[Master-%d]SSE 日志记录已禁用，跳过文件写入", payload.EndpointID)
+		// 推流转发给前端订阅
+		s.sendTunnelUpdateByInstanceId(payload.Instance.ID, payload)
+		return
+	}
 
 	// 检查是否有日志内容
 	if *payload.Logs == "" {
