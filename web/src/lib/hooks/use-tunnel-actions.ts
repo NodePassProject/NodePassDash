@@ -1,5 +1,6 @@
 import { addToast } from "@heroui/toast";
 import { useNavigate } from "react-router-dom";
+import { useTranslation } from "react-i18next";
 
 import { buildApiUrl } from "@/lib/utils";
 
@@ -15,6 +16,7 @@ export interface TunnelActionOptions {
 
 export const useTunnelActions = () => {
   const navigate = useNavigate();
+  const { t } = useTranslation("tunnels");
 
   const toggleStatus = async (
     isRunning: boolean,
@@ -22,12 +24,13 @@ export const useTunnelActions = () => {
   ) => {
     const { tunnelId, tunnelName, instanceId, onStatusChange } = options;
     const action = isRunning ? "stop" : "start";
-    const actionText = isRunning ? "停止" : "启动";
 
     // 显示进行中toast
     addToast({
-      title: `正在${actionText}实例...`,
-      description: tunnelName ? `${actionText} ${tunnelName}` : "请稍候",
+      title: isRunning ? t("toast.instanceActions.stopping") : t("toast.instanceActions.starting"),
+      description: tunnelName
+        ? (isRunning ? t("toast.instanceActions.stopInstance", { name: tunnelName }) : t("toast.instanceActions.startInstance", { name: tunnelName }))
+        : t("toast.instanceActions.pleaseWait"),
       color: "primary",
     });
 
@@ -48,7 +51,7 @@ export const useTunnelActions = () => {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.message || data.error || `${actionText}失败`);
+        throw new Error(data.message || data.error || t(`toast.instanceActions.failedTo${isRunning ? "Stop" : "Start"}`));
       }
 
       // 更新状态 (使用tunnelId用于前端状态管理)
@@ -58,20 +61,22 @@ export const useTunnelActions = () => {
 
       // 显示成功提示
       addToast({
-        title: `实例已${actionText}`,
+        title: isRunning ? t("toast.instanceActions.instanceStopped") : t("toast.instanceActions.instanceStarted"),
         description: tunnelName
-          ? `${tunnelName} 已成功${actionText}`
-          : `实例已成功${actionText}`,
+          ? (isRunning ? t("toast.instanceActions.stoppedSuccessfully", { name: tunnelName }) : t("toast.instanceActions.startedSuccessfully", { name: tunnelName }))
+          : (isRunning ? t("toast.instanceActions.instanceStoppedSuccessfully") : t("toast.instanceActions.instanceStartedSuccessfully")),
         color: "success",
       });
     } catch (error) {
       // 显示错误提示
       addToast({
-        title: `${actionText}失败`,
+        title: isRunning ? t("toast.instanceActions.failedToStop") : t("toast.instanceActions.failedToStart"),
         description:
           error instanceof Error
             ? error.message
-            : `${tunnelName || "实例"} ${actionText}失败`,
+            : tunnelName
+              ? (isRunning ? t("toast.instanceActions.failedToStopInstance", { name: tunnelName }) : t("toast.instanceActions.failedToStartInstance", { name: tunnelName }))
+              : (isRunning ? t("toast.instanceActions.failedToStop") : t("toast.instanceActions.failedToStart")),
         color: "danger",
       });
     }
@@ -82,8 +87,8 @@ export const useTunnelActions = () => {
 
     // 显示进行中toast
     addToast({
-      title: "正在重启实例...",
-      description: tunnelName ? `重启 ${tunnelName}` : "请稍候",
+      title: t("toast.instanceActions.restarting"),
+      description: tunnelName ? t("toast.instanceActions.restartInstance", { name: tunnelName }) : t("toast.instanceActions.pleaseWait"),
       color: "primary",
     });
 
@@ -104,7 +109,7 @@ export const useTunnelActions = () => {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.message || data.error || "重启失败");
+        throw new Error(data.message || data.error || t("toast.instanceActions.restartFailed"));
       }
 
       // 更新状态 (使用tunnelId用于前端状态管理)
@@ -114,20 +119,22 @@ export const useTunnelActions = () => {
 
       // 显示成功提示
       addToast({
-        title: "实例重启完成",
+        title: t("toast.instanceActions.instanceRestarted"),
         description: tunnelName
-          ? `${tunnelName} 已成功重启并运行`
-          : "实例已成功重启并运行",
+          ? t("toast.instanceActions.restartedSuccessfully", { name: tunnelName })
+          : t("toast.instanceActions.instanceRestartedSuccessfully"),
         color: "success",
       });
     } catch (error) {
       // 显示错误提示
       addToast({
-        title: "重启失败",
+        title: t("toast.instanceActions.restartFailed"),
         description:
           error instanceof Error
             ? error.message
-            : `${tunnelName || "实例"}重启失败`,
+            : tunnelName
+              ? t("toast.instanceActions.failedToRestartInstance", { name: tunnelName })
+              : t("toast.instanceActions.restartFailed"),
         color: "danger",
       });
     }
@@ -145,8 +152,8 @@ export const useTunnelActions = () => {
 
     // 显示进行中toast
     addToast({
-      title: "正在删除实例...",
-      description: tunnelName ? `删除 ${tunnelName}` : "请稍候",
+      title: t("toast.instanceActions.deleting"),
+      description: tunnelName ? t("toast.instanceActions.deleteInstance", { name: tunnelName }) : t("toast.instanceActions.pleaseWait"),
       color: "primary",
     });
 
@@ -164,13 +171,15 @@ export const useTunnelActions = () => {
       const data = await response.json();
 
       if (!response.ok || !data.success) {
-        throw new Error(data.message || data.error || "删除失败");
+        throw new Error(data.message || data.error || t("toast.instanceActions.deleteFailed"));
       }
 
       // 显示成功提示
       addToast({
-        title: "实例已删除",
-        description: tunnelName ? `${tunnelName} 已成功删除` : "实例已成功删除",
+        title: t("toast.instanceActions.instanceDeleted"),
+        description: tunnelName
+          ? t("toast.instanceActions.deletedSuccessfully", { name: tunnelName })
+          : t("toast.instanceActions.instanceDeletedSuccessfully"),
         color: "success",
       });
 
@@ -186,11 +195,13 @@ export const useTunnelActions = () => {
     } catch (error) {
       // 显示错误提示
       addToast({
-        title: "删除失败",
+        title: t("toast.instanceActions.deleteFailed"),
         description:
           error instanceof Error
             ? error.message
-            : `${tunnelName || "实例"}删除失败`,
+            : tunnelName
+              ? t("toast.instanceActions.failedToDeleteInstance", { name: tunnelName })
+              : t("toast.instanceActions.deleteFailed"),
         color: "danger",
       });
     }

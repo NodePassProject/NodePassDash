@@ -54,7 +54,7 @@ func serveStaticFile(c *gin.Context, fsys fs.FS, fileName, contentType string) {
 }
 
 // parseFlags 解析命令行参数并处理基础配置
-func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, disableLogin, sseDebugLog, disableSSELog bool) {
+func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, disableLogin, sseDebugLog, disableSSELog, demoMode bool) {
 	// 命令行参数处理
 	resetPwdCmd := flag.Bool("resetpwd", false, "重置管理员密码")
 	portFlag := flag.String("port", "", "HTTP 服务端口 (优先级高于环境变量 PORT)，默认 3000")
@@ -70,6 +70,8 @@ func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, d
 	sseDebugLogFlag := flag.Bool("sse-debug-log", false, "启用 SSE 消息调试日志")
 	// 禁用 SSE 日志记录参数
 	disableSSELogFlag := flag.Bool("disable-sse-log", false, "禁用 SSE 日志记录到文件")
+	// Demo 模式参数
+	demoModeFlag := flag.Bool("demo", false, "启用演示模式（默认密码为 Np123456. 并每天自动重置）")
 
 	flag.Parse()
 
@@ -131,7 +133,16 @@ func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, d
 		}
 	}
 
-	return *resetPwdCmd, port, certFile, keyFile, *versionFlag || *vFlag, disableLogin, sseDebugLog, disableSSELog
+	// 设置 Demo 模式配置
+	// 优先级：命令行参数 > 环境变量
+	demoMode = *demoModeFlag
+	if !demoMode {
+		if env := os.Getenv("DEMO_MODE"); env == "true" || env == "1" {
+			demoMode = true
+		}
+	}
+
+	return *resetPwdCmd, port, certFile, keyFile, *versionFlag || *vFlag, disableLogin, sseDebugLog, disableSSELog, demoMode
 }
 
 // setupStaticFiles 配置静态文件服务
@@ -201,14 +212,21 @@ func setupStaticFiles(ginRouter *gin.Engine) error {
 }
 
 // initializeServices 初始化所有服务
-func initializeServices(sseDebugLog, disableSSELog bool) (*gorm.DB, *auth.Service, *endpoint.Service, *tunnel.Service, *dashboard.Service, *sse.Service, *sse.Manager, *websocket.Service, error) {
+func initializeServices(sseDebugLog, disableSSELog, demoMode bool) (*gorm.DB, *auth.Service, *endpoint.Service, *tunnel.Service, *dashboard.Service, *sse.Service, *sse.Manager, *websocket.Service, error) {
 	// 获取GORM数据库连接
 	gormDB := dbPkg.GetDB()
 	log.Info("数据库连接成功")
 
 	// 系统初始化（首次启动输出初始用户名和密码） - 在所有其他初始化之前
 	authService := auth.NewService(gormDB)
-	if _, _, err := authService.InitializeSystem(); err != nil && err.Error() != "系统已初始化" {
+
+	// 如果启用 Demo 模式，需要在系统初始化前设置
+	if demoMode {
+		authService.SetDemoMode(true)
+		log.Info("🎭 Demo 模式已启用")
+	}
+
+	if _, _, err := authService.InitializeSystem(); err != nil && err.Error() != "system is already initialized" {
 		log.Errorf("系统初始化失败: %v", err)
 	}
 
@@ -349,7 +367,7 @@ func gracefulShutdown(server *http.Server, trafficScheduler *dashboard.TrafficSc
 }
 
 func main() {
-	resetPwd, port, certFile, keyFile, showVersion, disableLogin, sseDebugLog, disableSSELog := parseFlags()
+	resetPwd, port, certFile, keyFile, showVersion, disableLogin, sseDebugLog, disableSSELog, demoMode := parseFlags()
 
 	// 如果指定了版本参数，显示版本信息后退出
 	if showVersion {
@@ -371,7 +389,7 @@ func main() {
 	}
 
 	// 初始化所有服务
-	gormDB, authService, endpointService, tunnelService, dashboardService, sseService, sseManager, wsService, err := initializeServices(sseDebugLog, disableSSELog)
+	gormDB, authService, endpointService, tunnelService, dashboardService, sseService, sseManager, wsService, err := initializeServices(sseDebugLog, disableSSELog, demoMode)
 	if err != nil {
 		log.Errorf("服务初始化失败: %v", err)
 		return
@@ -413,6 +431,12 @@ func main() {
 		if err := authService.SetSystemConfig("disable_login", "false"); err != nil {
 			log.Errorf("重置 disable-login 配置失败: %v", err)
 		}
+	}
+
+	// 设置并启动 Demo 模式定时任务
+	if demoMode {
+		// 启动定时任务（每天凌晨重置密码）
+		authService.StartDemoModeScheduler()
 	}
 
 	// 启动SSE系统

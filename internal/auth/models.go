@@ -40,6 +40,7 @@ const (
 
 // 默认账号密码常量
 const (
-	DefaultAdminUsername = "nodepass"
-	DefaultAdminPassword = "Np123456"
+	DefaultAdminUsername     = "nodepass"
+	DefaultAdminPassword     = "Np123456"
+	DemoModeAdminPassword    = "Np123456."  // Demo 模式专用密码
 )

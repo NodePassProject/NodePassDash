@@ -143,7 +143,38 @@
     "failedCount": "，{{count}} 个失败",
     "unknownError": "未知错误",
     "missingInstanceId": "此实例缺少NodePass ID，无法执行操作",
-    "copySuccess": "配置已复制到剪贴板"
+    "copySuccess": "配置已复制到剪贴板",
+    "instanceActions": {
+      "starting": "正在启动实例...",
+      "stopping": "正在停止实例...",
+      "restarting": "正在重启实例...",
+      "deleting": "正在删除实例...",
+      "pleaseWait": "请稍候",
+      "startInstance": "启动 {{name}}",
+      "stopInstance": "停止 {{name}}",
+      "restartInstance": "重启 {{name}}",
+      "deleteInstance": "删除 {{name}}",
+      "instanceStarted": "实例已启动",
+      "instanceStopped": "实例已停止",
+      "instanceRestarted": "实例重启完成",
+      "instanceDeleted": "实例已删除",
+      "startedSuccessfully": "{{name}} 已成功启动",
+      "stoppedSuccessfully": "{{name}} 已成功停止",
+      "restartedSuccessfully": "{{name}} 已成功重启并运行",
+      "deletedSuccessfully": "{{name}} 已成功删除",
+      "instanceStartedSuccessfully": "实例已成功启动",
+      "instanceStoppedSuccessfully": "实例已成功停止",
+      "instanceRestartedSuccessfully": "实例已成功重启并运行",
+      "instanceDeletedSuccessfully": "实例已成功删除",
+      "failedToStart": "启动失败",
+      "failedToStop": "停止失败",
+      "restartFailed": "重启失败",
+      "deleteFailed": "删除失败",
+      "failedToStartInstance": "{{name}} 启动失败",
+      "failedToStopInstance": "{{name}} 停止失败",
+      "failedToRestartInstance": "{{name}} 重启失败",
+      "failedToDeleteInstance": "{{name}} 删除失败"
+    }
   },
   "mobile": {
     "endpoint": "主控:",
@@ -491,7 +522,8 @@
       "pool": "池",
       "latency": "延迟",
       "tcp": "TCP",
-      "udp": "UDP"
+      "udp": "UDP",
+      "traffic": "流量用量"
     },
     "chartStates": {
       "loading": "加载中...",

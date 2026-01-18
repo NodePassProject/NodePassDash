@@ -1750,7 +1750,7 @@ export default function ScenarioCreateModal({
                       : selectedScenario === "tunnel-forward"
                       ? t("createModal.title.tunnelForward")
                       : t("createModal.title.natPenetration");
-                    return prefix ? `${prefix}${scenarioTitle}` : scenarioTitle;
+                    return prefix ? `${prefix} ${scenarioTitle}` : scenarioTitle;
                   })()}
                 </>
               )}

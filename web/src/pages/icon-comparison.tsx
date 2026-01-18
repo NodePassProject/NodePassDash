@@ -426,7 +426,7 @@ const IconComparisonPage: React.FC = () => {
                             size="sm"
                             variant="flat"
                           >
-                            已复制!
+                            Copied!
                           </Chip>
                         )}
                       </div>

@@ -371,7 +371,7 @@ function TrafficOverviewChartComponent({
                     <button
                       key={key}
                       className={cn(
-                        "rounded-medium flex w-full flex-col gap-2 p-3 transition-colors",
+                        "rounded-medium flex w-full flex-col items-start gap-2 p-3 transition-colors",
                         {
                           "bg-default-100": activeMetric === key,
                         },

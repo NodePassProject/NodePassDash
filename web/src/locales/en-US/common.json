@@ -82,6 +82,10 @@
     "enabled": "Enabled",
     "disabled": "Disabled"
   },
+  "logViewer": {
+    "loading": "Loading logs...",
+    "noLogs": "No logs"
+  },
   "time": {
     "second": "second",
     "seconds": "seconds",

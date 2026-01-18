@@ -73,7 +73,7 @@ func (h *SSEHandler) HandleTunnelSSE(c *gin.Context) {
 	clientID := uuid.New().String()
 
 	// 发送连接成功消息（使用标准SSE格式）
-	c.Writer.Write([]byte("data: " + `{"type":"connected","message":"连接成功"}` + "\n\n"))
+	c.Writer.Write([]byte("data: " + `{"type":"connected","message":"Connected"}` + "\n\n"))
 	c.Writer.Flush()
 
 	// log.Infof("前端请求隧道SSE订阅,tunnelID=%s clientID=%s remote=%s", tunnelID, clientID, c.ClientIP())
@@ -101,12 +101,12 @@ func (h *SSEHandler) HandleTestSSEEndpoint(c *gin.Context) {
 		APIKey  string `json:"apiKey"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "无效的JSON"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Invalid JSON"})
 		return
 	}
 
 	if req.URL == "" || req.APIPath == "" || req.APIKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "缺少必要参数"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Missing required parameters"})
 		return
 	}
 
@@ -127,7 +127,7 @@ func (h *SSEHandler) HandleTestSSEEndpoint(c *gin.Context) {
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sseURL, nil)
 	if err != nil {
-		h.loggerErrorGin(c, "构建请求失败", err)
+		h.loggerErrorGin(c, "Failed to create request", err)
 		return
 	}
 	request.Header.Set("X-API-Key", req.APIKey)
@@ -135,27 +135,27 @@ func (h *SSEHandler) HandleTestSSEEndpoint(c *gin.Context) {
 
 	resp, err := client.Do(request)
 	if err != nil {
-		h.loggerErrorGin(c, "连接失败", err)
+		h.loggerErrorGin(c, "Connection failed", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		msg := fmt.Sprintf("NodePass SSE返回状态码: %d", resp.StatusCode)
+		msg := fmt.Sprintf("NodePass SSE returned status code: %d", resp.StatusCode)
 		h.writeErrorGin(c, msg)
 		return
 	}
 
 	// 简单验证 Content-Type
 	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" && ct != "text/event-stream; charset=utf-8" {
-		h.writeErrorGin(c, "响应Content-Type不是SSE流")
+		h.writeErrorGin(c, "Response Content-Type is not SSE stream")
 		return
 	}
 
 	// 成功
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "连接测试成功",
+		"message": "Connection test successful",
 		"details": gin.H{
 			"url":          req.URL,
 			"apiPath":      req.APIPath,
@@ -229,7 +229,7 @@ func (h *SSEHandler) updateLogCleanupConfig(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   "请求格式错误: " + err.Error(),
+			"error":   "Invalid request format: " + err.Error(),
 		})
 		return
 	}
@@ -253,7 +253,7 @@ func (h *SSEHandler) updateLogCleanupConfig(c *gin.Context) {
 		if interval, err := time.ParseDuration(*req.CleanupInterval); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{
 				"success": false,
-				"error":   "清理间隔格式错误: " + err.Error(),
+				"error":   "Invalid cleanup interval format: " + err.Error(),
 			})
 			return
 		} else {
@@ -293,7 +293,7 @@ func (h *SSEHandler) updateLogCleanupConfig(c *gin.Context) {
 	if retentionDays < 1 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   "保留天数必须大于0",
+			"error":   "Retention days must be greater than 0",
 		})
 		return
 	}
@@ -301,7 +301,7 @@ func (h *SSEHandler) updateLogCleanupConfig(c *gin.Context) {
 	if cleanupInterval < time.Hour {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   "清理间隔不能小于1小时",
+			"error":   "Cleanup interval cannot be less than 1 hour",
 		})
 		return
 	}
@@ -309,7 +309,7 @@ func (h *SSEHandler) updateLogCleanupConfig(c *gin.Context) {
 	if maxRecordsPerDay < 0 {
 		c.JSON(http.StatusBadRequest, gin.H{
 			"success": false,
-			"error":   "每日最大记录数不能为负数",
+			"error":   "Max records per day cannot be negative",
 		})
 		return
 	}
@@ -319,7 +319,7 @@ func (h *SSEHandler) updateLogCleanupConfig(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "日志清理配置已更新",
+		"message": "Log cleanup configuration updated",
 		"data": gin.H{
 			"retentionDays":    retentionDays,
 			"cleanupInterval":  cleanupInterval.String(),
@@ -337,7 +337,7 @@ func (h *SSEHandler) HandleTriggerLogCleanup(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "日志清理任务已启动，将在后台执行",
+		"message": "Log cleanup task started, will execute in background",
 	})
 }
 
@@ -350,12 +350,12 @@ func (h *SSEHandler) HandleTestSSEEndpointWithVersion(c *gin.Context) {
 		APIKey  string `json:"apiKey"`
 	}
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "无效的JSON"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Invalid JSON"})
 		return
 	}
 
 	if req.URL == "" || req.APIPath == "" || req.APIKey == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "缺少必要参数"})
+		c.JSON(http.StatusBadRequest, gin.H{"success": false, "error": "Missing required parameters"})
 		return
 	}
 
@@ -375,7 +375,7 @@ func (h *SSEHandler) HandleTestSSEEndpointWithVersion(c *gin.Context) {
 
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sseURL, nil)
 	if err != nil {
-		h.loggerErrorGin(c, "构建请求失败", err)
+		h.loggerErrorGin(c, "Failed to create request", err)
 		return
 	}
 	request.Header.Set("X-API-Key", req.APIKey)
@@ -383,20 +383,20 @@ func (h *SSEHandler) HandleTestSSEEndpointWithVersion(c *gin.Context) {
 
 	resp, err := client.Do(request)
 	if err != nil {
-		h.loggerErrorGin(c, "连接失败", err)
+		h.loggerErrorGin(c, "Connection failed", err)
 		return
 	}
 	defer resp.Body.Close()
 
 	if resp.StatusCode != http.StatusOK {
-		msg := fmt.Sprintf("NodePass SSE返回状态码: %d", resp.StatusCode)
+		msg := fmt.Sprintf("NodePass SSE returned status code: %d", resp.StatusCode)
 		h.writeErrorGin(c, msg)
 		return
 	}
 
 	// 简单验证 Content-Type
 	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" && ct != "text/event-stream; charset=utf-8" {
-		h.writeErrorGin(c, "响应Content-Type不是SSE流")
+		h.writeErrorGin(c, "Response Content-Type is not SSE stream")
 		return
 	}
 
@@ -419,7 +419,7 @@ func (h *SSEHandler) HandleTestSSEEndpointWithVersion(c *gin.Context) {
 			"connected": true,
 			"version":   "unknown",
 			"canAdd":    false,
-			"message":   "连接成功但无法获取版本信息，可能是低版本主控（< 1.10.0）",
+			"message":   "Connected successfully but cannot get version info, possibly an older version controller (< 1.10.0)",
 		})
 		return
 	}
@@ -519,7 +519,7 @@ func (h *SSEHandler) HandleNodePassSSEProxy(c *gin.Context) {
 	c.Header("Access-Control-Allow-Origin", "*")
 
 	// 发送连接成功消息
-	fmt.Fprintf(c.Writer, "data: %s\n\n", `{"type":"connected","message":"NodePass SSE代理连接成功"}`)
+	fmt.Fprintf(c.Writer, "data: %s\n\n", `{"type":"connected","message":"NodePass SSE proxy connected successfully"}`)
 	c.Writer.Flush()
 
 	// 构造NodePass SSE URL
@@ -543,7 +543,7 @@ func (h *SSEHandler) HandleNodePassSSEProxy(c *gin.Context) {
 	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sseURL, nil)
 	if err != nil {
 		log.Errorf("[NodePass SSE Proxy] 创建请求失败: %v", err)
-		fmt.Fprintf(c.Writer, "data: %s\n\n", `{"type":"error","message":"创建请求失败"}`)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", `{"type":"error","message":"Failed to create request"}`)
 		c.Writer.Flush()
 		return
 	}
@@ -557,7 +557,7 @@ func (h *SSEHandler) HandleNodePassSSEProxy(c *gin.Context) {
 	resp, err := client.Do(request)
 	if err != nil {
 		log.Errorf("[NodePass SSE Proxy] 连接失败: %v", err)
-		fmt.Fprintf(c.Writer, "data: %s\n\n", `{"type":"error","message":"连接NodePass失败"}`)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", `{"type":"error","message":"Failed to connect to NodePass"}`)
 		c.Writer.Flush()
 		return
 	}
@@ -565,7 +565,7 @@ func (h *SSEHandler) HandleNodePassSSEProxy(c *gin.Context) {
 
 	if resp.StatusCode != http.StatusOK {
 		log.Errorf("[NodePass SSE Proxy] NodePass返回状态码: %d", resp.StatusCode)
-		fmt.Fprintf(c.Writer, "data: %s\n\n", fmt.Sprintf(`{"type":"error","message":"NodePass返回状态码: %d"}`, resp.StatusCode))
+		fmt.Fprintf(c.Writer, "data: %s\n\n", fmt.Sprintf(`{"type":"error","message":"NodePass returned status code: %d"}`, resp.StatusCode))
 		c.Writer.Flush()
 		return
 	}
@@ -574,7 +574,7 @@ func (h *SSEHandler) HandleNodePassSSEProxy(c *gin.Context) {
 	contentType := resp.Header.Get("Content-Type")
 	if !strings.Contains(contentType, "text/event-stream") {
 		log.Errorf("[NodePass SSE Proxy] 无效的Content-Type: %s", contentType)
-		fmt.Fprintf(c.Writer, "data: %s\n\n", `{"type":"error","message":"无效的Content-Type"}`)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", `{"type":"error","message":"Invalid Content-Type"}`)
 		c.Writer.Flush()
 		return
 	}
@@ -615,7 +615,7 @@ func (h *SSEHandler) HandleNodePassSSEProxy(c *gin.Context) {
 
 	if err := scanner.Err(); err != nil {
 		log.Errorf("[NodePass SSE Proxy] 读取响应失败: %v", err)
-		fmt.Fprintf(c.Writer, "data: %s\n\n", `{"type":"error","message":"读取响应失败"}`)
+		fmt.Fprintf(c.Writer, "data: %s\n\n", `{"type":"error","message":"Failed to read response"}`)
 		c.Writer.Flush()
 	}
 

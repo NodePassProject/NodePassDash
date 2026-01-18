@@ -538,7 +538,11 @@
       "binary": "二进制部署",
       "autoUpdateStable": "自动更新稳定版",
       "autoUpdateBeta": "自动更新测试版",
-      "manualUpdate": "手动更新"
+      "manualUpdate": "手动更新",
+      "dockerDetails": "Docker 环境通过容器编排进行更新",
+      "dockerManualDetails": "Docker 环境推荐通过宿主机执行更新命令，以确保更新过程稳定可靠",
+      "binaryDetails": "将下载最新二进制文件并自动替换",
+      "unknownDetails": "建议查看更新说明进行手动更新"
     },
     "updateInstructions": {
       "title": "更新说明：",

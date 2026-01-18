@@ -538,7 +538,11 @@
       "binary": "Binary Deployment",
       "autoUpdateStable": "Auto Update to Stable",
       "autoUpdateBeta": "Auto Update to Beta",
-      "manualUpdate": "Manual Update"
+      "manualUpdate": "Manual Update",
+      "dockerDetails": "Docker environment update through container orchestration",
+      "dockerManualDetails": "Docker environment recommended to update via host commands for stable and reliable updates",
+      "binaryDetails": "Will download the latest binary file and replace automatically",
+      "unknownDetails": "Please check the update instructions for manual update"
     },
     "updateInstructions": {
       "title": "Update Instructions:",

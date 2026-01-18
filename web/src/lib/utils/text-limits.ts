@@ -41,19 +41,19 @@ export const TEXT_LIMITS = {
   /** 隧道名称限制：12个中文字符或24个英文字符 */
   TUNNEL_NAME: {
     maxDisplayWidth: 24,
-    unit: "字符宽度",
+    unit: "character width",
   } as TextLimitConfig,
 
   /** 端点名称限制：稍小一些，适合列表显示 */
   ENDPOINT_NAME: {
     maxDisplayWidth: 20,
-    unit: "字符宽度",
+    unit: "character width",
   } as TextLimitConfig,
 
   /** 短名称限制：适合标签等场景 */
   SHORT_NAME: {
     maxDisplayWidth: 16,
-    unit: "字符宽度",
+    unit: "character width",
   } as TextLimitConfig,
 } as const;
 
@@ -66,7 +66,7 @@ export const TEXT_LIMITS = {
 export function useTextLimit(text: string, config: TextLimitConfig) {
   const currentWidth = getDisplayWidth(text);
   const isValid = currentWidth <= config.maxDisplayWidth;
-  const description = `${currentWidth}/${config.maxDisplayWidth} ${config.unit || "字符宽度"}`;
+  const description = `${currentWidth}/${config.maxDisplayWidth} ${config.unit || "character width"}`;
 
   return {
     currentWidth,

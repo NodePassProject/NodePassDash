@@ -52,7 +52,7 @@ export default function LogCleanupSettings() {
   // 表单状态
   const [formConfig, setFormConfig] = useState<LogCleanupConfig>({
     retentionDays: 7,
-    cleanupInterval: "24h",
+    cleanupInterval: "1h",
     maxRecordsPerDay: 10000,
     cleanupEnabled: true,
   });
@@ -98,7 +98,7 @@ export default function LogCleanupSettings() {
           retentionDays:
             configData.retentionDays || configData.retention_days || 7,
           cleanupInterval:
-            configData.cleanupInterval || configData.cleanup_interval || "24h",
+            configData.cleanupInterval || configData.cleanup_interval || "1h",
           maxRecordsPerDay:
             configData.maxRecordsPerDay ||
             configData.max_records_per_day ||
@@ -418,7 +418,7 @@ export default function LogCleanupSettings() {
                 <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">{t("logs.config.cleanupInterval")}</span>
                   <Chip color="secondary" variant="flat">
-                    {config.cleanupInterval || stats?.cleanup_interval || "24h"}
+                    {config.cleanupInterval || stats?.cleanup_interval || "1h"}
                   </Chip>
                 </div>
 
@@ -514,7 +514,7 @@ export default function LogCleanupSettings() {
                 description={t("logs.modal.cleanupIntervalDesc")}
                 label={t("logs.modal.cleanupInterval")}
                 placeholder={t("logs.modal.cleanupIntervalPlaceholder")}
-                value={formConfig.cleanupInterval || "24h"}
+                value={formConfig.cleanupInterval || "1h"}
                 onChange={(e) =>
                   setFormConfig((prev) => ({
                     ...prev,

@@ -82,6 +82,10 @@
     "enabled": "已启用",
     "disabled": "已禁用"
   },
+  "logViewer": {
+    "loading": "加载日志中...",
+    "noLogs": "暂无日志"
+  },
   "time": {
     "second": "秒",
     "seconds": "秒",

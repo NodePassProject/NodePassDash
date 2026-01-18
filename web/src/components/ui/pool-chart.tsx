@@ -9,6 +9,7 @@ import {
   YAxis,
   Tooltip,
 } from "recharts";
+import { useTranslation } from "react-i18next";
 
 import { type ChartConfig, ChartContainer } from "./chart";
 import { PoolTooltip } from "./shared-chart-tooltip";
@@ -86,53 +87,71 @@ const formatTooltipTime = (timestamp: string): string => {
 const LoadingState: React.FC<{ height: number; className?: string }> = ({
   height,
   className,
-}) => (
-  <div
-    className={`flex items-center justify-center ${className}`}
-    style={height ? { height } : {}}
-  >
-    <div className="space-y-1 text-center">
-      <div className="flex justify-center">
-        <div className="relative w-4 h-4">
-          <div className="absolute inset-0 rounded-full border-2 border-default-200 border-t-primary animate-spin" />
+}) => {
+  const { t } = useTranslation("tunnels");
+
+  return (
+    <div
+      className={`flex items-center justify-center ${className}`}
+      style={height ? { height } : {}}
+    >
+      <div className="space-y-1 text-center">
+        <div className="flex justify-center">
+          <div className="relative w-4 h-4">
+            <div className="absolute inset-0 rounded-full border-2 border-default-200 border-t-primary animate-spin" />
+          </div>
         </div>
+        <p className="text-default-500 animate-pulse text-xs">
+          {t("details.chartStates.loading")}
+        </p>
       </div>
-      <p className="text-default-500 animate-pulse text-xs">加载中...</p>
     </div>
-  </div>
-);
+  );
+};
 
 // 错误状态组件
 const ErrorState: React.FC<{
   error: string;
   height: number;
   className?: string;
-}> = ({ error, height, className }) => (
-  <div
-    className={`flex items-center justify-center ${className}`}
-    style={height ? { height } : {}}
-  >
-    <div className="text-center">
-      <p className="text-danger text-xs">加载失败</p>
-      <p className="text-default-400 text-xs mt-0.5">{error}</p>
+}> = ({ error, height, className }) => {
+  const { t } = useTranslation("tunnels");
+
+  return (
+    <div
+      className={`flex items-center justify-center ${className}`}
+      style={height ? { height } : {}}
+    >
+      <div className="text-center">
+        <p className="text-danger text-xs">
+          {t("details.chartStates.loadFailed")}
+        </p>
+        <p className="text-default-400 text-xs mt-0.5">{error}</p>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // 空状态组件
 const EmptyState: React.FC<{ height: number; className?: string }> = ({
   height,
   className,
-}) => (
-  <div
-    className={`flex items-end justify-center ${className}`}
-    style={height ? { height } : {}}
-  >
-    <div className="text-center pb-2">
-      <p className="text-default-400 text-xs">暂无连接池数据</p>
+}) => {
+  const { t } = useTranslation("tunnels");
+
+  return (
+    <div
+      className={`flex items-end justify-center ${className}`}
+      style={height ? { height } : {}}
+    >
+      <div className="text-center pb-2">
+        <p className="text-default-400 text-xs">
+          {t("details.chartStates.noData")}
+        </p>
+      </div>
     </div>
-  </div>
-);
+  );
+};
 
 // 时间过滤函数 - 过滤出1小时内的数据
 const filterDataTo1Hour = (data: PoolDataPoint[]) => {
@@ -162,6 +181,8 @@ export const PoolChart: React.FC<PoolChartProps> = ({
   className = "",
   showFullData = false,
 }) => {
+  const { t } = useTranslation("tunnels");
+
   // 调试信息 - 开发环境下显示数据更新
   React.useEffect(() => {
     if (process.env.NODE_ENV === "development") {
@@ -170,7 +191,7 @@ export const PoolChart: React.FC<PoolChartProps> = ({
   }, [data]);
   const chartConfig = {
     pool: {
-      label: "连接池",
+      label: t("details.chartTooltips.pool"),
     },
   } satisfies ChartConfig;
 

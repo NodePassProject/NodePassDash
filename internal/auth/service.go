@@ -30,11 +30,20 @@ type Service struct {
 	db         *gorm.DB
 	currentJTI string        // 当前有效的 JWT ID（内存存储，避免启动时SQLite锁）
 	jtiMutex   sync.RWMutex  // JTI 读写锁
+	demoMode   bool          // Demo 模式开关
 }
 
 // NewService 创建认证服务实例，需要传入GORM数据库连接
 func NewService(db *gorm.DB) *Service {
-	return &Service{db: db}
+	return &Service{
+		db:       db,
+		demoMode: false,
+	}
+}
+
+// SetDemoMode 设置 Demo 模式
+func (s *Service) SetDemoMode(enabled bool) {
+	s.demoMode = enabled
 }
 
 // HashPassword 密码加密
@@ -295,6 +304,11 @@ func (s *Service) InitializeSystem() (string, string, error) {
 	username := DefaultAdminUsername
 	password := DefaultAdminPassword
 
+	// Demo 模式使用特定密码
+	if s.demoMode {
+		password = DemoModeAdminPassword
+	}
+
 	passwordHash, err := s.HashPassword(password)
 	if err != nil {
 		return "", "", err
@@ -314,11 +328,20 @@ func (s *Service) InitializeSystem() (string, string, error) {
 	// 日志输出
 	// 重要: 输出初始密码
 	fmt.Println("================================")
-	fmt.Println("🚀 NodePass 系统初始化完成！")
+	if s.demoMode {
+		fmt.Println("🎭 NodePass 演示模式初始化完成！")
+	} else {
+		fmt.Println("🚀 NodePass 系统初始化完成！")
+	}
 	fmt.Println("================================")
 	fmt.Println("管理员账户信息：")
 	fmt.Println("用户名:", username)
 	fmt.Println("密码:", password)
+	if s.demoMode {
+		fmt.Println("================================")
+		fmt.Println("⚠️  演示模式已启用！")
+		fmt.Println("密码将每天自动重置为:", DemoModeAdminPassword)
+	}
 	fmt.Println("================================")
 	fmt.Println("⚠️  请妥善保存这些信息！")
 	fmt.Println("================================")
@@ -639,4 +662,57 @@ func (s *Service) ClearCurrentJTI() {
 	s.jtiMutex.Lock()
 	defer s.jtiMutex.Unlock()
 	s.currentJTI = ""
+}
+
+// ResetDemoPassword 重置 Demo 模式密码为默认值
+func (s *Service) ResetDemoPassword() error {
+	if !s.demoMode {
+		return errors.New("not in demo mode")
+	}
+
+	// 生成密码哈希
+	passwordHash, err := s.HashPassword(DemoModeAdminPassword)
+	if err != nil {
+		return fmt.Errorf("hash password failed: %v", err)
+	}
+
+	// 更新密码
+	if err := s.SetSystemConfig(ConfigKeyAdminPassword, passwordHash); err != nil {
+		return fmt.Errorf("update password failed: %v", err)
+	}
+
+	fmt.Println("================================")
+	fmt.Println("🎭 Demo 模式密码已重置")
+	fmt.Println("================================")
+	fmt.Println("用户名:", DefaultAdminUsername)
+	fmt.Println("密码:", DemoModeAdminPassword)
+	fmt.Println("================================")
+
+	return nil
+}
+
+// StartDemoModeScheduler 启动 Demo 模式定时任务（每天凌晨重置密码）
+func (s *Service) StartDemoModeScheduler() {
+	if !s.demoMode {
+		return
+	}
+
+	fmt.Println("🎭 Demo 模式定时任务已启动，将在每天凌晨 00:00 重置密码")
+
+	go func() {
+		for {
+			// 计算到下一个凌晨 00:00 的时间
+			now := time.Now()
+			nextMidnight := time.Date(now.Year(), now.Month(), now.Day()+1, 0, 0, 0, 0, now.Location())
+			duration := nextMidnight.Sub(now)
+
+			// 等待到凌晨
+			time.Sleep(duration)
+
+			// 重置密码
+			if err := s.ResetDemoPassword(); err != nil {
+				fmt.Printf("❌ Demo 模式密码重置失败: %v\n", err)
+			}
+		}
+	}()
 }

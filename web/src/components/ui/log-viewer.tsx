@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useEffect, useRef } from "react";
+import { useTranslation } from "react-i18next";
 
 import { processAnsiColors } from "@/lib/utils/ansi";
 
@@ -29,6 +30,7 @@ export const LogViewer: React.FC<LogViewerProps> = ({
   loading = false,
   containerRef,
 }) => {
+  const { t } = useTranslation("common");
   const internalRef = useRef<HTMLDivElement>(null);
   const ref = containerRef ?? internalRef;
 
@@ -45,9 +47,9 @@ export const LogViewer: React.FC<LogViewerProps> = ({
       className={`${heightClass} bg-zinc-900 rounded-lg p-4 font-mono text-sm overflow-auto scrollbar-thin`}
     >
       {loading ? (
-        <div className="animate-pulse text-gray-300">加载日志中...</div>
+        <div className="animate-pulse text-gray-300">{t("logViewer.loading")}</div>
       ) : logs.length === 0 ? (
-        <div className="text-gray-400 animate-pulse">暂无日志</div>
+        <div className="text-gray-400 animate-pulse">{t("logViewer.noLogs")}</div>
       ) : (
         <div className="space-y-1">
           {logs.slice().map((log) => (

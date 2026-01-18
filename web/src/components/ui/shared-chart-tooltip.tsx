@@ -134,14 +134,14 @@ export const SharedChartTooltip: React.FC<SharedChartTooltipProps> = ({
 
 // 预定义的Tooltip组件
 export const TrafficTooltip = ({ active, payload, label }: any) => {
-  const { t } = useTranslation("common");
+  const { t } = useTranslation("tunnels");
 
   return (
     <SharedChartTooltip
       active={active}
       items={payload?.map((entry: any) => ({
         key: entry.dataKey,
-        name: t("traffic") || "Traffic",
+        name: t("details.chartTooltips.traffic"),
         value: entry.value,
         color: "text-green-600 dark:text-green-400",
         unit: "traffic" as const,
