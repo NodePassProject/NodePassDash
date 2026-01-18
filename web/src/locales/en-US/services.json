@@ -208,9 +208,9 @@
   "createModal": {
     "title": {
       "prefix": {
-        "local": "Local",
-        "external": "External",
-        "balanced": "Balanced"
+        "local": "Local ",
+        "external": "External ",
+        "balanced": "Balanced "
       },
       "singleForward": "Single Forward",
       "tunnelForward": "Tunnel Forward",
