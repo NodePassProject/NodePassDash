@@ -50,7 +50,7 @@ NodePassDash is a modern web dashboard for managing **NodePass** endpoints, tunn
 ## Documentation
 
 - **Migration Guide:** [MIGRATION.md](docs/en/MIGRATION.md)
-- **Docker Guide:** [OCKER.md](docs/en/DOCKER.md)
+- **Docker Guide:** [DOCKER.md](docs/en/DOCKER.md)
 - **Binary Guide:** [BINARY.md](docs/en/BINARY.md)
 - **Development Guide:** [DEVELOPMENT.md](docs/en/DEVELOPMENT.md)
 
