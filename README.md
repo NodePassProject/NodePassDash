@@ -4,7 +4,7 @@
 
 **Language:** English | [简体中文](docs/zh-CN/README.md)
 
-![Version](https://img.shields.io/badge/version-3.4.0--beta1-blue.svg)
+![Version](https://img.shields.io/badge/version-3.4.0--beta2-blue.svg)
 ![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)
 
 NodePassDash is a modern web dashboard for managing **NodePass** endpoints, tunnels, and services. It ships as a single Go binary (Gin + GORM + SQLite) with an embedded React (Vite + TypeScript + HeroUI) frontend, and provides real-time telemetry via SSE/WebSocket.
@@ -49,10 +49,10 @@ NodePassDash is a modern web dashboard for managing **NodePass** endpoints, tunn
 
 ## Documentation
 
-- **Migration Guide:** [docs/en/MIGRATION.md](docs/en/MIGRATION.md)
-- **Docker Guide:** [docs/en/DOCKER.md](docs/en/DOCKER.md)
-- **Binary Guide:** [docs/en/BINARY.md](docs/en/BINARY.md)
-- **Development Guide:** [docs/en/DEVELOPMENT.md](docs/en/DEVELOPMENT.md)
+- **Migration Guide:** [MIGRATION.md](docs/en/MIGRATION.md)
+- **Docker Guide:** [OCKER.md](docs/en/DOCKER.md)
+- **Binary Guide:** [BINARY.md](docs/en/BINARY.md)
+- **Development Guide:** [DEVELOPMENT.md](docs/en/DEVELOPMENT.md)
 
 ## CLI Flags
 
