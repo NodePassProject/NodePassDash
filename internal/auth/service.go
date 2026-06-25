@@ -68,15 +68,15 @@ func (s *Service) GetSystemConfig(key string) (string, error) {
 		return value.(string), nil
 	}
 
-	// 使用GORM查询数据库
-	var config models.SystemConfig
-	err := s.db.Where("`key` = ?", key).First(&config).Error
-	if err != nil {
-		if errors.Is(err, gorm.ErrRecordNotFound) {
-			return "", errors.New("configuration does not exist")
-		}
+	// 使用GORM查询数据库（用 Find+Limit 避免 First 把 not-found 打成 ERROR 日志）
+	var configs []models.SystemConfig
+	if err := s.db.Where("key = ?", key).Limit(1).Find(&configs).Error; err != nil {
 		return "", err
 	}
+	if len(configs) == 0 {
+		return "", errors.New("configuration does not exist")
+	}
+	config := configs[0]
 
 	// 写入缓存
 	configCache.Store(key, config.Value)
@@ -92,7 +92,7 @@ func (s *Service) SetSystemConfig(key, value string) error {
 	}
 
 	// 先尝试更新，如果不存在则创建
-	result := s.db.Where("`key` = ?", key).Updates(&config)
+	result := s.db.Where("key = ?", key).Updates(&config)
 	if result.Error != nil {
 		return result.Error
 	}
@@ -122,7 +122,7 @@ func (s *Service) GetSystemConfigWithDefault(key, defaultValue string) string {
 // DeleteSystemConfig 删除系统配置
 func (s *Service) DeleteSystemConfig(key string) error {
 	// 使用GORM删除
-	err := s.db.Where("`key` = ?", key).Delete(&models.SystemConfig{}).Error
+	err := s.db.Where("key = ?", key).Delete(&models.SystemConfig{}).Error
 	if err != nil {
 		return err
 	}
@@ -295,6 +295,60 @@ func (s *Service) CleanupExpiredSessions() {
 	})
 }
 
+// setAdminConfigs 写入管理员账号到 system_configs 表。
+// 包含 username / password hash / is_initialized=true。
+// 供 InitializeSystem 与 InitializeSystemWithCredentials 共用。
+func (s *Service) setAdminConfigs(username, passwordHash string) error {
+	if err := s.SetSystemConfig(ConfigKeyAdminUsername, username); err != nil {
+		return err
+	}
+	if err := s.SetSystemConfig(ConfigKeyAdminPassword, passwordHash); err != nil {
+		return err
+	}
+	if err := s.SetSystemConfig(ConfigKeyIsInitialized, "true"); err != nil {
+		return err
+	}
+	return nil
+}
+
+// validateAdminCredentials 校验用户提供的管理员凭据是否符合规则。
+// 用户名: 3~20 字符,只允许字母数字下划线。
+// 密码: 长度 ≥ 8。
+func validateAdminCredentials(username, password string) error {
+	if n := len(username); n < 3 || n > 20 {
+		return errors.New("用户名长度必须在 3~20 字符之间")
+	}
+	for _, r := range username {
+		isAlpha := (r >= 'a' && r <= 'z') || (r >= 'A' && r <= 'Z')
+		isDigit := r >= '0' && r <= '9'
+		isUnderscore := r == '_'
+		if !(isAlpha || isDigit || isUnderscore) {
+			return errors.New("用户名只允许字母、数字和下划线")
+		}
+	}
+	if len(password) < 8 {
+		return errors.New("密码长度必须 ≥ 8")
+	}
+	return nil
+}
+
+// InitializeSystemWithCredentials 使用调用方提供的用户名/密码初始化系统。
+// 用于 Setup 向导一条龙流程。失败时调用方负责回滚 db/config.json。
+// 与 InitializeSystem 区别: 不打日志输出明文密码,因为 Web 端已确认。
+func (s *Service) InitializeSystemWithCredentials(username, password string) error {
+	if s.IsSystemInitialized() {
+		return errors.New("system is already initialized")
+	}
+	if err := validateAdminCredentials(username, password); err != nil {
+		return err
+	}
+	passwordHash, err := s.HashPassword(password)
+	if err != nil {
+		return err
+	}
+	return s.setAdminConfigs(username, passwordHash)
+}
+
 // InitializeSystem 初始化系统
 func (s *Service) InitializeSystem() (string, string, error) {
 	if s.IsSystemInitialized() {
@@ -315,13 +369,7 @@ func (s *Service) InitializeSystem() (string, string, error) {
 	}
 
 	// 保存系统配置
-	if err := s.SetSystemConfig(ConfigKeyAdminUsername, username); err != nil {
-		return "", "", err
-	}
-	if err := s.SetSystemConfig(ConfigKeyAdminPassword, passwordHash); err != nil {
-		return "", "", err
-	}
-	if err := s.SetSystemConfig(ConfigKeyIsInitialized, "true"); err != nil {
+	if err := s.setAdminConfigs(username, passwordHash); err != nil {
 		return "", "", err
 	}
 

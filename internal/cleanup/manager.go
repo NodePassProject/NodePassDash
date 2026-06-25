@@ -1,6 +1,7 @@
 package cleanup
 
 import (
+	"NodePassDash/internal/db"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"context"
@@ -246,15 +247,15 @@ func (m *Manager) ExecuteDeepCleanup() error {
 
 	startTime := time.Now()
 
-	// 1. 执行 VACUUM 操作（SQLite）
-	if err := m.db.Exec("VACUUM").Error; err != nil {
+	// 1. 执行 VACUUM 操作(按方言:SQLite "VACUUM" / PG "VACUUM ANALYZE")
+	if err := m.db.Exec(db.Dialect().VacuumSQL()).Error; err != nil {
 		log.Errorf("执行 VACUUM 失败: %v", err)
 	} else {
 		log.Info("✓ 数据库 VACUUM 完成")
 	}
 
-	// 2. 重新分析统计信息（SQLite）
-	if err := m.db.Exec("ANALYZE").Error; err != nil {
+	// 2. 重新分析统计信息
+	if err := m.db.Exec(db.Dialect().AnalyzeSQL()).Error; err != nil {
 		log.Errorf("执行 ANALYZE 失败: %v", err)
 	} else {
 		log.Info("✓ 数据库 ANALYZE 完成")

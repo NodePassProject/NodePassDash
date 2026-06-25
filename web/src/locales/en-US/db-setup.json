@@ -1,0 +1,114 @@
+{
+  "title": "NodePassDash Setup Wizard",
+  "subtitle": "",
+  "stepper": {
+    "step1": "Preferences",
+    "step2": "Choose database",
+    "step3": "Connection",
+    "step4": "Admin account",
+    "done": "Done"
+  },
+  "buttons": {
+    "next": "Next",
+    "back": "Back",
+    "test": "Test connection",
+    "submit": "Finish & Restart",
+    "retry": "Retry",
+    "manualJump": "I've restarted, go to login"
+  },
+  "step1": {
+    "title": "Personalize",
+    "description": "Pick a theme and language. You can change these later in settings.",
+    "theme": {
+      "label": "Theme",
+      "light": "Light",
+      "dark": "Dark",
+      "system": "System"
+    },
+    "language": {
+      "label": "Language",
+      "zh": "简体中文",
+      "en": "English"
+    }
+  },
+  "step2": {
+    "title": "Choose your database",
+    "description": "Pick carefully. To restart the wizard later, delete the project-root .env file and restart.",
+    "sqlite": {
+      "name": "SQLite",
+      "tag": "Embedded",
+      "description": "Zero dependencies. All data lives in a single local file; no separate database process required."
+    },
+    "postgres": {
+      "name": "PostgreSQL",
+      "tag": "Server",
+      "description": "A standalone database service. Supports concurrency, replicas and remote access."
+    }
+  },
+  "step3": {
+    "title": "Configure connection",
+    "sqlite": {
+      "pathLabel": "Database file path",
+      "pathPlaceholder": "db/database.db",
+      "pathHelp": "Keeping the default is recommended. Absolute or repo-relative paths both work.",
+      "walLabel": "Enable WAL mode (recommended)"
+    },
+    "postgres": {
+      "hostLabel": "Host",
+      "portLabel": "Port",
+      "dbLabel": "Database",
+      "userLabel": "User",
+      "passwordLabel": "Password",
+      "sslLabel": "SSL mode",
+      "timezoneLabel": "Time zone",
+      "sslOptions": {
+        "disable": "disable (no encryption)",
+        "require": "require (TLS required)",
+        "verifyFull": "verify-full (cert verified)"
+      },
+      "tip": "Make sure PostgreSQL is running and the target database has been created."
+    },
+    "testing": "Testing connection…",
+    "testSuccess": "Connection OK. You can continue.",
+    "testFailedPrefix": "Connection failed: ",
+    "testIdle": "Click the \"Test connection\" button below to verify before continuing."
+  },
+  "step4": {
+    "title": "Create admin account",
+    "description": "These credentials are used to log into NodePassDash. Save them carefully.",
+    "usernameLabel": "Username",
+    "usernameHelp": "3~20 characters, letters / digits / underscore only",
+    "passwordLabel": "Password",
+    "passwordHelp": "At least 8 characters",
+    "confirmLabel": "Confirm password",
+    "confirmMismatch": "Passwords do not match",
+    "confirmCheckbox": "I have saved the credentials above",
+    "errors": {
+      "usernameRequired": "Username is required",
+      "passwordRequired": "Password is required",
+      "usernameInvalid": "Invalid username format",
+      "passwordTooShort": "Password must be at least 8 characters",
+      "confirmRequired": "Please acknowledge you saved the credentials"
+    },
+    "submitting": "Initializing database and admin account…"
+  },
+  "done": {
+    "title": "Setup complete!",
+    "description": "Database config has been written to project-root .env, admin account created. Restart the service to apply.",
+    "restartHint": {
+      "docker": "Docker: run docker compose restart or docker restart <container>",
+      "systemd": "systemd: run systemctl restart nodepassdash",
+      "bare": "Bare metal: stop the current process and run nodepassdash again"
+    },
+    "polling": "Waiting for restart, will redirect to login…",
+    "ready": "Service is ready, redirecting to login"
+  },
+  "countdown": {
+    "title": "Restarting, please wait!",
+    "subtitle": "Redirecting to login in {{seconds}}s"
+  },
+  "errors": {
+    "submitFailedPrefix": "Setup failed: ",
+    "statusFetchFailed": "Cannot reach backend status. Is the server running?"
+  }
+}

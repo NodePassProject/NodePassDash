@@ -1,0 +1,114 @@
+{
+  "title": "NodePassDash 初始化向导",
+  "subtitle": "",
+  "stepper": {
+    "step1": "偏好设置",
+    "step2": "选择数据库",
+    "step3": "连接参数",
+    "step4": "管理员账号",
+    "done": "完成"
+  },
+  "buttons": {
+    "next": "下一步",
+    "back": "上一步",
+    "test": "测试连接",
+    "submit": "完成初始化并重启",
+    "retry": "重试",
+    "manualJump": "我已重启,手动跳转登录页"
+  },
+  "step1": {
+    "title": "个性化偏好",
+    "description": "选择界面主题与语言,稍后也可以在系统设置里修改。",
+    "theme": {
+      "label": "界面主题",
+      "light": "浅色",
+      "dark": "深色",
+      "system": "跟随系统"
+    },
+    "language": {
+      "label": "界面语言",
+      "zh": "简体中文",
+      "en": "English"
+    }
+  },
+  "step2": {
+    "title": "选择数据库类型",
+    "description": "全新部署时请谨慎选择。初始化后,需要重新发起向导时请删除项目根目录 .env 文件后重启。",
+    "sqlite": {
+      "name": "SQLite",
+      "tag": "嵌入式",
+      "description": "零依赖,所有数据保存在单个本地文件中,无需运行独立的数据库进程。"
+    },
+    "postgres": {
+      "name": "PostgreSQL",
+      "tag": "服务型",
+      "description": "独立的数据库服务进程,支持高并发、多副本和远程访问。"
+    }
+  },
+  "step3": {
+    "title": "填写连接参数",
+    "sqlite": {
+      "pathLabel": "数据库文件路径",
+      "pathPlaceholder": "db/database.db",
+      "pathHelp": "建议保留默认值。可使用绝对路径或相对项目根目录的路径。",
+      "walLabel": "启用 WAL 模式(推荐)"
+    },
+    "postgres": {
+      "hostLabel": "主机",
+      "portLabel": "端口",
+      "dbLabel": "数据库名",
+      "userLabel": "用户名",
+      "passwordLabel": "密码",
+      "sslLabel": "SSL 模式",
+      "timezoneLabel": "时区",
+      "sslOptions": {
+        "disable": "disable (不加密)",
+        "require": "require (强制 TLS)",
+        "verifyFull": "verify-full (验证证书)"
+      },
+      "tip": "需要确保 PostgreSQL 已经启动,且对应数据库已创建。"
+    },
+    "testing": "正在测试连接…",
+    "testSuccess": "连接测试通过,可以继续下一步。",
+    "testFailedPrefix": "连接失败:",
+    "testIdle": "请点击下方「测试连接」按钮验证,通过后即可进入下一步。"
+  },
+  "step4": {
+    "title": "创建管理员账号",
+    "description": "用于首次登录 NodePassDash 的管理员凭据,请妥善保存。",
+    "usernameLabel": "用户名",
+    "usernameHelp": "3~20 字符,只允许字母、数字和下划线",
+    "passwordLabel": "密码",
+    "passwordHelp": "至少 8 个字符",
+    "confirmLabel": "确认密码",
+    "confirmMismatch": "两次输入的密码不一致",
+    "confirmCheckbox": "我已妥善保存上述账号和密码",
+    "errors": {
+      "usernameRequired": "用户名不能为空",
+      "passwordRequired": "密码不能为空",
+      "usernameInvalid": "用户名格式不正确",
+      "passwordTooShort": "密码至少 8 个字符",
+      "confirmRequired": "需要确认你已保存账号信息"
+    },
+    "submitting": "正在初始化数据库与管理员账号…"
+  },
+  "done": {
+    "title": "初始化完成!",
+    "description": "数据库配置已写入项目根目录 .env,管理员账号已创建,请重启服务以生效。",
+    "restartHint": {
+      "docker": "Docker:执行 docker compose restart 或 docker restart <容器名>",
+      "systemd": "systemd:执行 systemctl restart nodepassdash",
+      "bare": "裸跑:停止当前进程并重新运行 nodepassdash"
+    },
+    "polling": "等待服务重启,自动跳转登录页…",
+    "ready": "服务已就绪,正在跳转登录页"
+  },
+  "countdown": {
+    "title": "正在重启中，请稍后！",
+    "subtitle": "{{seconds}} 秒后自动跳转登录页"
+  },
+  "errors": {
+    "submitFailedPrefix": "初始化失败:",
+    "statusFetchFailed": "无法获取后端状态,请检查后端是否运行"
+  }
+}

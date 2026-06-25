@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"NodePassDash/internal/db"
 	"fmt"
 	"log"
 	"time"
@@ -264,13 +265,14 @@ func (s *CleanupService) optimizeTables() CleanupResult {
 		Duration:  0,
 	}
 
-	// SQLite 使用 VACUUM 命令来优化数据库
-	// VACUUM 会重建整个数据库文件，回收未使用的空间
-	if err := s.db.Exec("VACUUM").Error; err != nil {
-		log.Printf("[数据清理] VACUUM 优化失败: %v", err)
-		result.Error = fmt.Errorf("VACUUM 优化失败: %v", err)
+	// 按方言执行整理回收(SQLite: VACUUM / PG: VACUUM ANALYZE)。
+	// 注意:PG 的 VACUUM 必须在事务外执行,本调用走的就是直连 Exec,不在事务内,符合要求。
+	vacuumSQL := db.Dialect().VacuumSQL()
+	if err := s.db.Exec(vacuumSQL).Error; err != nil {
+		log.Printf("[数据清理] %s 失败: %v", vacuumSQL, err)
+		result.Error = fmt.Errorf("%s 失败: %v", vacuumSQL, err)
 	} else {
-		log.Println("[数据清理] VACUUM 优化成功")
+		log.Printf("[数据清理] %s 成功", vacuumSQL)
 	}
 
 	result.Duration = time.Since(start)

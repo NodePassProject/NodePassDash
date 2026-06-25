@@ -15,6 +15,7 @@ import examplesZh from "@/locales/zh-CN/examples.json";
 import modalsZh from "@/locales/zh-CN/modals.json";
 import oauthZh from "@/locales/zh-CN/oauth.json";
 import setupGuideZh from "@/locales/zh-CN/setup-guide.json";
+import dbSetupZh from "@/locales/zh-CN/db-setup.json";
 import commonEn from "@/locales/en-US/common.json";
 import authEn from "@/locales/en-US/auth.json";
 import dashboardEn from "@/locales/en-US/dashboard.json";
@@ -27,6 +28,7 @@ import examplesEn from "@/locales/en-US/examples.json";
 import modalsEn from "@/locales/en-US/modals.json";
 import oauthEn from "@/locales/en-US/oauth.json";
 import setupGuideEn from "@/locales/en-US/setup-guide.json";
+import dbSetupEn from "@/locales/en-US/db-setup.json";
 
 // 定义支持的语言
 export const supportedLanguages = ["zh-CN", "en-US"] as const;
@@ -69,6 +71,7 @@ export const resources = {
     modals: modalsZh,
     oauth: oauthZh,
     "setup-guide": setupGuideZh,
+    "db-setup": dbSetupZh,
   },
   "en-US": {
     common: commonEn,
@@ -83,6 +86,7 @@ export const resources = {
     modals: modalsEn,
     oauth: oauthEn,
     "setup-guide": setupGuideEn,
+    "db-setup": dbSetupEn,
   },
 } as const;
 
@@ -94,7 +98,7 @@ i18n
     resources,
     fallbackLng: "zh-CN", // 默认语言为中文
     defaultNS: "common", // 默认命名空间
-    ns: ["common", "auth", "dashboard", "services", "settings", "tunnels", "endpoints", "debug", "examples", "modals", "oauth", "setup-guide"], // 可用的命名空间
+    ns: ["common", "auth", "dashboard", "services", "settings", "tunnels", "endpoints", "debug", "examples", "modals", "oauth", "setup-guide", "db-setup"], // 可用的命名空间
 
     // 语言检测配置
     detection: {

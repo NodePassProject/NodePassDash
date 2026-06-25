@@ -111,7 +111,7 @@ type Tunnel struct {
 
 	CreatedAt     time.Time `json:"createdAt" gorm:"autoCreateTime;index;column:created_at"`
 	UpdatedAt     time.Time `json:"updatedAt" gorm:"autoUpdateTime;column:updated_at"`
-	LastEventTime NullTime  `json:"lastEventTime,omitempty" gorm:"column:last_event_time;type:datetime"`
+	LastEventTime NullTime  `json:"lastEventTime,omitempty" gorm:"column:last_event_time"`
 
 	// 关联
 	Endpoint     Endpoint      `json:"endpoint,omitempty" gorm:"foreignKey:EndpointID"`

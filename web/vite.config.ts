@@ -19,6 +19,7 @@ export default defineConfig(({ mode }) => ({
     outDir: "../cmd/server/dist",
   },
   server: {
+    host: true,
     proxy: {
       "/api": {
         target: process.env.VITE_API_BASE || "http://localhost:3000",

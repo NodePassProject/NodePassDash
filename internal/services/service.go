@@ -1,6 +1,7 @@
 package services
 
 import (
+	"NodePassDash/internal/db"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
@@ -13,6 +14,17 @@ import (
 
 	"gorm.io/gorm"
 )
+
+// peerSIDTypeWhere 生成按 peer.sid + peer.type + tunnel.type 复合过滤的方言安全 WHERE 子句。
+// SQLite 与 PostgreSQL 的 JSON 路径语法不同,通过 db.Dialect().JSONPath 收口。
+func peerSIDTypeWhere(sid, peerType string, tunnelType models.TunnelType) (string, []interface{}) {
+	d := db.Dialect()
+	clause := fmt.Sprintf("%s = ? AND %s = ? AND type = ?",
+		d.JSONPath("peer", "sid"),
+		d.JSONPath("peer", "type"),
+	)
+	return clause, []interface{}{sid, peerType, tunnelType}
+}
 
 type ServiceImpl struct {
 	db            *gorm.DB
@@ -51,7 +63,8 @@ func (s *ServiceImpl) GetAvailableInstances() ([]*AvailableInstance, error) {
 
 	// 查询没有 peer 或 peer.sid 为空的隧道
 	// peer 字段为 JSON，需要检查是否为 null 或者 sid 字段为空
-	err := s.db.Where("peer IS NULL OR json_extract(peer, '$.sid') IS NULL OR json_extract(peer, '$.sid') = ''").
+	sidPath := db.Dialect().JSONPath("peer", "sid")
+	err := s.db.Where(fmt.Sprintf("peer IS NULL OR %s IS NULL OR %s = ''", sidPath, sidPath)).
 		Preload("Endpoint").
 		Find(&tunnels).Error
 
@@ -570,7 +583,8 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 client 端流量
 			var clientTunnel models.Tunnel
-			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", sid, serviceType, models.TunnelModeClient).First(&clientTunnel).Error; err == nil {
+			clause, args := peerSIDTypeWhere(sid, serviceType, models.TunnelModeClient)
+			if err := s.db.Where(clause, args...).First(&clientTunnel).Error; err == nil {
 				service.TotalRx += clientTunnel.TCPRx + clientTunnel.UDPRx
 				service.TotalTx += clientTunnel.TCPTx + clientTunnel.UDPTx
 			}
@@ -589,7 +603,8 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 server 端流量
 			var serverTunnel models.Tunnel
-			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", sid, serviceType, models.TunnelModeServer).First(&serverTunnel).Error; err == nil {
+			clause, args := peerSIDTypeWhere(sid, serviceType, models.TunnelModeServer)
+			if err := s.db.Where(clause, args...).First(&serverTunnel).Error; err == nil {
 				service.TotalRx += serverTunnel.TCPRx + serverTunnel.UDPRx
 				service.TotalTx += serverTunnel.TCPTx + serverTunnel.UDPTx
 			}
@@ -620,7 +635,8 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 client 端流量
 			var clientTunnel models.Tunnel
-			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", sid, serviceType, models.TunnelModeClient).First(&clientTunnel).Error; err == nil {
+			clause, args := peerSIDTypeWhere(sid, serviceType, models.TunnelModeClient)
+			if err := s.db.Where(clause, args...).First(&clientTunnel).Error; err == nil {
 				service.TotalRx += clientTunnel.TCPRx + clientTunnel.UDPRx
 				service.TotalTx += clientTunnel.TCPTx + clientTunnel.UDPTx
 			}
@@ -647,7 +663,8 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 server 端流量
 			var serverTunnel models.Tunnel
-			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", sid, serviceType, models.TunnelModeServer).First(&serverTunnel).Error; err == nil {
+			clause, args := peerSIDTypeWhere(sid, serviceType, models.TunnelModeServer)
+			if err := s.db.Where(clause, args...).First(&serverTunnel).Error; err == nil {
 				service.TotalRx += serverTunnel.TCPRx + serverTunnel.UDPRx
 				service.TotalTx += serverTunnel.TCPTx + serverTunnel.UDPTx
 			}

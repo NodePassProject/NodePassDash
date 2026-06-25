@@ -1,18 +1,10 @@
 import { Card, CardBody } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faServer,
-  faLayerGroup,
-  faBug,
-} from "@fortawesome/free-solid-svg-icons";
+import { faServer, faLayerGroup } from "@fortawesome/free-solid-svg-icons";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 
-/**
- * QuickEntry Card 快捷操作卡片组件
- * 类似图片中的设计，包含标题和5个图标按钮
- */
 export function QuickEntryCard() {
   const navigate = useNavigate();
   const { t } = useTranslation("dashboard");
@@ -54,35 +46,15 @@ export function QuickEntryCard() {
       iconType: "iconify",
       external: false,
     },
-    {
-      id: "docs",
-      icon: "solar:document-text-bold",
-      label: t("quickActions.docs"),
-      route: "/docs",
-      color: "bg-indigo-500 hover:bg-indigo-600",
-      iconType: "iconify",
-      external: false,
-    },
-    {
-      id: "debug-tools",
-      icon: faBug,
-      label: t("quickActions.debugTools"),
-      route: "/debug",
-      color: "bg-teal-500 hover:bg-teal-600",
-      iconType: "fontawesome",
-      external: false,
-    },
   ];
 
   return (
     <Card className="h-full min-h-[140px] dark:border-default-100 border border-transparent">
       <CardBody className="p-5 h-full flex flex-col justify-between">
-        {/* 标题 */}
         <span className="text-base font-semibold text-foreground">
           {t("quickActions.title")}
         </span>
-        {/* 按钮行 */}
-        <div className="flex pt-5 justify-between">
+        <div className="grid grid-cols-4 gap-3 pt-5">
           {quickActions.map((action) => (
             <div
               key={action.id}
@@ -95,23 +67,20 @@ export function QuickEntryCard() {
                 }
               }}
             >
-              {/* 图标按钮 */}
               <div
-                className={`flex items-center justify-center w-12 h-12 rounded-lg ${action.color} text-white transition-colors duration-200 group-hover:shadow-lg`}
+                className={`flex items-center justify-center w-14 h-14 rounded-xl ${action.color} text-white transition-all duration-200 group-hover:shadow-lg group-hover:shadow-black/20`}
               >
                 {action.iconType === "fontawesome" ? (
                   <FontAwesomeIcon
-                    className="!w-5 !h-5"
+                    className="!w-6 !h-6"
                     icon={action.icon as any}
-                    style={{ width: "20px", height: "20px" }}
+                    style={{ width: "24px", height: "24px" }}
                   />
                 ) : (
-                  <Icon height={20} icon={action.icon as string} width={20} />
+                  <Icon height={24} icon={action.icon as string} width={24} />
                 )}
               </div>
-
-              {/* 文字标签 */}
-              <span className="text-xs text-center text-default-600 group-hover:text-foreground transition-colors duration-200 font-medium">
+              <span className="text-xs text-center text-default-600 group-hover:text-foreground transition-colors duration-200 font-medium leading-tight">
                 {action.label}
               </span>
             </div>

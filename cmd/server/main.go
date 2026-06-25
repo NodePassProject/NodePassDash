@@ -20,14 +20,28 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
 	"gorm.io/gorm"
 )
+
+// loadDotEnv 在启动最早期把项目根目录 .env 注入到环境变量。
+// 不覆盖已经存在的真 env 变量(命令行 export 优先,与 docker-compose 习惯一致)。
+// 文件不存在时静默跳过——首次启动尚未跑 Setup 向导时就是这种情况。
+func loadDotEnv() {
+	if _, err := os.Stat(".env"); os.IsNotExist(err) {
+		return
+	}
+	if err := godotenv.Load(".env"); err != nil {
+		log.Warnf("[启动].env 文件加载失败,将仅使用 env / flag: %v", err)
+	}
+}
 
 // Version 会在构建时通过 -ldflags "-X main.Version=xxx" 注入
 var Version = "dev"
@@ -249,7 +263,7 @@ func initializeServices(sseDebugLog, disableSSELog, demoMode bool) (*gorm.DB, *a
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("获取底层sql.DB失败: %v", err)
 	}
-	sseManager := sse.NewManager(sqlDB, sseService, sseDebugLog)
+	sseManager := sse.NewManager(sqlDB, sseService, sseDebugLog, gormDB.Dialector.Name())
 
 	// 设置Manager引用到Service（避免循环依赖）
 	sseService.SetManager(sseManager)
@@ -367,6 +381,9 @@ func gracefulShutdown(server *http.Server, trafficScheduler *dashboard.TrafficSc
 }
 
 func main() {
+	// 最早期加载 .env(Web Setup 向导的产物),让后续 GetDBConfig 能读到。
+	loadDotEnv()
+
 	resetPwd, port, certFile, keyFile, showVersion, disableLogin, sseDebugLog, disableSSELog, demoMode := parseFlags()
 
 	// 如果指定了版本参数，显示版本信息后退出
@@ -387,6 +404,17 @@ func main() {
 		}
 		return
 	}
+
+	// 检查数据库配置状态。若 driver 字段尚未提供(.env 未写、env 未注入),进入 Setup 模式。
+	// 此时不打开数据库、不启动业务服务,只提供 /api/setup/* 路由给前端向导。
+	dbCfg := dbPkg.GetDBConfig("db")
+	if !dbCfg.IsValid() {
+		log.Infof("数据库未配置 (driver=%q),进入 Setup 模式", dbCfg.Driver)
+		runSetupMode(port, certFile, keyFile)
+		return
+	}
+	// 防御性:确保 db 目录存在(SQLite 文件路径可能含子目录)
+	_ = os.MkdirAll(filepath.Dir(dbCfg.Database), 0o755)
 
 	// 初始化所有服务
 	gormDB, authService, endpointService, tunnelService, dashboardService, sseService, sseManager, wsService, err := initializeServices(sseDebugLog, disableSSELog, demoMode)

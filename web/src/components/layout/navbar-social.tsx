@@ -18,7 +18,7 @@ const socialLinks = [
     key: "telegram",
     label: "Telegram",
     icon: "mdi:telegram",
-    href: "https://t.me/NodePassGroup",
+    href: "https://t.me/nodepass_offcial_group",
     target: "_blank",
   },
 ];

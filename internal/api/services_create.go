@@ -83,7 +83,7 @@ func (h *ServicesHandler) handleSingleMode(c *gin.Context, req *ServiceCreateReq
 	var endpointName string
 	db := h.tunnelService.DB()
 	err := db.QueryRow(
-		"SELECT name FROM endpoints WHERE id = ?",
+		h.tunnelService.Rebind("SELECT name FROM endpoints WHERE id = ?"),
 		req.Inbounds.MasterID,
 	).Scan(&endpointName)
 	if err != nil {
@@ -94,9 +94,10 @@ func (h *ServicesHandler) handleSingleMode(c *gin.Context, req *ServiceCreateReq
 			})
 			return
 		}
+		log.Errorf("[API] 查询中转主控失败: master_id=%d err=%v", req.Inbounds.MasterID, err)
 		c.JSON(500, gin.H{
 			"success": false,
-			"error":   "Failed to query transit master",
+			"error":   "Failed to query transit master: " + err.Error(),
 		})
 		return
 	}
@@ -233,7 +234,7 @@ func (h *ServicesHandler) handleBothwayMode(c *gin.Context, req *ServiceCreateRe
 	db := h.tunnelService.DB()
 	// 获取server endpoint信息
 	err := db.QueryRow(
-		"SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?",
+		h.tunnelService.Rebind("SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?"),
 		serverConfig.MasterID,
 	).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.Hostname, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
 	if err != nil {
@@ -244,16 +245,17 @@ func (h *ServicesHandler) handleBothwayMode(c *gin.Context, req *ServiceCreateRe
 			})
 			return
 		}
+		log.Errorf("[API] 查询 server 主控失败: master_id=%d err=%v", serverConfig.MasterID, err)
 		c.JSON(500, gin.H{
 			"success": false,
-			"error":   "Failed to query server master",
+			"error":   "Failed to query server master: " + err.Error(),
 		})
 		return
 	}
 
 	// 获取client endpoint信息
 	err = db.QueryRow(
-		"SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?",
+		h.tunnelService.Rebind("SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?"),
 		clientConfig.MasterID,
 	).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.Hostname, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
 	if err != nil {
@@ -264,9 +266,10 @@ func (h *ServicesHandler) handleBothwayMode(c *gin.Context, req *ServiceCreateRe
 			})
 			return
 		}
+		log.Errorf("[API] 查询 client 主控失败: master_id=%d err=%v", clientConfig.MasterID, err)
 		c.JSON(500, gin.H{
 			"success": false,
-			"error":   "Failed to query client master",
+			"error":   "Failed to query client master: " + err.Error(),
 		})
 		return
 	}
@@ -468,7 +471,7 @@ func (h *ServicesHandler) handleIntranetMode(c *gin.Context, req *ServiceCreateR
 	db := h.tunnelService.DB()
 	// 获取server endpoint信息
 	err := db.QueryRow(
-		"SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?",
+		h.tunnelService.Rebind("SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?"),
 		serverConfig.MasterID,
 	).Scan(&serverEndpoint.ID, &serverEndpoint.URL, &serverEndpoint.IP, &serverEndpoint.APIPath, &serverEndpoint.APIKey, &serverEndpoint.Name)
 	if err != nil {
@@ -479,16 +482,17 @@ func (h *ServicesHandler) handleIntranetMode(c *gin.Context, req *ServiceCreateR
 			})
 			return
 		}
+		log.Errorf("[API] 查询 server 主控失败: master_id=%d err=%v", serverConfig.MasterID, err)
 		c.JSON(500, gin.H{
 			"success": false,
-			"error":   "Failed to query server master",
+			"error":   "Failed to query server master: " + err.Error(),
 		})
 		return
 	}
 
 	// 获取client endpoint信息
 	err = db.QueryRow(
-		"SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?",
+		h.tunnelService.Rebind("SELECT id, url, hostname, api_path, api_key, name FROM endpoints WHERE id = ?"),
 		clientConfig.MasterID,
 	).Scan(&clientEndpoint.ID, &clientEndpoint.URL, &clientEndpoint.IP, &clientEndpoint.APIPath, &clientEndpoint.APIKey, &clientEndpoint.Name)
 	if err != nil {
@@ -499,9 +503,10 @@ func (h *ServicesHandler) handleIntranetMode(c *gin.Context, req *ServiceCreateR
 			})
 			return
 		}
+		log.Errorf("[API] 查询 client 主控失败: master_id=%d err=%v", clientConfig.MasterID, err)
 		c.JSON(500, gin.H{
 			"success": false,
-			"error":   "Failed to query client master",
+			"error":   "Failed to query client master: " + err.Error(),
 		})
 		return
 	}
@@ -676,6 +681,6 @@ func (h *ServicesHandler) handleIntranetMode(c *gin.Context, req *ServiceCreateR
 // getTunnelIDByName 通过隧道名称获取隧道数据库ID
 func (h *ServicesHandler) getTunnelIDByName(tunnelName string) (int64, error) {
 	var tunnelID int64
-	err := h.tunnelService.DB().QueryRow(`SELECT id FROM tunnels WHERE name = ?`, tunnelName).Scan(&tunnelID)
+	err := h.tunnelService.DB().QueryRow(h.tunnelService.Rebind(`SELECT id FROM tunnels WHERE name = ?`), tunnelName).Scan(&tunnelID)
 	return tunnelID, err
 }
