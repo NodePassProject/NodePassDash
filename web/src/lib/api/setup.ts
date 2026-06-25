@@ -27,6 +27,16 @@ export interface SetupPayload {
     username: string;
     password: string;
   };
+  compliance?: {
+    accepted_version: string;
+  };
+}
+
+export interface ComplianceDoc {
+  lang: string;
+  version: string;
+  content: string;
+  source_url: string;
 }
 
 async function postJSON<T>(path: string, body: unknown): Promise<T> {
@@ -50,6 +60,16 @@ export async function fetchSetupStatus(): Promise<SetupStatus> {
     throw new Error(`HTTP ${res.status}`);
   }
   return (await res.json()) as SetupStatus;
+}
+
+/** 拉取当前嵌入的合规协议(按语言)。Setup 模式与 Ready 模式都可访问。 */
+export async function fetchCompliance(lang: string): Promise<ComplianceDoc> {
+  const url = buildApiUrl(`/api/setup/compliance?lang=${encodeURIComponent(lang)}`);
+  const res = await fetch(url);
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+  return (await res.json()) as ComplianceDoc;
 }
 
 /** 测试数据库连接(不写任何东西)。 */

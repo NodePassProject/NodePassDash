@@ -1071,15 +1071,20 @@ func (h *EndpointHandler) HandleClearEndpointFileLogs(c *gin.Context) {
 		return
 	}
 
-	// 获取查询参数
+	// 获取查询参数，instanceId 为空时清空整个端点的所有日志
 	instanceID := c.Query("instanceId")
-	if instanceID == "" {
-		c.String(http.StatusBadRequest, "Missing instanceId parameter")
+
+	fileLogger := h.sseManager.GetFileLogger()
+	if fileLogger == nil {
+		c.String(http.StatusInternalServerError, "File logger not initialized")
 		return
 	}
 
-	// 清空文件日志
-	err = h.sseManager.GetFileLogger().ClearLogs(endpointID, instanceID)
+	if instanceID == "" {
+		err = fileLogger.ClearAllLogs(endpointID)
+	} else {
+		err = fileLogger.ClearLogs(endpointID, instanceID)
+	}
 	if err != nil {
 		log.Warnf("[API]清空文件日志失败: %v", err)
 		c.String(http.StatusInternalServerError, "Failed to clear file logs")

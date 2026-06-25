@@ -18,9 +18,12 @@ import {
 import { Icon } from "@iconify/react";
 import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
+import ReactMarkdown from "react-markdown";
 
 import {
+  ComplianceDoc,
   DriverKind,
+  fetchCompliance,
   initializeDatabase,
   SetupPayload,
   testConnection,
@@ -29,7 +32,7 @@ import Image from "@/components/common/image";
 import RowSteps from "@/components/ui/row-steps";
 import { useSettings } from "@/components/providers/settings-provider";
 
-type Step = 1 | 2 | 3 | 4;
+type Step = 1 | 2 | 3 | 4 | 5;
 
 interface FormState {
   driver: DriverKind | null;
@@ -46,6 +49,8 @@ interface FormState {
   adminPass: string;
   adminConfirm: string;
   adminAck: boolean;
+  complianceVersion: string;
+  complianceAccepted: boolean;
 }
 
 const initialForm = (): FormState => ({
@@ -66,6 +71,8 @@ const initialForm = (): FormState => ({
   adminPass: "",
   adminConfirm: "",
   adminAck: false,
+  complianceVersion: "",
+  complianceAccepted: false,
 });
 
 function buildPayload(form: FormState, includeAdmin: boolean): SetupPayload {
@@ -85,6 +92,7 @@ function buildPayload(form: FormState, includeAdmin: boolean): SetupPayload {
   }
   if (includeAdmin) {
     payload.admin = { username: form.adminUser, password: form.adminPass };
+    payload.compliance = { accepted_version: form.complianceVersion };
   }
   return payload;
 }
@@ -132,12 +140,12 @@ export default function SetupPage() {
 
   const validateAdminStep = (): boolean => {
     const errs: Partial<Record<keyof FormState, string>> = {};
-    if (!form.adminUser) errs.adminUser = t("step4.errors.usernameRequired");
-    else if (!USERNAME_RE.test(form.adminUser)) errs.adminUser = t("step4.errors.usernameInvalid");
-    if (!form.adminPass) errs.adminPass = t("step4.errors.passwordRequired");
-    else if (form.adminPass.length < 8) errs.adminPass = t("step4.errors.passwordTooShort");
-    if (form.adminPass !== form.adminConfirm) errs.adminConfirm = t("step4.confirmMismatch");
-    if (!form.adminAck) errs.adminAck = t("step4.errors.confirmRequired");
+    if (!form.adminUser) errs.adminUser = t("step5.errors.usernameRequired");
+    else if (!USERNAME_RE.test(form.adminUser)) errs.adminUser = t("step5.errors.usernameInvalid");
+    if (!form.adminPass) errs.adminPass = t("step5.errors.passwordRequired");
+    else if (form.adminPass.length < 8) errs.adminPass = t("step5.errors.passwordTooShort");
+    if (form.adminPass !== form.adminConfirm) errs.adminConfirm = t("step5.confirmMismatch");
+    if (!form.adminAck) errs.adminAck = t("step5.errors.confirmRequired");
     setAdminErrors(errs);
     return Object.keys(errs).length === 0;
   };
@@ -186,6 +194,7 @@ export default function SetupPage() {
     { title: t("stepper.step2") },
     { title: t("stepper.step3") },
     { title: t("stepper.step4") },
+    { title: t("stepper.step5") },
   ];
 
   const rowStepValue = step;
@@ -196,7 +205,7 @@ export default function SetupPage() {
       <div className="flex-1 flex items-center justify-center p-4">
         <motion.div
           animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-3xl"
+          className="w-full max-w-5xl"
           initial={{ opacity: 0, y: 20 }}
           transition={{ duration: 0.5 }}
         >
@@ -232,15 +241,26 @@ export default function SetupPage() {
               )}
 
               {step === 2 && (
-                <StepDriver
-                  value={form.driver}
-                  onChange={(d) => setField("driver", d)}
+                <StepCompliance
+                  onAccepted={(version) => {
+                    setField("complianceVersion", version);
+                    setField("complianceAccepted", true);
+                  }}
                   onBack={() => setStep(1)}
-                  onNext={() => form.driver && setStep(3)}
+                  onNext={() => setStep(3)}
                 />
               )}
 
               {step === 3 && (
+                <StepDriver
+                  value={form.driver}
+                  onChange={(d) => setField("driver", d)}
+                  onBack={() => setStep(2)}
+                  onNext={() => form.driver && setStep(4)}
+                />
+              )}
+
+              {step === 4 && (
                 <StepConnection
                   form={form}
                   setField={setField}
@@ -248,20 +268,20 @@ export default function SetupPage() {
                   testOK={testOK}
                   testError={testError}
                   onTest={handleTest}
-                  onBack={() => setStep(2)}
-                  onNext={() => setStep(4)}
+                  onBack={() => setStep(3)}
+                  onNext={() => setStep(5)}
                   canGoNext={canGoToStep4}
                 />
               )}
 
-              {step === 4 && (
+              {step === 5 && (
                 <StepAdmin
                   form={form}
                   setField={setField}
                   errors={adminErrors}
                   submitting={submitting}
                   submitError={submitError}
-                  onBack={() => setStep(3)}
+                  onBack={() => setStep(4)}
                   onSubmit={handleSubmit}
                 />
               )}
@@ -371,6 +391,189 @@ function StepPreferences({ onNext }: { onNext: () => void }) {
   );
 }
 
+// 部署与运营合规确认。
+// 协议正文从后端 /api/setup/compliance 拉取(嵌入二进制),按当前 UI 语言切换。
+// 用户必须逐字输入确认短语(i18n: step2.phraseHelper)才能解锁「下一步」。
+function StepCompliance({
+  onAccepted,
+  onBack,
+  onNext,
+}: {
+  onAccepted: (version: string) => void;
+  onBack: () => void;
+  onNext: () => void;
+}) {
+  const { t } = useTranslation("db-setup");
+  const { settings } = useSettings();
+  const lang = settings.language === "en-US" ? "en-US" : "zh-CN";
+
+  const [doc, setDoc] = useState<ComplianceDoc | null>(null);
+  const [loadError, setLoadError] = useState("");
+  const [loading, setLoading] = useState(true);
+  const [phrase, setPhrase] = useState("");
+
+  useEffect(() => {
+    let active = true;
+    setLoading(true);
+    setLoadError("");
+    fetchCompliance(lang)
+      .then((d) => {
+        if (!active) return;
+        setDoc(d);
+      })
+      .catch((e) => {
+        if (!active) return;
+        setLoadError(e instanceof Error ? e.message : String(e));
+      })
+      .finally(() => {
+        if (active) setLoading(false);
+      });
+    return () => {
+      active = false;
+    };
+  }, [lang]);
+
+  const requiredPhrase = t("step2.phraseHelper");
+  const phraseMatch = phrase.trim() === requiredPhrase.trim();
+  const canContinue = phraseMatch && !!doc;
+
+  const handleNext = () => {
+    if (!canContinue || !doc) return;
+    onAccepted(doc.version);
+    onNext();
+  };
+
+  return (
+    <div className="space-y-6">
+      <div>
+        <h2 className="text-lg font-semibold mb-1">{t("step2.title")}</h2>
+      </div>
+
+      {/* 顶部 warning alert */}
+      <div className="rounded-lg border border-warning-200 bg-warning-50/60 dark:bg-warning-900/10 p-4 flex gap-3">
+        <Icon
+          icon="solar:danger-triangle-bold"
+          className="text-warning shrink-0 mt-0.5"
+          width={20}
+        />
+        <div className="space-y-1">
+          <p className="text-sm font-medium text-warning-700 dark:text-warning-400">
+            {t("step2.alert")}
+          </p>
+          <p className="text-xs text-default-600">
+            {t("step2.alertDescription")}
+          </p>
+        </div>
+      </div>
+
+      {/* 主体两栏:左 markdown,右 版本/链接/提示 */}
+      <div className="grid grid-cols-1 md:grid-cols-[1fr_240px] gap-4">
+        <div className="rounded-lg border border-default-200 bg-content2/30 p-4 h-[360px] overflow-y-auto">
+          {loading && (
+            <div className="flex items-center gap-2 text-sm text-default-500">
+              <Spinner size="sm" />
+              {t("step2.loading")}
+            </div>
+          )}
+          {!loading && loadError && (
+            <div className="text-sm text-danger break-all">
+              {t("step2.loadFailed")}
+              <div className="text-xs text-default-500 mt-1">{loadError}</div>
+            </div>
+          )}
+          {!loading && !loadError && doc && (
+            <ReactMarkdown
+              components={{
+                h1: ({ children }) => (
+                  <h1 className="text-base font-semibold mt-2 mb-2">{children}</h1>
+                ),
+                h2: ({ children }) => (
+                  <h2 className="text-sm font-semibold mt-4 mb-2">{children}</h2>
+                ),
+                p: ({ children }) => (
+                  <p className="text-xs leading-relaxed text-default-700 mb-2">
+                    {children}
+                  </p>
+                ),
+                ol: ({ children }) => (
+                  <ol className="list-decimal pl-5 text-xs space-y-1 text-default-700 mb-2">
+                    {children}
+                  </ol>
+                ),
+                ul: ({ children }) => (
+                  <ul className="list-disc pl-5 text-xs space-y-1 text-default-700 mb-2">
+                    {children}
+                  </ul>
+                ),
+                li: ({ children }) => <li className="leading-relaxed">{children}</li>,
+                strong: ({ children }) => (
+                  <strong className="font-semibold text-foreground">{children}</strong>
+                ),
+              }}
+            >
+              {doc.content}
+            </ReactMarkdown>
+          )}
+        </div>
+
+        <div className="rounded-lg border border-default-200 bg-content2/30 p-4 space-y-3">
+          <div>
+            <div className="text-xs text-default-500 mb-1">
+              {t("step2.sidebar.versionLabel")}
+            </div>
+            <div className="text-base font-semibold text-foreground tabular-nums">
+              {doc?.version || "—"}
+            </div>
+          </div>
+          {doc?.source_url && (
+            <a
+              href={doc.source_url}
+              target="_blank"
+              rel="noreferrer noopener"
+              className="inline-flex items-center gap-1.5 text-sm text-primary hover:underline"
+            >
+              <Icon icon="solar:square-arrow-right-up-linear" width={16} />
+              {t("step2.sidebar.viewOnGithub")}
+            </a>
+          )}
+          <p className="text-xs text-default-500 leading-relaxed">
+            {t("step2.sidebar.hint")}
+          </p>
+        </div>
+      </div>
+
+      {/* 逐字输入确认短语 */}
+      <div className="space-y-2">
+        <div className="text-sm font-medium">{t("step2.phraseLabel")}</div>
+        <div className="rounded-md border border-default-200 bg-content2/30 px-3 py-2 text-sm text-default-600 select-text">
+          {requiredPhrase}
+        </div>
+        <Input
+          value={phrase}
+          onValueChange={setPhrase}
+          placeholder={t("step2.phrasePlaceholder")}
+          isInvalid={phrase.length > 0 && !phraseMatch}
+          isDisabled={!doc}
+          autoComplete="off"
+        />
+      </div>
+
+      <p className="text-xs text-default-500 leading-relaxed">
+        {t("step2.footer")}
+      </p>
+
+      <div className="flex justify-between gap-2">
+        <Button variant="bordered" onPress={onBack}>
+          {t("buttons.back")}
+        </Button>
+        <Button color="primary" isDisabled={!canContinue} onPress={handleNext}>
+          {t("buttons.next")}
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 function StepDriver({
   value,
   onChange,
@@ -386,24 +589,24 @@ function StepDriver({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold mb-1">{t("step2.title")}</h2>
-        <p className="text-sm text-default-500">{t("step2.description")}</p>
+        <h2 className="text-lg font-semibold mb-1">{t("step3.title")}</h2>
+        <p className="text-sm text-default-500">{t("step3.description")}</p>
       </div>
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         <DriverCard
           active={value === "sqlite"}
           icon="simple-icons:sqlite"
-          name={t("step2.sqlite.name")}
-          tag={t("step2.sqlite.tag")}
-          desc={t("step2.sqlite.description")}
+          name={t("step3.sqlite.name")}
+          tag={t("step3.sqlite.tag")}
+          desc={t("step3.sqlite.description")}
           onClick={() => onChange("sqlite")}
         />
         <DriverCard
           active={value === "postgres"}
           icon="simple-icons:postgresql"
-          name={t("step2.postgres.name")}
-          tag={t("step2.postgres.tag")}
-          desc={t("step2.postgres.description")}
+          name={t("step3.postgres.name")}
+          tag={t("step3.postgres.tag")}
+          desc={t("step3.postgres.description")}
           onClick={() => onChange("postgres")}
         />
       </div>
@@ -509,22 +712,22 @@ function StepConnection({
   const { t } = useTranslation("db-setup");
   return (
     <div className="space-y-6">
-      <h2 className="text-lg font-semibold">{t("step3.title")}</h2>
+      <h2 className="text-lg font-semibold">{t("step4.title")}</h2>
 
       {form.driver === "sqlite" && (
         <div className="space-y-4">
           <Input
-            label={t("step3.sqlite.pathLabel")}
+            label={t("step4.sqlite.pathLabel")}
             value={form.sqlitePath}
             isReadOnly
-            description={t("step3.sqlite.pathHelp")}
+            description={t("step4.sqlite.pathHelp")}
           />
           <div className="flex items-center gap-3">
             <Switch
               isSelected={form.sqliteWAL}
               onValueChange={(v) => setField("sqliteWAL", v)}
             >
-              {t("step3.sqlite.walLabel")}
+              {t("step4.sqlite.walLabel")}
             </Switch>
           </div>
         </div>
@@ -535,29 +738,29 @@ function StepConnection({
           <div className="grid grid-cols-3 gap-3">
             <Input
               className="col-span-2"
-              label={t("step3.postgres.hostLabel")}
+              label={t("step4.postgres.hostLabel")}
               value={form.pgHost}
               onValueChange={(v) => setField("pgHost", v)}
             />
             <Input
-              label={t("step3.postgres.portLabel")}
+              label={t("step4.postgres.portLabel")}
               value={form.pgPort}
               onValueChange={(v) => setField("pgPort", v)}
             />
           </div>
           <Input
-            label={t("step3.postgres.dbLabel")}
+            label={t("step4.postgres.dbLabel")}
             value={form.pgDatabase}
             onValueChange={(v) => setField("pgDatabase", v)}
           />
           <div className="grid grid-cols-2 gap-3">
             <Input
-              label={t("step3.postgres.userLabel")}
+              label={t("step4.postgres.userLabel")}
               value={form.pgUser}
               onValueChange={(v) => setField("pgUser", v)}
             />
             <Input
-              label={t("step3.postgres.passwordLabel")}
+              label={t("step4.postgres.passwordLabel")}
               type="password"
               value={form.pgPassword}
               onValueChange={(v) => setField("pgPassword", v)}
@@ -565,24 +768,24 @@ function StepConnection({
           </div>
           <div className="grid grid-cols-2 gap-3">
             <Select
-              label={t("step3.postgres.sslLabel")}
+              label={t("step4.postgres.sslLabel")}
               selectedKeys={new Set([form.pgSSL])}
               onSelectionChange={(keys) => {
                 const v = Array.from(keys)[0];
                 if (typeof v === "string") setField("pgSSL", v);
               }}
             >
-              <SelectItem key="disable">{t("step3.postgres.sslOptions.disable")}</SelectItem>
-              <SelectItem key="require">{t("step3.postgres.sslOptions.require")}</SelectItem>
-              <SelectItem key="verify-full">{t("step3.postgres.sslOptions.verifyFull")}</SelectItem>
+              <SelectItem key="disable">{t("step4.postgres.sslOptions.disable")}</SelectItem>
+              <SelectItem key="require">{t("step4.postgres.sslOptions.require")}</SelectItem>
+              <SelectItem key="verify-full">{t("step4.postgres.sslOptions.verifyFull")}</SelectItem>
             </Select>
             <Input
-              label={t("step3.postgres.timezoneLabel")}
+              label={t("step4.postgres.timezoneLabel")}
               value={form.pgTimezone}
               onValueChange={(v) => setField("pgTimezone", v)}
             />
           </div>
-          <p className="text-xs text-default-500">{t("step3.postgres.tip")}</p>
+          <p className="text-xs text-default-500">{t("step4.postgres.tip")}</p>
         </div>
       )}
 
@@ -590,20 +793,20 @@ function StepConnection({
         {testing && (
           <div className="flex items-center gap-2 text-sm text-default-500">
             <Spinner size="sm" />
-            {t("step3.testing")}
+            {t("step4.testing")}
           </div>
         )}
         {!testing && testOK && (
           <div className="flex items-center gap-2 text-sm text-success">
             <Icon icon="solar:check-circle-bold" />
-            {t("step3.testSuccess")}
+            {t("step4.testSuccess")}
           </div>
         )}
         {!testing && !testOK && testError && (
           <div className="flex items-start gap-2 text-sm text-danger break-all">
             <Icon icon="solar:close-circle-bold" className="mt-0.5 flex-shrink-0" />
             <span>
-              {t("step3.testFailedPrefix")}
+              {t("step4.testFailedPrefix")}
               {testError}
             </span>
           </div>
@@ -611,7 +814,7 @@ function StepConnection({
         {!testing && !testOK && !testError && (
           <div className="flex items-center gap-2 text-sm text-default-400">
             <Icon icon="solar:info-circle-linear" className="flex-shrink-0" />
-            {t("step3.testIdle")}
+            {t("step4.testIdle")}
           </div>
         )}
       </div>
@@ -654,22 +857,22 @@ function StepAdmin({
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-lg font-semibold mb-1">{t("step4.title")}</h2>
-        <p className="text-sm text-default-500">{t("step4.description")}</p>
+        <h2 className="text-lg font-semibold mb-1">{t("step5.title")}</h2>
+        <p className="text-sm text-default-500">{t("step5.description")}</p>
       </div>
 
       <div className="space-y-4">
         <Input
-          label={t("step4.usernameLabel")}
-          description={t("step4.usernameHelp")}
+          label={t("step5.usernameLabel")}
+          description={t("step5.usernameHelp")}
           value={form.adminUser}
           onValueChange={(v) => setField("adminUser", v)}
           isInvalid={!!errors.adminUser}
           errorMessage={errors.adminUser}
         />
         <Input
-          label={t("step4.passwordLabel")}
-          description={t("step4.passwordHelp")}
+          label={t("step5.passwordLabel")}
+          description={t("step5.passwordHelp")}
           type="password"
           value={form.adminPass}
           onValueChange={(v) => setField("adminPass", v)}
@@ -677,7 +880,7 @@ function StepAdmin({
           errorMessage={errors.adminPass}
         />
         <Input
-          label={t("step4.confirmLabel")}
+          label={t("step5.confirmLabel")}
           type="password"
           value={form.adminConfirm}
           onValueChange={(v) => setField("adminConfirm", v)}
@@ -689,7 +892,7 @@ function StepAdmin({
           onValueChange={(v) => setField("adminAck", v)}
           isInvalid={!!errors.adminAck}
         >
-          {t("step4.confirmCheckbox")}
+          {t("step5.confirmCheckbox")}
         </Checkbox>
         {errors.adminAck && (
           <p className="text-xs text-danger">{errors.adminAck}</p>
@@ -706,7 +909,7 @@ function StepAdmin({
       {submitting && (
         <div className="flex items-center gap-2 text-sm text-default-500">
           <Spinner size="sm" />
-          {t("step4.submitting")}
+          {t("step5.submitting")}
         </div>
       )}
 

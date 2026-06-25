@@ -3,6 +3,7 @@ package router
 import (
 	"NodePassDash/internal/api"
 	"NodePassDash/internal/auth"
+	"NodePassDash/internal/compliance"
 	"NodePassDash/internal/dashboard"
 	"NodePassDash/internal/endpoint"
 	"NodePassDash/internal/group"
@@ -56,6 +57,9 @@ func SetupRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager, 
 	}
 	r.POST("/api/setup/test-connection", setupAlreadyCompleted)
 	r.POST("/api/setup/initialize", setupAlreadyCompleted)
+
+	// 合规协议:Ready 模式下也保留 GET,运行时复确认 gate 与 setting 页可读。
+	r.GET("/api/setup/compliance", compliance.Handler)
 
 	// 文档代理路由
 	r.Any("/docs-proxy/*path", docsProxyHandler)

@@ -36,6 +36,13 @@ const (
 	ConfigKeyAdminUsername = "admin_username"
 	ConfigKeyAdminPassword = "admin_password_hash"
 	ConfigKeyCurrentTokenJTI = "current_token_jti" // 当前有效的 JWT ID，用于实现 token 互踢
+
+	// Compliance acknowledgment keys — 由 setup 向导 Step 2 与运行时
+	// 复确认 gate 共用。Version 变化时需要重新确认。
+	ConfigKeyComplianceVersion = "compliance_accepted_version"
+	ConfigKeyComplianceAt      = "compliance_accepted_at"
+	ConfigKeyComplianceIP      = "compliance_accepted_ip"
+	ConfigKeyComplianceUA      = "compliance_accepted_ua"
 )
 
 // 默认账号密码常量

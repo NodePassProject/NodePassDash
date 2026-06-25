@@ -3,9 +3,10 @@
   "subtitle": "",
   "stepper": {
     "step1": "偏好设置",
-    "step2": "选择数据库",
-    "step3": "连接参数",
-    "step4": "管理员账号",
+    "step2": "合规确认",
+    "step3": "选择数据库",
+    "step4": "连接参数",
+    "step5": "管理员账号",
     "done": "完成"
   },
   "buttons": {
@@ -32,6 +33,22 @@
     }
   },
   "step2": {
+    "title": "部署与运营合规确认",
+    "alert": "继续使用控制台前,须完成部署与运营合规确认。",
+    "alertDescription": "本确认用于以清晰、显著、可留痕的方式提示自部署实例的合规义务与运营风险。",
+    "sidebar": {
+      "versionLabel": "协议版本",
+      "viewOnGithub": "在 GitHub 查看协议文件",
+      "hint": "协议正文来自本项目仓库中的 Markdown 文件。修改协议内容时必须同步递增协议版本号;已确认的旧版本失效,控制台使用者须重新确认。"
+    },
+    "phraseLabel": "请逐字输入以下确认短语",
+    "phraseHelper": "我已阅读、理解并同意 NodePassDash 部署与运营承诺",
+    "phrasePlaceholder": "输入确认短语以继续",
+    "footer": "本确认用于明确自部署实例与开源项目、著作权人、贡献者及维护者之间的非关联关系和责任边界;部署、运营或控制相关实例的主体应独立承担其适用义务。",
+    "loadFailed": "加载协议文件失败,请刷新页面重试。",
+    "loading": "正在加载合规协议…"
+  },
+  "step3": {
     "title": "选择数据库类型",
     "description": "全新部署时请谨慎选择。初始化后,需要重新发起向导时请删除项目根目录 .env 文件后重启。",
     "sqlite": {
@@ -45,7 +62,7 @@
       "description": "独立的数据库服务进程,支持高并发、多副本和远程访问。"
     }
   },
-  "step3": {
+  "step4": {
     "title": "填写连接参数",
     "sqlite": {
       "pathLabel": "数据库文件路径",
@@ -73,7 +90,7 @@
     "testFailedPrefix": "连接失败:",
     "testIdle": "请点击下方「测试连接」按钮验证,通过后即可进入下一步。"
   },
-  "step4": {
+  "step5": {
     "title": "创建管理员账号",
     "description": "用于首次登录 NodePassDash 的管理员凭据,请妥善保存。",
     "usernameLabel": "用户名",

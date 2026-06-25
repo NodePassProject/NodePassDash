@@ -294,6 +294,7 @@
       "copyConfig": "Copy Config",
       "editConfig": "Edit Config",
       "resetKey": "Reset Key",
+      "clearLogs": "Clear Logs",
       "delete": "Delete Endpoint"
     },
     "info": {
@@ -370,6 +371,19 @@
         },
         "cancel": "Cancel",
         "confirm": "Confirm Reset"
+      },
+      "clearLogs": {
+        "title": "Clear Endpoint Logs",
+        "warningTitle": "⚠️ Important Reminder",
+        "warningMessage": "After clearing the logs, all historical log files of all instances under this endpoint will be permanently deleted and cannot be recovered.",
+        "confirmMessage": "Are you sure you want to clear all log files of this endpoint? This action will:",
+        "consequences": {
+          "deleteAll": "Delete log files for all instances under this endpoint",
+          "freeSpace": "Free up disk space",
+          "irreversible": "This action cannot be undone"
+        },
+        "cancel": "Cancel",
+        "confirm": "Confirm Clear"
       },
       "deleteEndpoint": {
         "title": "Delete Endpoint",
@@ -452,7 +466,11 @@
       "refreshAllFailed": "Refresh failed",
       "refreshAllFailedDesc": "Refresh failed",
       "qrCodeFailed": "Failed to generate QR code",
-      "qrCodeFailedDesc": "Unknown error"
+      "qrCodeFailedDesc": "Unknown error",
+      "clearLogsSuccess": "Logs cleared",
+      "clearLogsSuccessDesc": "Log files of all instances under this endpoint have been deleted",
+      "clearLogsFailed": "Failed to clear logs",
+      "clearLogsFailedDesc": "Unable to clear log files"
     },
     "systemMonitor": {
       "cpu": "CPU",

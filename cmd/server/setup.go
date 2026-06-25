@@ -2,6 +2,7 @@ package main
 
 import (
 	"NodePassDash/internal/auth"
+	"NodePassDash/internal/compliance"
 	dbPkg "NodePassDash/internal/db"
 	"NodePassDash/internal/db/dialect"
 	log "NodePassDash/internal/log"
@@ -63,6 +64,8 @@ func runSetupMode(port, certFile, keyFile string) {
 		})
 	})
 
+	r.GET("/api/setup/compliance", compliance.Handler)
+
 	r.POST("/api/setup/test-connection", func(c *gin.Context) {
 		var req setupRequest
 		if err := c.ShouldBindJSON(&req); err != nil {
@@ -82,7 +85,7 @@ func runSetupMode(port, certFile, keyFile string) {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
-		if err := runSetupInitialize(req); err != nil {
+		if err := runSetupInitialize(req, c.ClientIP(), c.GetHeader("User-Agent")); err != nil {
 			c.JSON(http.StatusBadRequest, gin.H{"error": err.Error()})
 			return
 		}
@@ -149,6 +152,10 @@ type setupRequest struct {
 		Username string `json:"username"`
 		Password string `json:"password"`
 	} `json:"admin"`
+
+	Compliance struct {
+		AcceptedVersion string `json:"accepted_version"`
+	} `json:"compliance"`
 }
 
 // toConfig 把请求转成 DBConfig。
@@ -216,22 +223,28 @@ func testConnection(req setupRequest) error {
 }
 
 // runSetupInitialize 是 setup 一条龙的核心。按顺序执行:
-//  1. 用提供的参数打开 DB + Ping
-//  2. AutoMigrate 建所有表
-//  3. 用 admin 凭据写第一个管理员
-//  4. 把数据库参数合并写入项目根目录的 .env
+//  1. 校验合规版本(前端 accepted_version 必须等于当前嵌入版本)
+//  2. 用提供的参数打开 DB + Ping
+//  3. AutoMigrate 建所有表
+//  4. 用 admin 凭据写第一个管理员 + 落 4 条合规留痕配置
+//  5. 把数据库参数合并写入项目根目录的 .env
 //
-// 前 3 步在 DB 端持久化,只有都成功才会落盘 .env。
+// 前 4 步在 DB 端持久化,只有都成功才会落盘 .env。
 // .env 一旦落盘下次重启就会进 Ready 模式;若 .env 落盘失败,
 // 数据库里的表和管理员账号会保留,用户可手工创建 .env 后重启。
-func runSetupInitialize(req setupRequest) error {
+func runSetupInitialize(req setupRequest, clientIP, userAgent string) error {
 	if req.Admin.Username == "" || req.Admin.Password == "" {
 		return fmt.Errorf("管理员账号和密码不能为空")
 	}
 
+	// 1. 合规版本校验 — 拒掉过期 / 伪造的 accepted_version
+	if !compliance.IsCurrentVersion(req.Compliance.AcceptedVersion) {
+		return fmt.Errorf("合规协议版本不匹配,请刷新页面重新确认(当前版本 %s)", compliance.CurrentVersion())
+	}
+
 	cfg := req.toConfig()
 
-	// 1. 打开数据库
+	// 2. 打开数据库
 	gormDB, err := openGORMFromConfig(cfg)
 	if err != nil {
 		return err
@@ -248,23 +261,44 @@ func runSetupInitialize(req setupRequest) error {
 		return fmt.Errorf("数据库连接测试失败: %v", err)
 	}
 
-	// 2. AutoMigrate
+	// 3. AutoMigrate
 	if err := dbPkg.AutoMigrate(gormDB); err != nil {
 		return fmt.Errorf("建表失败: %v", err)
 	}
 
-	// 3. 写管理员账号
+	// 4. 写管理员账号 + 合规留痕(同一 service 实例复用 configCache)
 	authSvc := auth.NewService(gormDB)
 	if err := authSvc.InitializeSystemWithCredentials(req.Admin.Username, req.Admin.Password); err != nil {
 		return fmt.Errorf("创建管理员失败: %v", err)
 	}
+	if err := persistComplianceAcknowledgment(authSvc, req.Compliance.AcceptedVersion, clientIP, userAgent); err != nil {
+		return fmt.Errorf("写入合规留痕失败: %v", err)
+	}
 
-	// 4. 合并写入 .env(保留用户已有行,只替换/追加受管理的 KEY)
+	// 5. 合并写入 .env(保留用户已有行,只替换/追加受管理的 KEY)
 	if err := cfg.SaveToEnvFile(dbPkg.EnvFileName); err != nil {
 		return fmt.Errorf("写入 %s 失败: %v", dbPkg.EnvFileName, err)
 	}
 
-	log.Info("[Setup]数据库初始化、管理员账号创建、.env 配置已就绪,等待重启")
+	log.Info("[Setup]数据库初始化、管理员账号创建、合规留痕、.env 配置已就绪,等待重启")
+	return nil
+}
+
+// persistComplianceAcknowledgment 把 4 条合规确认信息写入 system_configs。
+// IP / UA 从 gin context 取,前端传值会被忽略以防伪造。
+func persistComplianceAcknowledgment(authSvc *auth.Service, version, clientIP, userAgent string) error {
+	if err := authSvc.SetSystemConfig(auth.ConfigKeyComplianceVersion, version); err != nil {
+		return err
+	}
+	if err := authSvc.SetSystemConfig(auth.ConfigKeyComplianceAt, time.Now().UTC().Format(time.RFC3339)); err != nil {
+		return err
+	}
+	if err := authSvc.SetSystemConfig(auth.ConfigKeyComplianceIP, clientIP); err != nil {
+		return err
+	}
+	if err := authSvc.SetSystemConfig(auth.ConfigKeyComplianceUA, userAgent); err != nil {
+		return err
+	}
 	return nil
 }
 
