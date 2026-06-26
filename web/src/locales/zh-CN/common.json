@@ -12,7 +12,9 @@
     "endpoints": "节点",
     "endpointsManage": "主控管理",
     "templates": "模板",
-    "settings": "设置"
+    "settings": "设置",
+    "appearanceSettings": "个性化设置",
+    "logout": "退出登录"
   },
   "action": {
     "add": "添加",
@@ -81,6 +83,10 @@
     "no": "否",
     "enabled": "已启用",
     "disabled": "已禁用"
+  },
+  "logViewer": {
+    "loading": "加载日志中...",
+    "noLogs": "暂无日志"
   },
   "time": {
     "second": "秒",
@@ -166,7 +172,7 @@
     "confirm": "确认退出"
   },
   "footer": {
-    "copyright": "NodePassDash © 2025",
+    "copyright": "NodePassDash © 2026",
     "version": "v",
     "poweredBy": "由",
     "poweredByLink": "NodePass",

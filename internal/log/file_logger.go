@@ -393,6 +393,37 @@ func (fl *FileLogger) ClearLogs(endpointID int64, instanceID string) error {
 	return nil
 }
 
+// ClearAllLogs 清空指定端点下所有实例的日志文件
+func (fl *FileLogger) ClearAllLogs(endpointID int64) error {
+	fl.mu.Lock()
+	defer fl.mu.Unlock()
+
+	endpointDir := filepath.Join(fl.baseDir, fmt.Sprintf("endpoint_%d", endpointID))
+
+	if _, err := os.Stat(endpointDir); os.IsNotExist(err) {
+		return nil
+	} else if err != nil {
+		return fmt.Errorf("检查端点日志目录失败: %v", err)
+	}
+
+	endpointPrefix := fmt.Sprintf("endpoint_%d", endpointID)
+	for path, file := range fl.fileCache {
+		if strings.Contains(path, endpointPrefix) {
+			if file != nil {
+				file.Close()
+			}
+			delete(fl.fileCache, path)
+		}
+	}
+
+	if err := os.RemoveAll(endpointDir); err != nil {
+		return fmt.Errorf("删除端点日志目录失败: %v", err)
+	}
+
+	Infof("已清空端点 %d 的全部日志文件", endpointID)
+	return nil
+}
+
 // Close 关闭文件日志管理器
 func (fl *FileLogger) Close() {
 	// 停止上下文

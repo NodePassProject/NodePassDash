@@ -94,6 +94,28 @@ services:
 
 If you enable this, make sure OAuth2 is configured in the UI first; otherwise you may lock yourself out.
 
+### Disable SSE Log File Recording
+
+By default, NodePassDash records tunnel SSE event logs to the `logs/` directory. If disk space is limited or you don't need to keep log files, you can disable it:
+
+```bash
+./nodepassdash --disable-sse-log
+```
+
+Or in docker-compose.yml:
+
+```yaml
+services:
+  nodepassdash:
+    image: ghcr.io/nodepassproject/nodepassdash:latest
+    environment:
+      - DISABLE_SSE_LOG=true
+    # or use command
+    command: ["./nodepassdash","--disable-sse-log"]
+```
+
+**Note:** When disabled, SSE logs will still be pushed to the frontend in real-time, but won't be saved to files.
+
 ## Backup / Restore
 
 - Backup: copy the `db/` directory (SQLite) and optionally `logs/`.

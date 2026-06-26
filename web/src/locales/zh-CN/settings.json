@@ -15,6 +15,18 @@
       "description": "选择您的界面语言",
       "label": "界面语言"
     },
+    "navbar": {
+      "title": "导航栏样式",
+      "description": "选择顶部导航栏的展示方式",
+      "normal": "Normal",
+      "normalDesc": "使用当前左右分区导航布局",
+      "radioCenter": "Radio Center",
+      "radioCenterDesc": "使用居中悬浮胶囊导航布局",
+      "basicHeader": "Basic Header",
+      "basicHeaderDesc": "使用左侧品牌与分组胶囊导航布局",
+      "settingsLayout": "侧边栏布局",
+      "settingsLayoutDesc": "左侧固定导航，右侧展示页面内容"
+    },
     "privacy": {
       "title": "隐私模式",
       "description": "保护您的隐私数据安全",
@@ -538,7 +550,11 @@
       "binary": "二进制部署",
       "autoUpdateStable": "自动更新稳定版",
       "autoUpdateBeta": "自动更新测试版",
-      "manualUpdate": "手动更新"
+      "manualUpdate": "手动更新",
+      "dockerDetails": "Docker 环境通过容器编排进行更新",
+      "dockerManualDetails": "Docker 环境推荐通过宿主机执行更新命令，以确保更新过程稳定可靠",
+      "binaryDetails": "将下载最新二进制文件并自动替换",
+      "unknownDetails": "建议查看更新说明进行手动更新"
     },
     "updateInstructions": {
       "title": "更新说明：",

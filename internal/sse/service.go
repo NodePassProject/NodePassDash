@@ -1,6 +1,7 @@
 package sse
 
 import (
+	"NodePassDash/internal/db"
 	"NodePassDash/internal/endpoint"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
@@ -16,6 +17,17 @@ import (
 	"gorm.io/gorm"
 	"gorm.io/gorm/clause"
 )
+
+// peerSIDTypeWhere 生成按 peer.sid + peer.type + tunnel.type 复合过滤的方言安全 WHERE 子句。
+// 与 internal/services 包中的同名 helper 等价,这里独立一份避免反向依赖。
+func peerSIDTypeWhere(sid, peerType string, tunnelType models.TunnelType) (string, []interface{}) {
+	d := db.Dialect()
+	where := fmt.Sprintf("%s = ? AND %s = ? AND type = ?",
+		d.JSONPath("peer", "sid"),
+		d.JSONPath("peer", "type"),
+	)
+	return where, []interface{}{sid, peerType, tunnelType}
+}
 
 // Service SSE服务
 type Service struct {
@@ -39,17 +51,29 @@ type Service struct {
 	// 文件日志管理器
 	fileLogger *log.FileLogger // 文件日志管理器
 
+	// 配置选项
+	disableLogStore bool // 禁用日志记录到文件
+
 	// 上下文控制
 	ctx    context.Context
 	cancel context.CancelFunc
 }
 
 // NewService 创建SSE服务实例
-func NewService(db *gorm.DB, endpointService *endpoint.Service) *Service {
+func NewService(db *gorm.DB, endpointService *endpoint.Service, disableLogStore bool) *Service {
 	ctx, cancel := context.WithCancel(context.Background())
 
 	// 创建日志目录路径
 	logDir := filepath.Join("logs")
+
+	// 如果禁用日志存储，fileLogger 设置为 nil
+	var fileLogger *log.FileLogger
+	if !disableLogStore {
+		fileLogger = log.NewFileLogger(logDir)
+		log.Info("SSE 日志文件记录已启用")
+	} else {
+		log.Info("SSE 日志文件记录已禁用")
+	}
 
 	s := &Service{
 		clients:         make(map[string]*Client),
@@ -57,7 +81,8 @@ func NewService(db *gorm.DB, endpointService *endpoint.Service) *Service {
 		db:              db,
 		endpointService: endpointService,
 		historyWorker:   NewHistoryWorker(db),
-		fileLogger:      log.NewFileLogger(logDir),
+		fileLogger:      fileLogger,
+		disableLogStore: disableLogStore,
 		ctx:             ctx,
 		cancel:          cancel,
 	}
@@ -195,28 +220,28 @@ func (s *Service) handleInitialEvent(payload SSEResp) {
 		return
 	}
 
-	// 检查隧道是否已存在
-	if err := s.db.Where("endpoint_id = ? AND instance_id = ?", payload.EndpointID, payload.Instance.ID).First(&models.Tunnel{}).Error; err == nil {
+	// 检查隧道是否已存在（用 Find+Limit 避免 GORM 把 not-found 打成 ERROR）
+	var existing []models.Tunnel
+	if err := s.db.Where("endpoint_id = ? AND instance_id = ?", payload.EndpointID, payload.Instance.ID).Limit(1).Find(&existing).Error; err != nil {
+		log.Errorf("[Master-%d]查询隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
+		return
+	}
+	if len(existing) > 0 {
 		// 隧道已存在（正常情况），更新运行时信息
 		log.Debugf("[Master-%d]隧道 %s 已存在，更新运行时信息", payload.EndpointID, payload.Instance.ID)
 		s.updateTunnelRuntimeInfo(payload)
 		return
-	} else if err != gorm.ErrRecordNotFound {
-		log.Errorf("[Master-%d]查询隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
-		return
+	}
+	// 创建最小化隧道记录，包含从EndpointSSE获取的流量等信息
+	tunnel := buildTunnel(payload)
+	if err := s.db.Create(&tunnel).Error; err != nil {
+		log.Errorf("[Master-%d]初始化隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
 	} else {
-		// 创建最小化隧道记录，包含从EndpointSSE获取的流量等信息
-		tunnel := buildTunnel(payload)
+		log.Infof("[Master-%d]最小化隧道记录 %s 初始化成功，包含流量信息", payload.EndpointID, payload.Instance.ID)
+		s.updateEndpointTunnelCount(payload.EndpointID)
 
-		if err = s.db.Create(&tunnel).Error; err != nil {
-			log.Errorf("[Master-%d]初始化隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
-		} else {
-			log.Infof("[Master-%d]最小化隧道记录 %s 初始化成功，包含流量信息", payload.EndpointID, payload.Instance.ID)
-			s.updateEndpointTunnelCount(payload.EndpointID)
-
-			// 处理服务记录
-			s.upsertService(payload.Instance.ID, tunnel)
-		}
+		// 处理服务记录
+		s.upsertService(payload.Instance.ID, tunnel)
 	}
 }
 
@@ -294,12 +319,13 @@ func (s *Service) handleUpdateEvent(payload SSEResp) {
 	// SSE update 事件用于更新隧道的运行时信息
 	log.Debugf("[Master-%d]处理更新事件: 隧道 %s", payload.EndpointID, payload.Instance.ID)
 
-	// 先检查隧道是否存在
-	if err := s.db.Where("endpoint_id = ? AND instance_id = ?", payload.EndpointID, payload.Instance.ID).First(&models.Tunnel{}).Error; err != nil {
+	// 先检查隧道是否存在（Find+Limit 避免 GORM error 日志）
+	var checkRows []models.Tunnel
+	if err := s.db.Where("endpoint_id = ? AND instance_id = ?", payload.EndpointID, payload.Instance.ID).Limit(1).Find(&checkRows).Error; err != nil {
 		log.Errorf("[Master-%d]查询隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
 		return
-	} else if err == gorm.ErrRecordNotFound {
-		// 隧道不存在，可能是时序问题（SSE 事件比 API 创建先到达）
+	}
+	if len(checkRows) == 0 {
 		log.Warnf("[Master-%d]收到更新事件但隧道 %s 不存在，可能是时序问题，跳过处理", payload.EndpointID, payload.Instance.ID)
 		return
 	}
@@ -309,14 +335,16 @@ func (s *Service) handleUpdateEvent(payload SSEResp) {
 }
 
 func (s *Service) handleDeleteEvent(payload SSEResp) {
-	// 先获取隧道ID，用于删除相关的操作日志
-	var tunnel models.Tunnel
-	if err := s.db.Where("endpoint_id = ? AND instance_id = ?", payload.EndpointID, payload.Instance.ID).First(&tunnel).Error; err != nil {
-		if err != gorm.ErrRecordNotFound {
-			log.Errorf("[Master-%d]获取隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
-		}
+	// 先获取隧道ID，用于删除相关的操作日志（Find+Limit 避免 GORM error 日志）
+	var delRows []models.Tunnel
+	if err := s.db.Where("endpoint_id = ? AND instance_id = ?", payload.EndpointID, payload.Instance.ID).Limit(1).Find(&delRows).Error; err != nil {
+		log.Errorf("[Master-%d]获取隧道 %s 失败: %v", payload.EndpointID, payload.Instance.ID, err)
 		return
 	}
+	if len(delRows) == 0 {
+		return
+	}
+	tunnel := delRows[0]
 
 	// 先删除相关的操作日志记录，避免外键约束错误
 	if err := s.db.Where("tunnel_id = ?", tunnel.ID).Delete(&models.TunnelOperationLog{}).Error; err != nil {
@@ -338,6 +366,14 @@ func (s *Service) handleDeleteEvent(payload SSEResp) {
 func (s *Service) handleLogEvent(payload SSEResp) {
 	// 日志事件需要写入文件日志系统
 	log.Debugf("[Master-%d]处理日志事件: 隧道 %s", payload.EndpointID, payload.Instance.ID)
+
+	// 如果禁用了日志存储，只推流不写文件
+	if s.disableLogStore {
+		log.Debugf("[Master-%d]SSE 日志记录已禁用，跳过文件写入", payload.EndpointID)
+		// 推流转发给前端订阅
+		s.sendTunnelUpdateByInstanceId(payload.Instance.ID, payload)
+		return
+	}
 
 	// 检查是否有日志内容
 	if *payload.Logs == "" {
@@ -619,7 +655,8 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 client 端流量
 			var clientTunnel models.Tunnel
-			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", *peer.SID, *peer.Type, models.TunnelModeClient).First(&clientTunnel).Error; err == nil {
+			where, args := peerSIDTypeWhere(*peer.SID, *peer.Type, models.TunnelModeClient)
+			if err := s.db.Where(where, args...).First(&clientTunnel).Error; err == nil {
 				service.TotalRx += clientTunnel.TCPRx + clientTunnel.UDPRx
 				service.TotalTx += clientTunnel.TCPTx + clientTunnel.UDPTx
 			}
@@ -637,7 +674,8 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 server 端流量
 			var serverTunnel models.Tunnel
-			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", *peer.SID, *peer.Type, models.TunnelModeServer).First(&serverTunnel).Error; err == nil {
+			where, args := peerSIDTypeWhere(*peer.SID, *peer.Type, models.TunnelModeServer)
+			if err := s.db.Where(where, args...).First(&serverTunnel).Error; err == nil {
 				service.TotalRx += serverTunnel.TCPRx + serverTunnel.UDPRx
 				service.TotalTx += serverTunnel.TCPTx + serverTunnel.UDPTx
 			}
@@ -659,7 +697,8 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 client 端流量
 			var clientTunnel models.Tunnel
-			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", *peer.SID, *peer.Type, models.TunnelModeClient).First(&clientTunnel).Error; err == nil {
+			where, args := peerSIDTypeWhere(*peer.SID, *peer.Type, models.TunnelModeClient)
+			if err := s.db.Where(where, args...).First(&clientTunnel).Error; err == nil {
 				service.TotalRx += clientTunnel.TCPRx + clientTunnel.UDPRx
 				service.TotalTx += clientTunnel.TCPTx + clientTunnel.UDPTx
 			}
@@ -685,7 +724,8 @@ func (s *Service) upsertService(instanceID string, tunnel *models.Tunnel) {
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 server 端流量
 			var serverTunnel models.Tunnel
-			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", *peer.SID, *peer.Type, models.TunnelModeServer).First(&serverTunnel).Error; err == nil {
+			where, args := peerSIDTypeWhere(*peer.SID, *peer.Type, models.TunnelModeServer)
+			if err := s.db.Where(where, args...).First(&serverTunnel).Error; err == nil {
 				service.TotalRx += serverTunnel.TCPRx + serverTunnel.UDPRx
 				service.TotalTx += serverTunnel.TCPTx + serverTunnel.UDPTx
 			}

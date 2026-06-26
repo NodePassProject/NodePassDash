@@ -18,7 +18,7 @@ const socialLinks = [
     key: "telegram",
     label: "Telegram",
     icon: "mdi:telegram",
-    href: "https://t.me/NodePassGroup",
+    href: "https://t.me/nodepass_offcial_group",
     target: "_blank",
   },
 ];
@@ -38,6 +38,7 @@ export const NavbarSocial = () => {
           as="a"
           className="text-default-600 hover:border-primary hover:text-primary"
           href={link.href}
+          radius="full"
           rel="noopener noreferrer"
           size="md"
           target={link.target}

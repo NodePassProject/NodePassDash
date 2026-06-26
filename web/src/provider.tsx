@@ -10,6 +10,7 @@ import { I18nextProvider } from "react-i18next";
 import { AuthProvider } from "./components/auth/auth-provider";
 import { RouteGuard } from "./components/auth/route-guard";
 import { SettingsProvider } from "./components/providers/settings-provider";
+import { SetupGate } from "./components/setup/setup-gate";
 import i18n from "@/lib/i18n";
 
 declare module "@react-types/shared" {
@@ -73,9 +74,11 @@ export function Providers({ children }: { children: React.ReactNode }) {
       >
         <I18nextProvider i18n={i18n}>
           <SettingsProvider>
-            <AuthProvider>
-              <RouteGuard>{children}</RouteGuard>
-            </AuthProvider>
+            <SetupGate>
+              <AuthProvider>
+                <RouteGuard>{children}</RouteGuard>
+              </AuthProvider>
+            </SetupGate>
           </SettingsProvider>
         </I18nextProvider>
       </ThemeProvider>

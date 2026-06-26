@@ -13,6 +13,7 @@ import SettingsPage from "./pages/settings";
 import VersionHistoryPage from "./pages/settings/version-history";
 import TemplatesPage from "./pages/templates";
 import SetupGuidePage from "./pages/setup-guide";
+import SetupPage from "./pages/setup";
 import OAuthErrorPage from "./pages/oauth-error";
 import OAuthSuccessPage from "./pages/oauth-success";
 import DebugPage from "./pages/debug";
@@ -34,6 +35,7 @@ function App() {
         <Route element={<OAuthErrorPage />} path="/oauth-error" />
         <Route element={<OAuthSuccessPage />} path="/oauth-success" />
         <Route element={<SetupGuidePage />} path="/setup-guide" />
+        <Route element={<SetupPage />} path="/setup" />
         <Route element={<DashboardPage />} path="/dashboard" />
         <Route element={<TunnelsPage />} path="/tunnels" />
         <Route element={<TunnelCreatePage />} path="/tunnels/create" />

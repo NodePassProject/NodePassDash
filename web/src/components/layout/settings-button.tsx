@@ -18,6 +18,7 @@ export const SettingsButton: React.FC = () => {
         isIconOnly
         aria-label="个性化设置"
         className="text-default-600 hover:text-primary"
+        radius="full"
         size="md"
         variant="light"
         onClick={openDrawer}

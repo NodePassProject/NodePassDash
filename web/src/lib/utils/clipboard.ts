@@ -22,7 +22,7 @@ export class ClipboardManager {
           granted: false,
           denied: false,
           prompt: false,
-          error: "浏览器不支持权限 API",
+          error: "Browser does not support Permissions API",
         };
       }
 
@@ -42,7 +42,7 @@ export class ClipboardManager {
         granted: false,
         denied: false,
         prompt: false,
-        error: "无法检查权限状态",
+        error: "Unable to check permission status",
       };
     }
   }
@@ -66,12 +66,12 @@ export class ClipboardManager {
     const isChrome = ClipboardManager.isChrome();
     const isHttp = location.protocol === "http:";
 
-    let title = "剪贴板权限被拒绝";
-    let description = "请手动复制内容";
+    let title = "Clipboard permission denied";
+    let description = "Please copy manually";
 
     if (isChrome && isHttp) {
-      title = "Chrome 安全限制";
-      description = "HTTP 环境下剪贴板功能被限制，请切换到 HTTPS 或手动复制";
+      title = "Chrome security restriction";
+      description = "Clipboard functionality is restricted in HTTP environment, please switch to HTTPS or copy manually";
     }
 
     addToast({
@@ -262,7 +262,7 @@ export class ClipboardManager {
    */
   public static async copy(
     text: string,
-    successMessage: string = "已复制到剪贴板",
+    successMessage: string = "copied to clipboard",
     onFallback?: (text: string) => void,
   ): Promise<void> {
     const envInfo = await ClipboardManager.getEnvironmentInfo();
@@ -293,7 +293,7 @@ export class ClipboardManager {
       if (modernSuccess) {
         console.log("现代剪贴板 API 复制成功");
         addToast({
-          title: "已复制",
+          title: "Copied",
           description: successMessage,
           color: "success",
         });
@@ -311,7 +311,7 @@ export class ClipboardManager {
       if (execSuccess) {
         console.log("execCommand (div) 复制成功");
         addToast({
-          title: "已复制",
+          title: "Copied",
           description: successMessage,
           color: "success",
         });
@@ -325,7 +325,7 @@ export class ClipboardManager {
       if (textareaSuccess) {
         console.log("execCommand (textarea) 复制成功");
         addToast({
-          title: "已复制",
+          title: "Copied",
           description: successMessage,
           color: "success",
         });
@@ -345,8 +345,8 @@ export class ClipboardManager {
     } else {
       // 通用错误提示
       addToast({
-        title: "复制失败",
-        description: "请手动选择并复制内容",
+        title: "Copy failed",
+        description: "Please select and copy content manually",
         color: "danger",
       });
     }
@@ -358,7 +358,7 @@ export class ClipboardManager {
    */
   public static async copyOnClick(
     text: string,
-    successMessage: string = "已复制到剪贴板",
+    successMessage: string = "copied to clipboard",
     onFallback?: (text: string) => void,
   ): Promise<void> {
     // 在用户点击的上下文中，直接执行复制
@@ -385,17 +385,17 @@ export class ClipboardManager {
     const envInfo = await ClipboardManager.getEnvironmentInfo();
 
     if (envInfo.isChrome && envInfo.isHttp) {
-      return "Chrome 在 HTTP 环境下限制剪贴板访问，建议使用 HTTPS";
+      return "Chrome restricts clipboard access in HTTP environment, HTTPS is recommended";
     }
 
     if (envInfo.permission.granted) {
-      return "剪贴板权限已授予";
+      return "Clipboard permission granted";
     } else if (envInfo.permission.denied) {
-      return "剪贴板权限被拒绝";
+      return "Clipboard permission denied";
     } else if (envInfo.permission.prompt) {
-      return "需要请求剪贴板权限";
+      return "Need to request clipboard permission";
     } else {
-      return "无法获取剪贴板权限状态";
+      return "Unable to get clipboard permission status";
     }
   }
 }

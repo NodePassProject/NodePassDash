@@ -34,7 +34,13 @@ export const NavbarActions = () => {
     <>
       <div className="flex items-center gap-1">
         {/* 退出登录图标按钮 */}
-        <Button isIconOnly color="danger" variant="light" onClick={onOpen}>
+        <Button
+          isIconOnly
+          color="danger"
+          radius="full"
+          variant="light"
+          onClick={onOpen}
+        >
           <Icon icon="solar:logout-2-bold" width={18} />
         </Button>
       </div>

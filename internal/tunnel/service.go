@@ -16,6 +16,30 @@ import (
 	"gorm.io/gorm"
 )
 
+// Rebind converts ? placeholders to $N for PostgreSQL raw queries on this service's DB.
+func (s *Service) Rebind(query string) string {
+	return rebasePlaceholders(s.db, query)
+}
+
+// rebasePlaceholders replaces ? with $1,$2,... for PostgreSQL raw queries.
+// SQLite/other drivers receive the query unchanged.
+func rebasePlaceholders(db *gorm.DB, query string) string {
+	if db.Dialector.Name() != "postgres" {
+		return query
+	}
+	var buf strings.Builder
+	n := 1
+	for _, c := range query {
+		if c == '?' {
+			fmt.Fprintf(&buf, "$%d", n)
+			n++
+		} else {
+			buf.WriteRune(c)
+		}
+	}
+	return buf.String()
+}
+
 // Service 隧道管理服务
 type Service struct {
 	db *gorm.DB
@@ -2568,7 +2592,7 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 	}
 
 	// 优化策略2：使用子查询优化COUNT，避免复杂JOIN
-	countQuery := "SELECT COUNT(*) " + baseQuery + whereClause
+	countQuery := rebasePlaceholders(s.db, "SELECT COUNT(*) "+baseQuery+whereClause)
 	var total int
 	err = sqlDB.QueryRow(countQuery, args...).Scan(&total)
 	if err != nil {
@@ -2633,7 +2657,7 @@ func (s *Service) GetTunnelsWithPagination(params TunnelQueryParams) (*TunnelLis
 	// todo
 
 	// 执行主查询
-	query := selectFields + baseQuery + whereClause + orderClause + limitClause
+	query := rebasePlaceholders(s.db, selectFields+baseQuery+whereClause+orderClause+limitClause)
 	rows, err := sqlDB.Query(query, args...)
 	if err != nil {
 		return nil, fmt.Errorf("查询隧道列表失败: %v", err)
@@ -2720,13 +2744,13 @@ func (s *Service) getEndpointsByIDs(endpointIDs []int64) (map[int64]struct {
 
 	// 构建IN查询
 	placeholders := strings.Repeat("?,", len(endpointIDs))
-	placeholders = placeholders[:len(placeholders)-1] // 移除最后一个逗号
+	placeholders = placeholders[:len(placeholders)-1]
 
-	query := fmt.Sprintf(`
+	query := rebasePlaceholders(s.db, fmt.Sprintf(`
 		SELECT e.id, e.name, e.status, COALESCE(e.ver, '') as version
 		FROM endpoints e
 		WHERE e.id IN (%s)
-	`, placeholders)
+	`, placeholders))
 
 	// 转换参数类型
 	args := make([]interface{}, len(endpointIDs))
@@ -2778,14 +2802,14 @@ func (s *Service) getGroupsByTunnelIDs(tunnelIDs []int64) (map[int64][]models.Gr
 
 	// 构建IN查询
 	placeholders := strings.Repeat("?,", len(tunnelIDs))
-	placeholders = placeholders[:len(placeholders)-1] // 移除最后一个逗号
+	placeholders = placeholders[:len(placeholders)-1]
 
-	query := fmt.Sprintf(`
+	query := rebasePlaceholders(s.db, fmt.Sprintf(`
 		SELECT tt.tunnel_id, t.id, t.name
 		FROM tunnel_groups tt
 		JOIN groups t ON tt.group_id = t.id
 		WHERE tt.tunnel_id IN (%s)
-	`, placeholders)
+	`, placeholders))
 
 	// 转换参数类型
 	args := make([]interface{}, len(tunnelIDs))
@@ -2826,11 +2850,12 @@ func (s *Service) getEndpointsWithGroups(endpointIDs []int) ([]struct {
 	}
 
 	// 构建查询
-	query := `
+	rawQuery := `
 		SELECT e.id, e.name, e.group_id, eg.name AS group_name
 		FROM endpoints e
 		LEFT JOIN endpoint_groups eg ON e.group_id = eg.id
 		WHERE e.id IN (?` + strings.Repeat(",?", len(endpointIDs)-1) + `)`
+	query := rebasePlaceholders(s.db, rawQuery)
 
 	args := make([]interface{}, len(endpointIDs))
 	for i, id := range endpointIDs {
@@ -2904,11 +2929,11 @@ func (s *Service) getEndpointWithGroup(endpointID int) (struct {
 		}{}, fmt.Errorf("获取数据库连接失败: %v", err)
 	}
 
-	query := `
+	query := rebasePlaceholders(s.db, `
 		SELECT e.id, e.name, eg.name AS group_name
 		FROM endpoints e
 		LEFT JOIN endpoint_groups eg ON e.group_id = eg.id
-		WHERE e.id = ?`
+		WHERE e.id = ?`)
 
 	var endpoint struct {
 		ID        int

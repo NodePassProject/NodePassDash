@@ -3,6 +3,7 @@ package router
 import (
 	"NodePassDash/internal/api"
 	"NodePassDash/internal/auth"
+	"NodePassDash/internal/compliance"
 	"NodePassDash/internal/dashboard"
 	"NodePassDash/internal/endpoint"
 	"NodePassDash/internal/group"
@@ -33,6 +34,32 @@ func SetupRouter(db *gorm.DB, sseService *sse.Service, sseManager *sse.Manager, 
 	r.GET("/api/health", func(c *gin.Context) {
 		c.JSON(http.StatusOK, gin.H{"status": "ok"})
 	})
+
+	// Setup 状态探测(Ready 模式下也响应)
+	// 与 cmd/server/setup.go 中 Setup 模式下的同名路由形成统一约定,
+	// 前端启动时无论后端在哪个模式都能拿到一致的 JSON 形状。
+	r.GET("/api/setup/status", func(c *gin.Context) {
+		c.JSON(http.StatusOK, gin.H{
+			"initialized": true,
+			"setup_mode":  false,
+			"version":     version,
+		})
+	})
+
+	// 防御深度:在 Ready 模式下,Setup 的 POST 路由必须显式返回 403。
+	// 否则攻击者扫到这些路径会拿到 200 + index.html(SPA fallback),
+	// 看起来像是路径存在,容易误导扫描脚本与安全审计工具。
+	setupAlreadyCompleted := func(c *gin.Context) {
+		c.JSON(http.StatusForbidden, gin.H{
+			"error":       "setup_already_completed",
+			"description": "数据库已初始化,Setup 向导不再可用。要重新初始化,请删除项目根目录 .env 后重启服务。",
+		})
+	}
+	r.POST("/api/setup/test-connection", setupAlreadyCompleted)
+	r.POST("/api/setup/initialize", setupAlreadyCompleted)
+
+	// 合规协议:Ready 模式下也保留 GET,运行时复确认 gate 与 setting 页可读。
+	r.GET("/api/setup/compliance", compliance.Handler)
 
 	// 文档代理路由
 	r.Any("/docs-proxy/*path", docsProxyHandler)

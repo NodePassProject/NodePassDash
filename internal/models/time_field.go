@@ -56,7 +56,7 @@ func (nt NullTime) Value() (driver.Value, error) {
 	if !nt.Valid {
 		return nil, nil
 	}
-	return nt.Time.Format("2006-01-02 15:04:05"), nil
+	return nt.Time, nil
 }
 
 // Ptr 返回指向时间的指针，如果无效则返回nil

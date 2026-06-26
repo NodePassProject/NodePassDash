@@ -147,7 +147,7 @@ func (h *DataHandler) HandleExport(c *gin.Context) {
 	endpoints, err := h.endpointService.GetEndpoints()
 	if err != nil {
 		log.Errorf("export query endpoints: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "export failed"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Export failed"})
 		return
 	}
 
@@ -186,7 +186,7 @@ func (h *DataHandler) HandleImport(c *gin.Context) {
 		Data      interface{} `json:"data"`
 	}
 	if err := c.ShouldBindJSON(&baseImportData); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON"})
 		return
 	}
 
@@ -216,7 +216,7 @@ func (h *DataHandler) handleImportV1(c *gin.Context, baseData struct {
 	// 重新读取请求体并解析
 	dataBytes, _ := json.Marshal(baseData)
 	if err := json.Unmarshal(dataBytes, &importDataV1); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid v1 format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid v1 format"})
 		return
 	}
 
@@ -398,8 +398,8 @@ func (h *DataHandler) handleImportV1(c *gin.Context, baseData struct {
 	})
 
 	if err != nil {
-		log.Errorf("v1导入事务失败: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "导入失败"})
+		log.Errorf("v1 import transaction failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Import failed"})
 		return
 	}
 
@@ -415,7 +415,7 @@ func (h *DataHandler) handleImportV1(c *gin.Context, baseData struct {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":           true,
-		"message":           "v1格式数据导入成功",
+		"message":           "V1 format data imported successfully",
 		"importedEndpoints": importedEndpoints,
 		"importedTunnels":   importedTunnels,
 		"skippedEndpoints":  skippedEndpoints,
@@ -439,7 +439,7 @@ func (h *DataHandler) handleImportV2(c *gin.Context, baseData struct {
 
 	dataBytes, _ := json.Marshal(baseData)
 	if err := json.Unmarshal(dataBytes, &importDataV2); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid v2 format"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid v2 format"})
 		return
 	}
 
@@ -520,14 +520,14 @@ func (h *DataHandler) handleImportV2(c *gin.Context, baseData struct {
 	})
 
 	if err != nil {
-		log.Errorf("v2导入事务失败: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "导入失败"})
+		log.Errorf("v2 import transaction failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Import failed"})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":           true,
-		"message":           "端点配置导入成功",
+		"message":           "Endpoint configuration imported successfully",
 		"importedEndpoints": importedEndpoints,
 		"skippedEndpoints":  skippedEndpoints,
 	})
@@ -567,7 +567,7 @@ func (h *DataHandler) HandleValidateImport(c *gin.Context) {
 		Data      interface{} `json:"data"`
 	}
 	if err := c.ShouldBindJSON(&baseImportData); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json", "success": false})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON", "success": false})
 		return
 	}
 
@@ -585,7 +585,7 @@ func (h *DataHandler) HandleValidateImport(c *gin.Context) {
 		}
 		dataBytes, _ := json.Marshal(baseImportData)
 		if err := json.Unmarshal(dataBytes, &importDataV1); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid v1 format", "success": false})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid v1 format", "success": false})
 			return
 		}
 
@@ -609,7 +609,7 @@ func (h *DataHandler) HandleValidateImport(c *gin.Context) {
 		}
 		dataBytes, _ := json.Marshal(baseImportData)
 		if err := json.Unmarshal(dataBytes, &importDataV2); err != nil {
-			c.JSON(http.StatusBadRequest, gin.H{"error": "invalid v2 format", "success": false})
+			c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid v2 format", "success": false})
 			return
 		}
 		endpoints = importDataV2.Data.Endpoints
@@ -642,7 +642,7 @@ func (h *DataHandler) HandleValidateImport(c *gin.Context) {
 		nodepass.GetCache().Delete(fmt.Sprintf("%d", tempEndpointID))
 
 		if err != nil {
-			result.Message = fmt.Sprintf("无法连接或获取版本信息", err)
+			result.Message = fmt.Sprintf("Unable to connect or get version information", err)
 			result.Status = "error"
 			result.CanImport = false
 		} else {
@@ -653,10 +653,10 @@ func (h *DataHandler) HandleValidateImport(c *gin.Context) {
 
 			if canImport {
 				result.Status = "success"
-				result.Message = fmt.Sprintf("版本 %s，支持导入", info.Ver)
+				result.Message = fmt.Sprintf("Version %s, import supported", info.Ver)
 			} else {
 				result.Status = "low_version"
-				result.Message = fmt.Sprintf("版本 %s 低于 1.10.0，不支持导入", info.Ver)
+				result.Message = fmt.Sprintf("Version %s is lower than 1.10.0, import not supported", info.Ver)
 			}
 		}
 
@@ -723,12 +723,12 @@ func (h *DataHandler) HandleBatchImportEndpoints(c *gin.Context) {
 	}
 
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "invalid json", "success": false})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid JSON", "success": false})
 		return
 	}
 
 	if len(req.Endpoints) == 0 {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "没有可导入的主控", "success": false})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "No importable endpoints", "success": false})
 		return
 	}
 
@@ -809,14 +809,14 @@ func (h *DataHandler) HandleBatchImportEndpoints(c *gin.Context) {
 	})
 
 	if err != nil {
-		log.Errorf("批量导入事务失败: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "导入失败", "success": false})
+		log.Errorf("Batch import transaction failed: %v", err)
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Import failed", "success": false})
 		return
 	}
 
 	c.JSON(http.StatusOK, gin.H{
 		"success":           true,
-		"message":           fmt.Sprintf("成功导入 %d 个主控", importedEndpoints),
+		"message":           fmt.Sprintf("Successfully imported %d endpoints", importedEndpoints),
 		"importedEndpoints": importedEndpoints,
 		"skippedEndpoints":  skippedEndpoints,
 	})

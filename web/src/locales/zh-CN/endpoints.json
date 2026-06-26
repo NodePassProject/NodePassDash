@@ -294,6 +294,7 @@
       "copyConfig": "复制配置",
       "editConfig": "修改配置",
       "resetKey": "重置密钥",
+      "clearLogs": "清空日志",
       "delete": "删除主控"
     },
     "info": {
@@ -370,6 +371,19 @@
         },
         "cancel": "取消",
         "confirm": "确认重置"
+      },
+      "clearLogs": {
+        "title": "清空主控日志",
+        "warningTitle": "⚠️ 重要提醒",
+        "warningMessage": "清空日志后，该主控下所有实例的历史日志文件将被永久删除，无法恢复。",
+        "confirmMessage": "您确定要清空此主控的所有日志文件吗？此操作将：",
+        "consequences": {
+          "deleteAll": "删除该主控下所有实例的日志文件",
+          "freeSpace": "释放磁盘空间",
+          "irreversible": "此操作不可撤销"
+        },
+        "cancel": "取消",
+        "confirm": "确认清空"
       },
       "deleteEndpoint": {
         "title": "删除主控",
@@ -452,7 +466,11 @@
       "refreshAllFailed": "刷新失败",
       "refreshAllFailedDesc": "刷新失败",
       "qrCodeFailed": "生成二维码失败",
-      "qrCodeFailedDesc": "未知错误"
+      "qrCodeFailedDesc": "未知错误",
+      "clearLogsSuccess": "日志已清空",
+      "clearLogsSuccessDesc": "主控下所有实例的日志文件已删除",
+      "clearLogsFailed": "清空日志失败",
+      "clearLogsFailedDesc": "无法清空日志文件"
     },
     "systemMonitor": {
       "cpu": "CPU",

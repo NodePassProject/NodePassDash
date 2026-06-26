@@ -946,7 +946,8 @@ show_result() {
     echo
     echo "📚 文档链接:"
     echo "   GitHub: https://github.com/NodePassProject/NodePassDash"
-    echo "   部署文档: https://github.com/NodePassProject/NodePassDash/blob/main/docs/BINARY.md"
+    echo "   二进制部署文档(EN): https://github.com/NodePassProject/NodePassDash/blob/main/docs/en/BINARY.md"
+    echo "   二进制部署文档(中文): https://github.com/NodePassProject/NodePassDash/blob/main/docs/zh-CN/BINARY.md"
     echo
     echo "❓ 如需帮助，请访问:"
     echo "   Issues: https://github.com/NodePassProject/NodePassDash/issues"

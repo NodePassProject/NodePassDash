@@ -17,7 +17,7 @@ export const Footer = () => {
         {getVersion()} | {t("footer.poweredBy")}
         <a
           className="text-blue-500 hover:text-blue-600 transition-colors"
-          href="https://github.com/yosebyte/nodepass"
+          href="https://github.com/NodePassProject/nodepass"
           rel="noopener noreferrer"
           target="_blank"
         >

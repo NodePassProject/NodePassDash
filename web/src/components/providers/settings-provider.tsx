@@ -1,14 +1,23 @@
 "use client";
 
+import type { SupportedLanguage } from "@/lib/i18n";
+
 import React, { createContext, useContext, useEffect, useState } from "react";
 import { useTheme } from "next-themes";
+
 import i18n from "@/lib/i18n";
-import type { SupportedLanguage } from "@/lib/i18n";
+
+export type NavbarStyle =
+  | "normal"
+  | "radio-center"
+  | "basic-header"
+  | "settings-layout";
 
 // 设置类型定义
 interface Settings {
   theme: "light" | "dark" | "system";
   language: SupportedLanguage;
+  navbarStyle: NavbarStyle;
   isPrivacyMode: boolean;
   isExperimentalMode: boolean;
   autoCheckUpdates: boolean;
@@ -22,6 +31,7 @@ interface Settings {
 const defaultSettings: Settings = {
   theme: "system",
   language: "zh-CN",
+  navbarStyle: "normal",
   isPrivacyMode: true,
   isExperimentalMode: false,
   autoCheckUpdates: false,
@@ -36,6 +46,7 @@ interface SettingsContextType {
   settings: Settings;
   updateTheme: (theme: "light" | "dark" | "system") => void;
   updateLanguage: (language: SupportedLanguage) => void;
+  updateNavbarStyle: (style: NavbarStyle) => void;
   togglePrivacyMode: () => void;
   toggleExperimentalMode: () => void;
   toggleAutoCheckUpdates: () => void;
@@ -140,6 +151,18 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     i18n.changeLanguage(newLanguage);
   };
 
+  // 更新导航栏样式
+  const updateNavbarStyle = (style: NavbarStyle) => {
+    if (settings.navbarStyle === style) {
+      return;
+    }
+
+    const newSettings = { ...settings, navbarStyle: style };
+
+    setSettings(newSettings);
+    saveSettings(newSettings);
+  };
+
   // 切换隐私模式
   const togglePrivacyMode = () => {
     const newSettings = { ...settings, isPrivacyMode: !settings.isPrivacyMode };
@@ -179,6 +202,7 @@ export const SettingsProvider: React.FC<{ children: React.ReactNode }> = ({
     settings,
     updateTheme,
     updateLanguage,
+    updateNavbarStyle,
     togglePrivacyMode,
     toggleExperimentalMode,
     toggleAutoCheckUpdates,

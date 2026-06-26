@@ -1,10 +1,6 @@
 import { Card, CardBody, useDisclosure } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
-import {
-  faServer,
-  faLayerGroup,
-  faBug,
-} from "@fortawesome/free-solid-svg-icons";
+import { faServer, faLayerGroup } from "@fortawesome/free-solid-svg-icons";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
 import { addToast } from "@heroui/toast";
@@ -20,14 +16,12 @@ import ScenarioCreateModal, {
 import { buildApiUrl } from "@/lib/utils";
 
 /**
- * Demo QuickEntry Card 快捷操作卡片组件（Demo页面专用）
- * 2列3行布局，按钮为左右布局：icon label
+ * 快捷操作卡片：2x2 紧凑操作网格。
  */
 export function DemoQuickEntryCard() {
   const navigate = useNavigate();
   const { t } = useTranslation("dashboard");
 
-  // 模态框控制
   const {
     isOpen: isAddEndpointOpen,
     onOpen: onAddEndpointOpen,
@@ -40,10 +34,8 @@ export function DemoQuickEntryCard() {
     onOpenChange: onCreateTunnelOpenChange,
   } = useDisclosure();
 
-  // 场景选择模态框状态
-  const [scenarioSelectionModalOpen, setScenarioSelectionModalOpen] = useState(false);
-
-  // 场景创建模态框状态
+  const [scenarioSelectionModalOpen, setScenarioSelectionModalOpen] =
+    useState(false);
   const [scenarioModalOpen, setScenarioModalOpen] = useState(false);
   const [selectedScenarioType, setSelectedScenarioType] = useState<
     ScenarioType | undefined
@@ -54,69 +46,57 @@ export function DemoQuickEntryCard() {
       id: "add-endpoint",
       icon: faServer,
       label: t("quickActions.addEndpoint"),
-      action: "modal",
-      color: "bg-blue-500 hover:bg-blue-600",
-      iconType: "fontawesome",
-      external: false,
+      desc: t("quickActions.addEndpointDesc"),
+      iconType: "fontawesome" as const,
+      gradient:
+        "bg-gradient-to-br from-blue-500 to-blue-600 dark:from-blue-500 dark:to-blue-700",
+      ringHover:
+        "group-hover:border-blue-300/60 dark:group-hover:border-blue-500/40",
+      glow: "group-hover:shadow-blue-500/20",
     },
     {
       id: "create-tunnel",
       icon: "solar:transmission-bold",
       label: t("quickActions.createTunnel"),
-      action: "modal",
-      color: "bg-green-500 hover:bg-green-600",
-      iconType: "iconify",
-      external: false,
+      desc: t("quickActions.createTunnelDesc"),
+      iconType: "iconify" as const,
+      gradient:
+        "bg-gradient-to-br from-emerald-500 to-emerald-600 dark:from-emerald-500 dark:to-emerald-700",
+      ringHover:
+        "group-hover:border-emerald-300/60 dark:group-hover:border-emerald-500/40",
+      glow: "group-hover:shadow-emerald-500/20",
     },
     {
       id: "template-create",
       icon: faLayerGroup,
       label: t("quickActions.scenarioCreate"),
-      action: "modal",
-      color: "bg-purple-500 hover:bg-purple-600",
-      iconType: "fontawesome",
-      external: false,
-    },
-    {
-      id: "debug-tools",
-      icon: faBug,
-      label: t("quickActions.debugTools"),
-      action: "navigate",
-      route: "/debug",
-      color: "bg-teal-500 hover:bg-teal-600",
-      iconType: "fontawesome",
-      external: false,
-    },
-    {
-      id: "docs",
-      icon: "solar:document-text-bold",
-      label: t("quickActions.docs"),
-      action: "navigate",
-      route: "/docs",
-      color: "bg-indigo-500 hover:bg-indigo-600",
-      iconType: "iconify",
-      external: false,
+      desc: t("quickActions.scenarioCreateDesc"),
+      iconType: "fontawesome" as const,
+      gradient:
+        "bg-gradient-to-br from-purple-500 to-purple-600 dark:from-purple-500 dark:to-purple-700",
+      ringHover:
+        "group-hover:border-purple-300/60 dark:group-hover:border-purple-500/40",
+      glow: "group-hover:shadow-purple-500/20",
     },
     {
       id: "settings",
       icon: "solar:settings-bold",
       label: t("quickActions.settings"),
-      action: "navigate",
-      route: "/settings",
-      color: "bg-gray-500 hover:bg-gray-600",
-      iconType: "iconify",
-      external: false,
+      desc: t("quickActions.settingsDesc"),
+      iconType: "iconify" as const,
+      gradient:
+        "bg-gradient-to-br from-slate-500 to-slate-600 dark:from-slate-500 dark:to-slate-700",
+      ringHover:
+        "group-hover:border-slate-300/60 dark:group-hover:border-slate-500/40",
+      glow: "group-hover:shadow-slate-500/20",
     },
   ];
 
-  // 处理添加主控
   const handleAddEndpoint = async (data: any) => {
     try {
       const response = await fetch(buildApiUrl("/api/endpoints"), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify(data),
       });
 
@@ -135,91 +115,94 @@ export function DemoQuickEntryCard() {
       addToast({
         title: t("quickActions.addEndpointFailed"),
         description:
-          error instanceof Error ? error.message : t("quickActions.addEndpointErrorDesc"),
+          error instanceof Error
+            ? error.message
+            : t("quickActions.addEndpointErrorDesc"),
         color: "danger",
       });
-      throw error; // 重新抛出错误，让模态框处理
+      throw error;
     }
   };
 
-  // 处理隧道创建成功
-  const handleTunnelCreated = () => {
-    // 创建隧道成功后的处理，可以在这里添加刷新逻辑或其他操作
-  };
+  const handleTunnelCreated = () => {};
 
-  // 处理场景选择
   const handleScenarioSelected = (scenarioType: ScenarioType) => {
     setSelectedScenarioType(scenarioType);
     setScenarioModalOpen(true);
   };
 
-  // 处理快捷操作点击
-  const handleActionClick = (action: any) => {
-    if (action.action === "modal") {
-      if (action.id === "add-endpoint") {
+  const handleActionClick = (actionId: string) => {
+    switch (actionId) {
+      case "add-endpoint":
         onAddEndpointOpen();
-      } else if (action.id === "create-tunnel") {
+        break;
+      case "create-tunnel":
         onCreateTunnelOpen();
-      } else if (action.id === "template-create") {
+        break;
+      case "template-create":
         setScenarioSelectionModalOpen(true);
-      }
-    } else if (action.action === "navigate") {
-      if (action.external && action.route) {
-        window.open(action.route, "_blank");
-      } else if (action.route) {
-        navigate(action.route);
-      }
+        break;
+      case "settings":
+        navigate("/settings");
+        break;
     }
   };
 
   return (
-    <Card className="h-full   dark:border-default-100 border border-transparent">
-      <CardBody className="p-5 h-full flex flex-col">
-        {/* 标题 */}
-        <span className="text-base font-semibold text-foreground mb-4">
-          {t("quickActions.title")}
-        </span>
-
-        {/* 按钮网格 - 2列3行 */}
-        <div className="grid grid-cols-2 gap-3 flex-1">
-          {quickActions.map((action) => (
-            <div
-              key={action.id}
-              className="flex items-center gap-3 cursor-pointer group transition-all hover:scale-[1.02] rounded-lg hover:bg-default-50 dark:hover:bg-default-100"
-              onClick={() => handleActionClick(action)}
-            >
-              {/* 图标 */}
+    <Card className="h-full dark:border-default-100 border border-transparent">
+      <CardBody className="p-4 grid grid-cols-2 gap-2">
+        {quickActions.map((action) => (
+          <button
+            key={action.id}
+            type="button"
+            onClick={() => handleActionClick(action.id)}
+            className={`group min-h-[86px] flex flex-col items-start justify-between gap-2 px-3 py-3 rounded-lg border border-default-200/70 dark:border-default-100 bg-content1 dark:bg-default-50/40 text-left transition-all duration-200 hover:-translate-y-0.5 hover:shadow-md ${action.glow} ${action.ringHover}`}
+          >
+            <div className="flex w-full items-center justify-between gap-2">
               <div
-                className={`flex items-center justify-center w-10 h-10 rounded-lg ${action.color} text-white transition-colors duration-200 group-hover:shadow-lg flex-shrink-0`}
+                className={`flex items-center justify-center w-8 h-8 rounded-md text-white flex-shrink-0 shadow-sm transition-transform duration-200 group-hover:scale-105 ${action.gradient}`}
               >
                 {action.iconType === "fontawesome" ? (
                   <FontAwesomeIcon
-                    className="!w-4 !h-4"
+                    className="!w-3.5 !h-3.5"
                     icon={action.icon as any}
-                    style={{ width: "16px", height: "16px" }}
+                    style={{ width: "14px", height: "14px" }}
                   />
                 ) : (
-                  <Icon height={16} icon={action.icon as string} width={16} />
+                  <Icon
+                    height={16}
+                    icon={action.icon as string}
+                    width={16}
+                  />
                 )}
               </div>
 
-              {/* 文字标签 */}
-              <span className="text-sm text-default-600 group-hover:text-foreground transition-colors duration-200 font-medium">
-                {action.label}
-              </span>
+              <Icon
+                className="text-default-400 group-hover:text-default-600 group-hover:translate-x-0.5 transition-all duration-200 flex-shrink-0"
+                height={17}
+                icon="solar:alt-arrow-right-linear"
+                width={17}
+              />
             </div>
-          ))}
-        </div>
+
+            <div className="min-w-0 w-full">
+              <div className="text-sm font-semibold text-foreground truncate">
+                {action.label}
+              </div>
+              <div className="text-xs leading-4 text-default-500 line-clamp-2 mt-0.5">
+                {action.desc}
+              </div>
+            </div>
+          </button>
+        ))}
       </CardBody>
 
-      {/* 添加主控模态框 */}
       <AddEndpointModal
         isOpen={isAddEndpointOpen}
         onAdd={handleAddEndpoint}
         onOpenChange={onAddEndpointOpenChange}
       />
 
-      {/* 创建实例模态框 */}
       <SimpleCreateTunnelModal
         isOpen={isCreateTunnelOpen}
         mode="create"
@@ -227,14 +210,12 @@ export function DemoQuickEntryCard() {
         onSaved={handleTunnelCreated}
       />
 
-      {/* 场景选择模态框 */}
       <ScenarioSelectionModal
         isOpen={scenarioSelectionModalOpen}
         onOpenChange={setScenarioSelectionModalOpen}
         onScenarioSelected={handleScenarioSelected}
       />
 
-      {/* 场景创建模态框 */}
       <ScenarioCreateModal
         isOpen={scenarioModalOpen}
         scenarioType={selectedScenarioType}

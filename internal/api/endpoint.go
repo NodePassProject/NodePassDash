@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mattn/go-ieproxy"
 	"gorm.io/gorm"
 )
 
@@ -71,7 +70,7 @@ func (h *EndpointHandler) HandleGetEndpoints(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{
 			Success: false,
-			Error:   "获取端点列表失败: " + err.Error(),
+			Error:   "Failed to retrieve endpoint list: " + err.Error(),
 		})
 		return
 	}
@@ -88,7 +87,7 @@ func (h *EndpointHandler) HandleCreateEndpoint(c *gin.Context) {
 	if err := c.ShouldBindJSON(&req); err != nil {
 		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
-			Error:   "无效的请求数据",
+			Error:   "Invalid request data",
 		})
 		return
 	}
@@ -104,7 +103,7 @@ func (h *EndpointHandler) HandleCreateEndpoint(c *gin.Context) {
 	if req.Name == "" || req.URL == "" || req.APIPath == "" || req.APIKey == "" {
 		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
-			Error:   "缺少必填字段",
+			Error:   "Missing required fields",
 		})
 		return
 	}
@@ -130,7 +129,7 @@ func (h *EndpointHandler) HandleCreateEndpoint(c *gin.Context) {
 
 	c.JSON(http.StatusOK, endpoint.EndpointResponse{
 		Success:  true,
-		Message:  "端点创建成功",
+		Message:  "Endpoint created successfully",
 		Endpoint: newEndpoint,
 	})
 }
@@ -142,7 +141,7 @@ func (h *EndpointHandler) HandleUpdateEndpoint(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
-			Error:   "无效的端点ID",
+			Error:   "Invalid endpoint ID",
 		})
 		return
 	}
@@ -156,7 +155,7 @@ func (h *EndpointHandler) HandleUpdateEndpoint(c *gin.Context) {
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
-			Error:   "无效的请求数据",
+			Error:   "Invalid request data",
 		})
 		return
 	}
@@ -187,7 +186,7 @@ func (h *EndpointHandler) HandleUpdateEndpoint(c *gin.Context) {
 
 	c.JSON(http.StatusOK, endpoint.EndpointResponse{
 		Success:  true,
-		Message:  "端点更新成功",
+		Message:  "Endpoint updated successfully",
 		Endpoint: updatedEndpoint,
 	})
 }
@@ -199,7 +198,7 @@ func (h *EndpointHandler) HandleDeleteEndpoint(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
-			Error:   "无效的端点ID",
+			Error:   "Invalid endpoint ID",
 		})
 		return
 	}
@@ -251,7 +250,7 @@ func (h *EndpointHandler) HandleDeleteEndpoint(c *gin.Context) {
 
 	c.JSON(http.StatusOK, endpoint.EndpointResponse{
 		Success: true,
-		Message: "端点删除成功",
+		Message: "Endpoint deleted successfully",
 	})
 }
 
@@ -264,7 +263,7 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 	if err := c.ShouldBindJSON(&body); err != nil {
 		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
-			Error:   "无效的请求数据",
+			Error:   "Invalid request data",
 		})
 		return
 	}
@@ -275,7 +274,7 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 		if err != nil {
 			c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 				Success: false,
-				Error:   "无效的端点ID",
+				Error:   "Invalid endpoint ID",
 			})
 			return
 		}
@@ -287,7 +286,7 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 		} else {
 			c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 				Success: false,
-				Error:   "缺少端点ID",
+				Error:   "Missing endpoint ID",
 			})
 			return
 		}
@@ -309,7 +308,7 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 		}
 		c.JSON(http.StatusOK, endpoint.EndpointResponse{
 			Success: true,
-			Message: "端点名称已更新",
+			Message: "Endpoint name updated",
 			Endpoint: map[string]interface{}{
 				"id":   id,
 				"name": name,
@@ -319,14 +318,14 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 		if h.sseManager != nil {
 			ep, err := h.endpointService.GetEndpointByID(id)
 			if err != nil {
-				c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{Success: false, Error: "获取端点信息失败: " + err.Error()})
+				c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{Success: false, Error: "Failed to get endpoint information: " + err.Error()})
 				return
 			}
 
 			// 先测试端点连接
 			if err := h.testEndpointConnection(ep.URL, ep.APIPath, ep.APIKey, 5000); err != nil {
 				log.Warnf("[Master-%v] 端点连接测试失败: %v", id, err)
-				c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{Success: false, Error: "主控离线或无法连接: " + err.Error()})
+				c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{Success: false, Error: "Master is offline or cannot connect: " + err.Error()})
 				return
 			}
 
@@ -337,7 +336,7 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 				}
 			}(id)
 		}
-		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "端点已重连"})
+		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "Endpoint reconnected"})
 	case "disconnect":
 		if h.sseManager != nil {
 			go func(eid int64) {
@@ -352,13 +351,13 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 				// }
 			}(id)
 		}
-		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "端点已断开"})
+		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "Endpoint disconnected"})
 	case "refresTunnel":
 		if err := h.refreshTunnels(id); err != nil {
 			c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{Success: false, Error: err.Error()})
 			return
 		}
-		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "实例同步完成"})
+		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "Instances synchronized"})
 	case "updateConfig":
 		// 修改配置：直接更新配置和缓存，SSE会自动使用新的缓存配置
 		var req endpoint.UpdateEndpointRequest
@@ -392,9 +391,9 @@ func (h *EndpointHandler) HandlePatchEndpoint(c *gin.Context) {
 		}
 
 		log.Infof("[Master-%v] 配置更新成功，缓存已更新: URL=%s, APIPath=%s", id, updatedEndpoint.URL, updatedEndpoint.APIPath)
-		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "配置更新成功"})
+		c.JSON(http.StatusOK, endpoint.EndpointResponse{Success: true, Message: "Configuration updated successfully"})
 	default:
-		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{Success: false, Error: "不支持的操作类型"})
+		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{Success: false, Error: "Unsupported operation type"})
 	}
 }
 
@@ -425,7 +424,7 @@ type TestConnectionRequest struct {
 func (h *EndpointHandler) HandleTestEndpoint(c *gin.Context) {
 	var req TestConnectionRequest
 	if err := c.ShouldBindJSON(&req); err != nil {
-		c.JSON(http.StatusBadRequest, map[string]interface{}{"success": false, "error": "无效请求体"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"success": false, "error": "Invalid request body"})
 		return
 	}
 
@@ -464,11 +463,11 @@ func (h *EndpointHandler) HandleTestEndpoint(c *gin.Context) {
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
-		c.JSON(http.StatusOK, map[string]interface{}{"success": false, "error": "HTTP错误", "status": resp.StatusCode, "details": string(bodyBytes)})
+		c.JSON(http.StatusOK, map[string]interface{}{"success": false, "error": "HTTP error", "status": resp.StatusCode, "details": string(bodyBytes)})
 		return
 	}
 
-	c.JSON(http.StatusOK, map[string]interface{}{"success": true, "message": "端点连接测试成功", "status": resp.StatusCode})
+	c.JSON(http.StatusOK, map[string]interface{}{"success": true, "message": "Endpoint connection test passed", "status": resp.StatusCode})
 }
 
 // HandleEndpointStatus GET /api/endpoints/status (SSE)
@@ -516,14 +515,14 @@ func (h *EndpointHandler) HandleEndpointLogs(c *gin.Context) {
 	idStr := c.Param("id")
 	if idStr == "" {
 		// Status handled by c.JSON
-		c.JSON(http.StatusOK, map[string]interface{}{"error": "缺少端点ID"})
+		c.JSON(http.StatusOK, map[string]interface{}{"error": "Missing endpoint ID"})
 		return
 	}
 
 	endpointID, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
 		// Status handled by c.JSON
-		c.JSON(http.StatusOK, map[string]interface{}{"error": "无效的端点ID"})
+		c.JSON(http.StatusOK, map[string]interface{}{"error": "Invalid endpoint ID"})
 		return
 	}
 
@@ -539,7 +538,7 @@ func (h *EndpointHandler) HandleEndpointLogs(c *gin.Context) {
 	instanceID := c.Query("instanceId")
 	if instanceID == "" {
 		// Status handled by c.JSON
-		c.JSON(http.StatusOK, map[string]interface{}{"error": "缺少实例ID"})
+		c.JSON(http.StatusOK, map[string]interface{}{"error": "Missing instance ID"})
 		return
 	}
 
@@ -556,7 +555,7 @@ func (h *EndpointHandler) HandleEndpointLogs(c *gin.Context) {
 	logs := []map[string]interface{}{
 		{
 			"id":        1,
-			"message":   fmt.Sprintf("端点%d实例%s的文件日志示例", endpointID, instanceID),
+			"message":   fmt.Sprintf("Sample file logs for endpoint %d instance %s", endpointID, instanceID),
 			"isHtml":    true,
 			"traffic":   map[string]int64{"tcpRx": 0, "tcpTx": 0, "udpRx": 0, "udpTx": 0},
 			"timestamp": time.Now(),
@@ -577,7 +576,7 @@ func (h *EndpointHandler) HandleEndpointLogs(c *gin.Context) {
 // DEPRECATED: EndpointSSE 模型已移除 Logs 字段
 func (h *EndpointHandler) HandleSearchEndpointLogs(c *gin.Context) {
 	c.JSON(http.StatusOK, map[string]interface{}{
-		"error": "此功能已废弃，EndpointSSE 模型不再支持 Logs 字段",
+		"error": "This feature is deprecated, EndpointSSE model no longer supports Logs field",
 	})
 }
 
@@ -585,7 +584,7 @@ func (h *EndpointHandler) HandleSearchEndpointLogs(c *gin.Context) {
 // DEPRECATED: TunnelRecycle 模型已移除
 func (h *EndpointHandler) HandleRecycleList(c *gin.Context) {
 	c.JSON(http.StatusOK, map[string]interface{}{
-		"error": "此功能已废弃，TunnelRecycle 模型已移除",
+		"error": "This feature is deprecated, TunnelRecycle model has been removed",
 	})
 }
 
@@ -593,7 +592,7 @@ func (h *EndpointHandler) HandleRecycleList(c *gin.Context) {
 // DEPRECATED: TunnelRecycle 模型已移除
 func (h *EndpointHandler) HandleRecycleCount(c *gin.Context) {
 	c.JSON(http.StatusOK, map[string]interface{}{
-		"error": "此功能已废弃，TunnelRecycle 模型已移除",
+		"error": "This feature is deprecated, TunnelRecycle model has been removed",
 	})
 }
 
@@ -601,7 +600,7 @@ func (h *EndpointHandler) HandleRecycleCount(c *gin.Context) {
 // DEPRECATED: TunnelRecycle 模型已移除
 func (h *EndpointHandler) HandleRecycleDelete(c *gin.Context) {
 	c.JSON(http.StatusOK, map[string]interface{}{
-		"error": "此功能已废弃，TunnelRecycle 模型已移除",
+		"error": "This feature is deprecated, TunnelRecycle model has been removed",
 	})
 }
 
@@ -609,7 +608,7 @@ func (h *EndpointHandler) HandleRecycleDelete(c *gin.Context) {
 // DEPRECATED: TunnelRecycle 模型已移除
 func (h *EndpointHandler) HandleRecycleListAll(c *gin.Context) {
 	c.JSON(http.StatusOK, map[string]interface{}{
-		"error": "此功能已废弃，TunnelRecycle 模型已移除",
+		"error": "This feature is deprecated, TunnelRecycle model has been removed",
 	})
 }
 
@@ -617,7 +616,7 @@ func (h *EndpointHandler) HandleRecycleListAll(c *gin.Context) {
 // DEPRECATED: TunnelRecycle 模型已移除
 func (h *EndpointHandler) HandleRecycleClearAll(c *gin.Context) {
 	c.JSON(http.StatusOK, map[string]interface{}{
-		"error": "此功能已废弃,TunnelRecycle 模型已移除",
+		"error": "This feature is deprecated, TunnelRecycle model has been removed",
 	})
 }
 
@@ -774,7 +773,6 @@ func (h *EndpointHandler) testEndpointConnection(url, apiPath, apiKey string, ti
 	client := &http.Client{
 		Timeout: time.Duration(timeoutMs) * time.Millisecond,
 		Transport: &http.Transport{
-			Proxy:           ieproxy.GetProxyFunc(),
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
@@ -784,6 +782,7 @@ func (h *EndpointHandler) testEndpointConnection(url, apiPath, apiKey string, ti
 		return fmt.Errorf("创建请求失败: %v", err)
 	}
 	httpReq.Header.Set("X-API-Key", apiKey)
+	httpReq.Header.Set("Accept", "text/event-stream")
 	httpReq.Header.Set("Cache-Control", "no-cache")
 
 	resp, err := client.Do(httpReq)
@@ -806,7 +805,7 @@ func (h *EndpointHandler) HandleGetEndpointInfo(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
-			Error:   "无效的端点ID",
+			Error:   "Invalid endpoint ID",
 		})
 		return
 	}
@@ -849,7 +848,7 @@ func (h *EndpointHandler) HandleGetEndpointInfo(c *gin.Context) {
 
 		c.JSON(http.StatusOK, endpoint.EndpointResponse{
 			Success:  true,
-			Message:  "系统信息获取成功",
+			Message:  "System information retrieved successfully",
 			Endpoint: info,
 		})
 	} else {
@@ -908,7 +907,7 @@ func (h *EndpointHandler) HandleGetEndpointInfo(c *gin.Context) {
 
 		c.JSON(http.StatusOK, endpoint.EndpointResponse{
 			Success:  true,
-			Message:  "返回已存储的系统信息",
+			Message:  "Returning stored system information",
 			Endpoint: infoResponse,
 		})
 	}
@@ -921,7 +920,7 @@ func (h *EndpointHandler) HandleGetEndpointDetail(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
-			Error:   "无效的端点ID",
+			Error:   "Invalid endpoint ID",
 		})
 		return
 	}
@@ -975,7 +974,7 @@ func (h *EndpointHandler) HandleGetEndpointDetail(c *gin.Context) {
 
 	c.JSON(http.StatusOK, endpoint.EndpointResponse{
 		Success:  true,
-		Message:  "获取端点详情成功",
+		Message:  "Endpoint details retrieved successfully",
 		Endpoint: updatedEp,
 	})
 }
@@ -1071,15 +1070,20 @@ func (h *EndpointHandler) HandleClearEndpointFileLogs(c *gin.Context) {
 		return
 	}
 
-	// 获取查询参数
+	// 获取查询参数，instanceId 为空时清空整个端点的所有日志
 	instanceID := c.Query("instanceId")
-	if instanceID == "" {
-		c.String(http.StatusBadRequest, "Missing instanceId parameter")
+
+	fileLogger := h.sseManager.GetFileLogger()
+	if fileLogger == nil {
+		c.String(http.StatusInternalServerError, "File logger not initialized")
 		return
 	}
 
-	// 清空文件日志
-	err = h.sseManager.GetFileLogger().ClearLogs(endpointID, instanceID)
+	if instanceID == "" {
+		err = fileLogger.ClearAllLogs(endpointID)
+	} else {
+		err = fileLogger.ClearLogs(endpointID, instanceID)
+	}
 	if err != nil {
 		log.Warnf("[API]清空文件日志失败: %v", err)
 		c.String(http.StatusInternalServerError, "Failed to clear file logs")
@@ -1088,7 +1092,7 @@ func (h *EndpointHandler) HandleClearEndpointFileLogs(c *gin.Context) {
 
 	response := map[string]interface{}{
 		"success": true,
-		"message": "文件日志已清空",
+		"message": "File logs cleared successfully",
 	}
 
 	c.JSON(http.StatusOK, response)
@@ -1110,7 +1114,7 @@ func (h *EndpointHandler) HandleEndpointStats(c *gin.Context) {
 	tunnelCount, totalTcpIn, totalTcpOut, totalUdpIn, totalUdpOut, err := h.getTunnelStats(endpointID)
 	if err != nil {
 		log.Errorf("获取隧道统计失败: %v", err)
-		c.String(http.StatusInternalServerError, "获取隧道统计失败")
+		c.String(http.StatusInternalServerError, "Failed to get tunnel statistics")
 		return
 	}
 
@@ -1172,13 +1176,13 @@ func (h *EndpointHandler) getTunnelStats(endpointID int64) (int, int64, int64, i
 // getFileLogStats 获取文件日志统计
 func (h *EndpointHandler) getFileLogStats(endpointID int64) (int, int64, error) {
 	if h.sseManager == nil {
-		return 0, 0, fmt.Errorf("SSE管理器未初始化")
+		return 0, 0, fmt.Errorf("SSE manager not initialized")
 	}
 
 	// 获取文件日志管理器
 	fileLogger := h.sseManager.GetFileLogger()
 	if fileLogger == nil {
-		return 0, 0, fmt.Errorf("文件日志管理器未初始化")
+		return 0, 0, fmt.Errorf("File logger not initialized")
 	}
 
 	// 计算该端点的文件日志统计
@@ -1419,7 +1423,7 @@ func (h *EndpointHandler) HandleResetApiKey(c *gin.Context) {
 	if err != nil {
 		c.JSON(http.StatusBadRequest, endpoint.EndpointResponse{
 			Success: false,
-			Error:   "无效的端点ID",
+			Error:   "Invalid endpoint ID",
 		})
 		return
 	}
@@ -1442,7 +1446,7 @@ func (h *EndpointHandler) HandleResetApiKey(c *gin.Context) {
 		log.Errorf("[Master-%v] 调用NodePass重置密钥失败: %v", id, err)
 		c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{
 			Success: false,
-			Error:   "重置密钥失败: " + err.Error(),
+			Error:   "Failed to reset key: " + err.Error(),
 		})
 		return
 	}
@@ -1459,7 +1463,7 @@ func (h *EndpointHandler) HandleResetApiKey(c *gin.Context) {
 		log.Errorf("[Master-%v] 更新数据库中的新密钥失败: %v", id, err)
 		c.JSON(http.StatusInternalServerError, endpoint.EndpointResponse{
 			Success: false,
-			Error:   "更新新密钥失败: " + err.Error(),
+			Error:   "Failed to update new key: " + err.Error(),
 		})
 		return
 	}
@@ -1468,7 +1472,7 @@ func (h *EndpointHandler) HandleResetApiKey(c *gin.Context) {
 
 	c.JSON(http.StatusOK, endpoint.EndpointResponse{
 		Success: true,
-		Message: "API密钥重置成功",
+		Message: "API key reset successfully",
 	})
 }
 
@@ -1484,12 +1488,12 @@ func (h *EndpointHandler) resetNodePassAPIKey(endpointID int64, ep *endpoint.End
 	result, err := nodepass.ControlInstance(endpointID, "********", "restart")
 	log.Infof("[Master-%v] NodePass PatchInstance重置密钥结果: %+v", endpointID, result)
 	if err != nil {
-		return "", fmt.Errorf("调用PatchInstance失败: %v", err)
+		return "", fmt.Errorf("PatchInstance call failed: %v", err)
 	}
 
 	// 从返回结果中获取新的API密钥（在URL字段中）
 	if result.URL == "" {
-		return "", fmt.Errorf("NodePass未返回新的API密钥")
+		return "", fmt.Errorf("NodePass did not return a new API key")
 	}
 
 	log.Infof("[Master-%v] NodePass重置密钥成功，获得新密钥", endpointID)
@@ -1567,6 +1571,6 @@ func (h *EndpointHandler) HandleTestConnection(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "连接测试成功",
+		"message": "Connection test passed",
 	})
 }

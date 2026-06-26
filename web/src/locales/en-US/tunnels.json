@@ -143,7 +143,38 @@
     "failedCount": ", {{count}} failed",
     "unknownError": "Unknown error",
     "missingInstanceId": "This tunnel is missing NodePass ID, cannot perform operation",
-    "copySuccess": "Configuration copied to clipboard"
+    "copySuccess": "Configuration copied to clipboard",
+    "instanceActions": {
+      "starting": "Starting instance...",
+      "stopping": "Stopping instance...",
+      "restarting": "Restarting instance...",
+      "deleting": "Deleting instance...",
+      "pleaseWait": "Please wait",
+      "startInstance": "Starting {{name}}",
+      "stopInstance": "Stopping {{name}}",
+      "restartInstance": "Restarting {{name}}",
+      "deleteInstance": "Deleting {{name}}",
+      "instanceStarted": "Instance started",
+      "instanceStopped": "Instance stopped",
+      "instanceRestarted": "Instance restarted",
+      "instanceDeleted": "Instance deleted",
+      "startedSuccessfully": "{{name}} has been started successfully",
+      "stoppedSuccessfully": "{{name}} has been stopped successfully",
+      "restartedSuccessfully": "{{name}} has been restarted and is running",
+      "deletedSuccessfully": "{{name}} has been deleted successfully",
+      "instanceStartedSuccessfully": "Instance has been started successfully",
+      "instanceStoppedSuccessfully": "Instance has been stopped successfully",
+      "instanceRestartedSuccessfully": "Instance has been restarted and is running",
+      "instanceDeletedSuccessfully": "Instance has been deleted successfully",
+      "failedToStart": "Failed to start",
+      "failedToStop": "Failed to stop",
+      "restartFailed": "Restart failed",
+      "deleteFailed": "Delete failed",
+      "failedToStartInstance": "Failed to start {{name}}",
+      "failedToStopInstance": "Failed to stop {{name}}",
+      "failedToRestartInstance": "Failed to restart {{name}}",
+      "failedToDeleteInstance": "Failed to delete {{name}}"
+    }
   },
   "mobile": {
     "endpoint": "Endpoint:",
@@ -310,17 +341,17 @@
       "client": "Client"
     },
     "fields": {
-      "selectEndpoint": "Select Endpoint",
+      "selectEndpoint": "Endpoint",
       "instanceName": "Tunnel Name",
       "instanceNamePlaceholder": "xxx-tunnel",
       "runMode": "Run Mode",
       "listenType": "Listen Type",
       "tunnelAddress": "Tunnel Address",
-      "tunnelAddressPlaceholder": "0.0.0.0/[2001:db8::1]",
+      "tunnelAddressPlaceholder": "0.0.0.0/[::]",
       "tunnelPort": "Tunnel Port",
       "tunnelPortPlaceholder": "0-65535",
       "targetAddress": "Target Address",
-      "targetAddressPlaceholder": "0.0.0.0/[2001:db8::1]",
+      "targetAddressPlaceholder": "0.0.0.0/[::]",
       "targetPort": "Target Port",
       "targetPortPlaceholder": "0-65535",
       "logLevel": "Log Level",
@@ -351,10 +382,11 @@
       "sni": "SNI",
       "sniPlaceholder": "example.com",
       "block": "Protocol Block",
+      "lbs": "Load Balancing",
       "dnsTTL": "DNS TTL",
       "dnsTTLPlaceholder": "5m",
       "extendedTargets": "Extended Target Addresses",
-      "extendedTargetsPlaceholder": "192.168.1.1:80&#10;192.168.1.2:80",
+      "extendedTargetsPlaceholder": "192.168.1.1:80\n192.168.1.2:80",
       "extendedTargetsTooltip": "Achieve load balancing by adding target addresses"
     },
     "modes": {
@@ -380,6 +412,11 @@
       "socks": "SOCKS",
       "http": "HTTP",
       "tls": "TLS"
+    },
+    "lbsTypes": {
+      "roundRobin": "Round Robin",
+      "leastLatency": "Least Latency",
+      "failover": "Failover"
     },
     "tls": {
       "inherit": "Inherit",
@@ -485,7 +522,8 @@
       "pool": "Pool",
       "latency": "Latency",
       "tcp": "TCP",
-      "udp": "UDP"
+      "udp": "UDP",
+      "traffic": "Traffic Usage"
     },
     "chartStates": {
       "loading": "Loading...",
@@ -654,6 +692,13 @@
         "socks": "SOCKS",
         "http": "HTTP",
         "tls": "TLS",
+        "notSet": "Not Set"
+      },
+      "lbs": {
+        "label": "Load Balancing Strategy",
+        "roundRobin": "Round Robin",
+        "leastLatency": "Least Latency",
+        "failover": "Failover",
         "notSet": "Not Set"
       },
       "bindService": {

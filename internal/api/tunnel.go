@@ -680,7 +680,7 @@ func (h *TunnelHandler) HandleSetTunnelRestart(c *gin.Context) {
 func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 	instanceId := c.Param("id")
 	if instanceId == "" {
-		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "缺少实例ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "Missing instance ID"})
 		return
 	}
 
@@ -690,7 +690,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 	var tunnel models.Tunnel
 	if err := db.Preload("Endpoint").Where("instance_id = ?", instanceId).First(&tunnel).Error; err != nil {
 		if err == gorm.ErrRecordNotFound {
-			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "隧道不存在"})
+			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "Tunnel does not exist"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
@@ -848,6 +848,12 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			}
 			return nil
 		}(),
+		"lbs": func() interface{} {
+			if tunnel.Lbs != nil {
+				return *tunnel.Lbs
+			}
+			return nil
+		}(),
 		// endpoint 改为对象形式
 		"endpoint": map[string]interface{}{
 			"name":    endpointName,
@@ -883,6 +889,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			"listenType":    parsedConfig.ListenType,
 			"sni":           parsedConfig.Sni,
 			"block":         parsedConfig.Block,
+			"lbs":           parsedConfig.Lbs,
 		},
 
 		// tags - GORM 自动反序列化为 *map[string]string
@@ -939,26 +946,26 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 func (h *TunnelHandler) HandleTunnelFileLogs(c *gin.Context) {
 	idStr := c.Param("id")
 	if idStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少隧道ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing tunnel ID"})
 		return
 	}
 	//id, err := strconv.ParseInt(idStr, 10, 64)
 	//if err != nil {
-	//	c.JSON(http.StatusBadRequest, gin.H{"error": "无效的隧道ID"})
+	//	c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid tunnel ID"})
 	//	return
 	//}
 
 	// 获取日期参数
 	dateStr := c.Query("date")
 	if dateStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少date参数，格式为YYYY-MM-DD"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing date parameter, format: YYYY-MM-DD"})
 		return
 	}
 
 	// 解析日期
 	targetDate, err := time.Parse("2006-01-02", dateStr)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "日期格式无效，应为YYYY-MM-DD"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Invalid date format, should be YYYY-MM-DD"})
 		return
 	}
 
@@ -966,9 +973,9 @@ func (h *TunnelHandler) HandleTunnelFileLogs(c *gin.Context) {
 
 	// 查询隧道获得 endpointId 与 instanceId
 	var endpointID int64
-	if err := db.QueryRow(`SELECT endpoint_id FROM tunnels WHERE instance_id = ?`, idStr).Scan(&endpointID); err != nil {
+	if err := db.QueryRow(h.tunnelService.Rebind(`SELECT endpoint_id FROM tunnels WHERE instance_id = ?`), idStr).Scan(&endpointID); err != nil {
 		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, gin.H{"error": "隧道不存在"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Tunnel does not exist"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -980,7 +987,7 @@ func (h *TunnelHandler) HandleTunnelFileLogs(c *gin.Context) {
 
 	// 检查是否有FileLogger
 	if h.sseManager == nil || h.sseManager.GetFileLogger() == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "文件日志服务不可用"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "File logging service is unavailable"})
 		return
 	}
 
@@ -989,7 +996,7 @@ func (h *TunnelHandler) HandleTunnelFileLogs(c *gin.Context) {
 	// 读取指定日期的日志
 	logEntries, err := fileLogger.ReadLogs(endpointID, idStr, targetDate, 1000) // 限制1000条
 	if err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("读取日志失败: %v", err)})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": fmt.Sprintf("Failed to read logs: %v", err)})
 		return
 	}
 
@@ -1027,7 +1034,7 @@ func (h *TunnelHandler) HandleTunnelFileLogs(c *gin.Context) {
 func (h *TunnelHandler) HandleClearTunnelFileLogs(c *gin.Context) {
 	idStr := c.Param("id")
 	if idStr == "" {
-		c.JSON(http.StatusBadRequest, gin.H{"error": "缺少隧道ID"})
+		c.JSON(http.StatusBadRequest, gin.H{"error": "Missing tunnel ID"})
 		return
 	}
 
@@ -1035,9 +1042,9 @@ func (h *TunnelHandler) HandleClearTunnelFileLogs(c *gin.Context) {
 
 	// 查询隧道获得 endpointId
 	var endpointID int64
-	if err := db.QueryRow(`SELECT endpoint_id FROM tunnels WHERE instance_id = ?`, idStr).Scan(&endpointID); err != nil {
+	if err := db.QueryRow(h.tunnelService.Rebind(`SELECT endpoint_id FROM tunnels WHERE instance_id = ?`), idStr).Scan(&endpointID); err != nil {
 		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, gin.H{"error": "隧道不存在"})
+			c.JSON(http.StatusNotFound, gin.H{"error": "Tunnel does not exist"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
@@ -1046,7 +1053,7 @@ func (h *TunnelHandler) HandleClearTunnelFileLogs(c *gin.Context) {
 
 	// 检查是否有FileLogger
 	if h.sseManager == nil || h.sseManager.GetFileLogger() == nil {
-		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "文件日志服务不可用"})
+		c.JSON(http.StatusServiceUnavailable, gin.H{"error": "File logging service is unavailable"})
 		return
 	}
 
@@ -1054,7 +1061,7 @@ func (h *TunnelHandler) HandleClearTunnelFileLogs(c *gin.Context) {
 	err := h.sseManager.GetFileLogger().ClearLogs(endpointID, idStr)
 	if err != nil {
 		log.Warnf("[API]清空文件日志失败: %v", err)
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "清空日志失败"})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to clear logs"})
 		return
 	}
 
@@ -1219,7 +1226,7 @@ func (h *TunnelHandler) HandleQuickBatchCreateTunnel(c *gin.Context) {
 // getTunnelIDByName 通过隧道名称获取隧道数据库ID
 func (h *TunnelHandler) getTunnelIDByName(tunnelName string) (int64, error) {
 	var tunnelID int64
-	err := h.tunnelService.DB().QueryRow(`SELECT id FROM tunnels WHERE name = ?`, tunnelName).Scan(&tunnelID)
+	err := h.tunnelService.DB().QueryRow(h.tunnelService.Rebind(`SELECT id FROM tunnels WHERE name = ?`), tunnelName).Scan(&tunnelID)
 	return tunnelID, err
 }
 
@@ -1926,7 +1933,7 @@ func (h *TunnelHandler) HandleBatchDeleteTunnels(c *gin.Context) {
 	var instanceTunnelMap = make(map[string]int64)
 	for _, iid := range req.InstanceIDs {
 		var tunnelID, endpointID int64
-		if err := h.tunnelService.DB().QueryRow(`SELECT id, endpoint_id FROM tunnels WHERE instance_id = ?`, iid).Scan(&tunnelID, &endpointID); err == nil {
+		if err := h.tunnelService.DB().QueryRow(h.tunnelService.Rebind(`SELECT id, endpoint_id FROM tunnels WHERE instance_id = ?`), iid).Scan(&tunnelID, &endpointID); err == nil {
 			instanceTunnelMap[iid] = tunnelID
 			instanceEndpointMap[iid] = endpointID
 		} else {
@@ -2308,12 +2315,12 @@ func (h *TunnelHandler) HandleBatchActionTunnels(c *gin.Context) {
 func (h *TunnelHandler) HandleGetTunnelTrafficTrend(c *gin.Context) {
 	idStr := c.Param("id")
 	if idStr == "" {
-		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "缺少隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "Missing tunnel ID"})
 		return
 	}
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "无效的隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "Invalid tunnel ID"})
 		return
 	}
 
@@ -2322,9 +2329,9 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(c *gin.Context) {
 	// 查询隧道基本信息
 	var endpointID int64
 	var instanceID sql.NullString
-	if err := db.QueryRow(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`, id).Scan(&endpointID, &instanceID); err != nil {
+	if err := db.QueryRow(h.tunnelService.Rebind(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`), id).Scan(&endpointID, &instanceID); err != nil {
 		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "隧道不存在"})
+			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "Tunnel does not exist"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
@@ -2335,7 +2342,8 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(c *gin.Context) {
 
 	if instanceID.Valid && instanceID.String != "" {
 		// 流量趋势 - 查询24小时内的数据
-		trendRows, err := db.Query(`SELECT event_time, tcp_rx, tcp_tx, udp_rx, udp_tx, pool, ping FROM endpoint_sse WHERE endpoint_id = ? AND instance_id = ? AND push_type IN ('update','initial') AND (tcp_rx IS NOT NULL OR tcp_tx IS NOT NULL OR udp_rx IS NOT NULL OR udp_tx IS NOT NULL) AND event_time >= DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY event_time ASC`, endpointID, instanceID.String)
+		since := time.Now().Add(-24 * time.Hour)
+		trendRows, err := db.Query(h.tunnelService.Rebind(`SELECT event_time, tcp_rx, tcp_tx, udp_rx, udp_tx, pool, ping FROM endpoint_sse WHERE endpoint_id = ? AND instance_id = ? AND push_type IN ('update','initial') AND (tcp_rx IS NOT NULL OR tcp_tx IS NOT NULL OR udp_rx IS NOT NULL OR udp_tx IS NOT NULL) AND event_time >= ? ORDER BY event_time ASC`), endpointID, instanceID.String, since)
 		if err == nil {
 			defer trendRows.Close()
 
@@ -2526,12 +2534,12 @@ func (h *TunnelHandler) HandleGetTunnelTrafficTrend(c *gin.Context) {
 func (h *TunnelHandler) HandleGetTunnelPingTrend(c *gin.Context) {
 	idStr := c.Param("id")
 	if idStr == "" {
-		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "缺少隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "Missing tunnel ID"})
 		return
 	}
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "无效的隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "Invalid tunnel ID"})
 		return
 	}
 
@@ -2540,9 +2548,9 @@ func (h *TunnelHandler) HandleGetTunnelPingTrend(c *gin.Context) {
 	// 查询隧道基本信息
 	var endpointID int64
 	var instanceID sql.NullString
-	if err := db.QueryRow(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`, id).Scan(&endpointID, &instanceID); err != nil {
+	if err := db.QueryRow(h.tunnelService.Rebind(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`), id).Scan(&endpointID, &instanceID); err != nil {
 		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "隧道不存在"})
+			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "Tunnel does not exist"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
@@ -2553,7 +2561,8 @@ func (h *TunnelHandler) HandleGetTunnelPingTrend(c *gin.Context) {
 
 	if instanceID.Valid && instanceID.String != "" {
 		// 延迟趋势 - 查询24小时内的ping数据
-		trendRows, err := db.Query(`SELECT event_time, ping FROM endpoint_sse WHERE endpoint_id = ? AND instance_id = ? AND push_type IN ('update','initial') AND ping IS NOT NULL AND event_time >= DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY event_time ASC`, endpointID, instanceID.String)
+		since := time.Now().Add(-24 * time.Hour)
+		trendRows, err := db.Query(h.tunnelService.Rebind(`SELECT event_time, ping FROM endpoint_sse WHERE endpoint_id = ? AND instance_id = ? AND push_type IN ('update','initial') AND ping IS NOT NULL AND event_time >= ? ORDER BY event_time ASC`), endpointID, instanceID.String, since)
 		if err == nil {
 			defer trendRows.Close()
 
@@ -2653,12 +2662,12 @@ func (h *TunnelHandler) HandleGetTunnelPingTrend(c *gin.Context) {
 func (h *TunnelHandler) HandleGetTunnelPoolTrend(c *gin.Context) {
 	idStr := c.Param("id")
 	if idStr == "" {
-		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "缺少隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "Missing tunnel ID"})
 		return
 	}
 	id, err := strconv.ParseInt(idStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "无效的隧道ID"})
+		c.JSON(http.StatusBadRequest, map[string]interface{}{"error": "Invalid tunnel ID"})
 		return
 	}
 
@@ -2667,9 +2676,9 @@ func (h *TunnelHandler) HandleGetTunnelPoolTrend(c *gin.Context) {
 	// 查询隧道基本信息
 	var endpointID int64
 	var instanceID sql.NullString
-	if err := db.QueryRow(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`, id).Scan(&endpointID, &instanceID); err != nil {
+	if err := db.QueryRow(h.tunnelService.Rebind(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`), id).Scan(&endpointID, &instanceID); err != nil {
 		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "隧道不存在"})
+			c.JSON(http.StatusNotFound, map[string]interface{}{"error": "Tunnel does not exist"})
 			return
 		}
 		c.JSON(http.StatusInternalServerError, map[string]interface{}{"error": err.Error()})
@@ -2680,7 +2689,8 @@ func (h *TunnelHandler) HandleGetTunnelPoolTrend(c *gin.Context) {
 
 	if instanceID.Valid && instanceID.String != "" {
 		// 连接池趋势 - 查询24小时内的pool数据
-		trendRows, err := db.Query(`SELECT event_time, pool FROM endpoint_sse WHERE endpoint_id = ? AND instance_id = ? AND push_type IN ('update','initial') AND pool IS NOT NULL AND event_time >= DATE_SUB(NOW(), INTERVAL 24 HOUR) ORDER BY event_time ASC`, endpointID, instanceID.String)
+		since := time.Now().Add(-24 * time.Hour)
+		trendRows, err := db.Query(h.tunnelService.Rebind(`SELECT event_time, pool FROM endpoint_sse WHERE endpoint_id = ? AND instance_id = ? AND push_type IN ('update','initial') AND pool IS NOT NULL AND event_time >= ? ORDER BY event_time ASC`), endpointID, instanceID.String, since)
 		if err == nil {
 			defer trendRows.Close()
 
@@ -2785,7 +2795,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV3(c *gin.Context) {
 	tunnelIDStr := c.Param("id")
 	tunnelID, err := strconv.ParseInt(tunnelIDStr, 10, 64)
 	if err != nil {
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "无效的隧道ID"})
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "Invalid tunnel ID"})
 		return
 	}
 
@@ -2795,7 +2805,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV3(c *gin.Context) {
 		ResetTraffic bool `json:"resetTraffic"`
 	}
 	if err := c.ShouldBindJSON(&raw); err != nil {
-		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "无效的请求数据"})
+		c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "Invalid request data"})
 		return
 	}
 	raw.ID = tunnelID
@@ -2814,8 +2824,8 @@ func (h *TunnelHandler) HandleUpdateTunnelV3(c *gin.Context) {
 		ID                   int64
 		URL, APIPath, APIKey string
 	}
-	if err := h.tunnelService.DB().QueryRow(`SELECT e.id, url, api_path, api_key FROM endpoints e JOIN tunnels t ON e.id = t.endpoint_id WHERE t.id = ?`, tunnelID).Scan(&endpoint.ID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
-		c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{Success: false, Error: "查询端点信息失败"})
+	if err := h.tunnelService.DB().QueryRow(h.tunnelService.Rebind(`SELECT e.id, url, api_path, api_key FROM endpoints e JOIN tunnels t ON e.id = t.endpoint_id WHERE t.id = ?`), tunnelID).Scan(&endpoint.ID, &endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
+		c.JSON(http.StatusInternalServerError, tunnel.TunnelResponse{Success: false, Error: "Failed to query endpoint information"})
 		return
 	}
 
@@ -2825,7 +2835,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV3(c *gin.Context) {
 		// 若远端返回 405，则回退旧逻辑（删除+重建）
 		if strings.Contains(err.Error(), "405") || strings.Contains(err.Error(), "404") {
 			log.Infof("[API] 检测到405/404错误")
-			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "编辑实例失败，创建新实例错误: " + err.Error()})
+			c.JSON(http.StatusBadRequest, tunnel.TunnelResponse{Success: false, Error: "Failed to edit instance, error creating new instance: " + err.Error()})
 			return
 		}
 		// 其他错误
@@ -2838,7 +2848,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV3(c *gin.Context) {
 	deadline := time.Now().Add(3 * time.Second)
 	for time.Now().Before(deadline) {
 		var dbCmd, dbStatus string
-		if scanErr := h.tunnelService.DB().QueryRow(`SELECT command_line, status FROM tunnels WHERE instance_id = ?`, instanceID).Scan(&dbCmd, &dbStatus); scanErr == nil {
+		if scanErr := h.tunnelService.DB().QueryRow(h.tunnelService.Rebind(`SELECT command_line, status FROM tunnels WHERE instance_id = ?`), instanceID).Scan(&dbCmd, &dbStatus); scanErr == nil {
 			if dbCmd == commandLine && dbStatus == "running" {
 				success = true
 				break
@@ -2854,11 +2864,11 @@ func (h *TunnelHandler) HandleUpdateTunnelV3(c *gin.Context) {
 		updates := nodepass.TunnelToMap(&raw.Tunnel)
 		// 更新 tunnel 表
 		result := h.tunnelService.GormDB().Model(&models.Tunnel{}).
-			Where("endpoint_id = ? AND instance_id = ?", raw.EndpointID, raw.ID).
+			Where("endpoint_id = ? AND instance_id = ?", raw.EndpointID, instanceID).
 			Updates(updates)
 
 		if result.Error != nil {
-			log.Errorf("[Master-%d]更新隧道 %s 运行时信息失败: %v", raw.EndpointID, raw.ID, result.Error)
+			log.Errorf("[Master-%d]更新隧道 %s 运行时信息失败: %v", raw.EndpointID, instanceID, result.Error)
 			return
 		}
 	}
@@ -2874,7 +2884,7 @@ func (h *TunnelHandler) HandleUpdateTunnelV3(c *gin.Context) {
 		}
 	}
 
-	c.JSON(http.StatusOK, tunnel.TunnelResponse{Success: true, Message: "编辑实例成功"})
+	c.JSON(http.StatusOK, tunnel.TunnelResponse{Success: true, Message: "Instance updated successfully"})
 }
 
 // HandleExportTunnelLogs 导出隧道的所有日志文件和EndpointSSE记录
@@ -2893,11 +2903,11 @@ func (h *TunnelHandler) HandleExportTunnelLogs(c *gin.Context) {
 	var tunnelName, instanceID string
 	var endpointID int64
 
-	err = db.QueryRow(`
-		SELECT name, endpoint_id, instance_id 
-		FROM tunnels 
+	err = db.QueryRow(h.tunnelService.Rebind(`
+		SELECT name, endpoint_id, instance_id
+		FROM tunnels
 		WHERE id = ?
-	`, tunnelID).Scan(&tunnelName, &endpointID, &instanceID)
+	`), tunnelID).Scan(&tunnelName, &endpointID, &instanceID)
 
 	if err != nil {
 		if err == sql.ErrNoRows {
@@ -3013,19 +3023,19 @@ func (h *TunnelHandler) HandleGetInstances(c *gin.Context) {
 		return
 	}
 
-	// 使用服务层获取端点信息
-	var endpoint struct{ URL, APIPath, APIKey string }
-	if err := h.tunnelService.DB().QueryRow(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`, endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
-		if err == sql.ErrNoRows {
-			c.JSON(http.StatusNotFound, gin.H{
-				"success": false,
-				"error":   "Endpoint not found",
-			})
-			return
-		}
+	// 使用 GORM 查询端点信息（自动处理 SQLite/PostgreSQL 占位符差异）
+	var epRows []models.Endpoint
+	if err := h.tunnelService.GormDB().Select("url, api_path, api_key").Where("id = ?", endpointID).Limit(1).Find(&epRows).Error; err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
 			"error":   "Failed to get endpoint info",
+		})
+		return
+	}
+	if len(epRows) == 0 {
+		c.JSON(http.StatusNotFound, gin.H{
+			"success": false,
+			"error":   "Endpoint not found",
 		})
 		return
 	}
@@ -3062,7 +3072,7 @@ func (h *TunnelHandler) HandleGetInstance(c *gin.Context) {
 
 	// 使用服务层获取端点信息
 	var endpoint struct{ URL, APIPath, APIKey string }
-	if err := h.tunnelService.DB().QueryRow(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`, endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
+	if err := h.tunnelService.DB().QueryRow(h.tunnelService.Rebind(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`), endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
 		if err == sql.ErrNoRows {
 			c.String(http.StatusNotFound, "Endpoint not found")
 			return
@@ -3118,7 +3128,7 @@ func (h *TunnelHandler) HandleControlInstance(c *gin.Context) {
 
 	// 使用服务层获取端点信息
 	var endpoint struct{ URL, APIPath, APIKey string }
-	if err := h.tunnelService.DB().QueryRow(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`, endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
+	if err := h.tunnelService.DB().QueryRow(h.tunnelService.Rebind(`SELECT url, api_path, api_key FROM endpoints WHERE id = ?`), endpointID).Scan(&endpoint.URL, &endpoint.APIPath, &endpoint.APIKey); err != nil {
 		if err == sql.ErrNoRows {
 			c.String(http.StatusNotFound, "Endpoint not found")
 			return
@@ -3218,7 +3228,7 @@ func (h *TunnelHandler) HandleUpdateInstanceTags(c *gin.Context) {
 		log.Errorf("[API]获取隧道实例ID失败: tunnelID=%d, err=%v", tunnelID, err)
 		c.JSON(http.StatusNotFound, gin.H{
 			"success": false,
-			"message": "隧道不存在",
+			"message": "Tunnel does not exist",
 		})
 		return
 	}
@@ -3270,9 +3280,9 @@ func (h *TunnelHandler) HandleUpdateTunnelsSorts(c *gin.Context) {
 	sortsStr := c.Param("sorts")
 	sorts, _ := strconv.ParseInt(sortsStr, 10, 64)
 	if err := h.tunnelService.UpdateTunnelsSorts(id, sorts); err != nil {
-		c.JSON(http.StatusInternalServerError, gin.H{"error": "更新排序失败: " + err.Error()})
+		c.JSON(http.StatusInternalServerError, gin.H{"error": "Failed to update sort order: " + err.Error()})
 		return
 	}
 
-	c.JSON(http.StatusOK, gin.H{"success": true, "message": "排序已保存"})
+	c.JSON(http.StatusOK, gin.H{"success": true, "message": "Sort order saved"})
 }

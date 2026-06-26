@@ -1,6 +1,7 @@
 package services
 
 import (
+	"NodePassDash/internal/db"
 	log "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"NodePassDash/internal/nodepass"
@@ -13,6 +14,17 @@ import (
 
 	"gorm.io/gorm"
 )
+
+// peerSIDTypeWhere 生成按 peer.sid + peer.type + tunnel.type 复合过滤的方言安全 WHERE 子句。
+// SQLite 与 PostgreSQL 的 JSON 路径语法不同,通过 db.Dialect().JSONPath 收口。
+func peerSIDTypeWhere(sid, peerType string, tunnelType models.TunnelType) (string, []interface{}) {
+	d := db.Dialect()
+	clause := fmt.Sprintf("%s = ? AND %s = ? AND type = ?",
+		d.JSONPath("peer", "sid"),
+		d.JSONPath("peer", "type"),
+	)
+	return clause, []interface{}{sid, peerType, tunnelType}
+}
 
 type ServiceImpl struct {
 	db            *gorm.DB
@@ -51,7 +63,8 @@ func (s *ServiceImpl) GetAvailableInstances() ([]*AvailableInstance, error) {
 
 	// 查询没有 peer 或 peer.sid 为空的隧道
 	// peer 字段为 JSON，需要检查是否为 null 或者 sid 字段为空
-	err := s.db.Where("peer IS NULL OR json_extract(peer, '$.sid') IS NULL OR json_extract(peer, '$.sid') = ''").
+	sidPath := db.Dialect().JSONPath("peer", "sid")
+	err := s.db.Where(fmt.Sprintf("peer IS NULL OR %s IS NULL OR %s = ''", sidPath, sidPath)).
 		Preload("Endpoint").
 		Find(&tunnels).Error
 
@@ -88,7 +101,7 @@ func (s *ServiceImpl) AssembleService(req *AssembleServiceRequest) error {
 	// 验证客户端实例是否存在并获取 tunnel 信息
 	var clientTunnel models.Tunnel
 	if err := s.db.Where("instance_id = ?", req.ClientInstanceId).First(&clientTunnel).Error; err != nil {
-		return fmt.Errorf("客户端实例不存在: %w", err)
+		return fmt.Errorf("client instance does not exist: %w", err)
 	}
 
 	// 如果需要服务端实例，验证是否存在并获取 tunnel 信息
@@ -96,7 +109,7 @@ func (s *ServiceImpl) AssembleService(req *AssembleServiceRequest) error {
 	if req.ServerInstanceId != nil && *req.ServerInstanceId != "" {
 		serverTunnel = &models.Tunnel{}
 		if err := s.db.Where("instance_id = ?", *req.ServerInstanceId).First(serverTunnel).Error; err != nil {
-			return fmt.Errorf("服务端实例不存在: %w", err)
+			return fmt.Errorf("server instance does not exist: %w", err)
 		}
 	}
 
@@ -110,7 +123,7 @@ func (s *ServiceImpl) AssembleService(req *AssembleServiceRequest) error {
 
 	// 调用 nodepass API 更新客户端实例的 peer 信息
 	if _, err := nodepass.UpdateInstancePeers(clientTunnel.EndpointID, req.ClientInstanceId, peer); err != nil {
-		return fmt.Errorf("更新客户端实例peer信息失败: %w", err)
+		return fmt.Errorf("failed to update client instance peer info: %w", err)
 	}
 
 	// 更新数据库中客户端隧道的 peer 字段和 service_sid
@@ -120,13 +133,13 @@ func (s *ServiceImpl) AssembleService(req *AssembleServiceRequest) error {
 		Where("instance_id = ?", req.ClientInstanceId).
 		Select("peer", "service_sid").
 		Updates(&clientTunnel).Error; err != nil {
-		return fmt.Errorf("更新客户端隧道peer字段失败: %w", err)
+		return fmt.Errorf("failed to update client tunnel peer field: %w", err)
 	}
 
 	// 如果有服务端实例，也调用 nodepass API 更新其 peer 信息
 	if serverTunnel != nil {
 		if _, err := nodepass.UpdateInstancePeers(serverTunnel.EndpointID, *req.ServerInstanceId, peer); err != nil {
-			return fmt.Errorf("更新服务端实例peer信息失败: %w", err)
+			return fmt.Errorf("failed to update server instance peer info: %w", err)
 		}
 
 		// 更新数据库中服务端隧道的 peer 字段和 service_sid
@@ -136,7 +149,7 @@ func (s *ServiceImpl) AssembleService(req *AssembleServiceRequest) error {
 			Where("instance_id = ?", *req.ServerInstanceId).
 			Select("peer", "service_sid").
 			Updates(serverTunnel).Error; err != nil {
-			return fmt.Errorf("更新服务端隧道peer字段失败: %w", err)
+			return fmt.Errorf("failed to update server tunnel peer field: %w", err)
 		}
 	}
 
@@ -147,20 +160,20 @@ func (s *ServiceImpl) AssembleService(req *AssembleServiceRequest) error {
 func (s *ServiceImpl) StartService(sid string) error {
 	service, err := s.GetServiceByID(sid)
 	if err != nil {
-		return fmt.Errorf("获取服务失败: %w", err)
+		return fmt.Errorf("failed to get service: %w", err)
 	}
 
 	// 启动客户端实例
 	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
 		if _, err := nodepass.ControlInstance(*service.ClientEndpointId, *service.ClientInstanceId, "start"); err != nil {
-			return fmt.Errorf("启动客户端实例失败: %w", err)
+			return fmt.Errorf("failed to start client instance: %w", err)
 		}
 	}
 
 	// 启动服务端实例（如果存在）
 	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
 		if _, err := nodepass.ControlInstance(*service.ServerEndpointId, *service.ServerInstanceId, "start"); err != nil {
-			return fmt.Errorf("启动服务端实例失败: %w", err)
+			return fmt.Errorf("failed to start server instance: %w", err)
 		}
 	}
 
@@ -171,20 +184,20 @@ func (s *ServiceImpl) StartService(sid string) error {
 func (s *ServiceImpl) StopService(sid string) error {
 	service, err := s.GetServiceByID(sid)
 	if err != nil {
-		return fmt.Errorf("获取服务失败: %w", err)
+		return fmt.Errorf("failed to get service: %w", err)
 	}
 
 	// 停止客户端实例
 	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
 		if _, err := nodepass.ControlInstance(*service.ClientEndpointId, *service.ClientInstanceId, "stop"); err != nil {
-			return fmt.Errorf("停止客户端实例失败: %w", err)
+			return fmt.Errorf("failed to stop client instance: %w", err)
 		}
 	}
 
 	// 停止服务端实例（如果存在）
 	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
 		if _, err := nodepass.ControlInstance(*service.ServerEndpointId, *service.ServerInstanceId, "stop"); err != nil {
-			return fmt.Errorf("停止服务端实例失败: %w", err)
+			return fmt.Errorf("failed to stop server instance: %w", err)
 		}
 	}
 
@@ -195,20 +208,20 @@ func (s *ServiceImpl) StopService(sid string) error {
 func (s *ServiceImpl) RestartService(sid string) error {
 	service, err := s.GetServiceByID(sid)
 	if err != nil {
-		return fmt.Errorf("获取服务失败: %w", err)
+		return fmt.Errorf("failed to get service: %w", err)
 	}
 
 	// 重启客户端实例
 	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
 		if _, err := nodepass.ControlInstance(*service.ClientEndpointId, *service.ClientInstanceId, "restart"); err != nil {
-			return fmt.Errorf("重启客户端实例失败: %w", err)
+			return fmt.Errorf("failed to restart client instance: %w", err)
 		}
 	}
 
 	// 重启服务端实例（如果存在）
 	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
 		if _, err := nodepass.ControlInstance(*service.ServerEndpointId, *service.ServerInstanceId, "restart"); err != nil {
-			return fmt.Errorf("重启服务端实例失败: %w", err)
+			return fmt.Errorf("failed to restart server instance: %w", err)
 		}
 	}
 
@@ -219,7 +232,7 @@ func (s *ServiceImpl) RestartService(sid string) error {
 func (s *ServiceImpl) DeleteService(sid string) error {
 	service, err := s.GetServiceByID(sid)
 	if err != nil {
-		return fmt.Errorf("获取服务失败: %w", err)
+		return fmt.Errorf("failed to get service: %w", err)
 	}
 
 	// 删除客户端实例
@@ -240,7 +253,7 @@ func (s *ServiceImpl) DeleteService(sid string) error {
 			if err.Error() == "隧道不存在" {
 				log.Warnf("[Service] 客户端实例不存在，可能已被删除: instanceID=%s, endpointID=%d", *service.ClientInstanceId, *service.ClientEndpointId)
 			} else {
-				return fmt.Errorf("删除客户端实例失败: %w", err)
+				return fmt.Errorf("failed to delete client instance: %w", err)
 			}
 		}
 
@@ -269,7 +282,7 @@ func (s *ServiceImpl) DeleteService(sid string) error {
 			if err.Error() == "隧道不存在" {
 				log.Warnf("[Service] 服务端实例不存在，可能已被删除: instanceID=%s, endpointID=%d", *service.ServerInstanceId, *service.ServerEndpointId)
 			} else {
-				return fmt.Errorf("删除服务端实例失败: %w", err)
+				return fmt.Errorf("failed to delete server instance: %w", err)
 			}
 		}
 
@@ -283,7 +296,7 @@ func (s *ServiceImpl) DeleteService(sid string) error {
 
 	// 删除服务记录
 	if err := s.db.Where("sid = ?", sid).Delete(&models.Services{}).Error; err != nil {
-		return fmt.Errorf("删除服务记录失败: %w", err)
+		return fmt.Errorf("failed to delete service record: %w", err)
 	}
 
 	return nil
@@ -293,7 +306,7 @@ func (s *ServiceImpl) DeleteService(sid string) error {
 func (s *ServiceImpl) RenameService(sid, newName string) error {
 	service, err := s.GetServiceByID(sid)
 	if err != nil {
-		return fmt.Errorf("获取服务失败: %w", err)
+		return fmt.Errorf("failed to get service: %w", err)
 	}
 
 	// 创建只包含 alias 的 peer 对象（保持其他字段不变）
@@ -306,7 +319,7 @@ func (s *ServiceImpl) RenameService(sid, newName string) error {
 	// 更新客户端实例的 peer.alias
 	if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
 		if _, err := nodepass.UpdateInstancePeers(*service.ClientEndpointId, *service.ClientInstanceId, peer); err != nil {
-			return fmt.Errorf("更新客户端实例peer信息失败: %w", err)
+			return fmt.Errorf("failed to update client instance peer info: %w", err)
 		}
 
 		// 更新数据库中客户端隧道的 peer 字段和 service_sid
@@ -322,7 +335,7 @@ func (s *ServiceImpl) RenameService(sid, newName string) error {
 			if err := s.db.Model(&models.Tunnel{}).
 				Where("instance_id = ?", *service.ClientInstanceId).
 				Updates(updates).Error; err != nil {
-				return fmt.Errorf("更新客户端隧道peer字段失败: %w", err)
+				return fmt.Errorf("failed to update client tunnel peer field: %w", err)
 			}
 		}
 
@@ -331,7 +344,7 @@ func (s *ServiceImpl) RenameService(sid, newName string) error {
 	// 更新服务端实例的 peer.alias（如果存在）
 	if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
 		if _, err := nodepass.UpdateInstancePeers(*service.ServerEndpointId, *service.ServerInstanceId, peer); err != nil {
-			return fmt.Errorf("更新服务端实例peer信息失败: %w", err)
+			return fmt.Errorf("failed to update server instance peer info: %w", err)
 		}
 
 		// 更新数据库中服务端隧道的 peer 字段和 service_sid
@@ -346,7 +359,7 @@ func (s *ServiceImpl) RenameService(sid, newName string) error {
 			if err := s.db.Model(&models.Tunnel{}).
 				Where("instance_id = ?", *service.ServerInstanceId).
 				Updates(updates).Error; err != nil {
-				return fmt.Errorf("更新服务端隧道peer字段失败: %w", err)
+				return fmt.Errorf("failed to update server tunnel peer field: %w", err)
 			}
 		}
 	}
@@ -355,7 +368,7 @@ func (s *ServiceImpl) RenameService(sid, newName string) error {
 	if err := s.db.Model(&models.Services{}).
 		Where("sid = ? ", sid).
 		Update("alias", newName).Error; err != nil {
-		return fmt.Errorf("更新服务别名失败: %w", err)
+		return fmt.Errorf("failed to update service alias: %w", err)
 	}
 
 	return nil
@@ -365,7 +378,7 @@ func (s *ServiceImpl) RenameService(sid, newName string) error {
 func (s *ServiceImpl) DissolveService(sid string) error {
 	service, err := s.GetServiceByID(sid)
 	if err != nil {
-		return fmt.Errorf("获取服务失败: %w", err)
+		return fmt.Errorf("failed to get service: %w", err)
 	}
 
 	// 清空 peer 信息（设置为空对象）
@@ -381,7 +394,7 @@ func (s *ServiceImpl) DissolveService(sid string) error {
 		if _, err := nodepass.UpdateInstancePeers(*service.ClientEndpointId, *service.ClientInstanceId, emptyPeer); err != nil {
 			// 如果是404错误，说明实例已被删除，忽略该错误
 			if !strings.Contains(err.Error(), "404") {
-				return fmt.Errorf("清空客户端实例peer信息失败: %w", err)
+				return fmt.Errorf("failed to clear client instance peer info: %w", err)
 			}
 			log.Warnf("[Service] 客户端实例不存在，可能已被删除: instanceID=%s, endpointID=%d", *service.ClientInstanceId, *service.ClientEndpointId)
 		}
@@ -397,7 +410,7 @@ func (s *ServiceImpl) DissolveService(sid string) error {
 					"service_sid": nil, // 清空 service_sid
 				})
 			if result.Error != nil {
-				return fmt.Errorf("清空客户端隧道peer字段失败: %w", result.Error)
+				return fmt.Errorf("failed to clear client tunnel peer field: %w", result.Error)
 			}
 			// 如果没有更新任何记录，说明隧道可能已被删除，记录警告但不报错
 			if result.RowsAffected == 0 {
@@ -411,7 +424,7 @@ func (s *ServiceImpl) DissolveService(sid string) error {
 		if _, err := nodepass.UpdateInstancePeers(*service.ServerEndpointId, *service.ServerInstanceId, emptyPeer); err != nil {
 			// 如果是404错误，说明实例已被删除，忽略该错误
 			if !strings.Contains(err.Error(), "404") {
-				return fmt.Errorf("清空服务端实例peer信息失败: %w", err)
+				return fmt.Errorf("failed to clear server instance peer info: %w", err)
 			}
 			log.Warnf("[Service] 服务端实例不存在，可能已被删除: instanceID=%s, endpointID=%d", *service.ServerInstanceId, *service.ServerEndpointId)
 		}
@@ -427,7 +440,7 @@ func (s *ServiceImpl) DissolveService(sid string) error {
 					"service_sid": nil, // 清空 service_sid
 				})
 			if result.Error != nil {
-				return fmt.Errorf("清空服务端隧道peer字段失败: %w", result.Error)
+				return fmt.Errorf("failed to clear server tunnel peer field: %w", result.Error)
 			}
 			// 如果没有更新任何记录，说明隧道可能已被删除，记录警告但不报错
 			if result.RowsAffected == 0 {
@@ -438,7 +451,7 @@ func (s *ServiceImpl) DissolveService(sid string) error {
 
 	// 删除服务记录（但不删除实例）
 	if err := s.db.Where("sid = ?", sid).Delete(&models.Services{}).Error; err != nil {
-		return fmt.Errorf("删除服务记录失败: %w", err)
+		return fmt.Errorf("failed to delete service record: %w", err)
 	}
 
 	return nil
@@ -449,7 +462,7 @@ func (s *ServiceImpl) SyncService(sid string) error {
 	// 获取服务信息
 	service, err := s.GetServiceByID(sid)
 	if err != nil {
-		return fmt.Errorf("获取服务失败: %w", err)
+		return fmt.Errorf("failed to get service: %w", err)
 	}
 
 	// 根据 service.Type 查询并更新服务信息
@@ -458,7 +471,7 @@ func (s *ServiceImpl) SyncService(sid string) error {
 		// type=0/5: 通用单端转发/均衡单端转发，只有 client 端
 		if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
 			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ClientInstanceId, *service.ClientEndpointId); err != nil {
-				return fmt.Errorf("同步客户端实例失败: %w", err)
+				return fmt.Errorf("failed to sync client instance: %w", err)
 			}
 		}
 	case "1", "3", "6":
@@ -466,13 +479,13 @@ func (s *ServiceImpl) SyncService(sid string) error {
 		// 同步 client 端
 		if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
 			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ClientInstanceId, *service.ClientEndpointId); err != nil {
-				return fmt.Errorf("同步客户端实例失败: %w", err)
+				return fmt.Errorf("failed to sync client instance: %w", err)
 			}
 		}
 		// 同步 server 端
 		if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
 			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ServerInstanceId, *service.ServerEndpointId); err != nil {
-				return fmt.Errorf("同步服务端实例失败: %w", err)
+				return fmt.Errorf("failed to sync server instance: %w", err)
 			}
 		}
 	case "2", "4", "7":
@@ -480,13 +493,13 @@ func (s *ServiceImpl) SyncService(sid string) error {
 		// 同步 client 端
 		if service.ClientInstanceId != nil && service.ClientEndpointId != nil {
 			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ClientInstanceId, *service.ClientEndpointId); err != nil {
-				return fmt.Errorf("同步客户端实例失败: %w", err)
+				return fmt.Errorf("failed to sync client instance: %w", err)
 			}
 		}
 		// 同步 server 端
 		if service.ServerInstanceId != nil && service.ServerEndpointId != nil {
 			if err := s.syncServiceFromTunnel(sid, service.Type, *service.ServerInstanceId, *service.ServerEndpointId); err != nil {
-				return fmt.Errorf("同步服务端实例失败: %w", err)
+				return fmt.Errorf("failed to sync server instance: %w", err)
 			}
 		}
 	}
@@ -499,7 +512,7 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 	// 查询 tunnel
 	var tunnel models.Tunnel
 	if err := s.db.Where("instance_id = ? AND endpoint_id = ?", instanceID, endpointID).First(&tunnel).Error; err != nil {
-		return fmt.Errorf("查询隧道失败: %w", err)
+		return fmt.Errorf("failed to query tunnel: %w", err)
 	}
 
 	// 构建 service 更新对象
@@ -520,7 +533,7 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 	case "0", "5":
 		// type=0/5: 通用单端转发/均衡单端转发，只有 client 端
 		if tunnel.Type == models.TunnelModeServer {
-			return fmt.Errorf("服务 SID=%s 的 Type 为 0，但 tunnel 类型为 %s", sid, tunnel.Type)
+			return fmt.Errorf("service SID=%s Type is 0, but tunnel type is %s", sid, tunnel.Type)
 		}
 		service.ClientInstanceId = &instanceID
 		service.ClientEndpointId = &endpointID
@@ -570,7 +583,8 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 client 端流量
 			var clientTunnel models.Tunnel
-			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", sid, serviceType, models.TunnelModeClient).First(&clientTunnel).Error; err == nil {
+			clause, args := peerSIDTypeWhere(sid, serviceType, models.TunnelModeClient)
+			if err := s.db.Where(clause, args...).First(&clientTunnel).Error; err == nil {
 				service.TotalRx += clientTunnel.TCPRx + clientTunnel.UDPRx
 				service.TotalTx += clientTunnel.TCPTx + clientTunnel.UDPTx
 			}
@@ -589,7 +603,8 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 server 端流量
 			var serverTunnel models.Tunnel
-			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", sid, serviceType, models.TunnelModeServer).First(&serverTunnel).Error; err == nil {
+			clause, args := peerSIDTypeWhere(sid, serviceType, models.TunnelModeServer)
+			if err := s.db.Where(clause, args...).First(&serverTunnel).Error; err == nil {
 				service.TotalRx += serverTunnel.TCPRx + serverTunnel.UDPRx
 				service.TotalTx += serverTunnel.TCPTx + serverTunnel.UDPTx
 			}
@@ -620,7 +635,8 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 client 端流量
 			var clientTunnel models.Tunnel
-			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", sid, serviceType, models.TunnelModeClient).First(&clientTunnel).Error; err == nil {
+			clause, args := peerSIDTypeWhere(sid, serviceType, models.TunnelModeClient)
+			if err := s.db.Where(clause, args...).First(&clientTunnel).Error; err == nil {
 				service.TotalRx += clientTunnel.TCPRx + clientTunnel.UDPRx
 				service.TotalTx += clientTunnel.TCPTx + clientTunnel.UDPTx
 			}
@@ -647,7 +663,8 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 			service.TotalTx = tunnel.TCPTx + tunnel.UDPTx
 			// 查询 server 端流量
 			var serverTunnel models.Tunnel
-			if err := s.db.Where("peer->>'$.sid' = ? AND peer->>'$.type' = ? AND type = ?", sid, serviceType, models.TunnelModeServer).First(&serverTunnel).Error; err == nil {
+			clause, args := peerSIDTypeWhere(sid, serviceType, models.TunnelModeServer)
+			if err := s.db.Where(clause, args...).First(&serverTunnel).Error; err == nil {
 				service.TotalRx += serverTunnel.TCPRx + serverTunnel.UDPRx
 				service.TotalTx += serverTunnel.TCPTx + serverTunnel.UDPTx
 			}
@@ -661,7 +678,7 @@ func (s *ServiceImpl) syncServiceFromTunnel(sid, serviceType, instanceID string,
 		Where("sid = ? AND type = ?", sid, serviceType).
 		Select(updateColumns).
 		Updates(&service).Error; err != nil {
-		return fmt.Errorf("更新服务记录失败: %w", err)
+		return fmt.Errorf("failed to update service record: %w", err)
 	}
 
 	return nil
@@ -676,7 +693,7 @@ func (s *ServiceImpl) UpdateServicesSorts(req *UpdateServicesSortsRequest) error
 	// 开启事务
 	tx := s.db.Begin()
 	if tx.Error != nil {
-		return fmt.Errorf("开启事务失败: %w", tx.Error)
+		return fmt.Errorf("failed to start transaction: %w", tx.Error)
 	}
 	defer func() {
 		if r := recover(); r != nil {
@@ -707,12 +724,12 @@ func (s *ServiceImpl) UpdateServicesSorts(req *UpdateServicesSortsRequest) error
 	// 执行批量更新
 	if err := tx.Exec(sql, append(args, sids)...).Error; err != nil {
 		tx.Rollback()
-		return fmt.Errorf("批量更新服务排序失败: %w", err)
+		return fmt.Errorf("failed to batch update service sorts: %w", err)
 	}
 
 	// 提交事务
 	if err := tx.Commit().Error; err != nil {
-		return fmt.Errorf("提交事务失败: %w", err)
+		return fmt.Errorf("failed to commit transaction: %w", err)
 	}
 
 	log.Infof("[Service] 批量更新 %d 个服务的排序成功", len(req.Services))

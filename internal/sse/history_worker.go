@@ -64,6 +64,9 @@ type HistoryWorker struct {
 	wg            sync.WaitGroup      // 等待组
 	closed        bool                // 关闭标志
 	closeMu       sync.Mutex          // 保护关闭状态
+
+	// 单写者队列：避免 SQLite 并发写导致 locked
+	historyWriteChan chan *models.ServiceHistory
 }
 
 // NewHistoryWorker 创建历史数据处理Worker（参照Nezha设计）
@@ -73,15 +76,16 @@ func NewHistoryWorker(db *gorm.DB) *HistoryWorker {
 		serviceCurrentStatusData: make(map[string]*ServiceCurrentStatus),
 		dataInputChan:            make(chan MonitoringData, 15000), // SSE数据输入通道
 		stopChan:                 make(chan struct{}),
+		historyWriteChan:         make(chan *models.ServiceHistory, 5000),
 	}
 
 	// 启动主数据处理协程（参照Nezha的worker设计）
 	worker.wg.Add(1)
 	go worker.dataProcessWorker()
 
-	// 移除批量写入协程（改为立即写入）
-	// worker.wg.Add(1)
-	// go worker.batchWriteWorker()
+	// 启动单写者批量写入协程（避免并发写）
+	worker.wg.Add(1)
+	go worker.historyWriteWorker()
 
 	log.Info("历史数据处理Worker已启动")
 	return worker
@@ -139,6 +143,59 @@ func (hw *HistoryWorker) dataProcessWorker() {
 			return
 		case data := <-hw.dataInputChan:
 			hw.processMonitoringData(data)
+		}
+	}
+}
+
+// historyWriteWorker 单写者批量写入 service_history，减少 SQLite 写锁竞争
+func (hw *HistoryWorker) historyWriteWorker() {
+	defer hw.wg.Done()
+	log.Info("[HistoryWorker]单写者写入协程已启动")
+
+	const (
+		flushInterval = 500 * time.Millisecond
+		maxBatchSize  = 200
+	)
+
+	ticker := time.NewTicker(flushInterval)
+	defer ticker.Stop()
+
+	batch := make([]*models.ServiceHistory, 0, maxBatchSize)
+
+	flush := func() {
+		if len(batch) == 0 {
+			return
+		}
+
+		startTime := time.Now()
+		err := hw.db.CreateInBatches(batch, maxBatchSize).Error
+		duration := time.Since(startTime)
+
+		if err != nil {
+			log.Errorf("[HistoryWorker]批量写入失败 (count=%d, 耗时%v): %v", len(batch), duration, err)
+		} else {
+			log.Debugf("[HistoryWorker]批量写入成功 (count=%d, 耗时%v)", len(batch), duration)
+		}
+
+		batch = batch[:0]
+	}
+
+	for {
+		select {
+		case <-hw.stopChan:
+			flush()
+			log.Info("[HistoryWorker]单写者写入协程收到停止信号")
+			return
+		case history := <-hw.historyWriteChan:
+			if history == nil {
+				continue
+			}
+			batch = append(batch, history)
+			if len(batch) >= maxBatchSize {
+				flush()
+			}
+		case <-ticker.C:
+			flush()
 		}
 	}
 }
@@ -221,12 +278,12 @@ func (hw *HistoryWorker) triggerBatchWrite(key string, currentStatus *ServiceCur
 	log.Debugf("[HistoryWorker]实例 %s 达到累积阈值，开始聚合计算 %d 个数据点", key, len(dataPoints))
 
 	// 异步进行数据聚合和批量写入
-	go hw.aggregateAndWrite(dataPoints)
+	go hw.aggregateAndEnqueueWrite(dataPoints)
 }
 
-// aggregateAndWrite 聚合数据并写入数据库
+// aggregateAndEnqueueWrite 聚合数据并推送到单写者队列
 // 修改后的版本：流量记录差值，Pool记录最后值，速度用总差值/总时间计算
-func (hw *HistoryWorker) aggregateAndWrite(dataPoints []MonitoringData) {
+func (hw *HistoryWorker) aggregateAndEnqueueWrite(dataPoints []MonitoringData) {
 	if len(dataPoints) == 0 {
 		return
 	}
@@ -239,7 +296,7 @@ func (hw *HistoryWorker) aggregateAndWrite(dataPoints []MonitoringData) {
 	historyModel := &models.ServiceHistory{
 		EndpointID:  firstPoint.EndpointID,
 		InstanceID:  firstPoint.InstanceID,
-		RecordTime:  time.Now().Truncate(time.Minute), // 按分钟取整
+		RecordTime:  lastPoint.Timestamp.Truncate(time.Minute), // 使用事件时间按分钟取整，避免写入延迟导致的错位
 		RecordCount: len(dataPoints),
 		UpCount:     len(dataPoints), // 所有数据点都算在线
 	}
@@ -335,14 +392,12 @@ func (hw *HistoryWorker) aggregateAndWrite(dataPoints []MonitoringData) {
 		historyModel.AvgUDPs = 0
 	}
 
-	// 7. 立即写入数据库
-	startTime := time.Now()
-	err := hw.db.Create(historyModel).Error
-	duration := time.Since(startTime)
-
-	if err != nil {
-		log.Errorf("[HistoryWorker]立即写入失败 (端点:%d 实例:%s, 耗时%v): %v",
-			historyModel.EndpointID, historyModel.InstanceID, duration, err)
+	// 7. 推送到单写者队列（非阻塞）
+	select {
+	case hw.historyWriteChan <- historyModel:
+	default:
+		log.Warnf("[HistoryWorker]写入队列已满，丢弃聚合结果: 端点:%d 实例:%s 时间:%s",
+			historyModel.EndpointID, historyModel.InstanceID, historyModel.RecordTime.Format("2006-01-02 15:04:05"))
 	}
 
 	log.Debugf("[HistoryWorker]聚合完成 - 端点:%d 实例:%s 数据点:%d 时间跨度:%.1fs TCP入累计:%d TCP出累计:%d UDP入累计:%d UDP出累计:%d 延迟平均:%.2fms 连接池最新:%d TCP连接数:%d UDP连接数:%d 入站速度:%.2f bytes/s 出站速度:%.2f bytes/s",
@@ -394,37 +449,25 @@ func (hw *HistoryWorker) calculateDelta(current, last int64) int64 {
 // Close 关闭Worker
 func (hw *HistoryWorker) Close() {
 	hw.closeMu.Lock()
-	defer hw.closeMu.Unlock()
-
-	// 检查是否已经关闭
 	if hw.closed {
+		hw.closeMu.Unlock()
 		log.Debug("HistoryWorker 已经关闭，跳过重复关闭")
 		return
 	}
+	hw.closed = true
+	hw.closeMu.Unlock()
 
 	log.Info("正在关闭历史数据处理Worker")
 
-	// 标记为已关闭
-	hw.closed = true
-
-	// 安全关闭停止通道
+	// 安全关闭停止通道；不要关闭 dataInputChan/historyWriteChan，避免 Dispatch 并发写入导致 panic
 	select {
 	case <-hw.stopChan:
-		// 通道已经关闭
 	default:
 		close(hw.stopChan)
 	}
 
-	// 等待所有协程完成
+	// 等待所有协程完成（dataProcessWorker + historyWriteWorker）
 	hw.wg.Wait()
-
-	// 安全关闭数据通道
-	select {
-	case <-hw.dataInputChan:
-		// 通道已经关闭或为空
-	default:
-		close(hw.dataInputChan)
-	}
 
 	log.Info("历史数据处理Worker已关闭")
 }

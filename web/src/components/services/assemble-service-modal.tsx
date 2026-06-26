@@ -288,7 +288,7 @@ export default function AssembleServiceModal({
   return (
     <Modal
       isOpen={isOpen}
-      size="md"
+      size="xl"
       onOpenChange={onOpenChange}
     >
       <ModalContent>

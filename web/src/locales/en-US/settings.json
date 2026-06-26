@@ -15,6 +15,18 @@
       "description": "Select your interface language",
       "label": "Interface Language"
     },
+    "navbar": {
+      "title": "Navbar Style",
+      "description": "Choose how the top navigation is displayed",
+      "normal": "Normal",
+      "normalDesc": "Use the current split navigation layout",
+      "radioCenter": "Radio Center",
+      "radioCenterDesc": "Use a centered floating pill navigation layout",
+      "basicHeader": "Basic Header",
+      "basicHeaderDesc": "Use a left-brand header with grouped pill navigation",
+      "settingsLayout": "Sidebar Layout",
+      "settingsLayoutDesc": "Keep navigation fixed on the left with content on the right"
+    },
     "privacy": {
       "title": "Privacy Mode",
       "description": "Protect your privacy and data security",
@@ -538,7 +550,11 @@
       "binary": "Binary Deployment",
       "autoUpdateStable": "Auto Update to Stable",
       "autoUpdateBeta": "Auto Update to Beta",
-      "manualUpdate": "Manual Update"
+      "manualUpdate": "Manual Update",
+      "dockerDetails": "Docker environment update through container orchestration",
+      "dockerManualDetails": "Docker environment recommended to update via host commands for stable and reliable updates",
+      "binaryDetails": "Will download the latest binary file and replace automatically",
+      "unknownDetails": "Please check the update instructions for manual update"
     },
     "updateInstructions": {
       "title": "Update Instructions:",

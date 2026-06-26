@@ -12,7 +12,9 @@
     "endpoints": "Endpoints",
     "endpointsManage": "Endpoint",
     "templates": "Templates",
-    "settings": "Settings"
+    "settings": "Settings",
+    "appearanceSettings": "Appearance",
+    "logout": "Logout"
   },
   "action": {
     "add": "Add",
@@ -81,6 +83,10 @@
     "no": "No",
     "enabled": "Enabled",
     "disabled": "Disabled"
+  },
+  "logViewer": {
+    "loading": "Loading logs...",
+    "noLogs": "No logs"
   },
   "time": {
     "second": "second",
@@ -166,7 +172,7 @@
     "confirm": "Confirm Logout"
   },
   "footer": {
-    "copyright": "NodePassDash © 2025",
+    "copyright": "NodePassDash © 2026",
     "version": "v",
     "poweredBy": "Powered by",
     "poweredByLink": "NodePass",

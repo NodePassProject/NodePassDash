@@ -1,6 +1,7 @@
 package db
 
 import (
+	"NodePassDash/internal/db/dialect"
 	applog "NodePassDash/internal/log"
 	"NodePassDash/internal/models"
 	"context"
@@ -15,27 +16,34 @@ import (
 	"time"
 
 	_ "github.com/mattn/go-sqlite3"
-	"gorm.io/driver/sqlite"
+	gormpg "gorm.io/driver/postgres"
+	gormsqlite "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
 
 var (
-	gormDB *gorm.DB
-	once   sync.Once
+	gormDB          *gorm.DB
+	currentDialect  dialect.Dialect
+	once            sync.Once
 	// 用于控制数据库健康检查协程的关闭
 	dbHealthCtx    context.Context
 	dbHealthCancel context.CancelFunc
 )
 
-// GetDB 获取GORM数据库实例
-func GetDB() *gorm.DB {
-	// 处理 Docker Compose 配置迁移兼容性
-	if err := handleDockerComposeMigration(); err != nil {
-		log.Printf("[数据库迁移] Docker Compose 配置迁移失败: %v", err)
-		// 迁移失败不阻止启动，但会记录错误
+// Dialect 返回当前生效的方言实现。
+// 调用前必须确保 GetDB 已被调用过(即不在 Setup 模式下)。
+// 若尚未初始化,返回 SQLite{} 作为安全默认值,避免业务层 nil 解引用。
+func Dialect() dialect.Dialect {
+	if currentDialect == nil {
+		return dialect.SQLite{}
 	}
+	return currentDialect
+}
 
+// GetDB 获取GORM数据库实例。
+// 仅应在 Ready 模式(配置已完成)下调用;Setup 模式不要走这个入口。
+func GetDB() *gorm.DB {
 	// 确保db目录存在
 	dbDir := "db"
 	if err := ensureDir(dbDir); err != nil {
@@ -44,68 +52,62 @@ func GetDB() *gorm.DB {
 
 	once.Do(func() {
 		config := GetDBConfig(dbDir)
-		var err error
-
-		// 构建SQLite DSN
-		dsn := config.BuildDSN()
-
-		// 根据配置设置日志级别
-		var logLevel logger.LogLevel
-		switch config.LogLevel {
-		case "silent":
-			logLevel = logger.Silent
-		case "error":
-			logLevel = logger.Error
-		case "warn":
-			logLevel = logger.Warn
-		case "info":
-			logLevel = logger.Info
-		default:
-			logLevel = logger.Info
+		if !config.IsValid() {
+			log.Fatalf("数据库配置不完整(driver=%q),请先完成 Setup 向导或设置 DB_DRIVER 等环境变量", config.Driver)
 		}
 
-		// GORM配置
+		// SQLite 才需要处理 Docker Compose 软链接兼容
+		if config.Driver == dialect.NameSQLite || config.Driver == "sqlite3" {
+			if err := handleDockerComposeMigration(); err != nil {
+				log.Printf("[数据库迁移] Docker Compose 配置迁移失败: %v", err)
+			}
+		}
+
+		// 装配方言
+		currentDialect = dialect.For(config.Driver)
+		if currentDialect == nil {
+			log.Fatalf("不支持的数据库 driver: %q", config.Driver)
+		}
+
 		gormConfig := &gorm.Config{
-			Logger: logger.Default.LogMode(logLevel),
+			Logger: logger.Default.LogMode(resolveLogLevel(config.LogLevel)),
 			NowFunc: func() time.Time {
 				return time.Now().Local()
 			},
 		}
 
-		// 连接数据库 - 使用CGO SQLite驱动 (github.com/mattn/go-sqlite3)
-		sqlDB, err := sql.Open("sqlite3", dsn)
-		if err != nil {
-			log.Fatalf("打开SQLite数据库失败: %v", err)
+		// 按 driver 分支打开 GORM
+		var openErr error
+		gormDB, openErr = openGORM(config, gormConfig)
+		if openErr != nil {
+			log.Fatalf("打开数据库失败: %v", openErr)
 		}
 
-		// 配置连接池（必须在创建GORM之前）
+		// 配置连接池
+		sqlDB, err := gormDB.DB()
+		if err != nil {
+			log.Fatalf("获取底层 sql.DB 失败: %v", err)
+		}
 		sqlDB.SetMaxOpenConns(config.MaxOpenConns)
 		sqlDB.SetMaxIdleConns(config.MaxIdleConns)
 		sqlDB.SetConnMaxLifetime(config.MaxLifetime)
 		sqlDB.SetConnMaxIdleTime(config.MaxIdleTime)
 
-		// 测试连接并设置初始PRAGMA
 		if err := sqlDB.Ping(); err != nil {
 			log.Fatalf("数据库连接测试失败: %v", err)
 		}
-
-		gormDB, err = gorm.Open(sqlite.Dialector{
-			Conn: sqlDB,
-		}, gormConfig)
-		if err != nil {
-			log.Fatalf("连接SQLite数据库失败: %v", err)
-		}
-
-		// 连接池已配置，连接已测试
 
 		// 自动迁移数据库表结构
 		if err := AutoMigrate(gormDB); err != nil {
 			log.Fatalf("数据库迁移失败: %v", err)
 		}
 
+		// 创建/校验关键索引；如存在历史重复数据，可按配置自动去重后重试
+		ensureOptimizedIndexes(gormDB, config)
+
 		// 打印配置信息
 		config.PrintConfig()
-		log.Printf("SQLite数据库连接成功并完成表结构迁移")
+		log.Printf("数据库连接成功并完成表结构迁移 (driver=%s)", config.Driver)
 
 		// 启动连接健康检查（可关闭）
 		dbHealthCtx, dbHealthCancel = context.WithCancel(context.Background())
@@ -114,10 +116,127 @@ func GetDB() *gorm.DB {
 	return gormDB
 }
 
+// openGORM 根据 driver 打开 GORM 实例。
+// SQLite 走 sql.Open + gormsqlite.Dialector{Conn} 以保留对底层 *sql.DB 的控制;
+// PG 走 gormpg.Open(dsn) 让 driver 自己管理 pgx 注册。
+// 抽出来是为了让 Setup 路由也能复用同一段初始化逻辑。
+func openGORM(config DBConfig, gormConfig *gorm.Config) (*gorm.DB, error) {
+	switch config.Driver {
+	case dialect.NameSQLite, "sqlite3":
+		dsn := config.BuildSQLiteDSN()
+		sqlDB, err := sql.Open("sqlite3", dsn)
+		if err != nil {
+			return nil, fmt.Errorf("打开 SQLite 失败: %v", err)
+		}
+		return gorm.Open(gormsqlite.Dialector{Conn: sqlDB}, gormConfig)
+
+	case dialect.NamePostgres, "postgresql", "pg":
+		dsn := config.BuildPostgresDSN()
+		return gorm.Open(gormpg.Open(dsn), gormConfig)
+	}
+	return nil, fmt.Errorf("不支持的 driver: %q", config.Driver)
+}
+
+// resolveLogLevel 把字符串日志级别映射到 GORM logger 级别。
+func resolveLogLevel(s string) logger.LogLevel {
+	switch s {
+	case "silent":
+		return logger.Silent
+	case "error":
+		return logger.Error
+	case "warn":
+		return logger.Warn
+	case "info":
+		return logger.Info
+	default:
+		return logger.Info
+	}
+}
+
+// ensureOptimizedIndexes 创建关键索引以降低聚合扫描成本
+// 注意：对于 UNIQUE 索引，如果表内已存在重复数据，创建会失败；这里仅记录日志，不做数据删除。
+func ensureOptimizedIndexes(db *gorm.DB, config DBConfig) {
+	type indexStmt struct {
+		name string
+		sql  string
+	}
+
+	// 先创建非 UNIQUE 索引（对重复数据不敏感）
+	stmts := []indexStmt{
+		// service_history: API 查询 + 小时聚合所需
+		{
+			name: "idx_service_history_instance_time",
+			sql:  "CREATE INDEX IF NOT EXISTS idx_service_history_instance_time ON service_history(instance_id, record_time)",
+		},
+		{
+			name: "idx_service_history_endpoint_instance_time",
+			sql:  "CREATE INDEX IF NOT EXISTS idx_service_history_endpoint_instance_time ON service_history(endpoint_id, instance_id, record_time)",
+		},
+		// traffic_hourly_summary: 帮助按小时清理/查询（不影响唯一性）
+		{
+			name: "idx_traffic_hourly_summary_hour_time",
+			sql:  "CREATE INDEX IF NOT EXISTS idx_traffic_hourly_summary_hour_time ON traffic_hourly_summary(hour_time)",
+		},
+	}
+
+	for _, stmt := range stmts {
+		if err := db.Exec(stmt.sql).Error; err != nil {
+			applog.Warnf("[DB]创建索引 %s 失败（可能存在重复数据或锁冲突）: %v", stmt.name, err)
+		} else {
+			applog.Debugf("[DB]索引已就绪: %s", stmt.name)
+		}
+	}
+
+	// 再尝试创建 UNIQUE 索引：失败时可选择自动去重并重试
+	uniqueName := "uniq_traffic_hourly_summary_hour_endpoint_instance"
+	uniqueSQL := "CREATE UNIQUE INDEX IF NOT EXISTS uniq_traffic_hourly_summary_hour_endpoint_instance ON traffic_hourly_summary(hour_time, endpoint_id, instance_id)"
+	if err := db.Exec(uniqueSQL).Error; err != nil {
+		applog.Warnf("[DB]创建索引 %s 失败（可能存在重复数据或锁冲突）: %v", uniqueName, err)
+		if config.AutoDedup && stringContains(err.Error(), "UNIQUE constraint failed") {
+			applog.Warnf("[DB]检测到 traffic_hourly_summary 存在重复 key，准备自动去重后重试创建唯一索引（可用 DB_AUTO_DEDUP=false 关闭）")
+			if dedupErr := dedupTrafficHourlySummary(db); dedupErr != nil {
+				applog.Errorf("[DB]自动去重 traffic_hourly_summary 失败: %v", dedupErr)
+				return
+			}
+			if retryErr := db.Exec(uniqueSQL).Error; retryErr != nil {
+				applog.Errorf("[DB]去重后仍无法创建索引 %s: %v", uniqueName, retryErr)
+				return
+			}
+			applog.Infof("[DB]去重完成，唯一索引已创建: %s", uniqueName)
+		}
+	} else {
+		applog.Debugf("[DB]索引已就绪: %s", uniqueName)
+	}
+}
+
+func dedupTrafficHourlySummary(db *gorm.DB) error {
+	start := time.Now()
+
+	// 去重：每个 (hour_time, endpoint_id, instance_id) 保留最大 id 的一条
+	// 说明：该语句会扫描表一次；在启动期执行可避免要求用户手工执行修复命令。
+	res := db.Exec(`
+		DELETE FROM traffic_hourly_summary
+		WHERE id NOT IN (
+			SELECT MAX(id)
+			FROM traffic_hourly_summary
+			GROUP BY hour_time, endpoint_id, instance_id
+		)
+	`)
+	if res.Error != nil {
+		return res.Error
+	}
+
+	applog.Infof("[DB]traffic_hourly_summary 自动去重完成，删除 %d 行，耗时 %v", res.RowsAffected, time.Since(start))
+	return nil
+}
+
 // startConnectionHealthCheck 启动连接健康检查（支持优雅关闭）
 func startConnectionHealthCheck(ctx context.Context) {
 	ticker := time.NewTicker(30 * time.Second) // 每30秒检查一次
 	defer ticker.Stop()
+
+	var lastWaitCount int64
+	var lastWaitDuration time.Duration
 
 	for {
 		select {
@@ -148,17 +267,41 @@ func startConnectionHealthCheck(ctx context.Context) {
 
 		// 检查连接池状态
 		stats := sqlDB.Stats()
-		if stats.OpenConnections > int(float64(stats.MaxOpenConnections)*0.8) {
-			log.Printf("警告：连接池使用率较高 %d/%d", stats.OpenConnections, stats.MaxOpenConnections)
+
+		// 对于 SQLite 默认 MaxOpenConnections=1，OpenConnections=1 属于正常现象；
+		// 仅在出现等待（WaitCount 增长）时提示可能存在锁竞争或长事务。
+		if stats.MaxOpenConnections <= 1 {
+			if stats.WaitCount > lastWaitCount || stats.WaitDuration > lastWaitDuration {
+				log.Printf("警告：连接池出现等待(可能存在长事务/锁竞争) open=%d in_use=%d idle=%d max=%d wait_count=%d wait_dur=%v",
+					stats.OpenConnections, stats.InUse, stats.Idle, stats.MaxOpenConnections, stats.WaitCount, stats.WaitDuration)
+			}
+		} else if stats.OpenConnections > int(float64(stats.MaxOpenConnections)*0.8) {
+			log.Printf("警告：连接池使用率较高 open=%d in_use=%d idle=%d max=%d wait_count=%d wait_dur=%v",
+				stats.OpenConnections, stats.InUse, stats.Idle, stats.MaxOpenConnections, stats.WaitCount, stats.WaitDuration)
 		}
+
+		lastWaitCount = stats.WaitCount
+		lastWaitDuration = stats.WaitDuration
 	}
 }
 
-// AutoMigrate 自动迁移数据库表结构
+// AutoMigrate 自动迁移数据库表结构。
+// 用方言安全的方式检测"endpoints"表是否存在,以决定走快速 / 标准迁移。
 func AutoMigrate(db *gorm.DB) error {
-	// 检查是否是全新数据库（没有任何表）
+	// 装配方言。setup 模式下 currentDialect 尚未初始化,此时按 driver 现场推断。
+	d := currentDialect
+	if d == nil {
+		// 优先按 GORM 实际使用的 driver 选择,fallback 到 SQLite。
+		switch db.Dialector.Name() {
+		case dialect.NamePostgres:
+			d = dialect.Postgres{}
+		default:
+			d = dialect.SQLite{}
+		}
+	}
+
 	var tableCount int64
-	db.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type='table'").Scan(&tableCount)
+	db.Raw(d.TableExistsSQL("endpoints")).Scan(&tableCount)
 
 	if tableCount == 0 {
 		// 全新数据库，使用快速初始化
@@ -241,9 +384,20 @@ func Close() error {
 	return nil
 }
 
+// retryCountForDialect 返回当前方言下的重试次数。
+// SQLite 单写者模型下需要应对 "database is locked"/busy,保留 3 次指数退避;
+// PG 走 MVCC,这些错误根本不会出现,1 次即可(不再重试浪费时间)。
+func retryCountForDialect() int {
+	if currentDialect != nil && currentDialect.Name() == dialect.NamePostgres {
+		return 1
+	}
+	return 3
+}
+
 // ExecuteWithRetry 带重试机制的数据库执行（兼容旧接口）
+// 方言敏感:SQLite 走 3 次指数退避,PG 走 1 次(直接返回错误)。
 func ExecuteWithRetry(fn func(*gorm.DB) error) error {
-	maxRetries := 3
+	maxRetries := retryCountForDialect()
 	baseDelay := 100 * time.Millisecond
 
 	for i := 0; i < maxRetries; i++ {
@@ -269,8 +423,9 @@ func ExecuteWithRetry(fn func(*gorm.DB) error) error {
 }
 
 // TxWithRetry 带重试机制的事务执行
+// 方言敏感:SQLite 走 3 次指数退避,PG 走 1 次。
 func TxWithRetry(fn func(*gorm.DB) error) error {
-	maxRetries := 3
+	maxRetries := retryCountForDialect()
 	baseDelay := 100 * time.Millisecond
 
 	for i := 0; i < maxRetries; i++ {

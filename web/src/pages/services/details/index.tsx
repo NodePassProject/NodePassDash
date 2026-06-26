@@ -997,11 +997,7 @@ export default function ServiceDetailsPage() {
                                       }`}
                                   />
                                   <span className="text-xs font-medium text-default-700">
-                                    {clientTunnel.status === "success"
-                                      ? "运行中"
-                                      : clientTunnel.status === "warning"
-                                        ? "警告"
-                                        : "已停止"}
+                                    {getStatusText(clientTunnel.status)}
                                   </span>
                                 </div>
                               )}
@@ -1042,11 +1038,7 @@ export default function ServiceDetailsPage() {
                                       }`}
                                   />
                                   <span className="text-xs font-medium text-default-700">
-                                    {serverTunnel.status === "success"
-                                      ? "运行中"
-                                      : serverTunnel.status === "warning"
-                                        ? "警告"
-                                        : "已停止"}
+                                    {getStatusText(serverTunnel.status)}
                                   </span>
                                 </div>
                               )}

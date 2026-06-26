@@ -10,10 +10,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
-	"github.com/mattn/go-ieproxy"
 	"github.com/r3labs/sse/v2"
 )
 
@@ -21,6 +21,7 @@ import (
 type Manager struct {
 	service *Service     // 负责业务处理的 Service，真正解析并落库等逻辑由它完成
 	db      *sql.DB      // 数据库连接，用于查询端点信息、持久化数据
+	driver  string       // 数据库驱动名称（"postgres" / "sqlite"），用于占位符转换
 	mu      sync.RWMutex // 读写锁，保护并发访问 connections
 
 	// 连接管理
@@ -45,11 +46,16 @@ type eventJob struct {
 }
 
 // NewManager 创建SSE管理器
-func NewManager(db *sql.DB, service *Service, enableDebugLog bool) *Manager {
+func NewManager(db *sql.DB, service *Service, enableDebugLog bool, driver ...string) *Manager {
 	ctx, cancel := context.WithCancel(context.Background())
+	drv := "sqlite"
+	if len(driver) > 0 && driver[0] != "" {
+		drv = driver[0]
+	}
 	m := &Manager{
 		service:        service,
 		db:             db,
+		driver:         drv,
 		connections:    make(map[int64]*EndpointConnection),
 		jobs:           make(chan eventJob, 30000), // 增加缓冲大小到30000
 		daemonCtx:      ctx,
@@ -61,6 +67,24 @@ func NewManager(db *sql.DB, service *Service, enableDebugLog bool) *Manager {
 	m.StartWorkers(12) // 启动12个worker处理事件
 
 	return m
+}
+
+// rebind converts ? placeholders to $N for PostgreSQL; no-op for SQLite.
+func (m *Manager) rebind(query string) string {
+	if m.driver != "postgres" {
+		return query
+	}
+	var buf strings.Builder
+	n := 1
+	for _, c := range query {
+		if c == '?' {
+			fmt.Fprintf(&buf, "$%d", n)
+			n++
+		} else {
+			buf.WriteRune(c)
+		}
+	}
+	return buf.String()
 }
 
 // StartDaemon 启动守护进程
@@ -276,8 +300,6 @@ func (m *Manager) ConnectEndpoint(endpointID int64, url, apiPath, apiKey string)
 			APIKey:     apiKey,
 			Client: &http.Client{
 				Transport: &http.Transport{
-					// 启用系统/环境代理检测：先读 env，再回退到系统代理
-					Proxy:           ieproxy.GetProxyFunc(),
 					TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 					DialContext: (&net.Dialer{
 						Timeout:   30 * time.Second,
@@ -336,10 +358,8 @@ func (m *Manager) listenSSE(ctx context.Context, conn *EndpointConnection) {
 
 	client := sse.NewClient(sseURL)
 	client.Headers["X-API-Key"] = conn.APIKey
-	// 自签名 SSL + 代理支持
+	// 自签名 SSL，NodePass 端点使用直连，避免局域网地址被系统代理劫持。
 	client.Connection.Transport = &http.Transport{
-		// 启用系统/环境代理检测：先读 env，再回退到系统代理
-		Proxy:           ieproxy.GetProxyFunc(),
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 	}
 
@@ -509,11 +529,11 @@ func (m *Manager) GetConnectionStatus() map[int64]map[string]interface{} {
 // hasActiveTunnels 检查端点是否有活跃的隧道（状态为 running）
 func (m *Manager) hasActiveTunnels(endpointID int64) bool {
 	var count int
-	err := m.db.QueryRow(`
+	err := m.db.QueryRow(m.rebind(`
 		SELECT COUNT(*)
 		FROM tunnels
 		WHERE endpoint_id = ? AND status = 'running'
-	`, endpointID).Scan(&count)
+	`), endpointID).Scan(&count)
 
 	if err != nil {
 		log.Errorf("[Master-%d#SSE]查询活跃隧道数量失败: %v", endpointID, err)
@@ -526,7 +546,7 @@ func (m *Manager) hasActiveTunnels(endpointID int64) bool {
 // markEndpointFail 更新端点状态为 FAIL
 func (m *Manager) markEndpointFail(endpointID int64) {
 	// 更新端点状态为 FAIL，避免重复写
-	res, err := m.db.Exec(`UPDATE endpoints SET status = 'FAIL', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'FAIL'`, endpointID)
+	res, err := m.db.Exec(m.rebind(`UPDATE endpoints SET status = 'FAIL', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'FAIL'`), endpointID)
 	if err != nil {
 		// 更新失败直接返回
 		log.Errorf("[Master-%d#SSE]更新状态为 FAIL 失败 %v", endpointID, err)
@@ -547,7 +567,7 @@ func (m *Manager) markEndpointFail(endpointID int64) {
 // markEndpointDisconnect 更新端点状态为 DISCONNECT
 func (m *Manager) markEndpointDisconnect(endpointID int64) {
 	// 更新端点状态为 DISCONNECT，避免重复写
-	res, err := m.db.Exec(`UPDATE endpoints SET status = 'DISCONNECT', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'DISCONNECT'`, endpointID)
+	res, err := m.db.Exec(m.rebind(`UPDATE endpoints SET status = 'DISCONNECT', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'DISCONNECT'`), endpointID)
 	if err != nil {
 		// 更新失败直接返回
 		log.Errorf("[Master-%d#SSE]更新状态为 DISCONNECT 失败 %v", endpointID, err)
@@ -568,11 +588,11 @@ func (m *Manager) markEndpointDisconnect(endpointID int64) {
 // setTunnelsOfflineForEndpoint 将指定端点下的所有隧道标记为离线状态
 func (m *Manager) setTunnelsOfflineForEndpoint(endpointID int64) error {
 	// 更新该端点下所有隧道的状态为离线
-	res, err := m.db.Exec(`
-		UPDATE tunnels 
-		SET status = 'offline', updated_at = CURRENT_TIMESTAMP 
+	res, err := m.db.Exec(m.rebind(`
+		UPDATE tunnels
+		SET status = 'offline', updated_at = CURRENT_TIMESTAMP
 		WHERE endpoint_id = ? AND status != 'offline'
-	`, endpointID)
+	`), endpointID)
 
 	if err != nil {
 		return err
@@ -589,7 +609,7 @@ func (m *Manager) setTunnelsOfflineForEndpoint(endpointID int64) error {
 // markEndpointOnline 更新端点状态为 ONLINE
 func (m *Manager) markEndpointOnline(endpointID int64) {
 	// 尝试更新状态为 ONLINE
-	res, err := m.db.Exec(`UPDATE endpoints SET status = 'ONLINE', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'ONLINE'`, endpointID)
+	res, err := m.db.Exec(m.rebind(`UPDATE endpoints SET status = 'ONLINE', updated_at = CURRENT_TIMESTAMP WHERE id = ? AND status != 'ONLINE'`), endpointID)
 	if err != nil {
 		// 更新失败，记录错误并返回
 		log.Errorf("[Master-%d#SSE]更新状态为 ONLINE 失败 %v", endpointID, err)

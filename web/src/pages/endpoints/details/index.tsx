@@ -42,6 +42,7 @@ import {
   faNetworkWired,
   faCog,
   faQrcode,
+  faBroom,
 } from "@fortawesome/free-solid-svg-icons";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
@@ -152,6 +153,12 @@ export default function EndpointDetailPage() {
     onOpen: onQrCodeOpen,
     onOpenChange: onQrCodeOpenChange,
   } = useDisclosure();
+  const {
+    isOpen: isClearLogsOpen,
+    onOpen: onClearLogsOpen,
+    onOpenChange: onClearLogsOpenChange,
+  } = useDisclosure();
+  const [clearLogsLoading, setClearLogsLoading] = useState(false);
 
   // 表单状态
   const [tunnelUrl, setTunnelUrl] = useState("");
@@ -614,6 +621,58 @@ export default function EndpointDetailPage() {
         description: error instanceof Error ? error.message : t("details.toasts.deleteFailedDesc"),
         color: "danger",
       });
+    }
+  };
+
+  const handleClearLogs = async () => {
+    if (!endpointId) return;
+
+    try {
+      setClearLogsLoading(true);
+      const response = await fetch(
+        buildApiUrl(`/api/endpoints/${endpointId}/file-logs/clear`),
+        {
+          method: "DELETE",
+        },
+      );
+
+      if (!response.ok) {
+        let message = t("details.toasts.clearLogsFailedDesc");
+
+        try {
+          const errorData = await response.json();
+
+          if (errorData?.error) message = errorData.error;
+          else if (errorData?.message) message = errorData.message;
+        } catch (_) {
+          const text = await response.text().catch(() => "");
+
+          if (text) message = text;
+        }
+        throw new Error(message);
+      }
+
+      addToast({
+        title: t("details.toasts.clearLogsSuccess"),
+        description: t("details.toasts.clearLogsSuccessDesc"),
+        color: "success",
+      });
+
+      onClearLogsOpenChange();
+
+      // 刷新统计信息（日志文件数/大小）
+      await fetchEndpointStats();
+    } catch (error) {
+      addToast({
+        title: t("details.toasts.clearLogsFailed"),
+        description:
+          error instanceof Error
+            ? error.message
+            : t("details.toasts.clearLogsFailedDesc"),
+        color: "danger",
+      });
+    } finally {
+      setClearLogsLoading(false);
     }
   };
 
@@ -1187,6 +1246,16 @@ export default function EndpointDetailPage() {
                 {t("details.actions.resetKey")}
               </Button>
 
+              {/* 清空日志 */}
+              <Button
+                color="warning"
+                startContent={<FontAwesomeIcon icon={faBroom} />}
+                variant="flat"
+                onPress={onClearLogsOpen}
+              >
+                {t("details.actions.clearLogs")}
+              </Button>
+
               {/* 删除主控 */}
               <Button
                 color="danger"
@@ -1753,6 +1822,68 @@ export default function EndpointDetailPage() {
                 </Button>
                 <Button color="warning" onPress={handleResetApiKey}>
                   {t("details.modals.resetApiKey.confirm")}
+                </Button>
+              </ModalFooter>
+            </>
+          )}
+        </ModalContent>
+      </Modal>
+
+      {/* 清空日志确认模态框 */}
+      <Modal
+        isOpen={isClearLogsOpen}
+        placement="center"
+        onOpenChange={onClearLogsOpenChange}
+      >
+        <ModalContent>
+          {(onClose) => (
+            <>
+              <ModalHeader className="flex items-center gap-2">
+                <FontAwesomeIcon className="text-warning" icon={faBroom} />
+                <span>{t("details.modals.clearLogs.title")}</span>
+              </ModalHeader>
+              <ModalBody>
+                <div className="space-y-4">
+                  <div className="p-4 bg-warning-50 border border-warning-200 rounded-lg">
+                    <div className="flex items-start gap-3">
+                      <FontAwesomeIcon
+                        className="text-warning text-lg mt-0.5"
+                        icon={faBroom}
+                      />
+                      <div>
+                        <h4 className="font-semibold text-warning-800 mb-1">
+                          {t("details.modals.clearLogs.warningTitle")}
+                        </h4>
+                        <p className="text-sm text-warning-700">
+                          {t("details.modals.clearLogs.warningMessage")}
+                        </p>
+                      </div>
+                    </div>
+                  </div>
+                  <p className="text-sm text-default-600">
+                    {t("details.modals.clearLogs.confirmMessage")}
+                  </p>
+                  <ul className="text-sm text-default-600 list-disc list-inside space-y-1 ml-4">
+                    <li>{t("details.modals.clearLogs.consequences.deleteAll")}</li>
+                    <li>{t("details.modals.clearLogs.consequences.freeSpace")}</li>
+                    <li>{t("details.modals.clearLogs.consequences.irreversible")}</li>
+                  </ul>
+                </div>
+              </ModalBody>
+              <ModalFooter>
+                <Button
+                  isDisabled={clearLogsLoading}
+                  variant="light"
+                  onPress={onClose}
+                >
+                  {t("details.modals.clearLogs.cancel")}
+                </Button>
+                <Button
+                  color="warning"
+                  isLoading={clearLogsLoading}
+                  onPress={handleClearLogs}
+                >
+                  {t("details.modals.clearLogs.confirm")}
                 </Button>
               </ModalFooter>
             </>

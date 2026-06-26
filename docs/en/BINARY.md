@@ -83,6 +83,61 @@ Provide cert and key:
 
 In production, you can also keep NodePassDash on an internal port and place it behind Nginx/Caddy.
 
+## CLI Flags
+
+NodePassDash supports various command-line flags to configure service behavior:
+
+### Basic Options
+
+- `--port <number>`: Specify HTTP service port (default: 3000)
+- `--log-level <level>`: Set log level (DEBUG, INFO, WARN, ERROR)
+- `--version` or `-v`: Display version information
+
+### TLS/HTTPS
+
+- `--cert <path>`: Path to TLS certificate file
+- `--key <path>`: Path to TLS private key file
+
+### Authentication
+
+- `--disable-login`: Disable username/password login, only allow OAuth2 login
+- `--resetpwd`: Reset admin password
+
+### Debugging & Logging
+
+- `--sse-debug-log`: Enable SSE message debug logging
+- `--disable-sse-log`: Disable SSE log recording to files (recommended when disk space is limited)
+
+### Environment Variable Support
+
+The following parameters can also be configured via environment variables (command-line flags take precedence):
+
+- `PORT`: Service port
+- `LOG_LEVEL`: Log level
+- `TLS_CERT`: TLS certificate path
+- `TLS_KEY`: TLS private key path
+- `DISABLE_LOGIN`: Disable password login (set to `true` or `1` to enable)
+- `SSE_DEBUG_LOG`: SSE debug logging (set to `true` or `1` to enable)
+- `DISABLE_SSE_LOG`: Disable SSE log files (set to `true` or `1` to enable)
+
+Examples:
+
+```bash
+# Using command-line flags
+./bin/nodepassdash --port 3000 --disable-sse-log
+
+# Using environment variables
+export PORT=3000
+export DISABLE_SSE_LOG=true
+./bin/nodepassdash
+```
+
+### About SSE Log Recording
+
+By default, NodePassDash records tunnel SSE event logs to files in the `logs/` directory for later viewing and debugging. If your server has limited disk space or you don't need to keep these logs long-term, you can use the `--disable-sse-log` flag to disable file recording.
+
+**Note:** When disabled, SSE logs will still be pushed to the frontend in real-time, but won't be saved to files.
+
 ## Upgrade
 
 - If installed via script, re-run the script update command if available in your installation.

@@ -56,7 +56,7 @@ func (h *TunnelMetricsHandler) HandleGetTunnelTrafficTrendV2(c *gin.Context) {
 	// 查询隧道基本信息
 	var endpointID int64
 	var instanceID sql.NullString
-	if err := db.QueryRow(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`, id).Scan(&endpointID, &instanceID); err != nil {
+	if err := db.QueryRow(h.tunnelService.Rebind(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`), id).Scan(&endpointID, &instanceID); err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "隧道不存在"})
 			return
@@ -126,7 +126,7 @@ func (h *TunnelMetricsHandler) HandleGetTunnelPingTrendV2(c *gin.Context) {
 	// 查询隧道基本信息
 	var endpointID int64
 	var instanceID sql.NullString
-	if err := db.QueryRow(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`, id).Scan(&endpointID, &instanceID); err != nil {
+	if err := db.QueryRow(h.tunnelService.Rebind(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`), id).Scan(&endpointID, &instanceID); err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "隧道不存在"})
 			return
@@ -196,7 +196,7 @@ func (h *TunnelMetricsHandler) HandleGetTunnelPoolTrendV2(c *gin.Context) {
 	// 查询隧道基本信息
 	var endpointID int64
 	var instanceID sql.NullString
-	if err := db.QueryRow(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`, id).Scan(&endpointID, &instanceID); err != nil {
+	if err := db.QueryRow(h.tunnelService.Rebind(`SELECT endpoint_id, instance_id FROM tunnels WHERE id = ?`), id).Scan(&endpointID, &instanceID); err != nil {
 		if err == sql.ErrNoRows {
 			c.JSON(http.StatusNotFound, gin.H{"error": "隧道不存在"})
 			return
@@ -406,10 +406,10 @@ func (h *TunnelMetricsHandler) getUnifiedTrendDataFromServiceHistory(instanceID 
 		AvgSpeedOut float64   `json:"avg_speed_out"`
 	}
 
-	query := `SELECT record_time, avg_ping, avg_pool, avg_tcps, avg_udps, delta_tcp_in, delta_tcp_out, delta_udp_in, delta_udp_out, avg_speed_in, avg_speed_out 
-			  FROM service_history 
-			  WHERE instance_id = ? AND record_time >= ? 
-			  ORDER BY record_time ASC`
+	query := h.tunnelService.Rebind(`SELECT record_time, avg_ping, avg_pool, avg_tcps, avg_udps, delta_tcp_in, delta_tcp_out, delta_udp_in, delta_udp_out, avg_speed_in, avg_speed_out
+			  FROM service_history
+			  WHERE instance_id = ? AND record_time >= ?
+			  ORDER BY record_time ASC`)
 
 	rows, err := db.Query(query, instanceID, startTime)
 	if err != nil {

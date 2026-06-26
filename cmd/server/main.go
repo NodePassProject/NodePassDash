@@ -20,14 +20,81 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
+	"path/filepath"
 	"runtime"
 	"strings"
 	"syscall"
 	"time"
 
 	"github.com/gin-gonic/gin"
+	"github.com/joho/godotenv"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
+
+// loadDotEnv 在启动最早期把项目根目录 .env 注入到环境变量。
+// 不覆盖已经存在的真 env 变量(命令行 export 优先,与 docker-compose 习惯一致)。
+// 文件不存在时静默跳过——首次启动尚未跑 Setup 向导时就是这种情况。
+func loadDotEnv() {
+	if _, err := os.Stat(".env"); os.IsNotExist(err) {
+		return
+	}
+	if err := godotenv.Load(".env"); err != nil {
+		log.Warnf("[启动].env 文件加载失败,将仅使用 env / flag: %v", err)
+	}
+}
+
+func bootstrapLegacySQLiteEnv(cfg dbPkg.DBConfig) (dbPkg.DBConfig, bool) {
+	if cfg.Driver != "" {
+		return cfg, false
+	}
+	if _, err := os.Stat(cfg.Database); err != nil {
+		return cfg, false
+	}
+	if !legacySQLiteIsInitialized(cfg.Database) {
+		return cfg, false
+	}
+
+	cfg.Driver = "sqlite"
+	if err := cfg.SaveToEnvFile(dbPkg.EnvFileName); err != nil {
+		log.Warnf("[启动]检测到旧版 SQLite 数据库,但自动写入 %s 失败: %v", dbPkg.EnvFileName, err)
+		return dbPkg.GetDBConfig("db"), false
+	}
+	_ = os.Setenv("DB_DRIVER", cfg.Driver)
+	_ = os.Setenv("DB_PATH", cfg.Database)
+	if cfg.WALMode {
+		_ = os.Setenv("DB_WAL_MODE", "true")
+	} else {
+		_ = os.Setenv("DB_WAL_MODE", "false")
+	}
+	log.Infof("[启动]检测到旧版 SQLite 数据库 %s,已自动生成 %s", cfg.Database, dbPkg.EnvFileName)
+	return dbPkg.GetDBConfig("db"), true
+}
+
+func legacySQLiteIsInitialized(path string) bool {
+	gormDB, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+	if err != nil {
+		log.Warnf("[启动]旧版 SQLite 探测失败: %v", err)
+		return false
+	}
+	sqlDB, err := gormDB.DB()
+	if err != nil {
+		log.Warnf("[启动]旧版 SQLite 获取底层连接失败: %v", err)
+		return false
+	}
+	defer sqlDB.Close()
+
+	var count int64
+	if err := gormDB.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", "system_configs").Scan(&count).Error; err != nil || count == 0 {
+		return false
+	}
+
+	var value string
+	if err := gormDB.Raw("SELECT value FROM system_configs WHERE key = ? LIMIT 1", auth.ConfigKeyIsInitialized).Scan(&value).Error; err != nil {
+		return false
+	}
+	return value == "true"
+}
 
 // Version 会在构建时通过 -ldflags "-X main.Version=xxx" 注入
 var Version = "dev"
@@ -54,7 +121,7 @@ func serveStaticFile(c *gin.Context, fsys fs.FS, fileName, contentType string) {
 }
 
 // parseFlags 解析命令行参数并处理基础配置
-func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, disableLogin, sseDebugLog bool) {
+func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, disableLogin, sseDebugLog, disableSSELog, demoMode bool) {
 	// 命令行参数处理
 	resetPwdCmd := flag.Bool("resetpwd", false, "重置管理员密码")
 	portFlag := flag.String("port", "", "HTTP 服务端口 (优先级高于环境变量 PORT)，默认 3000")
@@ -68,6 +135,10 @@ func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, d
 	disableLoginFlag := flag.Bool("disable-login", false, "禁用用户名密码登录，仅允许 OAuth2 登录")
 	// SSE 调试日志参数
 	sseDebugLogFlag := flag.Bool("sse-debug-log", false, "启用 SSE 消息调试日志")
+	// 禁用 SSE 日志记录参数
+	disableSSELogFlag := flag.Bool("disable-sse-log", false, "禁用 SSE 日志记录到文件")
+	// Demo 模式参数
+	demoModeFlag := flag.Bool("demo", false, "启用演示模式（默认密码为 Np123456. 并每天自动重置）")
 
 	flag.Parse()
 
@@ -120,7 +191,25 @@ func parseFlags() (resetPwd bool, port, certFile, keyFile string, showVersion, d
 		}
 	}
 
-	return *resetPwdCmd, port, certFile, keyFile, *versionFlag || *vFlag, disableLogin, sseDebugLog
+	// 设置禁用 SSE 日志记录配置
+	// 优先级：命令行参数 > 环境变量
+	disableSSELog = *disableSSELogFlag
+	if !disableSSELog {
+		if env := os.Getenv("DISABLE_SSE_LOG"); env == "true" || env == "1" {
+			disableSSELog = true
+		}
+	}
+
+	// 设置 Demo 模式配置
+	// 优先级：命令行参数 > 环境变量
+	demoMode = *demoModeFlag
+	if !demoMode {
+		if env := os.Getenv("DEMO_MODE"); env == "true" || env == "1" {
+			demoMode = true
+		}
+	}
+
+	return *resetPwdCmd, port, certFile, keyFile, *versionFlag || *vFlag, disableLogin, sseDebugLog, disableSSELog, demoMode
 }
 
 // setupStaticFiles 配置静态文件服务
@@ -190,14 +279,21 @@ func setupStaticFiles(ginRouter *gin.Engine) error {
 }
 
 // initializeServices 初始化所有服务
-func initializeServices(sseDebugLog bool) (*gorm.DB, *auth.Service, *endpoint.Service, *tunnel.Service, *dashboard.Service, *sse.Service, *sse.Manager, *websocket.Service, error) {
+func initializeServices(sseDebugLog, disableSSELog, demoMode bool) (*gorm.DB, *auth.Service, *endpoint.Service, *tunnel.Service, *dashboard.Service, *sse.Service, *sse.Manager, *websocket.Service, error) {
 	// 获取GORM数据库连接
 	gormDB := dbPkg.GetDB()
 	log.Info("数据库连接成功")
 
 	// 系统初始化（首次启动输出初始用户名和密码） - 在所有其他初始化之前
 	authService := auth.NewService(gormDB)
-	if _, _, err := authService.InitializeSystem(); err != nil && err.Error() != "系统已初始化" {
+
+	// 如果启用 Demo 模式，需要在系统初始化前设置
+	if demoMode {
+		authService.SetDemoMode(true)
+		log.Info("🎭 Demo 模式已启用")
+	}
+
+	if _, _, err := authService.InitializeSystem(); err != nil && err.Error() != "system is already initialized" {
 		log.Errorf("系统初始化失败: %v", err)
 	}
 
@@ -214,13 +310,13 @@ func initializeServices(sseDebugLog bool) (*gorm.DB, *auth.Service, *endpoint.Se
 	dashboardService := dashboard.NewService(gormDB)
 
 	// 创建SSE服务和管理器（延迟启动避免数据库竞争）
-	sseService := sse.NewService(gormDB, endpointService)
+	sseService := sse.NewService(gormDB, endpointService, disableSSELog)
 	// 临时解决方案：从GORM获取底层的sql.DB用于SSE Manager
 	sqlDB, err := gormDB.DB()
 	if err != nil {
 		return nil, nil, nil, nil, nil, nil, nil, nil, fmt.Errorf("获取底层sql.DB失败: %v", err)
 	}
-	sseManager := sse.NewManager(sqlDB, sseService, sseDebugLog)
+	sseManager := sse.NewManager(sqlDB, sseService, sseDebugLog, gormDB.Dialector.Name())
 
 	// 设置Manager引用到Service（避免循环依赖）
 	sseService.SetManager(sseManager)
@@ -338,7 +434,10 @@ func gracefulShutdown(server *http.Server, trafficScheduler *dashboard.TrafficSc
 }
 
 func main() {
-	resetPwd, port, certFile, keyFile, showVersion, disableLogin, sseDebugLog := parseFlags()
+	// 最早期加载 .env(Web Setup 向导的产物),让后续 GetDBConfig 能读到。
+	loadDotEnv()
+
+	resetPwd, port, certFile, keyFile, showVersion, disableLogin, sseDebugLog, disableSSELog, demoMode := parseFlags()
 
 	// 如果指定了版本参数，显示版本信息后退出
 	if showVersion {
@@ -359,8 +458,22 @@ func main() {
 		return
 	}
 
+	// 检查数据库配置状态。若 driver 字段尚未提供(.env 未写、env 未注入),进入 Setup 模式。
+	// 此时不打开数据库、不启动业务服务,只提供 /api/setup/* 路由给前端向导。
+	dbCfg := dbPkg.GetDBConfig("db")
+	if !dbCfg.IsValid() {
+		dbCfg, _ = bootstrapLegacySQLiteEnv(dbCfg)
+	}
+	if !dbCfg.IsValid() {
+		log.Infof("数据库未配置 (driver=%q),进入 Setup 模式", dbCfg.Driver)
+		runSetupMode(port, certFile, keyFile)
+		return
+	}
+	// 防御性:确保 db 目录存在(SQLite 文件路径可能含子目录)
+	_ = os.MkdirAll(filepath.Dir(dbCfg.Database), 0o755)
+
 	// 初始化所有服务
-	gormDB, authService, endpointService, tunnelService, dashboardService, sseService, sseManager, wsService, err := initializeServices(sseDebugLog)
+	gormDB, authService, endpointService, tunnelService, dashboardService, sseService, sseManager, wsService, err := initializeServices(sseDebugLog, disableSSELog, demoMode)
 	if err != nil {
 		log.Errorf("服务初始化失败: %v", err)
 		return
@@ -402,6 +515,12 @@ func main() {
 		if err := authService.SetSystemConfig("disable_login", "false"); err != nil {
 			log.Errorf("重置 disable-login 配置失败: %v", err)
 		}
+	}
+
+	// 设置并启动 Demo 模式定时任务
+	if demoMode {
+		// 启动定时任务（每天凌晨重置密码）
+		authService.StartDemoModeScheduler()
 	}
 
 	// 启动SSE系统

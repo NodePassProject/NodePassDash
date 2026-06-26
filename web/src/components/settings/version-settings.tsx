@@ -245,17 +245,22 @@ export default function VersionSettings() {
                     <h3 className="text-base font-medium whitespace-nowrap">
                       {t("version.deployment.title")}
                     </h3>
-                    <Chip color="default" size="sm" variant="flat">
-                      <Icon
-                        className="text-default-600"
-                        icon={
-                          deploymentInfo.method === "docker"
-                            ? "solar:server-path-bold"
-                            : "solar:monitor-bold"
-                        }
-                        width={14}
-                      />
-                      &nbsp;
+                    <Chip
+                      color="default"
+                      size="sm"
+                      variant="flat"
+                      startContent={
+                        <Icon
+                          className="text-default-600"
+                          icon={
+                            deploymentInfo.method === "docker"
+                              ? "solar:server-path-bold"
+                              : "solar:monitor-bold"
+                          }
+                          width={14}
+                        />
+                      }
+                    >
                       <span className="font-medium">
                         {deploymentInfo.method === "docker"
                           ? t("version.deployment.docker")
@@ -264,7 +269,13 @@ export default function VersionSettings() {
                     </Chip>
                   </div>
                   <p className="text-sm text-default-500">
-                    {deploymentInfo.details}
+                    {deploymentInfo.method === "docker"
+                      ? deploymentInfo.canUpdate
+                        ? t("version.deployment.dockerDetails")
+                        : t("version.deployment.dockerManualDetails")
+                      : deploymentInfo.method === "binary"
+                        ? t("version.deployment.binaryDetails")
+                        : t("version.deployment.unknownDetails")}
                   </p>
                 </div>
 

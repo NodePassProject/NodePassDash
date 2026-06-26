@@ -1,6 +1,7 @@
 package dashboard
 
 import (
+	"NodePassDash/internal/db"
 	"NodePassDash/internal/models"
 	"fmt"
 	"sort"
@@ -357,9 +358,11 @@ func (s *Service) getTrafficTrendWithSQL(hours int) ([]TrafficTrendItem, error) 
 		UDPTx      int64     `json:"udp_tx"`
 	}
 
-	// 检查MySQL版本，尝试使用窗口函数
+	// TODO(multidb): 下面的两段 SQL 使用了 MySQL 专属函数 DATE_FORMAT / DATE_SUB / NOW() / INTERVAL,
+	// 在 SQLite 与 PostgreSQL 上都无法执行,导致此函数在生产环境一直返回 error。
+	// 这是历史遗留 bug,本次多方言改造仅把 SELECT VERSION() 收口,SQL 主体留待后续 PR 重写为可移植版本。
 	var version string
-	s.db.Raw("SELECT VERSION()").Scan(&version)
+	s.db.Raw(db.Dialect().VersionSQL()).Scan(&version)
 
 	// MySQL 8.0+ 支持窗口函数
 	if strings.Contains(version, "8.") || strings.Contains(version, "9.") {

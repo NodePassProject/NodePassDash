@@ -25,18 +25,6 @@ interface GitHubRelease {
 }
 
 /**
- * 判断版本是否为测试版
- * @param version 版本号字符串
- * @returns 是否为测试版
- */
-export function isBetaVersion(version: string): boolean {
-  const betaKeywords = ['beta', 'alpha', 'rc', 'dev', 'preview'];
-  const versionLower = version.toLowerCase();
-
-  return betaKeywords.some(keyword => versionLower.includes(keyword));
-}
-
-/**
  * 比较两个语义化版本号
  * @param version1 版本号1
  * @param version2 版本号2
@@ -72,64 +60,32 @@ export function compareVersions(version1: string, version2: string): boolean {
  */
 export async function checkForUpdates(currentVersion: string): Promise<VersionInfo | null> {
   try {
-    const isBeta = isBetaVersion(currentVersion);
-    let latestVersion: VersionInfo | null = null;
-
-    if (isBeta) {
-      // 测试版：获取所有 releases（包括 pre-release）
-      const response = await fetch(
-        'https://api.github.com/repos/NodePassProject/nodepass-core/releases',
-        {
-          headers: {
-            'Accept': 'application/vnd.github.v3+json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        console.error('Failed to fetch releases:', response.statusText);
-        return null;
+    // 获取最新的正式版本
+    const response = await fetch(
+      'https://api.github.com/repos/NodePassProject/NodePassDash/releases/latest',
+      {
+        headers: {
+          'Accept': 'application/vnd.github.v3+json',
+        },
+        credentials: 'omit', // 不发送凭证，避免CORS错误
       }
+    );
 
-      const releases: GitHubRelease[] = await response.json();
-
-      // 找到最新的版本（可能是正式版或测试版）
-      if (releases.length > 0) {
-        const latest = releases[0];
-        latestVersion = {
-          version: latest.tag_name,
-          releaseUrl: latest.html_url,
-          releaseName: latest.name,
-          publishedAt: latest.published_at,
-        };
-      }
-    } else {
-      // 正式版：只获取最新的正式版本
-      const response = await fetch(
-        'https://api.github.com/repos/yosebyte/nodepass/releases/latest',
-        {
-          headers: {
-            'Accept': 'application/vnd.github.v3+json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        console.error('Failed to fetch latest release:', response.statusText);
-        return null;
-      }
-
-      const release: GitHubRelease = await response.json();
-      latestVersion = {
-        version: release.tag_name,
-        releaseUrl: release.html_url,
-        releaseName: release.name,
-        publishedAt: release.published_at,
-      };
+    if (!response.ok) {
+      console.error('Failed to fetch latest release:', response.statusText);
+      return null;
     }
 
+    const release: GitHubRelease = await response.json();
+    const latestVersion: VersionInfo = {
+      version: release.tag_name,
+      releaseUrl: release.html_url,
+      releaseName: release.name,
+      publishedAt: release.published_at,
+    };
+
     // 比较版本号
-    if (latestVersion && compareVersions(currentVersion, latestVersion.version)) {
+    if (compareVersions(currentVersion, latestVersion.version)) {
       return latestVersion;
     }
 
