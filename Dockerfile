@@ -4,8 +4,8 @@
 # ========= 前端构建阶段 =========
 FROM node:20-alpine AS frontend-builder
 
-# 使用 corepack 预装 pnpm
-RUN corepack enable && corepack prepare pnpm@latest --activate
+# 使用 Node 20 兼容的 pnpm 版本，避免 latest 拉到要求 Node 22+ 的版本
+RUN corepack enable && corepack prepare pnpm@10.23.0 --activate
 
 # 设置 pnpm 环境变量，避免交互式提示
 ENV PNPM_HOME="/pnpm"

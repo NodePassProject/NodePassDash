@@ -28,6 +28,7 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/joho/godotenv"
+	"gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -41,6 +42,58 @@ func loadDotEnv() {
 	if err := godotenv.Load(".env"); err != nil {
 		log.Warnf("[启动].env 文件加载失败,将仅使用 env / flag: %v", err)
 	}
+}
+
+func bootstrapLegacySQLiteEnv(cfg dbPkg.DBConfig) (dbPkg.DBConfig, bool) {
+	if cfg.Driver != "" {
+		return cfg, false
+	}
+	if _, err := os.Stat(cfg.Database); err != nil {
+		return cfg, false
+	}
+	if !legacySQLiteIsInitialized(cfg.Database) {
+		return cfg, false
+	}
+
+	cfg.Driver = "sqlite"
+	if err := cfg.SaveToEnvFile(dbPkg.EnvFileName); err != nil {
+		log.Warnf("[启动]检测到旧版 SQLite 数据库,但自动写入 %s 失败: %v", dbPkg.EnvFileName, err)
+		return dbPkg.GetDBConfig("db"), false
+	}
+	_ = os.Setenv("DB_DRIVER", cfg.Driver)
+	_ = os.Setenv("DB_PATH", cfg.Database)
+	if cfg.WALMode {
+		_ = os.Setenv("DB_WAL_MODE", "true")
+	} else {
+		_ = os.Setenv("DB_WAL_MODE", "false")
+	}
+	log.Infof("[启动]检测到旧版 SQLite 数据库 %s,已自动生成 %s", cfg.Database, dbPkg.EnvFileName)
+	return dbPkg.GetDBConfig("db"), true
+}
+
+func legacySQLiteIsInitialized(path string) bool {
+	gormDB, err := gorm.Open(sqlite.Open(path), &gorm.Config{})
+	if err != nil {
+		log.Warnf("[启动]旧版 SQLite 探测失败: %v", err)
+		return false
+	}
+	sqlDB, err := gormDB.DB()
+	if err != nil {
+		log.Warnf("[启动]旧版 SQLite 获取底层连接失败: %v", err)
+		return false
+	}
+	defer sqlDB.Close()
+
+	var count int64
+	if err := gormDB.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type = 'table' AND name = ?", "system_configs").Scan(&count).Error; err != nil || count == 0 {
+		return false
+	}
+
+	var value string
+	if err := gormDB.Raw("SELECT value FROM system_configs WHERE key = ? LIMIT 1", auth.ConfigKeyIsInitialized).Scan(&value).Error; err != nil {
+		return false
+	}
+	return value == "true"
 }
 
 // Version 会在构建时通过 -ldflags "-X main.Version=xxx" 注入
@@ -408,6 +461,9 @@ func main() {
 	// 检查数据库配置状态。若 driver 字段尚未提供(.env 未写、env 未注入),进入 Setup 模式。
 	// 此时不打开数据库、不启动业务服务,只提供 /api/setup/* 路由给前端向导。
 	dbCfg := dbPkg.GetDBConfig("db")
+	if !dbCfg.IsValid() {
+		dbCfg, _ = bootstrapLegacySQLiteEnv(dbCfg)
+	}
 	if !dbCfg.IsValid() {
 		log.Infof("数据库未配置 (driver=%q),进入 Setup 模式", dbCfg.Driver)
 		runSetupMode(port, certFile, keyFile)
