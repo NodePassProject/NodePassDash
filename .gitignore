@@ -92,3 +92,4 @@ CLAUDE.md
 AGENTS.md
 /docs/dev/*
 /dev/
+.env
