@@ -169,30 +169,39 @@ release:
   replace_existing_draft: true
   # 发布说明
   header: |
-    ## NodePassDash Release Notes (beta)
+    ## NodePassDash Release Notes (v4.0.0)
     
     ### Highlights
 
-    - 性能/稳定性：SQLite 瓶颈缓解（重要）
-      - 对 service / endpoint / instance（tunnel） 引入/加强 内存级状态与缓存（包括 internal/memory 运行时状态、以及
-      endpointcache / servicecache / tunnelcache 一类结构），将高频读写与实时数据更新从 SQLite 热路径移出，显著降低锁
-      竞争与慢查询风险。
-    - 适配 NodePass Core 1.14.x：新增 lbs 负载均衡策略支持
+    - Added database setup mode for first-time startup, including database connection, initialization, and administrator configuration from the Web UI.
+    - Improved database deployment with PostgreSQL auto-creation and automatic migration for legacy SQLite databases.
+    - Added compliance agreement confirmation with built-in English and Chinese agreement content.
+    - Added sidebar layout, refactored navigation, and introduced navbar style customization.
     
-    ### Performance / Database
+    ### Backend / Database
 
-    - 数据库优化与修复能力
-      - 新增关键索引创建与流量汇总唯一性约束（含重复数据场景下的处理策略/可选自动去重逻辑）。
-      - 流量调度器在重试机制与时间对齐方面做了优化，减少抖动与错位聚合。
+    - Refactored database configuration and connection initialization, with SQLite and PostgreSQL dialect support.
+    - Improved SQL queries and traffic statistics logic for better compatibility across database backends.
+    - Updated setup page copy and database initialization hints, including PostgreSQL auto-creation guidance.
+    - Adjusted SSE and endpoint handling to work more reliably with the initialization flow.
+    - Added log cleanup support to prevent long-running deployments from accumulating excessive log files.
     
     ### UI / UX
 
-    - 创建/详情页补充 lbs 相关展示与多语言文案（i18n 资源同步更新）。
-    - 其他界面与文案细节优化（与本次 README/文档整理同步）。
+    - Added setup gate and database initialization pages to guide users before the system is fully configured.
+    - Added compliance agreement display and confirmation entry points in endpoint details.
+    - Extracted shared navigation item configuration to reduce duplication across top navigation, mobile navigation, and sidebar.
+    - Added layout and navbar style options to the settings drawer, with updated i18n resources.
+    - Polished demo entry cards, statistics charts, and related page details.
+
+    ### Docs / Config
+
+    - Added `.env` to `.gitignore` to avoid committing local environment secrets.
+    - Updated README, deployment docs, migration notes, Docker Compose examples, and screenshot assets.
 
   footer: |
     
-    ### 📥 下载说明
+    ### 📥 Download Desc
     - **Linux x86_64**: `nodepassdash_Linux_x86_64.tar.gz` (服务器推荐)
     - **Linux ARM64**: `nodepassdash_Linux_arm64.tar.gz` (树莓派4 64位、ARM服务器)
     - **Linux ARMv7**: `nodepassdash_Linux_armv7hf.tar.gz` (树莓派2/3/4 32位)
@@ -200,17 +209,17 @@ release:
     - **Windows 64位**: `nodepassdash_Windows_x86_64.zip`
     - **Windows 32位**: `nodepassdash_Windows_i386.zip`
     
-    ### 🐳 Docker 镜像
+    ### 🐳 Docker Image
     ```bash
     docker pull ghcr.io/nodepassproject/nodepassdash:{{ .Version }}
     ```
     
-    ### 🔧 使用说明
-    1. 下载对应架构的二进制文件
-    2. 解压后直接运行 `./nodepassdash`（无需外部依赖）
-    3. 默认监听 `http://localhost:3000`
+    ### 🔧 Usage
+    1. Download the binary package for your target architecture.
+    2. Extract the archive and run `./nodepassdash` directly. No external runtime is required.
+    3. The service listens on `http://localhost:3000` by default.
     
-    ### 📝 部署说明
-    - **单文件部署**: 只需要一个可执行文件即可运行
-    - **自动初始化**: 程序会自动创建所需的文件和目录
-    - **数据持久化**: 数据库文件保存在 `db/database.db`
+    ### 📝 Deployment Notes
+    - **Single-binary deployment**: Run the application with a single executable file.
+    - **Automatic initialization**: The application creates required files and directories automatically.
+    - **Data persistence**: The database file is stored at `db/database.db`
