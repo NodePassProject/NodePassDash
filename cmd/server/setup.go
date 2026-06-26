@@ -13,6 +13,7 @@ import (
 	"os"
 	"os/signal"
 	"path/filepath"
+	"strings"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -321,9 +322,108 @@ func openGORMFromConfig(cfg dbPkg.DBConfig) (*gorm.DB, error) {
 
 	case dialect.NamePostgres, "postgresql", "pg":
 		dsn := cfg.BuildPostgresDSN()
+		gormDB, err := gorm.Open(gormpg.Open(dsn), &gorm.Config{})
+		if err != nil {
+			if !isPostgresDatabaseMissing(err) {
+				return nil, err
+			}
+			if err := createPostgresDatabase(cfg); err != nil {
+				return nil, err
+			}
+			return gorm.Open(gormpg.Open(dsn), &gorm.Config{})
+		}
+		if err := pingGORM(gormDB); err == nil {
+			return gormDB, nil
+		} else if !isPostgresDatabaseMissing(err) {
+			return gormDB, nil
+		}
+		_ = closeGORM(gormDB)
+
+		if err := createPostgresDatabase(cfg); err != nil {
+			return nil, err
+		}
 		return gorm.Open(gormpg.Open(dsn), &gorm.Config{})
 	}
 	return nil, fmt.Errorf("不支持的 driver: %q", cfg.Driver)
+}
+
+func pingGORM(gormDB *gorm.DB) error {
+	sqlDB, err := gormDB.DB()
+	if err != nil {
+		return err
+	}
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	return sqlDB.PingContext(ctx)
+}
+
+func closeGORM(gormDB *gorm.DB) error {
+	sqlDB, err := gormDB.DB()
+	if err != nil {
+		return err
+	}
+	return sqlDB.Close()
+}
+
+func isPostgresDatabaseMissing(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "database") && strings.Contains(msg, "does not exist")
+}
+
+func createPostgresDatabase(cfg dbPkg.DBConfig) error {
+	if cfg.PostgresDatabase == "" {
+		return fmt.Errorf("PostgreSQL database 不能为空")
+	}
+
+	maintenanceDB := "postgres"
+	if strings.EqualFold(cfg.PostgresDatabase, maintenanceDB) {
+		maintenanceDB = "template1"
+	}
+
+	adminCfg := cfg
+	adminCfg.PostgresDatabase = maintenanceDB
+
+	adminDB, err := gorm.Open(gormpg.Open(buildSetupPostgresDSN(adminCfg)), &gorm.Config{})
+	if err != nil {
+		return fmt.Errorf("打开 PostgreSQL 维护库失败: %v", err)
+	}
+	sqlDB, err := adminDB.DB()
+	if err != nil {
+		return fmt.Errorf("获取 PostgreSQL 维护库连接失败: %v", err)
+	}
+	defer sqlDB.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	defer cancel()
+	if err := sqlDB.PingContext(ctx); err != nil {
+		return fmt.Errorf("目标数据库 %q 不存在,且连接维护库 %q 失败: %v", cfg.PostgresDatabase, maintenanceDB, err)
+	}
+
+	stmt := fmt.Sprintf("CREATE DATABASE %s", quotePostgresIdentifier(cfg.PostgresDatabase))
+	if _, err := sqlDB.ExecContext(ctx, stmt); err != nil {
+		return fmt.Errorf("目标数据库 %q 不存在,且自动创建失败: %v", cfg.PostgresDatabase, err)
+	}
+	return nil
+}
+
+func buildSetupPostgresDSN(cfg dbPkg.DBConfig) string {
+	return fmt.Sprintf(
+		"host=%s port=%d user=%s password=%s dbname=%s sslmode=%s TimeZone=%s",
+		cfg.PostgresHost,
+		cfg.PostgresPort,
+		cfg.PostgresUser,
+		cfg.PostgresPassword,
+		cfg.PostgresDatabase,
+		cfg.PostgresSSLMode,
+		cfg.PostgresTimeZone,
+	)
+}
+
+func quotePostgresIdentifier(name string) string {
+	return `"` + strings.ReplaceAll(name, `"`, `""`) + `"`
 }
 
 // gracefulShutdownHTTP 仅关闭 HTTP server(setup 模式没有其他需要清理的资源)。

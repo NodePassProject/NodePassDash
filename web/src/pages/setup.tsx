@@ -59,7 +59,7 @@ const initialForm = (): FormState => ({
   sqliteWAL: true,
   pgHost: "127.0.0.1",
   pgPort: "5432",
-  pgDatabase: "nodepass",
+  pgDatabase: "nodepassdash",
   pgUser: "postgres",
   pgPassword: "",
   pgSSL: "disable",

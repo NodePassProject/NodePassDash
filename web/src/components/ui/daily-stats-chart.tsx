@@ -61,7 +61,7 @@ function DailyStatsChartComponent({
   formatBytes = (bytes: number) => `${bytes} B`,
 }: DailyStatsChartProps) {
   return (
-    <Card className="dark:border-default-100 min-h-[300] border border-transparent">
+    <Card className="h-full dark:border-default-100 border border-transparent">
       <div className="flex flex-col gap-y-4 p-5 pb-0">
         <div className="flex flex-col gap-y-0">
           <span className="text-base font-semibold text-foreground">

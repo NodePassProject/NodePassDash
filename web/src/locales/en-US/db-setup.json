@@ -83,7 +83,7 @@
         "require": "require (TLS required)",
         "verifyFull": "verify-full (cert verified)"
       },
-      "tip": "Make sure PostgreSQL is running and the target database has been created."
+      "tip": "Make sure PostgreSQL is running. If the target database does not exist, the connection test will try to create it."
     },
     "testing": "Testing connection…",
     "testSuccess": "Connection OK. You can continue.",

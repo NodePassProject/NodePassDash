@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	"github.com/mattn/go-ieproxy"
 	"gorm.io/gorm"
 )
 
@@ -774,7 +773,6 @@ func (h *EndpointHandler) testEndpointConnection(url, apiPath, apiKey string, ti
 	client := &http.Client{
 		Timeout: time.Duration(timeoutMs) * time.Millisecond,
 		Transport: &http.Transport{
-			Proxy:           ieproxy.GetProxyFunc(),
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
@@ -784,6 +782,7 @@ func (h *EndpointHandler) testEndpointConnection(url, apiPath, apiKey string, ti
 		return fmt.Errorf("创建请求失败: %v", err)
 	}
 	httpReq.Header.Set("X-API-Key", apiKey)
+	httpReq.Header.Set("Accept", "text/event-stream")
 	httpReq.Header.Set("Cache-Control", "no-cache")
 
 	resp, err := client.Do(httpReq)

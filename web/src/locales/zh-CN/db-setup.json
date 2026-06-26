@@ -83,7 +83,7 @@
         "require": "require (强制 TLS)",
         "verifyFull": "verify-full (验证证书)"
       },
-      "tip": "需要确保 PostgreSQL 已经启动,且对应数据库已创建。"
+      "tip": "需要确保 PostgreSQL 已经启动。若目标数据库不存在,测试连接会尝试自动创建。"
     },
     "testing": "正在测试连接…",
     "testSuccess": "连接测试通过,可以继续下一步。",

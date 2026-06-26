@@ -16,7 +16,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	"github.com/google/uuid"
-	"github.com/mattn/go-ieproxy"
 )
 
 // SSEHandler SSE处理器
@@ -119,8 +118,6 @@ func (h *SSEHandler) HandleTestSSEEndpoint(c *gin.Context) {
 
 	client := &http.Client{
 		Transport: &http.Transport{
-			// 启用系统/环境代理检测：先读 env，再回退到系统代理
-			Proxy:           ieproxy.GetProxyFunc(),
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
@@ -359,74 +356,65 @@ func (h *SSEHandler) HandleTestSSEEndpointWithVersion(c *gin.Context) {
 		return
 	}
 
-	// 构造 SSE URL
-	sseURL := fmt.Sprintf("%s%s/events", req.URL, req.APIPath)
-
-	// 创建带 8 秒超时的上下文
-	ctx, cancel := context.WithTimeout(c.Request.Context(), 8*time.Second)
-	defer cancel()
-
-	client := &http.Client{
-		Transport: &http.Transport{
-			Proxy:           ieproxy.GetProxyFunc(),
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
-		},
-	}
-
-	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sseURL, nil)
-	if err != nil {
-		h.loggerErrorGin(c, "Failed to create request", err)
-		return
-	}
-	request.Header.Set("X-API-Key", req.APIKey)
-	request.Header.Set("Accept", "text/event-stream")
-
-	resp, err := client.Do(request)
-	if err != nil {
-		h.loggerErrorGin(c, "Connection failed", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		msg := fmt.Sprintf("NodePass SSE returned status code: %d", resp.StatusCode)
-		h.writeErrorGin(c, msg)
-		return
-	}
-
-	// 简单验证 Content-Type
-	if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" && ct != "text/event-stream; charset=utf-8" {
-		h.writeErrorGin(c, "Response Content-Type is not SSE stream")
-		return
-	}
-
-	// 连接测试成功，现在获取版本信息
-	// 我们需要临时将endpoint信息放入缓存以便 nodepass.GetInfo 能够调用
-	tempEndpointID := int64(-1) // 使用 -1 作为临时 ID
-
-	// 设置临时缓存
+	// 先用 /info 验证普通 API 和版本。/events 可能因为 NodePass 当前 SSE 不可用返回 503,
+	// 但这不应该阻断新增主控。
+	tempEndpointID := int64(-1)
 	baseURL := fmt.Sprintf("%s%s", req.URL, req.APIPath)
 	nodepass.GetCache().Set(fmt.Sprintf("%d", tempEndpointID), baseURL, req.APIKey)
-	defer nodepass.GetCache().Delete(fmt.Sprintf("%d", tempEndpointID)) // 清理临时缓存
+	defer nodepass.GetCache().Delete(fmt.Sprintf("%d", tempEndpointID))
 
-	// 获取版本信息
 	info, err := nodepass.GetInfo(tempEndpointID)
 	if err != nil {
-		// 如果获取版本失败，说明可能是低版本，返回不支持
-		log.Warnf("[SSE] 获取版本信息失败，可能是低版本主控: %v", err)
+		log.Warnf("[SSE] 获取版本信息失败: %v", err)
 		c.JSON(http.StatusOK, gin.H{
 			"success":   true,
 			"connected": true,
 			"version":   "unknown",
 			"canAdd":    false,
-			"message":   "Connected successfully but cannot get version info, possibly an older version controller (< 1.10.0)",
+			"message":   "Connected failed or cannot get version info, possibly an older version controller (< 1.10.0)",
 		})
 		return
 	}
 
-	// 解析版本号并比较
 	version := info.Ver
 	canAdd := compareVersion(version, "1.10.0")
+
+	sseStatus := "unknown"
+	sseError := ""
+	client := &http.Client{
+		Transport: &http.Transport{
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
+		},
+	}
+
+	sseURL := fmt.Sprintf("%s%s/events", req.URL, req.APIPath)
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 8*time.Second)
+	defer cancel()
+	request, err := http.NewRequestWithContext(ctx, http.MethodGet, sseURL, nil)
+	if err != nil {
+		sseStatus = "failed"
+		sseError = fmt.Sprintf("Failed to create request: %v", err)
+	} else {
+		request.Header.Set("X-API-Key", req.APIKey)
+		request.Header.Set("Accept", "text/event-stream")
+
+		resp, err := client.Do(request)
+		if err != nil {
+			sseStatus = "failed"
+			sseError = fmt.Sprintf("Connection failed: %v", err)
+		} else {
+			defer resp.Body.Close()
+			if resp.StatusCode != http.StatusOK {
+				sseStatus = "failed"
+				sseError = fmt.Sprintf("NodePass SSE returned status code: %d", resp.StatusCode)
+			} else if ct := resp.Header.Get("Content-Type"); ct != "text/event-stream" && ct != "text/event-stream; charset=utf-8" {
+				sseStatus = "failed"
+				sseError = "Response Content-Type is not SSE stream"
+			} else {
+				sseStatus = "ok"
+			}
+		}
+	}
 
 	// message := ""
 	// if !canAdd {
@@ -442,6 +430,8 @@ func (h *SSEHandler) HandleTestSSEEndpointWithVersion(c *gin.Context) {
 		"connected": true,
 		"version":   version,
 		"canAdd":    canAdd,
+		"sseStatus": sseStatus,
+		"sseError":  sseError,
 		// "message":   message,
 	})
 }
@@ -534,7 +524,6 @@ func (h *SSEHandler) HandleNodePassSSEProxy(c *gin.Context) {
 	// 创建HTTP客户端
 	client := &http.Client{
 		Transport: &http.Transport{
-			Proxy:           ieproxy.GetProxyFunc(),
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: true},
 		},
 	}
