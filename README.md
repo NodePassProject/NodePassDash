@@ -9,13 +9,6 @@
 
 NodePassDash is a modern web dashboard for managing **NodePass** endpoints, tunnels, and services. It ships as a single Go binary (Gin + GORM + SQLite) with an embedded React (Vite + TypeScript + HeroUI) frontend, and provides real-time telemetry via SSE/WebSocket.
 
-## Demo
-
-- Live demo: https://dash.nodepass.eu/
-- Demo account: `nodepass` / `Np123456.`
-
-> Important: demo environment — do not change the password and do not submit any sensitive information.
-
 ## Highlights
 
 - **Modern, clean dashboard**: responsive UI built with React + Vite + TypeScript + HeroUI.
