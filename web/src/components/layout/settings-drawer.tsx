@@ -21,6 +21,7 @@ import { Icon } from "@iconify/react";
 import { useTranslation } from "react-i18next";
 
 import { useSettings } from "@/components/providers/settings-provider";
+import { cn } from "@/lib/utils";
 
 interface SettingsDrawerProps {
   isOpen: boolean;
@@ -37,6 +38,7 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
     settings,
     updateTheme,
     updateLanguage,
+    updateNavbarStyle,
     togglePrivacyMode,
     toggleExperimentalMode,
     toggleAutoCheckUpdates,
@@ -57,7 +59,9 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
               </div>
               <div>
                 <h2 className="text-xl font-bold">{t("drawer.title")}</h2>
-                <p className="text-sm text-default-500">{t("drawer.description")}</p>
+                <p className="text-sm text-default-500">
+                  {t("drawer.description")}
+                </p>
               </div>
             </div>
           </div>
@@ -188,12 +192,16 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                           size="sm"
                           variant="flat"
                         >
-                          {settings.language === "zh-CN" ? tCommon("language.zhCN") : tCommon("language.enUS")}
+                          {settings.language === "zh-CN"
+                            ? tCommon("language.zhCN")
+                            : tCommon("language.enUS")}
                         </Button>
                       </DropdownTrigger>
                       <DropdownMenu
                         aria-label={t("drawer.language.label")}
-                        selectedKeys={settings.language ? [settings.language] : []}
+                        selectedKeys={
+                          settings.language ? [settings.language] : []
+                        }
                         selectionMode="single"
                         onAction={(key) => {
                           console.log("Language selected:", key);
@@ -220,6 +228,112 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                         </DropdownItem>
                       </DropdownMenu>
                     </Dropdown>
+                  </div>
+                </CardBody>
+              </Card>
+            </div>
+
+            {/* 导航栏样式 */}
+            <div className="group">
+              <Card className="shadow-sm border border-divider/30 hover:border-primary/30 transition-all duration-300 hover:shadow-md bg-background/60 backdrop-blur-sm">
+                <CardHeader className="pb-3">
+                  <div className="flex items-center gap-3">
+                    <div className="p-2 rounded-lg bg-primary/10 group-hover:bg-primary/20 transition-colors">
+                      <Icon
+                        className="text-primary"
+                        icon="lucide:panel-top"
+                        width={18}
+                      />
+                    </div>
+                    <div>
+                      <span className="font-semibold text-foreground">
+                        {t("drawer.navbar.title")}
+                      </span>
+                      <p className="text-xs text-default-500 mt-1">
+                        {t("drawer.navbar.description")}
+                      </p>
+                    </div>
+                  </div>
+                </CardHeader>
+                <CardBody className="pt-0 pb-4">
+                  <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+                    {(["normal", "radio-center", "basic-header"] as const).map(
+                      (style) => {
+                        const isSelected = settings.navbarStyle === style;
+                        const isRadioCenter = style === "radio-center";
+                        const isBasicHeader = style === "basic-header";
+
+                        return (
+                          <button
+                            key={style}
+                            className={cn(
+                              "group/option rounded-xl border p-3 text-left transition-all duration-200",
+                              "bg-default-50 hover:bg-default-100 focus:outline-none focus:ring-2 focus:ring-primary/40",
+                              isSelected
+                                ? "border-primary bg-primary/10 shadow-sm"
+                                : "border-divider/60",
+                            )}
+                            type="button"
+                            onClick={() => updateNavbarStyle(style)}
+                          >
+                            <div
+                              className={cn(
+                                "mb-3 flex h-10 items-center gap-1 rounded-lg border border-divider/50 bg-background/80 px-2",
+                                isRadioCenter &&
+                                  "justify-center rounded-full shadow-small",
+                                isBasicHeader &&
+                                  "justify-between rounded-full bg-content2",
+                              )}
+                            >
+                              <span
+                                className={cn(
+                                  "h-4 w-4 rounded-full",
+                                  isSelected ? "bg-primary" : "bg-default-300",
+                                )}
+                              />
+                              <span className="h-2 w-8 rounded-full bg-default-300" />
+                              <span className="h-2 w-5 rounded-full bg-default-200" />
+                              {style === "normal" && (
+                                <span className="ml-auto h-4 w-4 rounded-full bg-default-200" />
+                              )}
+                              {isBasicHeader && (
+                                <span className="h-4 w-4 rounded-full bg-default-200" />
+                              )}
+                            </div>
+                            <div className="flex items-center justify-between gap-2">
+                              <span
+                                className={cn(
+                                  "text-sm font-semibold",
+                                  isSelected
+                                    ? "text-primary"
+                                    : "text-foreground",
+                                )}
+                              >
+                                {style === "normal"
+                                  ? t("drawer.navbar.normal")
+                                  : isRadioCenter
+                                    ? t("drawer.navbar.radioCenter")
+                                    : t("drawer.navbar.basicHeader")}
+                              </span>
+                              {isSelected && (
+                                <Icon
+                                  className="shrink-0 text-primary"
+                                  icon="lucide:check-circle-2"
+                                  width={16}
+                                />
+                              )}
+                            </div>
+                            <p className="mt-1 text-xs leading-relaxed text-default-500">
+                              {style === "normal"
+                                ? t("drawer.navbar.normalDesc")
+                                : isRadioCenter
+                                  ? t("drawer.navbar.radioCenterDesc")
+                                  : t("drawer.navbar.basicHeaderDesc")}
+                            </p>
+                          </button>
+                        );
+                      },
+                    )}
                   </div>
                 </CardBody>
               </Card>

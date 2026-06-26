@@ -15,6 +15,16 @@
       "description": "Select your interface language",
       "label": "Interface Language"
     },
+    "navbar": {
+      "title": "Navbar Style",
+      "description": "Choose how the top navigation is displayed",
+      "normal": "Normal",
+      "normalDesc": "Use the current split navigation layout",
+      "radioCenter": "Radio Center",
+      "radioCenterDesc": "Use a centered floating pill navigation layout",
+      "basicHeader": "Basic Header",
+      "basicHeaderDesc": "Use a left-brand header with grouped pill navigation"
+    },
     "privacy": {
       "title": "Privacy Mode",
       "description": "Protect your privacy and data security",

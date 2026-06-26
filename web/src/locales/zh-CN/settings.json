@@ -15,6 +15,16 @@
       "description": "选择您的界面语言",
       "label": "界面语言"
     },
+    "navbar": {
+      "title": "导航栏样式",
+      "description": "选择顶部导航栏的展示方式",
+      "normal": "Normal",
+      "normalDesc": "使用当前左右分区导航布局",
+      "radioCenter": "Radio Center",
+      "radioCenterDesc": "使用居中悬浮胶囊导航布局",
+      "basicHeader": "Basic Header",
+      "basicHeaderDesc": "使用左侧品牌与分组胶囊导航布局"
+    },
     "privacy": {
       "title": "隐私模式",
       "description": "保护您的隐私数据安全",
