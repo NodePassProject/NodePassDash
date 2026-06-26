@@ -23,7 +23,9 @@
       "radioCenter": "Radio Center",
       "radioCenterDesc": "使用居中悬浮胶囊导航布局",
       "basicHeader": "Basic Header",
-      "basicHeaderDesc": "使用左侧品牌与分组胶囊导航布局"
+      "basicHeaderDesc": "使用左侧品牌与分组胶囊导航布局",
+      "settingsLayout": "侧边栏布局",
+      "settingsLayoutDesc": "左侧固定导航，右侧展示页面内容"
     },
     "privacy": {
       "title": "隐私模式",

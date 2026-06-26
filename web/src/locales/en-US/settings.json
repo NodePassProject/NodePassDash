@@ -23,7 +23,9 @@
       "radioCenter": "Radio Center",
       "radioCenterDesc": "Use a centered floating pill navigation layout",
       "basicHeader": "Basic Header",
-      "basicHeaderDesc": "Use a left-brand header with grouped pill navigation"
+      "basicHeaderDesc": "Use a left-brand header with grouped pill navigation",
+      "settingsLayout": "Sidebar Layout",
+      "settingsLayoutDesc": "Keep navigation fixed on the left with content on the right"
     },
     "privacy": {
       "title": "Privacy Mode",

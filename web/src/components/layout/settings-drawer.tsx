@@ -257,83 +257,114 @@ export const SettingsDrawer: React.FC<SettingsDrawerProps> = ({
                 </CardHeader>
                 <CardBody className="pt-0 pb-4">
                   <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-                    {(["normal", "radio-center", "basic-header"] as const).map(
-                      (style) => {
-                        const isSelected = settings.navbarStyle === style;
-                        const isRadioCenter = style === "radio-center";
-                        const isBasicHeader = style === "basic-header";
+                    {(
+                      [
+                        "normal",
+                        "radio-center",
+                        "basic-header",
+                        "settings-layout",
+                      ] as const
+                    ).map((style) => {
+                      const isSelected = settings.navbarStyle === style;
+                      const isRadioCenter = style === "radio-center";
+                      const isBasicHeader = style === "basic-header";
+                      const isSettingsLayout = style === "settings-layout";
 
-                        return (
-                          <button
-                            key={style}
+                      return (
+                        <button
+                          key={style}
+                          className={cn(
+                            "group/option rounded-xl border p-3 text-left transition-all duration-200",
+                            "bg-default-50 hover:bg-default-100 focus:outline-none focus:ring-2 focus:ring-primary/40",
+                            isSelected
+                              ? "border-primary bg-primary/10 shadow-sm"
+                              : "border-divider/60",
+                          )}
+                          type="button"
+                          onClick={() => updateNavbarStyle(style)}
+                        >
+                          <div
                             className={cn(
-                              "group/option rounded-xl border p-3 text-left transition-all duration-200",
-                              "bg-default-50 hover:bg-default-100 focus:outline-none focus:ring-2 focus:ring-primary/40",
-                              isSelected
-                                ? "border-primary bg-primary/10 shadow-sm"
-                                : "border-divider/60",
+                              "mb-3 flex h-10 items-center gap-1 rounded-lg border border-divider/50 bg-background/80 px-2",
+                              isRadioCenter &&
+                                "justify-center rounded-full shadow-small",
+                              isBasicHeader &&
+                                "justify-between rounded-full bg-content2",
+                              isSettingsLayout &&
+                                "grid grid-cols-[14px_1fr] rounded-xl bg-content2",
                             )}
-                            type="button"
-                            onClick={() => updateNavbarStyle(style)}
                           >
-                            <div
+                            {isSettingsLayout ? (
+                              <>
+                                <span
+                                  className={cn(
+                                    "h-full rounded-md",
+                                    isSelected
+                                      ? "bg-primary"
+                                      : "bg-default-300",
+                                  )}
+                                />
+                                <span className="h-5 w-full rounded-md bg-default-200" />
+                              </>
+                            ) : (
+                              <>
+                                <span
+                                  className={cn(
+                                    "h-4 w-4 rounded-full",
+                                    isSelected
+                                      ? "bg-primary"
+                                      : "bg-default-300",
+                                  )}
+                                />
+                                <span className="h-2 w-8 rounded-full bg-default-300" />
+                                <span className="h-2 w-5 rounded-full bg-default-200" />
+                                {style === "normal" && (
+                                  <span className="ml-auto h-4 w-4 rounded-full bg-default-200" />
+                                )}
+                                {isBasicHeader && (
+                                  <span className="h-4 w-4 rounded-full bg-default-200" />
+                                )}
+                              </>
+                            )}
+                          </div>
+                          <div className="flex items-center justify-between gap-2">
+                            <span
                               className={cn(
-                                "mb-3 flex h-10 items-center gap-1 rounded-lg border border-divider/50 bg-background/80 px-2",
-                                isRadioCenter &&
-                                  "justify-center rounded-full shadow-small",
-                                isBasicHeader &&
-                                  "justify-between rounded-full bg-content2",
+                                "flex items-center gap-1.5 text-sm font-semibold",
+                                isSelected ? "text-primary" : "text-foreground",
                               )}
                             >
-                              <span
-                                className={cn(
-                                  "h-4 w-4 rounded-full",
-                                  isSelected ? "bg-primary" : "bg-default-300",
-                                )}
-                              />
-                              <span className="h-2 w-8 rounded-full bg-default-300" />
-                              <span className="h-2 w-5 rounded-full bg-default-200" />
-                              {style === "normal" && (
-                                <span className="ml-auto h-4 w-4 rounded-full bg-default-200" />
+                              {isSettingsLayout && (
+                                <Icon icon="lucide:panel-left" width={15} />
                               )}
-                              {isBasicHeader && (
-                                <span className="h-4 w-4 rounded-full bg-default-200" />
-                              )}
-                            </div>
-                            <div className="flex items-center justify-between gap-2">
-                              <span
-                                className={cn(
-                                  "text-sm font-semibold",
-                                  isSelected
-                                    ? "text-primary"
-                                    : "text-foreground",
-                                )}
-                              >
-                                {style === "normal"
-                                  ? t("drawer.navbar.normal")
-                                  : isRadioCenter
-                                    ? t("drawer.navbar.radioCenter")
-                                    : t("drawer.navbar.basicHeader")}
-                              </span>
-                              {isSelected && (
-                                <Icon
-                                  className="shrink-0 text-primary"
-                                  icon="lucide:check-circle-2"
-                                  width={16}
-                                />
-                              )}
-                            </div>
-                            <p className="mt-1 text-xs leading-relaxed text-default-500">
                               {style === "normal"
-                                ? t("drawer.navbar.normalDesc")
+                                ? t("drawer.navbar.normal")
                                 : isRadioCenter
-                                  ? t("drawer.navbar.radioCenterDesc")
-                                  : t("drawer.navbar.basicHeaderDesc")}
-                            </p>
-                          </button>
-                        );
-                      },
-                    )}
+                                  ? t("drawer.navbar.radioCenter")
+                                  : isBasicHeader
+                                    ? t("drawer.navbar.basicHeader")
+                                    : t("drawer.navbar.settingsLayout")}
+                            </span>
+                            {isSelected && (
+                              <Icon
+                                className="shrink-0 text-primary"
+                                icon="lucide:check-circle-2"
+                                width={16}
+                              />
+                            )}
+                          </div>
+                          <p className="mt-1 text-xs leading-relaxed text-default-500">
+                            {style === "normal"
+                              ? t("drawer.navbar.normalDesc")
+                              : isRadioCenter
+                                ? t("drawer.navbar.radioCenterDesc")
+                                : isBasicHeader
+                                  ? t("drawer.navbar.basicHeaderDesc")
+                                  : t("drawer.navbar.settingsLayoutDesc")}
+                          </p>
+                        </button>
+                      );
+                    })}
                   </div>
                 </CardBody>
               </Card>

@@ -6,8 +6,8 @@ import { fontSans } from "@/config/fonts";
 import { getVersion } from "@/lib/version";
 
 // NodePass Logo 组件
-const NodePassLogo = () => {
-  const { theme, resolvedTheme } = useTheme();
+export const NodePassLogo = () => {
+  const { resolvedTheme } = useTheme();
   const isSSR = useIsSSR();
 
   // 根据主题选择颜色 - 使用 resolvedTheme 来正确处理 system 主题
@@ -45,7 +45,7 @@ export const NavbarLogo = () => {
   // 检测环境和版本
   const isDev = import.meta.env.DEV;
   const version = getVersion();
-  const isBeta = version.includes('beta');
+  const isBeta = version.includes("beta");
 
   // 确定badge内容和颜色
   const getBadgeProps = () => {
@@ -55,6 +55,7 @@ export const NavbarLogo = () => {
     if (isBeta) {
       return { content: "beta", color: "primary" as const };
     }
+
     return null;
   };
 
@@ -68,7 +69,12 @@ export const NavbarLogo = () => {
           NodePassDash
         </p>
         {badgeProps && (
-          <Chip variant="flat" color={badgeProps.color} size="sm" className="h-5 p-0 ml-1">
+          <Chip
+            className="h-5 p-0 ml-1"
+            color={badgeProps.color}
+            size="sm"
+            variant="flat"
+          >
             {badgeProps.content}
           </Chip>
         )}

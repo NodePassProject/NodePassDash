@@ -12,7 +12,9 @@
     "endpoints": "节点",
     "endpointsManage": "主控管理",
     "templates": "模板",
-    "settings": "设置"
+    "settings": "设置",
+    "appearanceSettings": "个性化设置",
+    "logout": "退出登录"
   },
   "action": {
     "add": "添加",

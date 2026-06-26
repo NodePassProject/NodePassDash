@@ -12,7 +12,9 @@
     "endpoints": "Endpoints",
     "endpointsManage": "Endpoint",
     "templates": "Templates",
-    "settings": "Settings"
+    "settings": "Settings",
+    "appearanceSettings": "Appearance",
+    "logout": "Logout"
   },
   "action": {
     "add": "Add",

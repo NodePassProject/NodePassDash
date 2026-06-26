@@ -7,7 +7,11 @@ import { useTheme } from "next-themes";
 
 import i18n from "@/lib/i18n";
 
-export type NavbarStyle = "normal" | "radio-center" | "basic-header";
+export type NavbarStyle =
+  | "normal"
+  | "radio-center"
+  | "basic-header"
+  | "settings-layout";
 
 // 设置类型定义
 interface Settings {
