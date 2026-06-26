@@ -19,18 +19,17 @@ import (
 var (
 	// 内存中的会话存储
 	sessionCache = sync.Map{}
-	// 内存中的系统配置存储
-	configCache = sync.Map{}
 	// OAuth2 state 缓存，防止 CSRF
 	oauthStateCache = sync.Map{} // key:string state, value:int64 timestamp
 )
 
 // Service 认证服务
 type Service struct {
-	db         *gorm.DB
-	currentJTI string        // 当前有效的 JWT ID（内存存储，避免启动时SQLite锁）
-	jtiMutex   sync.RWMutex  // JTI 读写锁
-	demoMode   bool          // Demo 模式开关
+	db          *gorm.DB
+	configCache sync.Map     // 系统配置缓存，跟随当前 DB 连接，避免 setup 切库时串库
+	currentJTI  string       // 当前有效的 JWT ID（内存存储，避免启动时SQLite锁）
+	jtiMutex    sync.RWMutex // JTI 读写锁
+	demoMode    bool         // Demo 模式开关
 }
 
 // NewService 创建认证服务实例，需要传入GORM数据库连接
@@ -64,7 +63,7 @@ func (s *Service) VerifyPassword(password, hash string) bool {
 // GetSystemConfig 获取系统配置（优先缓存）
 func (s *Service) GetSystemConfig(key string) (string, error) {
 	// 先检查缓存
-	if value, ok := configCache.Load(key); ok {
+	if value, ok := s.configCache.Load(key); ok {
 		return value.(string), nil
 	}
 
@@ -79,7 +78,7 @@ func (s *Service) GetSystemConfig(key string) (string, error) {
 	config := configs[0]
 
 	// 写入缓存
-	configCache.Store(key, config.Value)
+	s.configCache.Store(key, config.Value)
 	return config.Value, nil
 }
 
@@ -106,7 +105,7 @@ func (s *Service) SetSystemConfig(key, value string) error {
 	}
 
 	// 更新缓存
-	configCache.Store(key, value)
+	s.configCache.Store(key, value)
 	return nil
 }
 
@@ -128,7 +127,7 @@ func (s *Service) DeleteSystemConfig(key string) error {
 	}
 
 	// 删除缓存
-	configCache.Delete(key)
+	s.configCache.Delete(key)
 	return nil
 }
 
@@ -454,7 +453,7 @@ func (s *Service) ChangePassword(username, currentPassword, newPassword string) 
 
 	// 验证新密码不能与默认密码相同
 	if newPassword == DefaultAdminPassword {
-	return false, "new password cannot be the same as default password, please set a secure password"
+		return false, "new password cannot be the same as default password, please set a secure password"
 	}
 
 	// 加密新密码
@@ -514,7 +513,7 @@ func (s *Service) UpdateSecurity(currentUsername, currentPassword, newUsername, 
 
 	// 验证新密码不能与默认密码相同
 	if newPassword == DefaultAdminPassword {
-	return false, "new password cannot be the same as default password, please set a secure password"
+		return false, "new password cannot be the same as default password, please set a secure password"
 	}
 
 	// 允许设置任何用户名，包括默认用户名

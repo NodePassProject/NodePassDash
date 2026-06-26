@@ -1,6 +1,12 @@
 package auth
 
-import "testing"
+import (
+	"NodePassDash/internal/models"
+	"testing"
+
+	"gorm.io/driver/sqlite"
+	"gorm.io/gorm"
+)
 
 func TestValidateAdminCredentials(t *testing.T) {
 	cases := []struct {
@@ -28,5 +34,37 @@ func TestValidateAdminCredentials(t *testing.T) {
 					tc.username, tc.password, err, tc.wantErr)
 			}
 		})
+	}
+}
+
+func TestConfigCacheDoesNotLeakAcrossServiceDatabases(t *testing.T) {
+	openDB := func(t *testing.T) *gorm.DB {
+		t.Helper()
+		db, err := gorm.Open(sqlite.Open(":memory:"), &gorm.Config{})
+		if err != nil {
+			t.Fatalf("open sqlite: %v", err)
+		}
+		if err := db.AutoMigrate(&models.SystemConfig{}); err != nil {
+			t.Fatalf("migrate system_configs: %v", err)
+		}
+		return db
+	}
+
+	initializedDB := openDB(t)
+	initializedService := NewService(initializedDB)
+	if err := initializedService.SetSystemConfig(ConfigKeyIsInitialized, "true"); err != nil {
+		t.Fatalf("seed initialized config: %v", err)
+	}
+	if !initializedService.IsSystemInitialized() {
+		t.Fatalf("seeded service should be initialized")
+	}
+
+	freshDB := openDB(t)
+	freshService := NewService(freshDB)
+	if freshService.IsSystemInitialized() {
+		t.Fatalf("fresh service should not reuse initialized flag from another database")
+	}
+	if err := freshService.InitializeSystemWithCredentials("admin", "12345678"); err != nil {
+		t.Fatalf("initialize fresh service: %v", err)
 	}
 }
