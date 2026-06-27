@@ -10,7 +10,7 @@
 ![Docker Pulls](https://img.shields.io/badge/docker_pulls-18k+-blue?logo=docker&logoColor=white)
 [![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/NodePassProject/nodepassdash)
 
-NodePassDash is a modern web dashboard for managing **NodePass** endpoints, tunnels, and services. It ships as a single Go binary (Gin + GORM + SQLite) with an embedded React (Vite + TypeScript + HeroUI) frontend, and provides real-time telemetry via SSE/WebSocket.
+NodePassDash is a modern web dashboard for managing **NodePass** endpoints, tunnels, and services. It ships as a single Go binary (Gin + GORM + SQLite/PostgreSQL) with an embedded React (Vite + TypeScript + HeroUI) frontend, and provides real-time telemetry via SSE/WebSocket.
 
 ## Highlights
 
