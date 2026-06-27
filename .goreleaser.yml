@@ -169,43 +169,21 @@ release:
   replace_existing_draft: true
   # 发布说明
   header: |
-    ## NodePassDash Release Notes (v4.0.0)
+    ## NodePassDash Release Notes (v4.0.1)
     
-    ### Highlights
-
-    - Added database setup mode for first-time startup, including database connection, initialization, and administrator configuration from the Web UI.
-    - Improved database deployment with PostgreSQL auto-creation and automatic migration for legacy SQLite databases.
-    - Added compliance agreement confirmation with built-in English and Chinese agreement content.
-    - Added sidebar layout, refactored navigation, and introduced navbar style customization.
+    ### Fix
+    - Fix the error in passing the proxy parameter
     
-    ### Backend / Database
-
-    - Refactored database configuration and connection initialization, with SQLite and PostgreSQL dialect support.
-    - Improved SQL queries and traffic statistics logic for better compatibility across database backends.
-    - Updated setup page copy and database initialization hints, including PostgreSQL auto-creation guidance.
-    - Adjusted SSE and endpoint handling to work more reliably with the initialization flow.
-    - Added log cleanup support to prevent long-running deployments from accumulating excessive log files.
-    
-    ### UI / UX
-
-    - Added setup gate and database initialization pages to guide users before the system is fully configured.
-    - Added compliance agreement display and confirmation entry points in endpoint details.
-    - Extracted shared navigation item configuration to reduce duplication across top navigation, mobile navigation, and sidebar.
-    - Added layout and navbar style options to the settings drawer, with updated i18n resources.
-    - Polished demo entry cards, statistics charts, and related page details.
-
-    ### Docs / Config
-
-    - Added `.env` to `.gitignore` to avoid committing local environment secrets.
-    - Updated README, deployment docs, migration notes, Docker Compose examples, and screenshot assets.
+    ### Feature
+    - Add instance backup and restore function and clean up service association
 
   footer: |
     
     ### 📥 Download Desc
-    - **Linux x86_64**: `nodepassdash_Linux_x86_64.tar.gz` (服务器推荐)
-    - **Linux ARM64**: `nodepassdash_Linux_arm64.tar.gz` (树莓派4 64位、ARM服务器)
-    - **Linux ARMv7**: `nodepassdash_Linux_armv7hf.tar.gz` (树莓派2/3/4 32位)
-    - **Linux ARMv6**: `nodepassdash_Linux_armv6.tar.gz` (树莓派1、老设备)
+    - **Linux x86_64**: `nodepassdash_Linux_x86_64.tar.gz` 
+    - **Linux ARM64**: `nodepassdash_Linux_arm64.tar.gz` 
+    - **Linux ARMv7**: `nodepassdash_Linux_armv7hf.tar.gz`  
+    - **Linux ARMv6**: `nodepassdash_Linux_armv6.tar.gz` 
     - **Windows 64位**: `nodepassdash_Windows_x86_64.zip`
     - **Windows 32位**: `nodepassdash_Windows_i386.zip`
     
