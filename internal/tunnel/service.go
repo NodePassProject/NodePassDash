@@ -427,6 +427,11 @@ func (s *Service) DeleteTunnel(instanceID string) error {
 		log.Infof("[API] 隧道 %s 可能已被SSE推送先删除，算作删除成功", instanceID)
 	}
 
+	// 级联清理 services 表对该实例的引用，避免残留指向已删 instance 的 service
+	if err := models.CleanupServicesForInstance(s.db, tunnelWithEndpoint.EndpointID, instanceID); err != nil {
+		log.Warnf("[API] 清理隧道 %s 关联的 service 失败: %v", instanceID, err)
+	}
+
 	// 异步更新端点隧道计数（避免死锁）
 	go func(endpointID int64) {
 		time.Sleep(50 * time.Millisecond)
@@ -877,6 +882,10 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 			return err
 		}
 		if count == 0 {
+			// SSE 已先把 tunnel 删掉；这里兜底再清一次 services，幂等
+			if cerr := models.CleanupServicesForInstance(s.db, tunnelWithEndpoint.EndpointID, instanceID); cerr != nil {
+				log.Warnf("[API] 清理隧道 %s 关联的 service 失败: %v", instanceID, cerr)
+			}
 			return nil // 删除完成
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -899,7 +908,15 @@ func (s *Service) DeleteTunnelAndWait(instanceID string, timeout time.Duration, 
 		// 如果删除影响行数为0，说明隧道可能已经被SSE推送先删除了
 		// 这种情况算作删除成功，不返回错误
 		log.Infof("[API] 隧道 %s 可能已被SSE推送先删除，算作删除成功", instanceID)
+		if cerr := models.CleanupServicesForInstance(s.db, tunnelWithEndpoint.EndpointID, instanceID); cerr != nil {
+			log.Warnf("[API] 清理隧道 %s 关联的 service 失败: %v", instanceID, cerr)
+		}
 		return nil
+	}
+
+	// 级联清理 services 表对该实例的引用
+	if cerr := models.CleanupServicesForInstance(s.db, tunnelWithEndpoint.EndpointID, instanceID); cerr != nil {
+		log.Warnf("[API] 清理隧道 %s 关联的 service 失败: %v", instanceID, cerr)
 	}
 
 	// 异步更新端点隧道计数（避免死锁）
@@ -966,6 +983,11 @@ func (s *Service) DeleteTunnelIdAndWait(timeout time.Duration, id *int64) error 
 			return err
 		}
 		if count == 0 {
+			if tunnelWithEndpoint.InstanceID != nil {
+				if cerr := models.CleanupServicesForInstance(s.db, tunnelWithEndpoint.EndpointID, *tunnelWithEndpoint.InstanceID); cerr != nil {
+					log.Warnf("[API] 清理隧道 %v 关联的 service 失败: %v", tunnelWithEndpoint.ID, cerr)
+				}
+			}
 			return nil // 删除完成
 		}
 		time.Sleep(200 * time.Millisecond)
@@ -988,7 +1010,18 @@ func (s *Service) DeleteTunnelIdAndWait(timeout time.Duration, id *int64) error 
 		// 如果删除影响行数为0，说明隧道可能已经被SSE推送先删除了
 		// 这种情况算作删除成功，不返回错误
 		log.Infof("[API] 隧道 %s 可能已被SSE推送先删除，算作删除成功", *tunnelWithEndpoint.InstanceID)
+		if tunnelWithEndpoint.InstanceID != nil {
+			if cerr := models.CleanupServicesForInstance(s.db, tunnelWithEndpoint.EndpointID, *tunnelWithEndpoint.InstanceID); cerr != nil {
+				log.Warnf("[API] 清理隧道 %v 关联的 service 失败: %v", tunnelWithEndpoint.ID, cerr)
+			}
+		}
 		return nil
+	}
+
+	if tunnelWithEndpoint.InstanceID != nil {
+		if cerr := models.CleanupServicesForInstance(s.db, tunnelWithEndpoint.EndpointID, *tunnelWithEndpoint.InstanceID); cerr != nil {
+			log.Warnf("[API] 清理隧道 %v 关联的 service 失败: %v", tunnelWithEndpoint.ID, cerr)
+		}
 	}
 
 	// 异步更新端点隧道计数（避免死锁）
@@ -1095,7 +1128,11 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		queryParams = append(queryParams, fmt.Sprintf("slot=%d", *req.Slot))
 	}
 	if req.ProxyProtocol != nil {
-		queryParams = append(queryParams, fmt.Sprintf("proxy=%d", *req.Slot))
+		proxyVal := 0
+		if *req.ProxyProtocol {
+			proxyVal = 1
+		}
+		queryParams = append(queryParams, fmt.Sprintf("proxy=%d", proxyVal))
 	}
 
 	if len(queryParams) > 0 {
@@ -1825,6 +1862,7 @@ func (s *Service) QuickCreateTunnel(endpointID int64, rawURL string, name string
 			}
 			return nil
 		}(),
+		ProxyProtocol:  parsedTunnel.ProxyProtocol,
 		EnableSSEStore: true,
 		EnableLogStore: true,
 	}
@@ -1910,6 +1948,7 @@ func (s *Service) QuickCreateTunnelAndWait(endpointID int64, rawURL string, name
 		Mode:           modeVal,
 		Read:           readVal,
 		Rate:           rateVal,
+		ProxyProtocol:  parsedTunnel.ProxyProtocol,
 		EnableSSEStore: true,
 		EnableLogStore: true,
 	}

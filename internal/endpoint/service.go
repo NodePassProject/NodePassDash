@@ -354,6 +354,12 @@ func (s *Service) DeleteEndpoint(id int64) error {
 			return err
 		}
 
+		// 3.5) 级联清理 services 表中指向该端点的引用
+		// 任一侧指向被删端点 → 清空那一侧；两侧都空则整条删除
+		if err := models.CleanupServicesForEndpoint(tx, id); err != nil {
+			return fmt.Errorf("清理端点关联的 service 失败: %v", err)
+		}
+
 		// 5) 删除流量历史汇总记录
 		if err := tx.Exec("DELETE FROM traffic_hourly_summary WHERE endpoint_id = ?", id).Error; err != nil {
 			if !errors.Is(err, gorm.ErrRecordNotFound) {

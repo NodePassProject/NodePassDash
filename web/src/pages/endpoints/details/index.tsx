@@ -4,9 +4,11 @@ import {
   Card,
   CardBody,
   CardHeader,
+  Checkbox,
   Chip,
   Divider,
   Skeleton,
+  Spinner,
   Modal,
   ModalContent,
   ModalBody,
@@ -43,6 +45,9 @@ import {
   faCog,
   faQrcode,
   faBroom,
+  faDownload,
+  faUpload,
+  faFileImport,
 } from "@fortawesome/free-solid-svg-icons";
 import { Icon } from "@iconify/react";
 import { useNavigate } from "react-router-dom";
@@ -121,6 +126,36 @@ export default function EndpointDetailPage() {
   const [instancesLoading, setInstancesLoading] = useState(false);
   const [extractOpen, setExtractOpen] = useState(false);
   const [importOpen, setImportOpen] = useState(false);
+
+  // 备份/恢复实例
+  const {
+    isOpen: isBackupOpen,
+    onOpen: onBackupOpen,
+    onOpenChange: onBackupOpenChange,
+  } = useDisclosure();
+  const {
+    isOpen: isRestoreOpen,
+    onOpen: onRestoreOpen,
+    onOpenChange: onRestoreOpenChange,
+  } = useDisclosure();
+  const [backupLoading, setBackupLoading] = useState(false);
+  const [backupEnvelope, setBackupEnvelope] = useState<any | null>(null);
+  const [backupSelected, setBackupSelected] = useState<Set<number>>(new Set());
+  const [restoreFile, setRestoreFile] = useState<File | null>(null);
+  const [restoreLoading, setRestoreLoading] = useState(false);
+  const [restoreResult, setRestoreResult] = useState<{
+    imported: number;
+    skipped: number;
+    failed: number;
+    total: number;
+    results: Array<{
+      name: string;
+      status: string;
+      reason?: string;
+      instanceId?: string;
+    }>;
+  } | null>(null);
+  const restoreFileInputRef = useRef<HTMLInputElement | null>(null);
 
   // 模态框状态管理
   const {
@@ -880,6 +915,238 @@ export default function EndpointDetailPage() {
     })();
   };
 
+  // 备份实例：先拉取数据库中所有实例并打开模态框，让用户勾选要导出的实例。
+  const handleOpenBackup = async () => {
+    if (!endpointId) return;
+    setBackupEnvelope(null);
+    setBackupSelected(new Set());
+    onBackupOpen();
+    try {
+      setBackupLoading(true);
+      const res = await fetch(
+        buildApiUrl(`/api/endpoints/${endpointId}/backup-instances`),
+      );
+      const data = await res.json();
+
+      if (!res.ok || !data.success) {
+        throw new Error(data.error || t("details.toasts.backupFailedDesc"));
+      }
+
+      const payload = data.data;
+      const instances: any[] = Array.isArray(payload?.instances)
+        ? payload.instances
+        : [];
+
+      setBackupEnvelope(payload);
+      setBackupSelected(new Set(instances.map((_, idx) => idx)));
+    } catch (err) {
+      addToast({
+        title: t("details.toasts.backupFailed"),
+        description:
+          err instanceof Error
+            ? err.message
+            : t("details.toasts.backupFailedDesc"),
+        color: "danger",
+      });
+      onBackupOpenChange();
+    } finally {
+      setBackupLoading(false);
+    }
+  };
+
+  const toggleBackupSelected = (idx: number) => {
+    setBackupSelected((prev) => {
+      const next = new Set(prev);
+
+      if (next.has(idx)) next.delete(idx);
+      else next.add(idx);
+      return next;
+    });
+  };
+
+  const toggleBackupSelectAll = () => {
+    setBackupSelected((prev) => {
+      const all: any[] = backupEnvelope?.instances ?? [];
+
+      if (prev.size === all.length) return new Set();
+      return new Set(all.map((_, idx) => idx));
+    });
+  };
+
+  // 确认导出：把勾选的实例打包成与服务端相同结构的备份文件并下载
+  const handleConfirmBackupDownload = () => {
+    if (!backupEnvelope) return;
+    const all: any[] = backupEnvelope.instances ?? [];
+    const selected = all.filter((_, idx) => backupSelected.has(idx));
+
+    if (selected.length === 0) return;
+
+    const out = {
+      ...backupEnvelope,
+      count: selected.length,
+      instances: selected,
+    };
+    const json = JSON.stringify(out, null, 2);
+    const blob = new Blob([json], { type: "application/json" });
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    const safeName =
+      (endpointDetail?.name || `endpoint-${endpointId}`).replace(
+        /[^a-zA-Z0-9._-]+/g,
+        "_",
+      ) || `endpoint-${endpointId}`;
+    const ts = new Date().toISOString().replace(/[:.]/g, "-");
+
+    a.href = url;
+    a.download = `nodepass-backup-${safeName}-${ts}.json`;
+    document.body.appendChild(a);
+    a.click();
+    document.body.removeChild(a);
+    URL.revokeObjectURL(url);
+
+    addToast({
+      title: t("details.toasts.backupDownloaded"),
+      description: t("details.toasts.backupDownloadedDesc"),
+      color: "success",
+    });
+    onBackupOpenChange();
+  };
+
+  // 恢复实例：仅支持选择 .json 文件后导入
+  const handleOpenRestore = () => {
+    setRestoreFile(null);
+    setRestoreResult(null);
+    onRestoreOpen();
+  };
+
+  const handleRestoreFilePick = () => {
+    restoreFileInputRef.current?.click();
+  };
+
+  const handleRestoreFileChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+
+    e.target.value = ""; // 允许重复选同一文件
+    if (!file) return;
+    setRestoreFile(file);
+    setRestoreResult(null);
+  };
+
+  const readFileAsText = (file: File) =>
+    new Promise<string>((resolve, reject) => {
+      const reader = new FileReader();
+
+      reader.onload = () =>
+        resolve(typeof reader.result === "string" ? reader.result : "");
+      reader.onerror = () => reject(reader.error);
+      reader.readAsText(file);
+    });
+
+  const handleSubmitRestore = async () => {
+    if (!endpointId) return;
+
+    if (!restoreFile) {
+      addToast({
+        title: t("details.toasts.restoreEmpty"),
+        color: "warning",
+      });
+
+      return;
+    }
+
+    let text = "";
+
+    try {
+      text = (await readFileAsText(restoreFile)).trim();
+    } catch (err) {
+      addToast({
+        title: t("details.modals.restoreInstances.invalidJson"),
+        description: err instanceof Error ? err.message : "",
+        color: "danger",
+      });
+
+      return;
+    }
+
+    let payload: any;
+
+    try {
+      payload = JSON.parse(text);
+    } catch (err) {
+      addToast({
+        title: t("details.modals.restoreInstances.invalidJson"),
+        description: err instanceof Error ? err.message : "",
+        color: "danger",
+      });
+
+      return;
+    }
+
+    // 兼容文件内容直接是 instances 数组
+    if (Array.isArray(payload)) {
+      payload = { instances: payload };
+    }
+    if (!payload || !Array.isArray(payload.instances)) {
+      addToast({
+        title: t("details.modals.restoreInstances.missingInstances"),
+        color: "danger",
+      });
+
+      return;
+    }
+
+    try {
+      setRestoreLoading(true);
+      setRestoreResult(null);
+      const res = await fetch(
+        buildApiUrl(`/api/endpoints/${endpointId}/import-instances`),
+        {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(payload),
+        },
+      );
+      const data = await res.json();
+
+      if (!res.ok || data.success === false) {
+        throw new Error(data.error || t("details.toasts.restoreFailedDesc"));
+      }
+      setRestoreResult({
+        imported: data.imported ?? 0,
+        skipped: data.skipped ?? 0,
+        failed: data.failed ?? 0,
+        total: data.total ?? 0,
+        results: data.results ?? [],
+      });
+      addToast({
+        title: t("details.toasts.restoreDone"),
+        description: t("details.toasts.restoreDoneDesc", {
+          imported: data.imported ?? 0,
+          skipped: data.skipped ?? 0,
+          failed: data.failed ?? 0,
+        }),
+        color: (data.failed ?? 0) > 0 ? "warning" : "success",
+      });
+      // 刷新实例列表
+      fetchInstances();
+    } catch (err) {
+      addToast({
+        title: t("details.toasts.restoreFailed"),
+        description:
+          err instanceof Error ? err.message : t("details.toasts.restoreFailedDesc"),
+        color: "danger",
+      });
+    } finally {
+      setRestoreLoading(false);
+    }
+  };
+
+  // 清掉上一次的导入结果，让用户再选一份文件继续导入
+  const handleResetRestore = () => {
+    setRestoreFile(null);
+    setRestoreResult(null);
+  };
+
   // 刷新所有数据
   const handleRefreshAll = async () => {
     try {
@@ -1157,114 +1424,135 @@ export default function EndpointDetailPage() {
             <h3 className="text-lg font-semibold">{t("details.actions.title")}</h3>
           </CardHeader>
           <CardBody>
-            <div className="flex flex-wrap items-center gap-3">
-              {/* 添加实例 */}
-              <Button
-                color="primary"
-                startContent={<FontAwesomeIcon icon={faPlus} />}
-                variant="flat"
-                onPress={handleAddTunnel}
-              >
-                {t("details.actions.addInstance")}
-              </Button>
-
-              {/* 同步实例 */}
-              <Button
-                color="secondary"
-                startContent={<FontAwesomeIcon icon={faSync} />}
-                variant="flat"
-                onPress={handleRefreshTunnels}
-              >
-                {t("details.actions.syncInstances")}
-              </Button>
-
-              {/* 分隔线 */}
-              <Divider className="h-8 hidden md:block" orientation="vertical" />
-
-              {/* 网络调试 */}
-              <Button
-                color="primary"
-                isDisabled={endpointDetail.status !== "ONLINE"}
-                startContent={<FontAwesomeIcon icon={faNetworkWired} />}
-                variant="flat"
-                onPress={onNetworkDebugOpen}
-              >
-                {t("details.actions.networkDebug")}
-              </Button>
-
-              {/* 连接/断开按钮 */}
-              {endpointDetail.status === "ONLINE" ? (
+            <div className="flex flex-col gap-4">
+              {/* 主操作行：所有常规动作合并成一行，按语义用细分割线分组 */}
+              <div className="flex flex-wrap items-center gap-2">
+                {/* 实例 */}
                 <Button
-                  color="warning"
-                  startContent={<FontAwesomeIcon icon={faPlugCircleXmark} />}
+                  color="primary"
+                  startContent={<FontAwesomeIcon icon={faPlus} />}
                   variant="flat"
-                  onPress={handleDisconnect}
+                  onPress={handleAddTunnel}
                 >
-                  {t("details.actions.disconnect")}
+                  {t("details.actions.addInstance")}
                 </Button>
-              ) : (
+                <Button
+                  color="secondary"
+                  startContent={<FontAwesomeIcon icon={faSync} />}
+                  variant="flat"
+                  onPress={handleRefreshTunnels}
+                >
+                  {t("details.actions.syncInstances")}
+                </Button>
+
+                <Divider className="h-8 hidden md:block" orientation="vertical" />
+
+                {/* 连接 */}
+                {endpointDetail.status === "ONLINE" ? (
+                  <Button
+                    color="warning"
+                    startContent={<FontAwesomeIcon icon={faPlugCircleXmark} />}
+                    variant="flat"
+                    onPress={handleDisconnect}
+                  >
+                    {t("details.actions.disconnect")}
+                  </Button>
+                ) : (
+                  <Button
+                    color="success"
+                    startContent={<FontAwesomeIcon icon={faPlug} />}
+                    variant="flat"
+                    onPress={handleConnect}
+                  >
+                    {t("details.actions.connect")}
+                  </Button>
+                )}
+                <Button
+                  color="primary"
+                  isDisabled={endpointDetail.status !== "ONLINE"}
+                  startContent={<FontAwesomeIcon icon={faNetworkWired} />}
+                  variant="flat"
+                  onPress={onNetworkDebugOpen}
+                >
+                  {t("details.actions.networkDebug")}
+                </Button>
+
+                <Divider className="h-8 hidden md:block" orientation="vertical" />
+
+                {/* 配置 */}
+                <Button
+                  color="primary"
+                  startContent={<FontAwesomeIcon icon={faCog} />}
+                  variant="flat"
+                  onPress={handleEditConfig}
+                >
+                  {t("details.actions.editConfig")}
+                </Button>
+                <Button
+                  color="default"
+                  startContent={<FontAwesomeIcon icon={faCopy} />}
+                  variant="flat"
+                  onPress={handleCopyConfig}
+                >
+                  {t("details.actions.copyConfig")}
+                </Button>
                 <Button
                   color="success"
-                  startContent={<FontAwesomeIcon icon={faPlug} />}
+                  startContent={<FontAwesomeIcon icon={faKey} />}
                   variant="flat"
-                  onPress={handleConnect}
+                  onPress={onResetApiKeyOpen}
                 >
-                  {t("details.actions.connect")}
+                  {t("details.actions.resetKey")}
                 </Button>
-              )}
 
-              {/* 分隔线 */}
-              <Divider className="h-8 hidden md:block" orientation="vertical" />
+                <Divider className="h-8 hidden md:block" orientation="vertical" />
 
-              {/* 复制配置 */}
-              <Button
-                color="default"
-                startContent={<FontAwesomeIcon icon={faCopy} />}
-                variant="flat"
-                onPress={handleCopyConfig}
-              >
-                {t("details.actions.copyConfig")}
-              </Button>
+                {/* 数据：清空日志 + 备份/恢复（合一） */}
+                <Button
+                  color="warning"
+                  startContent={<FontAwesomeIcon icon={faBroom} />}
+                  variant="flat"
+                  onPress={onClearLogsOpen}
+                >
+                  {t("details.actions.clearLogs")}
+                </Button>
+                <Button
+                  color="secondary"
+                  startContent={<FontAwesomeIcon icon={faDownload} />}
+                  variant="flat"
+                  onPress={handleOpenBackup}
+                >
+                  {t("details.actions.backupInstances")}
+                </Button>
+                <Button
+                  color="secondary"
+                  startContent={<FontAwesomeIcon icon={faUpload} />}
+                  variant="flat"
+                  onPress={handleOpenRestore}
+                >
+                  {t("details.actions.restoreInstances")}
+                </Button>
+              </div>
 
-              {/* 修改配置 */}
-              <Button
-                color="primary"
-                startContent={<FontAwesomeIcon icon={faCog} />}
-                variant="flat"
-                onPress={handleEditConfig}
-              >
-                {t("details.actions.editConfig")}
-              </Button>
-
-              {/* 重置密钥 */}
-              <Button
-                color="success"
-                startContent={<FontAwesomeIcon icon={faKey} />}
-                variant="flat"
-                onPress={onResetApiKeyOpen}
-              >
-                {t("details.actions.resetKey")}
-              </Button>
-
-              {/* 清空日志 */}
-              <Button
-                color="warning"
-                startContent={<FontAwesomeIcon icon={faBroom} />}
-                variant="flat"
-                onPress={onClearLogsOpen}
-              >
-                {t("details.actions.clearLogs")}
-              </Button>
-
-              {/* 删除主控 */}
-              <Button
-                color="danger"
-                startContent={<FontAwesomeIcon icon={faTrash} />}
-                variant="flat"
-                onPress={onDeleteEndpointOpen}
-              >
-                {t("details.actions.delete")}
-              </Button>
+              {/* DANGER ZONE - 保留独立分区 */}
+              <section className="relative mt-1 rounded-xl border border-dashed border-danger/40 bg-danger/[0.04] px-4 py-3">
+                <span className="absolute -top-2.5 left-3 px-2 bg-content1 text-tiny font-mono uppercase tracking-[0.18em] text-danger">
+                  ⚠ {t("details.actions.sections.dangerZone")}
+                </span>
+                <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-3 pt-1">
+                  <p className="text-tiny text-default-500">
+                    {t("details.actions.dangerHint")}
+                  </p>
+                  <Button
+                    color="danger"
+                    startContent={<FontAwesomeIcon icon={faTrash} />}
+                    variant="flat"
+                    onPress={onDeleteEndpointOpen}
+                  >
+                    {t("details.actions.delete")}
+                  </Button>
+                </div>
+              </section>
             </div>
           </CardBody>
         </Card>
@@ -1740,6 +2028,401 @@ export default function EndpointDetailPage() {
               </ModalFooter>
             </>
           )}
+        </ModalContent>
+      </Modal>
+
+      {/* 备份实例模态框：选择要导出的实例 */}
+      <Modal
+        isOpen={isBackupOpen}
+        placement="center"
+        scrollBehavior="inside"
+        size="3xl"
+        onOpenChange={onBackupOpenChange}
+      >
+        <ModalContent>
+          {(onClose) => {
+            const instances: any[] = backupEnvelope?.instances ?? [];
+            const total = instances.length;
+            const selected = backupSelected.size;
+            const allSelected = total > 0 && selected === total;
+
+            return (
+              <>
+                <ModalHeader className="flex items-center gap-2">
+                  <FontAwesomeIcon
+                    className="text-secondary"
+                    icon={faDownload}
+                  />
+                  <span>{t("details.modals.backupInstances.title")}</span>
+                </ModalHeader>
+                <ModalBody>
+                  <div className="space-y-3">
+                    <p className="text-sm text-default-500">
+                      {t("details.modals.backupInstances.description")}
+                    </p>
+
+                    {backupLoading ? (
+                      <div className="flex flex-col gap-2">
+                        <Skeleton className="h-4 w-32 rounded" />
+                        <Skeleton className="h-10 w-full rounded" />
+                        <Skeleton className="h-10 w-full rounded" />
+                        <Skeleton className="h-10 w-full rounded" />
+                      </div>
+                    ) : total === 0 ? (
+                      <p className="text-sm text-default-500 py-6 text-center">
+                        {t("details.modals.backupInstances.empty")}
+                      </p>
+                    ) : (
+                      <>
+                        <div className="flex items-center justify-between px-1">
+                          <Checkbox
+                            isSelected={allSelected}
+                            isIndeterminate={
+                              selected > 0 && selected < total
+                            }
+                            onValueChange={toggleBackupSelectAll}
+                          >
+                            <span className="text-sm">
+                              {allSelected
+                                ? t(
+                                    "details.modals.backupInstances.deselectAll",
+                                  )
+                                : t(
+                                    "details.modals.backupInstances.selectAll",
+                                  )}
+                            </span>
+                          </Checkbox>
+                          <span className="text-tiny text-default-500 font-mono">
+                            {t(
+                              "details.modals.backupInstances.selectedCount",
+                              { selected, total },
+                            )}
+                          </span>
+                        </div>
+                        <div className="max-h-80 overflow-y-auto border border-default-200 rounded-lg divide-y divide-default-200">
+                          {instances.map((ins: any, idx: number) => {
+                            const checked = backupSelected.has(idx);
+                            const url = ins.commandLine || "";
+
+                            return (
+                              <label
+                                key={`${ins.instanceId || ins.name || ""}-${idx}`}
+                                className={`flex items-start gap-3 px-3 py-2.5 cursor-pointer transition-colors ${
+                                  checked
+                                    ? "bg-secondary/5"
+                                    : "hover:bg-default-50"
+                                }`}
+                              >
+                                <Checkbox
+                                  className="mt-0.5"
+                                  isSelected={checked}
+                                  onValueChange={() =>
+                                    toggleBackupSelected(idx)
+                                  }
+                                />
+                                <div className="flex-1 min-w-0">
+                                  <div className="flex items-center gap-2 flex-wrap">
+                                    <span className="text-sm font-medium truncate">
+                                      {ins.name ||
+                                        t("details.instances.unnamed")}
+                                    </span>
+                                    {ins.type && (
+                                      <Chip
+                                        className="h-4 px-1.5 text-tiny"
+                                        color={
+                                          ins.type === "server"
+                                            ? "primary"
+                                            : "secondary"
+                                        }
+                                        size="sm"
+                                        variant="flat"
+                                      >
+                                        {ins.type === "server"
+                                          ? t("details.instances.server")
+                                          : t("details.instances.client")}
+                                      </Chip>
+                                    )}
+                                  </div>
+                                  <p
+                                    className="text-xs font-mono text-default-500 truncate mt-0.5"
+                                    title={url}
+                                  >
+                                    {url}
+                                  </p>
+                                </div>
+                              </label>
+                            );
+                          })}
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </ModalBody>
+                <ModalFooter>
+                  <Button variant="light" onPress={onClose}>
+                    {t("details.modals.backupInstances.close")}
+                  </Button>
+                  <Button
+                    color="secondary"
+                    isDisabled={selected === 0 || backupLoading}
+                    startContent={<FontAwesomeIcon icon={faDownload} />}
+                    onPress={handleConfirmBackupDownload}
+                  >
+                    {t("details.modals.backupInstances.download")}
+                  </Button>
+                </ModalFooter>
+              </>
+            );
+          }}
+        </ModalContent>
+      </Modal>
+
+      {/* 恢复实例模态框：选择文件 → 导入中 → 结果 三段式 */}
+      <Modal
+        isOpen={isRestoreOpen}
+        placement="center"
+        scrollBehavior="inside"
+        size="3xl"
+        onOpenChange={onRestoreOpenChange}
+      >
+        <ModalContent>
+          {(onClose) => {
+            const phase: "pick" | "importing" | "result" = restoreLoading
+              ? "importing"
+              : restoreResult
+                ? "result"
+                : "pick";
+
+            return (
+              <>
+                <ModalHeader className="flex items-center gap-2">
+                  <FontAwesomeIcon
+                    className="text-secondary"
+                    icon={faUpload}
+                  />
+                  <span>{t("details.modals.restoreInstances.title")}</span>
+                </ModalHeader>
+                <ModalBody>
+                  <input
+                    ref={restoreFileInputRef}
+                    accept="application/json,.json"
+                    className="hidden"
+                    type="file"
+                    onChange={handleRestoreFileChange}
+                  />
+
+                  {phase === "pick" && (
+                    <div className="space-y-3">
+                      <p className="text-sm text-default-500">
+                        {t("details.modals.restoreInstances.description")}
+                      </p>
+                      <button
+                        aria-label={t(
+                          "details.modals.restoreInstances.uploadFile",
+                        )}
+                        className={`group w-full flex flex-col items-center justify-center gap-2 rounded-xl border-2 border-dashed px-4 py-8 transition-colors ${
+                          restoreFile
+                            ? "border-secondary/50 bg-secondary/5 hover:bg-secondary/10"
+                            : "border-default-300 hover:border-secondary/50 hover:bg-default-50"
+                        }`}
+                        type="button"
+                        onClick={handleRestoreFilePick}
+                      >
+                        <FontAwesomeIcon
+                          className={`text-2xl ${
+                            restoreFile ? "text-secondary" : "text-default-400"
+                          }`}
+                          icon={faFileImport}
+                        />
+                        {restoreFile ? (
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span className="text-sm font-medium font-mono break-all max-w-full">
+                              {restoreFile.name}
+                            </span>
+                            <span className="text-tiny text-default-500">
+                              {(restoreFile.size / 1024).toFixed(1)} KB ·{" "}
+                              {t("details.modals.restoreInstances.uploadFile")}
+                            </span>
+                          </div>
+                        ) : (
+                          <span className="text-sm text-default-500">
+                            {t("details.modals.restoreInstances.uploadFile")}
+                          </span>
+                        )}
+                      </button>
+                    </div>
+                  )}
+
+                  {phase === "importing" && (
+                    <div className="flex flex-col items-center justify-center gap-3 py-10">
+                      <Spinner color="secondary" size="lg" />
+                      <p className="text-sm font-medium text-default-700">
+                        {t("details.modals.restoreInstances.importingTitle")}
+                      </p>
+                      <p className="text-tiny text-default-500 text-center max-w-md px-4">
+                        {t("details.modals.restoreInstances.importingDesc")}
+                      </p>
+                      {restoreFile && (
+                        <p className="text-tiny font-mono text-default-500 break-all max-w-full px-4">
+                          {restoreFile.name}
+                        </p>
+                      )}
+                    </div>
+                  )}
+
+                  {phase === "result" && restoreResult && (
+                    <div className="space-y-3">
+                      {/* 汇总：三色统计块 */}
+                      <div className="grid grid-cols-3 gap-2">
+                        <div className="flex flex-col items-center justify-center rounded-lg bg-success/10 border border-success/20 py-3">
+                          <span className="text-xl font-bold text-success">
+                            {restoreResult.imported}
+                          </span>
+                          <span className="text-tiny text-default-600">
+                            {t(
+                              "details.modals.restoreInstances.statusSuccess",
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-center justify-center rounded-lg bg-warning/10 border border-warning/20 py-3">
+                          <span className="text-xl font-bold text-warning">
+                            {restoreResult.skipped}
+                          </span>
+                          <span className="text-tiny text-default-600">
+                            {t(
+                              "details.modals.restoreInstances.statusSkipped",
+                            )}
+                          </span>
+                        </div>
+                        <div className="flex flex-col items-center justify-center rounded-lg bg-danger/10 border border-danger/20 py-3">
+                          <span className="text-xl font-bold text-danger">
+                            {restoreResult.failed}
+                          </span>
+                          <span className="text-tiny text-default-600">
+                            {t("details.modals.restoreInstances.statusFailed")}
+                          </span>
+                        </div>
+                      </div>
+
+                      <div className="flex items-center gap-3">
+                        <span className="text-tiny font-mono uppercase tracking-[0.18em] text-default-500">
+                          · {t("details.modals.restoreInstances.resultTitle")}
+                        </span>
+                        <div className="flex-1 h-px bg-default-200/70" />
+                      </div>
+
+                      <div className="max-h-72 overflow-y-auto border border-default-200 rounded-lg">
+                        <table className="w-full text-xs">
+                          <thead className="bg-default-100 sticky top-0">
+                            <tr>
+                              <th className="text-left p-2 font-medium">
+                                {t(
+                                  "details.modals.restoreInstances.resultName",
+                                )}
+                              </th>
+                              <th className="text-left p-2 font-medium w-20">
+                                {t(
+                                  "details.modals.restoreInstances.resultStatus",
+                                )}
+                              </th>
+                              <th className="text-left p-2 font-medium">
+                                {t(
+                                  "details.modals.restoreInstances.resultReason",
+                                )}
+                              </th>
+                            </tr>
+                          </thead>
+                          <tbody>
+                            {restoreResult.results.map((r, idx) => (
+                              <tr
+                                key={`${r.name || "unnamed"}-${idx}`}
+                                className="border-t border-default-200"
+                              >
+                                <td className="p-2 truncate max-w-[200px]">
+                                  {r.name || "-"}
+                                </td>
+                                <td className="p-2">
+                                  <Chip
+                                    color={
+                                      r.status === "success"
+                                        ? "success"
+                                        : r.status === "skipped"
+                                          ? "warning"
+                                          : "danger"
+                                    }
+                                    size="sm"
+                                    variant="flat"
+                                  >
+                                    {r.status === "success"
+                                      ? t(
+                                          "details.modals.restoreInstances.statusSuccess",
+                                        )
+                                      : r.status === "skipped"
+                                        ? t(
+                                            "details.modals.restoreInstances.statusSkipped",
+                                          )
+                                        : t(
+                                            "details.modals.restoreInstances.statusFailed",
+                                          )}
+                                  </Chip>
+                                </td>
+                                <td className="p-2 text-default-500 break-all">
+                                  {r.reason || r.instanceId || ""}
+                                </td>
+                              </tr>
+                            ))}
+                          </tbody>
+                        </table>
+                      </div>
+                    </div>
+                  )}
+                </ModalBody>
+                <ModalFooter>
+                  {phase === "result" ? (
+                    <>
+                      <Button
+                        startContent={
+                          <FontAwesomeIcon icon={faFileImport} />
+                        }
+                        variant="flat"
+                        onPress={handleResetRestore}
+                      >
+                        {t("details.modals.restoreInstances.importAnother")}
+                      </Button>
+                      <Button color="primary" onPress={onClose}>
+                        {t("details.modals.restoreInstances.close")}
+                      </Button>
+                    </>
+                  ) : (
+                    <>
+                      <Button
+                        isDisabled={restoreLoading}
+                        variant="light"
+                        onPress={onClose}
+                      >
+                        {t("details.modals.restoreInstances.close")}
+                      </Button>
+                      <Button
+                        color="primary"
+                        isDisabled={!restoreFile}
+                        isLoading={restoreLoading}
+                        startContent={
+                          restoreLoading ? null : (
+                            <FontAwesomeIcon icon={faUpload} />
+                          )
+                        }
+                        onPress={handleSubmitRestore}
+                      >
+                        {restoreLoading
+                          ? t("details.modals.restoreInstances.importing")
+                          : t("details.modals.restoreInstances.import")}
+                      </Button>
+                    </>
+                  )}
+                </ModalFooter>
+              </>
+            );
+          }}
         </ModalContent>
       </Modal>
 

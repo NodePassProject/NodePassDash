@@ -52,6 +52,10 @@ func SetupTunnelRoutes(rg *gin.RouterGroup, tunnelService *tunnel.Service, sseMa
 	rg.GET("/endpoints/:id/instances/:instanceId", tunnelHandler.HandleGetInstance)
 	rg.POST("/endpoints/:id/instances/:instanceId/control", tunnelHandler.HandleControlInstance)
 
+	// 实例备份/恢复 - 直接基于数据库，主控离线时仍可导出
+	rg.GET("/endpoints/:id/backup-instances", tunnelHandler.HandleBackupInstances)
+	rg.POST("/endpoints/:id/import-instances", tunnelHandler.HandleImportInstances)
+
 	// 隧道相关路由
 	rg.GET("/tunnels", tunnelHandler.HandleGetTunnels)
 	rg.POST("/tunnels", tunnelHandler.HandleCreateTunnel1)
@@ -763,6 +767,21 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 		}
 	}
 
+	proxyProtocol := func() interface{} {
+		if tunnel.ProxyProtocol != nil {
+			return *tunnel.ProxyProtocol
+		}
+		if parsedConfig != nil {
+			switch parsedConfig.Proxy {
+			case "1":
+				return true
+			case "0":
+				return false
+			}
+		}
+		return nil
+	}()
+
 	// 组装扁平化响应结构
 	resp := map[string]interface{}{
 		"id":            tunnel.ID,
@@ -808,12 +827,7 @@ func (h *TunnelHandler) HandleGetTunnelDetails(c *gin.Context) {
 			}
 			return nil
 		}(),
-		"proxyProtocol": func() interface{} {
-			if tunnel.ProxyProtocol != nil {
-				return *tunnel.ProxyProtocol
-			}
-			return nil
-		}(),
+		"proxyProtocol": proxyProtocol,
 		"rate": func() interface{} {
 			if tunnel.Rate != nil {
 				return *tunnel.Rate

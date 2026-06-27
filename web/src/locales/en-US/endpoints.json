@@ -295,7 +295,17 @@
       "editConfig": "Edit Config",
       "resetKey": "Reset Key",
       "clearLogs": "Clear Logs",
-      "delete": "Delete Endpoint"
+      "backupInstances": "Backup Instances",
+      "restoreInstances": "Restore Instances",
+      "delete": "Delete Endpoint",
+      "sections": {
+        "instances": "Instances",
+        "connection": "Connection",
+        "config": "Config",
+        "data": "Data",
+        "dangerZone": "Danger Zone"
+      },
+      "dangerHint": "This action cannot be undone — confirm carefully"
     },
     "info": {
       "title": "Endpoint Information",
@@ -358,6 +368,42 @@
         "placeholder": "Paste URLs here, one per line...",
         "confirm": "Confirm",
         "cancel": "Cancel"
+      },
+      "backupInstances": {
+        "title": "Backup Instances",
+        "description": "Export every instance under this endpoint (URL + metadata) directly from the database, so you can restore them on another endpoint. Works even when the endpoint is offline.",
+        "loading": "Loading instances...",
+        "empty": "No instances to back up on this endpoint",
+        "selectAll": "Select all",
+        "deselectAll": "Deselect all",
+        "selectedCount": "Selected {{selected}} / {{total}}",
+        "download": "Download .json",
+        "close": "Close",
+        "tableName": "Name",
+        "tableType": "Type",
+        "tableUrl": "URL"
+      },
+      "restoreInstances": {
+        "title": "Restore Instances",
+        "description": "Choose a backup JSON file to re-create the instances on the current endpoint. Aliases, restart policy, tags and peer info are reapplied best-effort. Instances with a name that already exists will be skipped.",
+        "placeholder": "Paste backup JSON here...",
+        "uploadFile": "Choose .json file",
+        "importing": "Importing...",
+        "importingTitle": "Restoring instances",
+        "importingDesc": "Calling the endpoint API to create instances and restore metadata, please wait...",
+        "resultTitle": "Import Result",
+        "importAnother": "Import another",
+        "import": "Start Import",
+        "close": "Close",
+        "invalidJson": "Failed to parse JSON, please check the format",
+        "missingInstances": "No instances found in the backup payload",
+        "summary": "{{imported}} succeeded, {{skipped}} skipped, {{failed}} failed (total {{total}})",
+        "resultName": "Name",
+        "resultStatus": "Status",
+        "resultReason": "Reason",
+        "statusSuccess": "Success",
+        "statusSkipped": "Skipped",
+        "statusFailed": "Failed"
       },
       "resetApiKey": {
         "title": "Reset API Key",
@@ -470,7 +516,16 @@
       "clearLogsSuccess": "Logs cleared",
       "clearLogsSuccessDesc": "Log files of all instances under this endpoint have been deleted",
       "clearLogsFailed": "Failed to clear logs",
-      "clearLogsFailedDesc": "Unable to clear log files"
+      "clearLogsFailedDesc": "Unable to clear log files",
+      "backupFailed": "Backup failed",
+      "backupFailedDesc": "Unable to fetch backup data",
+      "backupDownloaded": "Backup downloaded",
+      "backupDownloadedDesc": "File saved locally",
+      "restoreFailed": "Import failed",
+      "restoreFailedDesc": "Import request was not successful",
+      "restoreDone": "Import finished",
+      "restoreDoneDesc": "{{imported}} succeeded, {{skipped}} skipped, {{failed}} failed",
+      "restoreEmpty": "Please paste backup JSON first"
     },
     "systemMonitor": {
       "cpu": "CPU",

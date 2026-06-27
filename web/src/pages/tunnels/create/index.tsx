@@ -342,7 +342,7 @@ export default function CreateTunnelPage() {
             return undefined;
           })(),
           rate: formData.rate ? parseInt(formData.rate) : undefined,
-          proxy_protocol:
+          proxyProtocol:
             formData.proxyProtocol !== "inherit"
               ? formData.proxyProtocol === "true"
               : undefined,

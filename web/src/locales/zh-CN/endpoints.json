@@ -295,7 +295,17 @@
       "editConfig": "修改配置",
       "resetKey": "重置密钥",
       "clearLogs": "清空日志",
-      "delete": "删除主控"
+      "backupInstances": "备份实例",
+      "restoreInstances": "恢复实例",
+      "delete": "删除主控",
+      "sections": {
+        "instances": "Instances",
+        "connection": "Connection",
+        "config": "Config",
+        "data": "Data",
+        "dangerZone": "Danger Zone"
+      },
+      "dangerHint": "此操作不可恢复，请谨慎确认"
     },
     "info": {
       "title": "主控信息",
@@ -358,6 +368,42 @@
         "placeholder": "在此粘贴 URL，每行一个...",
         "confirm": "确定",
         "cancel": "取消"
+      },
+      "backupInstances": {
+        "title": "备份实例",
+        "description": "从数据库导出该主控下所有实例的可还原配置（含元数据），用于在新主控上恢复。即使主控失联也能导出。",
+        "loading": "正在加载实例列表...",
+        "empty": "该主控下暂无实例可备份",
+        "selectAll": "全选",
+        "deselectAll": "取消全选",
+        "selectedCount": "已选 {{selected}} / {{total}}",
+        "download": "下载 .json",
+        "close": "关闭",
+        "tableName": "名称",
+        "tableType": "类型",
+        "tableUrl": "URL"
+      },
+      "restoreInstances": {
+        "title": "恢复实例",
+        "description": "选择备份 JSON 文件，将在当前主控上重新创建实例，并尽量恢复别名、重启策略、标签和对端信息。同名实例将被跳过。",
+        "placeholder": "在此粘贴备份 JSON 内容...",
+        "uploadFile": "选择 .json 文件",
+        "importing": "正在导入...",
+        "importingTitle": "正在恢复实例",
+        "importingDesc": "正在调用主控 API 创建实例并还原元数据，请稍候...",
+        "resultTitle": "导入结果",
+        "importAnother": "再次导入",
+        "import": "开始导入",
+        "close": "关闭",
+        "invalidJson": "JSON 解析失败，请检查格式",
+        "missingInstances": "备份内容中未发现实例列表",
+        "summary": "成功 {{imported}}，跳过 {{skipped}}，失败 {{failed}}（共 {{total}}）",
+        "resultName": "名称",
+        "resultStatus": "状态",
+        "resultReason": "说明",
+        "statusSuccess": "成功",
+        "statusSkipped": "跳过",
+        "statusFailed": "失败"
       },
       "resetApiKey": {
         "title": "重置API密钥",
@@ -470,7 +516,16 @@
       "clearLogsSuccess": "日志已清空",
       "clearLogsSuccessDesc": "主控下所有实例的日志文件已删除",
       "clearLogsFailed": "清空日志失败",
-      "clearLogsFailedDesc": "无法清空日志文件"
+      "clearLogsFailedDesc": "无法清空日志文件",
+      "backupFailed": "备份失败",
+      "backupFailedDesc": "无法获取备份数据",
+      "backupDownloaded": "备份已下载",
+      "backupDownloadedDesc": "文件已保存到本地",
+      "restoreFailed": "导入失败",
+      "restoreFailedDesc": "导入请求未成功",
+      "restoreDone": "导入完成",
+      "restoreDoneDesc": "成功 {{imported}}，跳过 {{skipped}}，失败 {{failed}}",
+      "restoreEmpty": "请先粘贴备份 JSON"
     },
     "systemMonitor": {
       "cpu": "CPU",

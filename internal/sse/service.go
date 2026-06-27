@@ -360,6 +360,11 @@ func (s *Service) handleDeleteEvent(payload SSEResp) {
 		log.Infof("[Master-%d]隧道 %s 删除成功", payload.EndpointID, payload.Instance.ID)
 		// 更新端点隧道计数
 		s.updateEndpointTunnelCount(payload.EndpointID)
+
+		// 级联清理 services 表对该实例的引用
+		if cerr := models.CleanupServicesForInstance(s.db, payload.EndpointID, payload.Instance.ID); cerr != nil {
+			log.Warnf("[Master-%d]清理隧道 %s 关联的 service 失败: %v", payload.EndpointID, payload.Instance.ID, cerr)
+		}
 	}
 }
 
