@@ -4,17 +4,14 @@
 
 **语言：** 简体中文 | [English](../../README.md)
 
-![Version](https://img.shields.io/badge/version-3.4.0--beta3-blue.svg)
+![Version](https://img.shields.io/badge/version-4.0.1-blue.svg)
 ![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)
+![GitHub downloads](https://img.shields.io/github/downloads/NodePassProject/nodepassdash/total.svg)
+![Docker Pulls](https://img.shields.io/badge/docker_pulls-18k+-blue?logo=docker&logoColor=white)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/NodePassProject/nodepassdash)
+
 
 NodePassDash 是一个现代化的 **NodePass** 管理面板，用于集中管理端点（Endpoints）、隧道（Tunnels）与服务（Services）。项目采用 **Go（Gin + GORM + SQLite）** 后端并内置 **React（Vite + TypeScript + HeroUI）** 前端，通过 **SSE / WebSocket** 提供实时监控与交互。
-
-## Demo 演示
-
-- 在线演示：https://dash.nodepass.eu/
-- 演示账号：`nodepass` / `Np123456.`
-
-> ⚠️ 重要提醒：演示环境，请勿更改密码，请勿填写任何敏感信息。
 
 ## 功能亮点
 
@@ -73,8 +70,6 @@ BSD-3-Clause，见 `LICENSE`。
 ## 📞 支持
 
 - 🐛 问题报告: https://github.com/NodePassProject/NodePassDash/issues
-- 💬 社区讨论: https://t.me/NodePassGroup
-- 📢 频道: https://t.me/NodePassChannel
 
 ## 🤝 Sponsors
 
