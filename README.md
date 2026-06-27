@@ -6,6 +6,8 @@
 
 ![Version](https://img.shields.io/badge/version-4.0.1-blue.svg)
 ![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)
+![GitHub downloads](https://img.shields.io/github/downloads/NodePassProject/nodepassdash/total.svg)
+[![Ask DeepWiki](https://deepwiki.com/badge.svg)](https://deepwiki.com/NodePassProject/nodepassdash)
 
 NodePassDash is a modern web dashboard for managing **NodePass** endpoints, tunnels, and services. It ships as a single Go binary (Gin + GORM + SQLite) with an embedded React (Vite + TypeScript + HeroUI) frontend, and provides real-time telemetry via SSE/WebSocket.
 
