@@ -69,6 +69,7 @@
     "createOptions": "创建选项",
     "manualCreate": "手搓创建",
     "batchCreate": "批量创建",
+    "debugCreate": "调试创建",
     "scenarioCreate": "场景创建",
     "groupManagement": "分组管理",
     "view": "查看实例",
@@ -302,6 +303,47 @@
       "formatFailed": "格式化失败",
       "formatFailedArray": "JSON必须是数组格式",
       "formatFailedSyntax": "JSON格式错误，请检查语法"
+    }
+  },
+  "debugCreate": {
+    "title": "调试创建",
+    "submit": "创建调试实例",
+    "mode": {
+      "single": "单端（一个主控）",
+      "double": "双端（两个主控）"
+    },
+    "fields": {
+      "mode": "创建方式",
+      "endpoint": "主控",
+      "endpointPlaceholder": "选择主控",
+      "serverEndpoint": "Server 主控",
+      "clientEndpoint": "Client 主控",
+      "targetAddress": "目标地址",
+      "targetPortRange": "目标端口范围",
+      "listenPortRange": "监听端口范围"
+    },
+    "preview": {
+      "ready": "配置有效",
+      "count": "{{count}} 条实例",
+      "empty": "填写配置后显示 URL 预览",
+      "refreshRandom": "刷新随机端口"
+    },
+    "validation": {
+      "targetAddress": "请输入目标地址",
+      "targetPortRange": "请输入有效的目标端口范围",
+      "listenPortRange": "请输入有效的监听端口范围",
+      "sameCount": "目标端口和监听端口数量必须一致",
+      "endpoint": "请选择主控",
+      "doubleEndpoint": "请选择 Server 和 Client 主控",
+      "serverHost": "Server 主控缺少可用 IP 或地址",
+      "noRules": "没有可创建的实例"
+    },
+    "toast": {
+      "fetchEndpointsFailed": "获取主控列表失败",
+      "invalidConfig": "配置不完整",
+      "createSuccess": "调试实例创建完成",
+      "createSuccessDesc": "已提交 {{count}} 条实例",
+      "createFailed": "调试实例创建失败"
     }
   },
   "batchUrlCreate": {

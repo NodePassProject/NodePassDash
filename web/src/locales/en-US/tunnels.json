@@ -69,6 +69,7 @@
     "createOptions": "Create Options",
     "manualCreate": "Manual Create",
     "batchCreate": "Batch Create",
+    "debugCreate": "Debug Create",
     "scenarioCreate": "Scenario Create",
     "groupManagement": "Group Management",
     "view": "View Tunnel",
@@ -302,6 +303,47 @@
       "formatFailed": "Format Failed",
       "formatFailedArray": "JSON must be in array format",
       "formatFailedSyntax": "JSON format error, please check syntax"
+    }
+  },
+  "debugCreate": {
+    "title": "Debug Create",
+    "submit": "Create Debug Tunnels",
+    "mode": {
+      "single": "Single-ended (one master)",
+      "double": "Double-ended (two masters)"
+    },
+    "fields": {
+      "mode": "Create Mode",
+      "endpoint": "Master",
+      "endpointPlaceholder": "Select master",
+      "serverEndpoint": "Server Master",
+      "clientEndpoint": "Client Master",
+      "targetAddress": "Target Address",
+      "targetPortRange": "Target Port Range",
+      "listenPortRange": "Listen Port Range"
+    },
+    "preview": {
+      "ready": "Configuration valid",
+      "count": "{{count}} tunnels",
+      "empty": "Fill in the form to preview URLs",
+      "refreshRandom": "Refresh Random Ports"
+    },
+    "validation": {
+      "targetAddress": "Enter a target address",
+      "targetPortRange": "Enter a valid target port range",
+      "listenPortRange": "Enter a valid listen port range",
+      "sameCount": "Target and listen port counts must match",
+      "endpoint": "Select a master",
+      "doubleEndpoint": "Select Server and Client masters",
+      "serverHost": "Server master has no usable IP or address",
+      "noRules": "No tunnels to create"
+    },
+    "toast": {
+      "fetchEndpointsFailed": "Failed to fetch endpoint list",
+      "invalidConfig": "Incomplete configuration",
+      "createSuccess": "Debug tunnels created",
+      "createSuccessDesc": "Submitted {{count}} tunnels",
+      "createFailed": "Failed to create debug tunnels"
     }
   },
   "batchUrlCreate": {
