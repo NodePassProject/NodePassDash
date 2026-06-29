@@ -332,7 +332,7 @@
       "targetAddress": "Enter a target address",
       "targetPortRange": "Enter a valid target port range",
       "listenPortRange": "Enter a valid listen port range",
-      "sameCount": "Target and listen port counts must match",
+      "sameCount": "Target ports must be a single port or match the listen port count",
       "endpoint": "Select a master",
       "doubleEndpoint": "Select Server and Client masters",
       "serverHost": "Server master has no usable IP or address",

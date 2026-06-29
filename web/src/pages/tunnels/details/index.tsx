@@ -50,7 +50,7 @@ import { useNavigate } from "react-router-dom";
 import { addToast } from "@heroui/toast";
 import { useSearchParams } from "react-router-dom";
 import { parseDate } from "@internationalized/date";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { useTranslation } from "react-i18next";
 
 import { FullscreenChartModal } from "./fullscreen-chart-modal";

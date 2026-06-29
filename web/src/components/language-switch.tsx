@@ -5,7 +5,7 @@ import {
   DropdownMenu,
   DropdownItem,
 } from "@heroui/react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { useTranslation } from "react-i18next";
 
 import { useSettings } from "@/components/providers/settings-provider";

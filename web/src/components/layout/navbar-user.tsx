@@ -13,7 +13,7 @@ import {
   ModalHeader,
   useDisclosure,
 } from "@heroui/react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { useState, useRef } from "react";
 import { addToast } from "@heroui/toast";
 import { useNavigate } from "react-router-dom";

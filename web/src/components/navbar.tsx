@@ -7,7 +7,7 @@ import {
   NavbarMenu,
   NavbarMenuToggle,
 } from "@heroui/react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { useState } from "react";
 
 import { NavbarLogo } from "./layout/navbar-logo";

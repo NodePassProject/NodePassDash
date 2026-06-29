@@ -7,7 +7,7 @@ import {
   ModalBody,
   ModalFooter,
 } from "@heroui/react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { useTranslation } from "react-i18next";
 
 import { useAuth } from "@/components/auth/auth-provider";

@@ -1,5 +1,5 @@
 import { Button } from "@heroui/react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { useTheme } from "next-themes";
 
 export interface ThemeSwitchProps {

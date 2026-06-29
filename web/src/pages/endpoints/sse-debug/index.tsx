@@ -6,7 +6,7 @@ import React, {
   useMemo,
 } from "react";
 import { Button, Card, CardBody, CardHeader, Chip } from "@heroui/react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { useNavigate, useSearchParams } from "react-router-dom";
 import { addToast } from "@heroui/toast";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";

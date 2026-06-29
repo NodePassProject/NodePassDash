@@ -1,7 +1,7 @@
 import { Card, CardBody } from "@heroui/react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faServer, faLayerGroup } from "@fortawesome/free-solid-svg-icons";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { useNavigate } from "react-router-dom";
 import { useTranslation } from "react-i18next";
 

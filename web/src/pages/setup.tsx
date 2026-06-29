@@ -15,7 +15,7 @@ import {
   Spinner,
   Switch,
 } from "@heroui/react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
 import ReactMarkdown from "react-markdown";

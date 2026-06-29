@@ -1,5 +1,5 @@
 import { NavbarItem, Link } from "@heroui/react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { useLocation } from "react-router-dom";
 
 import { cn } from "@/lib/utils";

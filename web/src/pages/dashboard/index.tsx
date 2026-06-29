@@ -23,7 +23,7 @@ import {
   Alert,
 } from "@heroui/react";
 import React, { useState, useEffect, useCallback, useRef } from "react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {
   faRocket,
@@ -99,6 +99,28 @@ interface Endpoint {
   tunnelCount: number;
 }
 
+// 独立的时间显示组件：内部 setInterval 只让本组件重渲染，
+// 避免每秒触发整个 Dashboard 树重渲染导致的 HeroUI/recharts 内存抖动
+function CurrentTimeDisplay() {
+  const [time, setTime] = useState(() => new Date());
+
+  useEffect(() => {
+    const timer = setInterval(() => setTime(new Date()), 1000);
+
+    return () => clearInterval(timer);
+  }, []);
+
+  return (
+    <>
+      {time.toLocaleTimeString("zh-CN", {
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+      })}
+    </>
+  );
+}
+
 /**
  * 仪表盘页面 - 使用服务端事件 SSE 架构
  */
@@ -106,7 +128,6 @@ export default function DashboardPage() {
   const { settings } = useSettings();
   const { t } = useTranslation("dashboard");
   const { t: tCommon } = useTranslation("common");
-  const [currentTime, setCurrentTime] = useState(new Date());
   const [tunnelStats, setTunnelStats] = useState<TunnelStats>({
     total: 0,
     running: 0,
@@ -214,15 +235,6 @@ export default function DashboardPage() {
         console.log("[Dashboard] 组件卸载，已清理所有数据状态");
       }
     };
-  }, []);
-
-  // 更新时间
-  useEffect(() => {
-    const timer = setInterval(() => {
-      setCurrentTime(new Date());
-    }, 1000);
-
-    return () => clearInterval(timer);
   }, []);
 
   // 检查版本更新
@@ -627,14 +639,6 @@ export default function DashboardPage() {
     fetchWeeklyStats,
   ]);
 
-  const formatTime = (date: Date) => {
-    return date.toLocaleTimeString("zh-CN", {
-      hour: "2-digit",
-      minute: "2-digit",
-      second: "2-digit",
-    });
-  };
-
   // 表格列定义
   const columns = [
     { key: "time", label: t("table.time") },
@@ -748,7 +752,7 @@ export default function DashboardPage() {
         <div className="flex flex-col gap-1">
           <h1 className="text-2xl font-bold text-foreground">{t("title")}</h1>
           <p className="text-sm md:text-base text-default-500">
-            {t("currentTime")} {formatTime(currentTime)}
+            {t("currentTime")} <CurrentTimeDisplay />
           </p>
         </div>
 

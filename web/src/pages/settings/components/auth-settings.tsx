@@ -9,7 +9,7 @@ import {
 import { useTranslation } from "react-i18next";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faIdCard, faKey } from "@fortawesome/free-solid-svg-icons";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 
 export function AuthSettings() {
   const { t } = useTranslation("settings");

@@ -34,7 +34,7 @@ import {
   faPen,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 
 import { buildApiUrl } from "@/lib/utils";
 import { useSettings } from "@/components/providers/settings-provider";

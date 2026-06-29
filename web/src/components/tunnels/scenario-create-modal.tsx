@@ -13,7 +13,7 @@ import {
   CardBody,
 } from "@heroui/react";
 import { useEffect, useState } from "react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { addToast } from "@heroui/toast";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {

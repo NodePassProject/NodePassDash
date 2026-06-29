@@ -29,7 +29,7 @@ import {
 } from "@heroui/react";
 import { useState, useEffect, useRef, useCallback } from "react";
 import { useNavigate } from "react-router-dom";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { addToast } from "@heroui/toast";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import {

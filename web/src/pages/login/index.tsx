@@ -15,7 +15,7 @@ import {
   faEye,
   faEyeSlash,
 } from "@fortawesome/free-solid-svg-icons";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { motion } from "framer-motion";
 import { useTheme } from "next-themes";
 import { useTranslation } from "react-i18next";

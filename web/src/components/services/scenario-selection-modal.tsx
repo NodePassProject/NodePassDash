@@ -14,7 +14,7 @@ import {
   faExchangeAlt,
   faShield,
 } from "@fortawesome/free-solid-svg-icons";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { useTranslation } from "react-i18next";
 
 import { ScenarioType } from "./service-create-modal";

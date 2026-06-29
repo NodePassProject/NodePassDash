@@ -2,7 +2,7 @@ import React, { useState, useEffect, useMemo } from "react";
 import { Card, cn } from "@heroui/react";
 import { tv } from "tailwind-variants";
 import { Area, AreaChart, ResponsiveContainer, YAxis } from "recharts";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { useTranslation } from "react-i18next";
 
 import MiniCircularProgress from "./mini-circular-progress";

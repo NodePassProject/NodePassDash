@@ -21,7 +21,7 @@ import React, {
 } from "react";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
 import { faExternalLink } from "@fortawesome/free-solid-svg-icons";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { addToast } from "@heroui/toast";
 import { z } from "zod";
 import { useForm } from "react-hook-form";

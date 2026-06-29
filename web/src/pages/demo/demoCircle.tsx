@@ -15,7 +15,7 @@ import {
   DropdownTrigger,
   cn,
 } from "@heroui/react";
-import {Icon} from "@iconify/react";
+import {Icon} from "@iconify/react/dist/offline";
 
 type ChartData = {
   name: string;

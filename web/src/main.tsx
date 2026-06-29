@@ -8,6 +8,8 @@ import "@/styles/globals.css";
 
 // 导入 fetch 拦截器，自动为所有 API 请求添加 JWT token
 import "@/lib/fetch-interceptor";
+// 预注册所有 iconify 图标到 offline storage（由 scripts/generate-icons.mjs 生成）
+import "@/lib/icons.generated";
 
 // 在开发模式下给标题添加 -dev 后缀
 declare global {

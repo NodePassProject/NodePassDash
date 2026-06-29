@@ -8,7 +8,7 @@ import {
   Button,
 } from "@heroui/react";
 import { useTranslation } from "react-i18next";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 
 interface ConfirmationModalProps {
   isOpen: boolean;

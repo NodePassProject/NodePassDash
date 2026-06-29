@@ -332,7 +332,7 @@
       "targetAddress": "请输入目标地址",
       "targetPortRange": "请输入有效的目标端口范围",
       "listenPortRange": "请输入有效的监听端口范围",
-      "sameCount": "目标端口和监听端口数量必须一致",
+      "sameCount": "目标端口范围需为单个端口，或与监听端口数量一致",
       "endpoint": "请选择主控",
       "doubleEndpoint": "请选择 Server 和 Client 主控",
       "serverHost": "Server 主控缺少可用 IP 或地址",

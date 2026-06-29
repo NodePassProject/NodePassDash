@@ -181,7 +181,7 @@ export default function DebugCreateModal({
       !targetAddress ||
       !targetPorts.length ||
       !listenPorts.length ||
-      targetPorts.length !== listenPorts.length ||
+      (targetPorts.length !== 1 && targetPorts.length !== listenPorts.length) ||
       targetPorts.some((port) => !isValidPort(port)) ||
       listenPorts.some((port) => !isValidPort(port))
     ) {
@@ -194,7 +194,8 @@ export default function DebugCreateModal({
       if (!endpointId) return rules;
 
       listenPorts.forEach((listenPort, index) => {
-        const targetPort = targetPorts[index];
+        const targetPort =
+          targetPorts.length === 1 ? targetPorts[0] : targetPorts[index];
 
         rules.push({
           endpointId,
@@ -216,7 +217,8 @@ export default function DebugCreateModal({
     if (!serverEndpointId || !clientEndpointId || !serverHost) return rules;
 
     listenPorts.forEach((listenPort, index) => {
-      const targetPort = targetPorts[index];
+      const targetPort =
+        targetPorts.length === 1 ? targetPorts[0] : targetPorts[index];
       const tunnelPort = randomPort(usedTunnelPorts);
 
       rules.push({
@@ -246,7 +248,7 @@ export default function DebugCreateModal({
       return t("debugCreate.validation.targetPortRange");
     if (listenPorts.some((port) => !isValidPort(port)))
       return t("debugCreate.validation.listenPortRange");
-    if (targetPorts.length !== listenPorts.length)
+    if (targetPorts.length !== 1 && targetPorts.length !== listenPorts.length)
       return t("debugCreate.validation.sameCount");
     if (form.mode === "single" && !form.endpointId)
       return t("debugCreate.validation.endpoint");

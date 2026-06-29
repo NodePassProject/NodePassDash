@@ -32,7 +32,7 @@ import {
   Divider,
 } from "@heroui/react";
 import { Selection } from "@react-types/shared";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import React, { useCallback, useMemo, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { FontAwesomeIcon } from "@fortawesome/react-fontawesome";
@@ -1742,7 +1742,6 @@ export default function TunnelsPage() {
                           icon={faSort}
                           className="text-foreground"
                         />
-                        // <Icon className="text-default-400" icon="solar:sort-linear" width={16} />
                       )
                     }
                     isDisabled={loading}

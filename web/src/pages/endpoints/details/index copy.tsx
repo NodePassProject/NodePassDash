@@ -45,7 +45,7 @@ import {
   faCog,
   faQrcode,
 } from "@fortawesome/free-solid-svg-icons";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { useNavigate } from "react-router-dom";
 import { useSearchParams } from "react-router-dom";
 import { addToast } from "@heroui/toast";

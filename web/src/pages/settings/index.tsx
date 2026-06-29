@@ -1,6 +1,6 @@
 import { Tab, Tabs } from "@heroui/react";
 import React from "react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { addToast } from "@heroui/toast";
 import { useTranslation } from "react-i18next";
 

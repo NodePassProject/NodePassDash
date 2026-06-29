@@ -23,7 +23,7 @@ import {
   faExclamationTriangle,
   faCheck,
 } from "@fortawesome/free-solid-svg-icons";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { addToast } from "@heroui/toast";
 import { useTranslation } from "react-i18next";
 

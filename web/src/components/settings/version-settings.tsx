@@ -14,7 +14,7 @@ import {
   Divider,
   CardHeader,
 } from "@heroui/react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 import { format } from "date-fns";
 import { zhCN } from "date-fns/locale";
 import { useTranslation } from "react-i18next";
@@ -315,7 +315,7 @@ export default function VersionSettings() {
                       isDisabled
                       size="sm"
                       startContent={
-                        <Icon icon="solar:terminal-bold" width={18} />
+                        <Icon icon="lucide:terminal" width={18} />
                       }
                       variant="flat"
                     >
@@ -404,7 +404,7 @@ export default function VersionSettings() {
             </Button>
             <Button
               color="primary"
-              endContent={<Icon icon="solar:external-link-bold" width={18} />}
+              endContent={<Icon icon="lucide:external-link" width={18} />}
               onPress={() => {
                 if (selectedVersion?.html_url) {
                   window.open(selectedVersion.html_url, "_blank");

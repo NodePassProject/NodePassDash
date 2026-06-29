@@ -1,6 +1,6 @@
 import React, { useState } from "react";
 import { Card, CardBody, CardHeader, Chip, Tabs, Tab } from "@heroui/react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 
 // 导入 CellValue 组件进行演示
 const DemoCellValue = React.forwardRef<

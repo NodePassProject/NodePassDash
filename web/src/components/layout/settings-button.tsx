@@ -2,7 +2,7 @@
 
 import React, { useState } from "react";
 import { Button } from "@heroui/react";
-import { Icon } from "@iconify/react";
+import { Icon } from "@iconify/react/dist/offline";
 
 import { SettingsDrawer } from "./settings-drawer";
 
