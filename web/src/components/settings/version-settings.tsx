@@ -1,4 +1,4 @@
-import { useState, useEffect } from "react";
+import { useEffect, useRef, useState } from "react";
 import {
   Card,
   CardBody,
@@ -27,6 +27,8 @@ interface VersionInfo {
   os: string;
   arch: string;
   buildTime?: string;
+  restartPending?: boolean;
+  pendingVersion?: string;
 }
 
 interface GitHubRelease {
@@ -84,6 +86,13 @@ export default function VersionSettings() {
     null,
   );
 
+  // 与 UpdateChip 同步的状态:二进制是否已替换待重启
+  const [restartPending, setRestartPending] = useState(false);
+  const [pendingVersion, setPendingVersion] = useState("");
+  const [restartCountdown, setRestartCountdown] = useState<number | null>(null);
+  const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const RESTART_COUNTDOWN_SECONDS = 15;
+
   const { isOpen, onOpen, onClose } = useDisclosure();
 
   // 获取当前版本和部署信息
@@ -103,6 +112,11 @@ export default function VersionSettings() {
           hasStableUpdate: false,
           hasBetaUpdate: false,
         });
+        // 同步 restart-pending(后端 /current 返回);页面刷新也能恢复"待重启"提示
+        if (versionData.data?.restartPending) {
+          setRestartPending(true);
+          setPendingVersion(versionData.data?.pendingVersion ?? "");
+        }
       }
 
       if (deploymentRes.ok) {
@@ -153,41 +167,102 @@ export default function VersionSettings() {
     }
   };
 
-  // 执行自动更新
+  // 执行自动更新:触发后端异步替换二进制,然后轮询 /current 等到 restartPending=true
   const performAutoUpdate = async (type: "stable" | "beta") => {
     try {
       setUpdating(true);
 
       const response = await fetch(buildApiUrl("/api/version/auto-update"), {
         method: "POST",
-        headers: {
-          "Content-Type": "application/json",
-        },
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type }),
       });
 
-      if (response.ok) {
-        const data = await response.json();
-
-        alert(
-          t("version.alert.updateStarted", { message: data.message }),
-        );
-      } else {
-        const errorData = await response.json();
-
-        alert(t("version.alert.updateFailed", { error: errorData.error }));
+      if (!response.ok) {
+        const errorData = await response.json().catch(() => ({}));
+        alert(t("version.alert.updateFailed", { error: errorData.error || response.statusText }));
+        setUpdating(false);
+        return;
       }
+
+      // 轮询等待替换完成(最多 5 分钟)
+      const deadline = Date.now() + 5 * 60 * 1000;
+      while (Date.now() < deadline) {
+        await new Promise((r) => setTimeout(r, 2000));
+        try {
+          const cur = await fetch(buildApiUrl("/api/version/current"));
+          if (cur.ok) {
+            const j = await cur.json();
+            if (j?.data?.restartPending) {
+              setRestartPending(true);
+              setPendingVersion(j.data.pendingVersion ?? "");
+              setUpdating(false);
+              return;
+            }
+          }
+        } catch {
+          /* 网络抖动,继续等 */
+        }
+      }
+      alert(t("update.timeout"));
+      setUpdating(false);
     } catch (error) {
       console.error("执行更新失败:", error);
       alert(`更新失败: ${error}`);
-    } finally {
       setUpdating(false);
     }
+  };
+
+  // 立即重启:启动 15s 倒计时,归零后调用 /restart 触发后端进程退出
+  const startRestartCountdown = () => {
+    if (countdownRef.current) clearInterval(countdownRef.current);
+    setRestartCountdown(RESTART_COUNTDOWN_SECONDS);
+    countdownRef.current = setInterval(() => {
+      setRestartCountdown((prev) => {
+        if (prev === null) return null;
+        if (prev <= 1) {
+          if (countdownRef.current) {
+            clearInterval(countdownRef.current);
+            countdownRef.current = null;
+          }
+          void triggerRestart();
+          return 0;
+        }
+        return prev - 1;
+      });
+    }, 1000);
+  };
+
+  const triggerRestart = async () => {
+    try {
+      await fetch(buildApiUrl("/api/version/restart"), { method: "POST" });
+    } catch {
+      /* 连接被切断属正常,进程已退出 */
+    }
+    // 探测服务恢复后刷新页面
+    const probe = setInterval(async () => {
+      try {
+        const res = await fetch(buildApiUrl("/api/version/current"), { cache: "no-store" });
+        if (res.ok) {
+          clearInterval(probe);
+          window.location.reload();
+        }
+      } catch {
+        /* 仍在下线状态 */
+      }
+    }, 1500);
+    setTimeout(() => {
+      clearInterval(probe);
+      window.location.reload();
+    }, 60_000);
   };
 
   useEffect(() => {
     fetchVersionData();
     fetchDBInfo();
+    return () => {
+      if (countdownRef.current) clearInterval(countdownRef.current);
+    };
   }, []);
 
   if (loading) {
@@ -320,47 +395,76 @@ export default function VersionSettings() {
                 </div>
 
                 <div className="flex gap-2">
-                  {updateInfo?.hasStableUpdate &&
-                    updateInfo.stable &&
-                    deploymentInfo.canUpdate && (
+                  {/* 优先级最高:有待重启的更新 */}
+                  {restartPending ? (
+                    restartCountdown !== null ? (
                       <Button
-                        color="primary"
-                        isLoading={updating}
+                        color="success"
+                        isDisabled
                         size="sm"
-                        startContent={
-                          <Icon icon="solar:rocket-bold" width={18} />
-                        }
-                        onPress={() => performAutoUpdate("stable")}
+                        startContent={<Spinner size="sm" color="default" />}
+                        className="text-white"
                       >
-                        {t("version.deployment.autoUpdateStable")}
+                        {t("update.popover.restarting", { seconds: restartCountdown })}
                       </Button>
-                    )}
-                  {updateInfo?.hasBetaUpdate &&
-                    updateInfo.beta &&
-                    deploymentInfo.canUpdate && (
+                    ) : (
                       <Button
-                        color="warning"
-                        isLoading={updating}
+                        color="success"
                         size="sm"
-                        startContent={
-                          <Icon icon="solar:rocket-bold" width={18} />
-                        }
-                        onPress={() => performAutoUpdate("beta")}
+                        startContent={<Icon icon="solar:refresh-bold" width={18} />}
+                        onPress={startRestartCountdown}
+                        className="text-white"
                       >
-                        {t("version.deployment.autoUpdateBeta")}
+                        {pendingVersion
+                          ? `${t("update.popover.restartNow")} (${pendingVersion})`
+                          : t("update.popover.restartNow")}
                       </Button>
-                    )}
-                  {!deploymentInfo.canUpdate && (
-                    <Button
-                      isDisabled
-                      size="sm"
-                      startContent={
-                        <Icon icon="lucide:terminal" width={18} />
-                      }
-                      variant="flat"
-                    >
-                      {t("version.deployment.manualUpdate")}
-                    </Button>
+                    )
+                  ) : (
+                    <>
+                      {updateInfo?.hasStableUpdate &&
+                        updateInfo.stable &&
+                        deploymentInfo.canUpdate && (
+                          <Button
+                            color="primary"
+                            isLoading={updating}
+                            size="sm"
+                            startContent={
+                              <Icon icon="solar:rocket-bold" width={18} />
+                            }
+                            onPress={() => performAutoUpdate("stable")}
+                          >
+                            {t("version.deployment.autoUpdateStable")}
+                          </Button>
+                        )}
+                      {updateInfo?.hasBetaUpdate &&
+                        updateInfo.beta &&
+                        deploymentInfo.canUpdate && (
+                          <Button
+                            color="warning"
+                            isLoading={updating}
+                            size="sm"
+                            startContent={
+                              <Icon icon="solar:rocket-bold" width={18} />
+                            }
+                            onPress={() => performAutoUpdate("beta")}
+                          >
+                            {t("version.deployment.autoUpdateBeta")}
+                          </Button>
+                        )}
+                      {!deploymentInfo.canUpdate && (
+                        <Button
+                          isDisabled
+                          size="sm"
+                          startContent={
+                            <Icon icon="lucide:terminal" width={18} />
+                          }
+                          variant="flat"
+                        >
+                          {t("version.deployment.manualUpdate")}
+                        </Button>
+                      )}
+                    </>
                   )}
                 </div>
               </div>

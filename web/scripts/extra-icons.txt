@@ -1,3 +1,6 @@
 # 兜底图标清单：在此每行写一个 prefix:name，用于补充扫描脚本可能漏掉的运行时拼接 / 远端配置图标
 # 行首 # 为注释
 # 该文件由 scripts/generate-icons.mjs 读取，与代码扫描结果合并去重
+
+# UpdateChip：通过变量动态引用，扫描器扫不到，需手动列出
+fa6-solid:circle-up

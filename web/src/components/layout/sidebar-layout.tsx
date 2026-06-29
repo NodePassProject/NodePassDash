@@ -19,6 +19,7 @@ import { useTranslation } from "react-i18next";
 
 import { Footer } from "./footer";
 import { NodePassLogo } from "./navbar-logo";
+import { UpdateChip } from "./update-chip";
 import { SettingsDrawer } from "./settings-drawer";
 
 import { useAuth } from "@/components/auth/auth-provider";
@@ -96,17 +97,21 @@ export function SidebarLayout({ children }: SidebarLayoutProps) {
             >
               NodePassDash
             </p>
-            {badgeProps && !isCollapsed && (
-              <Chip
-                className="ml-1 h-5 p-0"
-                color={badgeProps.color}
-                size="sm"
-                variant="flat"
-              >
-                {badgeProps.content}
-              </Chip>
-            )}
           </Link>
+          {/* UpdateChip 占据原 dev chip 的位置;sidebar 折叠时仍显示,展示更新提示 */}
+          {!isCollapsed && <UpdateChip />}
+          {/* dev/beta chip 暂时隐藏 — 需要时取消注释
+          {badgeProps && !isCollapsed && (
+            <Chip
+              className="h-5 p-0"
+              color={badgeProps.color}
+              size="sm"
+              variant="flat"
+            >
+              {badgeProps.content}
+            </Chip>
+          )}
+          */}
 
           {!isCollapsed && (
             <button

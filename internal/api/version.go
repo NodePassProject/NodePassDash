@@ -14,6 +14,7 @@ import (
 	"path/filepath"
 	"runtime"
 	"strings"
+	"sync"
 	"time"
 
 	"NodePassDash/internal/db"
@@ -25,6 +26,9 @@ import (
 
 // VersionHandler 版本相关处理器
 type VersionHandler struct {
+	mu             sync.Mutex
+	restartPending bool   // 二进制已替换完成,等待用户触发重启
+	pendingVersion string // 已替换待生效的版本号
 }
 
 // NewVersionHandler 创建版本处理器
@@ -32,13 +36,30 @@ func NewVersionHandler() *VersionHandler {
 	return &VersionHandler{}
 }
 
+// markRestartPending 在更新成功后调用
+func (h *VersionHandler) markRestartPending(version string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.restartPending = true
+	h.pendingVersion = version
+}
+
+// getRestartPending 当前是否有待重启的版本
+func (h *VersionHandler) getRestartPending() (bool, string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	return h.restartPending, h.pendingVersion
+}
+
 // VersionInfo 版本信息结构
 type VersionInfo struct {
-	Current   string `json:"current"`
-	GoVersion string `json:"goVersion"`
-	OS        string `json:"os"`
-	Arch      string `json:"arch"`
-	BuildTime string `json:"buildTime,omitempty"`
+	Current        string `json:"current"`
+	GoVersion      string `json:"goVersion"`
+	OS             string `json:"os"`
+	Arch           string `json:"arch"`
+	BuildTime      string `json:"buildTime,omitempty"`
+	RestartPending bool   `json:"restartPending,omitempty"`
+	PendingVersion string `json:"pendingVersion,omitempty"`
 }
 
 // GitHubRelease GitHub 发布信息结构
@@ -104,6 +125,7 @@ func SetupVersionRoutes(rg *gin.RouterGroup, version string) {
 	rg.GET("/version/deployment-info", versionHandler.HandleGetDeploymentInfo)
 	rg.GET("/version/db-info", versionHandler.HandleGetDBInfo)
 	rg.POST("/version/auto-update", versionHandler.HandleAutoUpdate)
+	rg.POST("/version/restart", versionHandler.HandleRestart)
 }
 
 // DBInfo 数据库信息结构
@@ -193,11 +215,14 @@ func humanSize(b int64) string {
 
 // HandleGetCurrentVersion 获取当前版本信息
 func (h *VersionHandler) HandleGetCurrentVersion(c *gin.Context) {
+	pending, pendingVer := h.getRestartPending()
 	versionInfo := VersionInfo{
-		Current:   Version,
-		GoVersion: runtime.Version(),
-		OS:        runtime.GOOS,
-		Arch:      runtime.GOARCH,
+		Current:        Version,
+		GoVersion:      runtime.Version(),
+		OS:             runtime.GOOS,
+		Arch:           runtime.GOARCH,
+		RestartPending: pending,
+		PendingVersion: pendingVer,
 	}
 
 	c.JSON(http.StatusOK, gin.H{
@@ -350,15 +375,35 @@ func (h *VersionHandler) performUpdateWithLogs(deploymentInfo DeploymentInfo, re
 
 	if result.Success {
 		h.logUpdateProgress("success", result.Message)
-		if deploymentInfo.Method == "docker" {
-			h.logUpdateProgress("info", "进程即将退出，Docker 将按 restart 策略(unless-stopped / always)自动拉起新容器")
-			h.logUpdateProgress("info", "若容器未配置 restart 策略，请手动 docker start 容器")
-		}
 	} else {
 		h.logUpdateProgress("error", fmt.Sprintf("更新失败: %s", result.Message))
 	}
 
 	h.logUpdateProgress("complete", "更新流程结束")
+}
+
+// HandleRestart 触发进程退出,由 supervisor / Docker restart 策略加载新版本
+func (h *VersionHandler) HandleRestart(c *gin.Context) {
+	pending, _ := h.getRestartPending()
+	if !pending {
+		c.JSON(http.StatusBadRequest, gin.H{
+			"success": false,
+			"error":   "没有待重启的更新,请先执行自动更新",
+		})
+		return
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"message": "重启指令已接受,进程将在 1 秒后退出",
+	})
+
+	// 让 HTTP 响应先返回再退出
+	go func() {
+		time.Sleep(1 * time.Second)
+		h.logUpdateProgress("info", "用户触发重启,进程即将退出以加载新版本...")
+		os.Exit(0)
+	}()
 }
 
 // selectReleaseByType 根据通道(stable/beta)选择对应的 release
@@ -563,16 +608,14 @@ func (h *VersionHandler) performBinaryReplace(latest *GitHubRelease, isDocker bo
 
 	h.logUpdateProgress("success", fmt.Sprintf("更新完成！版本: %s -> %s", Version, latest.TagName))
 	h.logUpdateProgress("info", fmt.Sprintf("备份文件保留在: %s", backupPath))
+	h.logUpdateProgress("info", "等待用户触发重启以加载新版本 (POST /api/version/restart)")
 
-	// 延时退出进程，让 HTTP 响应先返回；由 Docker restart 策略 / supervisor 拉起新进程
-	time.AfterFunc(1*time.Second, func() {
-		h.logUpdateProgress("info", "进程即将退出以加载新版本...")
-		os.Exit(0)
-	})
+	// 标记为等待重启状态;真正的 os.Exit 由用户主动触发 /version/restart 完成
+	h.markRestartPending(latest.TagName)
 
 	return UpdateResult{
 		Success:    true,
-		Message:    "二进制替换成功，进程即将退出，等待自动重启加载新版本",
+		Message:    "二进制替换成功，请点击重启按钮以加载新版本",
 		NeedReboot: true,
 	}
 }

@@ -595,5 +595,31 @@
       "walOff": "Disabled",
       "noData": "No database information available"
     }
+  },
+  "update": {
+    "chipHasUpdate": "New version",
+    "chipUpdating": "Updating",
+    "chipPendingRestart": "Pending restart",
+    "chipTooltipHasUpdate": "New version {{version}} available — click to view",
+    "chipTooltipUpdating": "Updating...",
+    "chipTooltipPendingRestart": "Update finished — click to restart",
+    "chipTooltipRestarting": "Restarting service...",
+    "timeout": "Update timed out, check server logs",
+    "popover": {
+      "currentVersion": "Current version",
+      "refresh": "Refresh",
+      "latestVersion": "Latest: {{version}}",
+      "noLatest": "Not checked",
+      "upToDate": "Up to date",
+      "updateAvailable": "Update available!",
+      "updateComplete": "Update complete",
+      "restartHint": "Restart the service to apply the update",
+      "updateNow": "Update now",
+      "updating": "Updating...",
+      "restartNow": "Restart now",
+      "restarting": "Restarting... ({{seconds}}s)",
+      "releaseNotes": "Release notes",
+      "error": "Update failed"
+    }
   }
 }

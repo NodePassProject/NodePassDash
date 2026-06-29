@@ -4,6 +4,7 @@ import { useIsSSR } from "@react-aria/ssr";
 
 import { fontSans } from "@/config/fonts";
 import { getVersion } from "@/lib/version";
+import { UpdateChip } from "./update-chip";
 
 // NodePass Logo 组件
 export const NodePassLogo = () => {
@@ -62,23 +63,26 @@ export const NavbarLogo = () => {
   const badgeProps = getBadgeProps();
 
   return (
-    <NavbarBrand as="li" className="gap-3 max-w-fit">
+    <NavbarBrand as="li" className="gap-1 max-w-fit items-center">
       <Link className="flex justify-start items-center" href="/">
         <NodePassLogo />
         <p className={cn("font-bold text-foreground pl-1", fontSans.className)}>
           NodePassDash
         </p>
-        {badgeProps && (
-          <Chip
-            className="h-5 p-0 ml-1"
-            color={badgeProps.color}
-            size="sm"
-            variant="flat"
-          >
-            {badgeProps.content}
-          </Chip>
-        )}
       </Link>
+      {/* UpdateChip 占据原 dev chip 的位置 */}
+      <UpdateChip />
+      {/* 暂时隐藏 dev/beta chip;需要时把下方注释解开即可恢复 */}
+      {/* {badgeProps && (
+        <Chip
+          className="h-5 p-0"
+          color={badgeProps.color}
+          size="sm"
+          variant="flat"
+        >
+          {badgeProps.content}
+        </Chip>
+      )} */}
     </NavbarBrand>
   );
 };
