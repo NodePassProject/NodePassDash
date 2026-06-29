@@ -149,7 +149,7 @@
       "ariaLabel": "Settings Options",
       "security": "Account Security",
       "logs": "Log Management",
-      "version": "Version Check"
+      "version": "About System"
     },
     "toast": {
       "saveSuccess": "Saved Successfully",
@@ -551,9 +551,11 @@
       "autoUpdateStable": "Auto Update to Stable",
       "autoUpdateBeta": "Auto Update to Beta",
       "manualUpdate": "Manual Update",
-      "dockerDetails": "Docker environment update through container orchestration",
+      "dockerDetails": "Docker supports auto-update: downloads the new binary, replaces it, then exits — the container is restarted automatically by Docker's restart policy",
       "dockerManualDetails": "Docker environment recommended to update via host commands for stable and reliable updates",
-      "binaryDetails": "Will download the latest binary file and replace automatically",
+      "dockerRestartHint": "Container must be configured with restart: unless-stopped/always, or run under systemd / supervisor — otherwise the process will not restart after exit",
+      "binaryDetails": "Downloads the latest binary and replaces it; relies on a system supervisor (systemd Restart=always / supervisor) to restart the process after exit",
+      "binaryRestartHint": "Without a process supervisor (systemd / supervisor), the process must be started manually after exit",
       "unknownDetails": "Please check the update instructions for manual update"
     },
     "updateInstructions": {
@@ -579,6 +581,19 @@
     "alert": {
       "updateStarted": "Update started: {{message}}\n\nThe program will automatically restart in a few seconds, please wait...",
       "updateFailed": "Update failed: {{error}}"
+    },
+    "db": {
+      "title": "Database Info",
+      "description": "Runtime status and basic information of the current database",
+      "refresh": "Refresh",
+      "driver": "Database Type",
+      "size": "Database Size",
+      "tables": "{{count}} tables",
+      "location": "Location",
+      "host": "Database Host",
+      "walOn": "Enabled",
+      "walOff": "Disabled",
+      "noData": "No database information available"
     }
   }
 }

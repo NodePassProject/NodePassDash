@@ -856,17 +856,8 @@ export default function TunnelsPage() {
 
   // 格式化地址显示（处理脱敏逻辑）
   const formatAddress = (address: string, port: string) => {
-    // 如果隐私模式关闭，显示完整地址
-    if (!settings.isPrivacyMode) {
-      return `${address}:${port}`;
-    }
-
-    // 如果地址是 127.0.0.1 或为空，保持原样显示
-    if (address === "127.0.0.1" || address === "" || !address) {
-      return `${address}:${port}`;
-    }
-
-    // 隐私模式开启时显示脱敏地址
+    if (!settings.isPrivacyMode) return `${address}:${port}`;
+    if (!address || address === "127.0.0.1") return `${address}:${port}`;
     return `**.**.**.**:${port}`;
   };
 

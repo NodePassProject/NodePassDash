@@ -278,4 +278,8 @@ export function formatBytes(bytes: number): string {
 }
 
 // 重新导出隐私相关工具函数
-export { formatUrlWithPrivacy } from "./utils/privacy";
+export {
+  formatUrlWithPrivacy,
+  maskAddress,
+  maskHostname,
+} from "./utils/privacy";

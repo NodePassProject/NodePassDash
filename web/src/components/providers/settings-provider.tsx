@@ -34,7 +34,7 @@ const defaultSettings: Settings = {
   navbarStyle: "normal",
   isPrivacyMode: true,
   isExperimentalMode: false,
-  autoCheckUpdates: false,
+  autoCheckUpdates: true,
   updateCheckFrequency: "weekly",
   updateCheckTime: "06:00",
   updateNotifications: false,

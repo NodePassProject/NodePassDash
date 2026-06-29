@@ -36,7 +36,7 @@ import { faTrash, faRotateRight } from "@fortawesome/free-solid-svg-icons";
 import { useTranslation } from "react-i18next";
 
 import { fontSans } from "@/config/fonts";
-import { buildApiUrl } from "@/lib/utils";
+import { buildApiUrl, formatUrlWithPrivacy } from "@/lib/utils";
 import { TrafficOverviewChart } from "@/components/ui/traffic-overview-chart";
 import { DemoQuickEntryCard } from "@/components/ui/demo-quick-entry-card";
 import { ServerIcon } from "@/components/ui/server-icon";
@@ -348,52 +348,11 @@ export default function DashboardPage() {
     }
   }, [t]);
 
-  // 处理IP地址隐藏的函数 - 优化依赖，避免不必要的重创建
   const maskIpAddress = useCallback(
-    (url: string): string => {
-      // 如果隐私模式关闭，直接返回原始URL
-      if (!settings.isPrivacyMode) {
-        return url;
-      }
-
-      try {
-        // IPv4 正则表达式：匹配 x.x.x.x 格式
-        const ipv4Regex = /(\d{1,3}\.\d{1,3}\.)(\d{1,3}\.\d{1,3})/g;
-
-        // IPv6 正则表达式：匹配方括号内的IPv6地址
-        const ipv6Regex = /(\[)([0-9a-fA-F:]+)(\])/g;
-
-        let maskedUrl = url;
-
-        // 处理IPv4地址 - 隐藏后两段
-        maskedUrl = maskedUrl.replace(ipv4Regex, "$1***.***");
-
-        // 处理IPv6地址 - 隐藏最后几段
-        maskedUrl = maskedUrl.replace(ipv6Regex, (match, start, ipv6, end) => {
-          const segments = ipv6.split(":");
-
-          if (segments.length >= 4) {
-            // 保留前面几段，隐藏后面的段
-            const visibleSegments = segments.slice(
-              0,
-              Math.max(2, segments.length - 2),
-            );
-            const hiddenCount = segments.length - visibleSegments.length;
-
-            return `${start}${visibleSegments.join(":")}${hiddenCount > 0 ? ":***" : ""}${end}`;
-          }
-
-          return match;
-        });
-
-        return maskedUrl;
-      } catch (error) {
-        // 如果处理失败，返回原始URL
-        return url;
-      }
-    },
+    (url: string): string =>
+      formatUrlWithPrivacy(url, "", !!settings?.isPrivacyMode),
     [settings?.isPrivacyMode],
-  ); // 使用可选链操作符，减少依赖变化
+  );
 
   // 格式化字节数 - 纯函数，不需要useCallback
   const formatBytes = (bytes: number): string => {

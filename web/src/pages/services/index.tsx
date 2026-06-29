@@ -41,7 +41,7 @@ import {
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 
-import { buildApiUrl, formatBytes } from "@/lib/utils";
+import { buildApiUrl, formatBytes, maskAddress } from "@/lib/utils";
 import { useSettings } from "@/components/providers/settings-provider";
 import ScenarioCreateModal, {
   ScenarioType,
@@ -450,37 +450,8 @@ export default function ServicesPage() {
     }
   };
 
-  // 格式化 host 显示（处理脱敏逻辑）
-  const formatHost = (host: string | undefined) => {
-    if (!host) return "[::]";
-
-    // 如果隐私模式关闭，显示完整地址
-    if (!settings.settings.isPrivacyMode) {
-      return host;
-    }
-
-    // 隐私模式开启时对IP地址进行部分脱敏
-    // 检测IPv4地址
-    const ipv4Regex = /^(\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})$/;
-    const ipv4Match = host.match(ipv4Regex);
-
-    if (ipv4Match) {
-      // IPv4地址：只保留前两段
-      return `${ipv4Match[1]}.${ipv4Match[2]}.***.***`;
-    }
-
-    // 检测IPv6地址
-    const ipv6Regex = /^([0-9a-fA-F]{1,4}):([0-9a-fA-F]{1,4})/;
-    const ipv6Match = host.match(ipv6Regex);
-
-    if (ipv6Match) {
-      // IPv6地址：只保留前两段
-      return `${ipv6Match[1]}:${ipv6Match[2]}:***:***:***:***:***:***`;
-    }
-
-    // 域名：完全脱敏
-    return "********";
-  };
+  const formatHost = (host: string | undefined) =>
+    host ? maskAddress(host, settings.settings.isPrivacyMode) : "[::]";
 
   return (
     <div className="space-y-4">

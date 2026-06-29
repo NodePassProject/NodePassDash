@@ -11,12 +11,13 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"os/exec"
-	"os/user"
 	"path/filepath"
 	"runtime"
 	"strings"
 	"time"
+
+	"NodePassDash/internal/db"
+	"NodePassDash/internal/db/dialect"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mattn/go-ieproxy"
@@ -101,7 +102,93 @@ func SetupVersionRoutes(rg *gin.RouterGroup, version string) {
 	rg.GET("/version/update-info", versionHandler.HandleGetUpdateInfo)
 	rg.GET("/version/history", versionHandler.HandleGetReleaseHistory)
 	rg.GET("/version/deployment-info", versionHandler.HandleGetDeploymentInfo)
+	rg.GET("/version/db-info", versionHandler.HandleGetDBInfo)
 	rg.POST("/version/auto-update", versionHandler.HandleAutoUpdate)
+}
+
+// DBInfo 数据库信息结构
+type DBInfo struct {
+	Driver   string `json:"driver"`             // "sqlite" | "postgres"
+	Version  string `json:"version"`            // 数据库服务端版本字符串
+	Database string `json:"database"`           // SQLite 文件路径或 PG 库名
+	Size     int64  `json:"size"`               // 字节数，仅 SQLite 有效
+	SizeText string `json:"sizeText"`           // 人类可读大小
+	Host     string `json:"host,omitempty"`     // PG host:port
+	WALMode  *bool  `json:"walMode,omitempty"`  // SQLite WAL 模式
+	Tables   int64  `json:"tables"`             // 表数量
+}
+
+// HandleGetDBInfo 返回当前数据库的简单信息
+func (h *VersionHandler) HandleGetDBInfo(c *gin.Context) {
+	info := DBInfo{
+		Driver: db.Dialect().Name(),
+	}
+
+	gdb := db.GetDB()
+	if gdb != nil {
+		var version string
+		if err := gdb.Raw(db.Dialect().VersionSQL()).Scan(&version).Error; err == nil {
+			info.Version = strings.TrimSpace(version)
+		}
+		var tables int64
+		switch info.Driver {
+		case dialect.NameSQLite:
+			gdb.Raw("SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name NOT LIKE 'sqlite_%'").Scan(&tables)
+		case dialect.NamePostgres:
+			gdb.Raw("SELECT COUNT(*) FROM information_schema.tables WHERE table_schema='public'").Scan(&tables)
+		}
+		info.Tables = tables
+	}
+
+	cfg := db.GetDBConfig("db")
+	switch info.Driver {
+	case dialect.NameSQLite:
+		info.Database = cfg.Database
+		wal := cfg.WALMode
+		info.WALMode = &wal
+		if st, err := os.Stat(cfg.Database); err == nil {
+			info.Size = st.Size()
+			// 同时算上 WAL / SHM 文件
+			for _, suffix := range []string{"-wal", "-shm"} {
+				if st2, err := os.Stat(cfg.Database + suffix); err == nil {
+					info.Size += st2.Size()
+				}
+			}
+			info.SizeText = humanSize(info.Size)
+		}
+	case dialect.NamePostgres:
+		info.Database = cfg.PostgresDatabase
+		info.Host = fmt.Sprintf("%s:%d", cfg.PostgresHost, cfg.PostgresPort)
+		if gdb != nil {
+			var sz int64
+			if err := gdb.Raw("SELECT pg_database_size(current_database())").Scan(&sz).Error; err == nil {
+				info.Size = sz
+				info.SizeText = humanSize(sz)
+			}
+		}
+	}
+
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    info,
+	})
+}
+
+func humanSize(b int64) string {
+	const unit = 1024
+	if b < unit {
+		return fmt.Sprintf("%d B", b)
+	}
+	div, exp := int64(unit), 0
+	for n := b / unit; n >= unit; n /= unit {
+		div *= unit
+		exp++
+	}
+	units := []string{"KB", "MB", "GB", "TB"}
+	if exp >= len(units) {
+		exp = len(units) - 1
+	}
+	return fmt.Sprintf("%.2f %s", float64(b)/float64(div), units[exp])
 }
 
 // HandleGetCurrentVersion 获取当前版本信息
@@ -213,6 +300,16 @@ func (h *VersionHandler) HandleAutoUpdate(c *gin.Context) {
 		return
 	}
 
+	// 解析请求体获取更新通道（stable / beta）
+	var req struct {
+		Type string `json:"type"`
+	}
+	_ = c.ShouldBindJSON(&req)
+	releaseType := strings.ToLower(strings.TrimSpace(req.Type))
+	if releaseType != "beta" {
+		releaseType = "stable"
+	}
+
 	// 立即响应请求，避免阻塞
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
@@ -221,27 +318,29 @@ func (h *VersionHandler) HandleAutoUpdate(c *gin.Context) {
 
 	// 异步执行更新，输出日志到控制台
 	go func() {
-		h.performUpdateWithLogs(deployInfo)
+		h.performUpdateWithLogs(deployInfo, releaseType)
 	}()
 }
 
 // performUpdateWithLogs 执行更新并推送日志
-func (h *VersionHandler) performUpdateWithLogs(deploymentInfo DeploymentInfo) {
-	h.logUpdateProgress("info", "开始执行自动更新...")
+func (h *VersionHandler) performUpdateWithLogs(deploymentInfo DeploymentInfo, releaseType string) {
+	h.logUpdateProgress("info", fmt.Sprintf("开始执行自动更新 (channel: %s)...", releaseType))
+
+	// 选择目标版本
+	latest, err := h.selectReleaseByType(releaseType)
+	if err != nil {
+		h.logUpdateProgress("error", fmt.Sprintf("获取目标版本失败: %v", err))
+		h.logUpdateProgress("complete", "更新流程结束")
+		return
+	}
+	h.logUpdateProgress("info", fmt.Sprintf("目标版本: %s", latest.TagName))
 
 	var result UpdateResult
 	switch deploymentInfo.Method {
-	case "docker":
-		if deploymentInfo.HasDockerPerm {
-			result = h.updateDockerWithPermissionAndLogs()
-		} else {
-			result = UpdateResult{
-				Success: false,
-				Message: "Docker 容器内无权限，无法自动更新",
-			}
-		}
-	case "binary":
-		result = h.updateBinaryWithLogs()
+	case "docker", "binary":
+		// 两种部署方式都走"下载新二进制 → 替换 → 退出"流程
+		// Docker 依赖容器 restart 策略由 daemon 自动拉起容器
+		result = h.performBinaryReplace(latest, deploymentInfo.Method == "docker")
 	default:
 		result = UpdateResult{
 			Success: false,
@@ -252,7 +351,8 @@ func (h *VersionHandler) performUpdateWithLogs(deploymentInfo DeploymentInfo) {
 	if result.Success {
 		h.logUpdateProgress("success", result.Message)
 		if deploymentInfo.Method == "docker" {
-			h.logUpdateProgress("info", "更新完成，容器将在几秒钟后重启...")
+			h.logUpdateProgress("info", "进程即将退出，Docker 将按 restart 策略(unless-stopped / always)自动拉起新容器")
+			h.logUpdateProgress("info", "若容器未配置 restart 策略，请手动 docker start 容器")
 		}
 	} else {
 		h.logUpdateProgress("error", fmt.Sprintf("更新失败: %s", result.Message))
@@ -261,97 +361,42 @@ func (h *VersionHandler) performUpdateWithLogs(deploymentInfo DeploymentInfo) {
 	h.logUpdateProgress("complete", "更新流程结束")
 }
 
+// selectReleaseByType 根据通道(stable/beta)选择对应的 release
+func (h *VersionHandler) selectReleaseByType(releaseType string) (*GitHubRelease, error) {
+	if releaseType == "beta" {
+		releases, err := h.getReleaseHistory()
+		if err != nil {
+			return nil, err
+		}
+		for i := range releases {
+			r := releases[i]
+			if r.Draft {
+				continue
+			}
+			if r.Prerelease {
+				return &r, nil
+			}
+		}
+		return nil, fmt.Errorf("未找到可用的测试版")
+	}
+	// stable
+	return h.getLatestRelease()
+}
+
 // logUpdateProgress 输出更新进度日志
 func (h *VersionHandler) logUpdateProgress(level, message string) {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	log.Printf("[%s] [%s] %s", timestamp, strings.ToUpper(level), message)
 }
 
-// updateDockerWithPermissionAndLogs Docker更新（带日志）
-func (h *VersionHandler) updateDockerWithPermissionAndLogs() UpdateResult {
-	h.logUpdateProgress("info", "检测到 Docker 部署环境，开始拉取最新镜像...")
-
-	// 获取最新版本
-	latest, err := h.getLatestRelease()
-	if err != nil {
-		return UpdateResult{
-			Success: false,
-			Message: fmt.Sprintf("获取最新版本失败: %v", err),
-		}
+// performBinaryReplace 下载新版本二进制并替换当前进程文件，最终退出由调用方/Docker restart 策略负责拉起
+// isDocker 仅影响日志措辞（Docker 由 daemon 自动拉起，二进制由进程退出后被 supervisor / systemd 拉起；无 supervisor 时需用户手动拉起）
+func (h *VersionHandler) performBinaryReplace(latest *GitHubRelease, isDocker bool) UpdateResult {
+	envLabel := "二进制部署"
+	if isDocker {
+		envLabel = "Docker 部署"
 	}
-
-	h.logUpdateProgress("info", fmt.Sprintf("最新版本: %s", latest.TagName))
-
-	// 拉取最新镜像
-	h.logUpdateProgress("info", "正在拉取最新 Docker 镜像...")
-	pullCmd := exec.Command("docker", "pull", "ghcr.io/nodepassproject/nodepassdash:latest")
-	pullOutput, err := pullCmd.CombinedOutput()
-	if err != nil {
-		h.logUpdateProgress("error", fmt.Sprintf("拉取镜像失败: %v", err))
-		return UpdateResult{
-			Success: false,
-			Message: fmt.Sprintf("拉取镜像失败: %v\n输出: %s", err, string(pullOutput)),
-		}
-	}
-
-	h.logUpdateProgress("success", "镜像拉取成功")
-	h.logUpdateProgress("info", "准备重启容器...")
-
-	// 获取当前容器名
-	containerName, err := h.getCurrentContainerName()
-	if err != nil {
-		h.logUpdateProgress("warning", "无法获取当前容器名，尝试通用方法重启...")
-
-		// 延时重启，让响应先返回
-		time.AfterFunc(3*time.Second, func() {
-			h.logUpdateProgress("info", "正在重启应用...")
-			os.Exit(0) // 优雅退出，让容器管理器重启
-		})
-
-		return UpdateResult{
-			Success:    true,
-			Message:    "镜像更新成功，应用即将重启",
-			NeedReboot: true,
-		}
-	}
-
-	h.logUpdateProgress("info", fmt.Sprintf("找到容器: %s", containerName))
-
-	// 重启容器
-	time.AfterFunc(3*time.Second, func() {
-		h.logUpdateProgress("info", "正在重启容器...")
-		restartCmd := exec.Command("docker", "restart", containerName)
-		if err := restartCmd.Run(); err != nil {
-			h.logUpdateProgress("error", fmt.Sprintf("重启容器失败: %v", err))
-			// 如果重启容器失败，尝试直接退出让容器管理器处理
-			h.logUpdateProgress("info", "尝试优雅退出让容器管理器重启...")
-			os.Exit(0)
-		}
-		h.logUpdateProgress("success", "容器重启成功")
-	})
-
-	return UpdateResult{
-		Success:    true,
-		Message:    "镜像更新成功，容器即将重启",
-		NeedReboot: true,
-	}
-}
-
-// updateBinaryWithLogs 二进制更新（带日志）
-func (h *VersionHandler) updateBinaryWithLogs() UpdateResult {
-	h.logUpdateProgress("info", "检测到二进制部署环境，开始下载最新版本...")
-
-	// 获取最新版本
-	latest, err := h.getLatestRelease()
-	if err != nil {
-		h.logUpdateProgress("error", fmt.Sprintf("获取最新版本失败: %v", err))
-		return UpdateResult{
-			Success: false,
-			Message: fmt.Sprintf("获取最新版本失败: %v", err),
-		}
-	}
-
-	h.logUpdateProgress("info", fmt.Sprintf("最新版本: %s", latest.TagName))
+	h.logUpdateProgress("info", fmt.Sprintf("环境: %s，开始下载新版本二进制...", envLabel))
 	h.logUpdateProgress("info", fmt.Sprintf("系统架构: %s/%s", runtime.GOOS, runtime.GOARCH))
 
 	// 生成下载 URL
@@ -395,13 +440,19 @@ func (h *VersionHandler) updateBinaryWithLogs() UpdateResult {
 		h.logUpdateProgress("success", "当前版本备份完成")
 	}
 
-	// 下载新版本
-	tempPath := currentExe + ".new"
+	// 下载新版本：保留下载文件的实际扩展名（.tar.gz / .zip），以便后续判断是否需要解压
+	archiveExt := ""
+	switch {
+	case strings.HasSuffix(downloadURL, ".tar.gz"):
+		archiveExt = ".tar.gz"
+	case strings.HasSuffix(downloadURL, ".zip"):
+		archiveExt = ".zip"
+	}
+	tempPath := currentExe + ".download" + archiveExt
 	h.logUpdateProgress("info", fmt.Sprintf("临时下载路径: %s", tempPath))
 	h.logUpdateProgress("info", "正在下载新版本...")
 	if err := h.downloadFile(downloadURL, tempPath); err != nil {
 		h.logUpdateProgress("error", fmt.Sprintf("下载新版本失败: %v", err))
-		// 清理临时文件
 		os.Remove(tempPath)
 		return UpdateResult{
 			Success: false,
@@ -411,7 +462,6 @@ func (h *VersionHandler) updateBinaryWithLogs() UpdateResult {
 
 	h.logUpdateProgress("success", "新版本下载完成")
 
-	// 验证下载的文件
 	if info, err := os.Stat(tempPath); err != nil {
 		h.logUpdateProgress("error", "下载的文件验证失败")
 		os.Remove(tempPath)
@@ -421,16 +471,15 @@ func (h *VersionHandler) updateBinaryWithLogs() UpdateResult {
 		}
 	} else {
 		h.logUpdateProgress("info", fmt.Sprintf("下载文件大小: %.2f MB", float64(info.Size())/1024/1024))
-		h.logUpdateProgress("info", fmt.Sprintf("文件权限: %s", info.Mode().String()))
-		h.logUpdateProgress("info", fmt.Sprintf("文件路径: %s", tempPath))
 	}
 
-	// 检查是否需要解压
+	// 解压（如为压缩包）
 	var extractedBinaryPath string
-	if strings.HasSuffix(tempPath, ".zip") || strings.HasSuffix(tempPath, ".tar.gz") {
+	var extractDir string
+	if archiveExt == ".tar.gz" || archiveExt == ".zip" {
 		h.logUpdateProgress("info", "检测到压缩包格式，开始解压...")
-		tempDir := filepath.Dir(tempPath) + "/extract_temp"
-		if err := os.MkdirAll(tempDir, 0755); err != nil {
+		extractDir = filepath.Join(filepath.Dir(tempPath), "extract_temp")
+		if err := os.MkdirAll(extractDir, 0755); err != nil {
 			h.logUpdateProgress("error", fmt.Sprintf("创建解压目录失败: %v", err))
 			os.Remove(tempPath)
 			return UpdateResult{
@@ -439,11 +488,11 @@ func (h *VersionHandler) updateBinaryWithLogs() UpdateResult {
 			}
 		}
 
-		extractedPath, err := h.extractBinary(tempPath, tempDir)
+		extractedPath, err := h.extractBinary(tempPath, extractDir)
 		if err != nil {
 			h.logUpdateProgress("error", fmt.Sprintf("解压文件失败: %v", err))
 			os.Remove(tempPath)
-			os.RemoveAll(tempDir)
+			os.RemoveAll(extractDir)
 			return UpdateResult{
 				Success: false,
 				Message: fmt.Sprintf("解压文件失败: %v", err),
@@ -452,25 +501,21 @@ func (h *VersionHandler) updateBinaryWithLogs() UpdateResult {
 
 		h.logUpdateProgress("success", fmt.Sprintf("解压完成，二进制文件路径: %s", extractedPath))
 		extractedBinaryPath = extractedPath
-		// 清理下载的压缩包
-		os.Remove(tempPath)
+		os.Remove(tempPath) // 清理压缩包
 	} else {
 		h.logUpdateProgress("info", "下载的是二进制文件，无需解压")
 		extractedBinaryPath = tempPath
 	}
 
-	// 验证最终文件
-	if _, err := os.Stat(extractedBinaryPath); err != nil {
+	if finalInfo, err := os.Stat(extractedBinaryPath); err == nil {
+		h.logUpdateProgress("info", fmt.Sprintf("待替换文件大小: %.2f MB", float64(finalInfo.Size())/1024/1024))
+	} else {
 		h.logUpdateProgress("error", "最终文件验证失败")
 		os.Remove(extractedBinaryPath)
 		return UpdateResult{
 			Success: false,
 			Message: "最终文件验证失败",
 		}
-	}
-
-	if finalInfo, err := os.Stat(extractedBinaryPath); err == nil {
-		h.logUpdateProgress("info", fmt.Sprintf("待替换文件大小: %.2f MB", float64(finalInfo.Size())/1024/1024))
 	}
 
 	// 替换当前程序
@@ -489,58 +534,45 @@ func (h *VersionHandler) updateBinaryWithLogs() UpdateResult {
 		}
 	}
 
-	h.logUpdateProgress("success", "程序文件更新成功")
+	// 确保新二进制具备执行权限
+	if runtime.GOOS != "windows" {
+		if err := os.Chmod(currentExe, 0755); err != nil {
+			h.logUpdateProgress("warning", fmt.Sprintf("设置可执行权限失败: %v", err))
+		}
+	}
 
-	// 显示新程序的信息
+	h.logUpdateProgress("success", "程序文件更新成功")
 	if newInfo, err := os.Stat(currentExe); err == nil {
 		h.logUpdateProgress("info", fmt.Sprintf("新程序文件大小: %.2f MB", float64(newInfo.Size())/1024/1024))
-		h.logUpdateProgress("info", fmt.Sprintf("新程序文件权限: %s", newInfo.Mode().String()))
 	}
 
-	// 准备重启
-	h.logUpdateProgress("info", "准备重启应用...")
-
-	// 清理前端资源目录（如果存在）
-	h.logUpdateProgress("info", "检查并清理前端资源目录...")
+	// 清理可能残留的旧前端资源目录（embed 模式下 dist 目录会优先级更高，需删除）
 	distPath := filepath.Join(filepath.Dir(currentExe), "dist")
-	h.logUpdateProgress("info", fmt.Sprintf("前端资源目录路径: %s", distPath))
 	if distInfo, err := os.Stat(distPath); err == nil && distInfo.IsDir() {
-		h.logUpdateProgress("info", fmt.Sprintf("发现 dist 目录 (大小: %d KB)，正在删除以使用新的内嵌前端资源...", distInfo.Size()/1024))
+		h.logUpdateProgress("info", "发现旧 dist 目录，正在删除以使用新版内嵌前端资源...")
 		if err := os.RemoveAll(distPath); err != nil {
 			h.logUpdateProgress("warning", fmt.Sprintf("删除 dist 目录失败，但不影响更新: %v", err))
-		} else {
-			h.logUpdateProgress("success", "已删除旧的前端资源目录")
-		}
-	} else {
-		h.logUpdateProgress("info", "未发现 dist 目录，将使用内嵌前端资源")
-	}
-
-	// 清理临时文件
-	h.logUpdateProgress("info", "清理临时文件...")
-	os.Remove(extractedBinaryPath)
-	tempDir := filepath.Dir(extractedBinaryPath)
-	if strings.Contains(tempDir, "extract_temp") {
-		if err := os.RemoveAll(tempDir); err != nil {
-			h.logUpdateProgress("warning", fmt.Sprintf("清理临时目录失败: %v", err))
-		} else {
-			h.logUpdateProgress("info", "临时解压目录已清理")
 		}
 	}
 
-	// 更新完成
+	// 清理解压临时目录
+	if extractDir != "" {
+		os.Remove(extractedBinaryPath)
+		_ = os.RemoveAll(extractDir)
+	}
+
 	h.logUpdateProgress("success", fmt.Sprintf("更新完成！版本: %s -> %s", Version, latest.TagName))
 	h.logUpdateProgress("info", fmt.Sprintf("备份文件保留在: %s", backupPath))
 
-	// 延时重启
+	// 延时退出进程，让 HTTP 响应先返回；由 Docker restart 策略 / supervisor 拉起新进程
 	time.AfterFunc(1*time.Second, func() {
-		h.logUpdateProgress("info", "正在重启应用...")
-		h.logUpdateProgress("info", "应用将在1秒后重启，请稍候...")
+		h.logUpdateProgress("info", "进程即将退出以加载新版本...")
 		os.Exit(0)
 	})
 
 	return UpdateResult{
 		Success:    true,
-		Message:    "二进制更新成功，应用即将重启",
+		Message:    "二进制替换成功，进程即将退出，等待自动重启加载新版本",
 		NeedReboot: true,
 	}
 }
@@ -567,22 +599,20 @@ func (h *VersionHandler) copyFile(src, dst string) error {
 func (h *VersionHandler) detectDeploymentMethod() DeploymentInfo {
 	// 检查是否在 Docker 容器中运行
 	if h.isRunningInDocker() {
-		manualUpdateInfo := "手动更新方式：在宿主机执行以下命令\n\n" +
-			"1. 拉取最新镜像：\n" +
-			"   docker pull ghcr.io/nodepassproject/nodepassdash:latest\n\n" +
-			"2. 重启容器：\n" +
-			"   docker restart <容器名称>\n\n" +
-			"或者使用 docker-compose：\n" +
+		manualUpdateInfo := "若自动更新失败，可在宿主机执行：\n\n" +
+			"1. docker pull ghcr.io/nodepassproject/nodepassdash:latest\n" +
+			"2. docker restart <容器名称>\n\n" +
+			"或使用 docker-compose：\n" +
 			"   docker-compose pull && docker-compose up -d"
 
 		return DeploymentInfo{
 			Method:        "docker",
-			CanUpdate:     false,
-			UpdateInfo:    "Docker 容器环境，建议使用手动更新方式",
+			CanUpdate:     true,
+			UpdateInfo:    "Docker 环境支持自动更新：下载新二进制并替换后退出，依赖容器 restart 策略自动重启",
 			ManualUpdate:  manualUpdateInfo,
-			HasDockerPerm: false, // 不再需要权限检测
+			HasDockerPerm: false,
 			Environment:   "container",
-			Details:       "Docker 环境推荐通过宿主机执行更新命令，以确保更新过程稳定可靠",
+			Details:       "请确保容器已配置 restart: unless-stopped 或 restart: always",
 			DebugInfo:     map[string]interface{}{"is_docker_container": true},
 		}
 	}
@@ -664,127 +694,6 @@ func (h *VersionHandler) isRunningInDocker() bool {
 	}
 
 	return false
-}
-
-// hasDockerPermission 检查是否有 Docker 权限
-func (h *VersionHandler) hasDockerPermission() bool {
-	// 检查 Docker socket 是否存在
-	socketPath := "/var/run/docker.sock"
-	if _, err := os.Stat(socketPath); err != nil {
-		return false
-	}
-
-	// 检查是否可以连接到 Docker socket
-	if !h.testDockerSocketConnection() {
-		return false
-	}
-
-	// 检查 docker 命令是否可用（这是自动更新的关键）
-	if !h.hasDockerCLI() {
-		return false
-	}
-
-	return true
-}
-
-// hasDockerCLI 检查docker命令行工具是否可用
-func (h *VersionHandler) hasDockerCLI() bool {
-	// 检查docker命令是否存在
-	if _, err := exec.LookPath("docker"); err != nil {
-		return false
-	}
-
-	// 测试docker命令是否能正常工作
-	cmd := exec.Command("docker", "version", "--format", "{{.Client.Version}}")
-	if err := cmd.Run(); err != nil {
-		return false
-	}
-
-	return true
-}
-
-// testDockerSocketConnection 测试 Docker socket 连接
-func (h *VersionHandler) testDockerSocketConnection() bool {
-	// 尝试连接 Docker socket
-	conn, err := net.Dial("unix", "/var/run/docker.sock")
-	if err != nil {
-		return false
-	}
-	defer conn.Close()
-
-	// 发送简单的 Docker API 请求来测试权限
-	request := "GET /version HTTP/1.1\r\nHost: docker\r\n\r\n"
-	_, err = conn.Write([]byte(request))
-	if err != nil {
-		return false
-	}
-
-	// 读取响应
-	buffer := make([]byte, 1024)
-	_, err = conn.Read(buffer)
-	if err != nil {
-		return false
-	}
-
-	// 检查响应是否包含 Docker 版本信息
-	response := string(buffer)
-	return strings.Contains(response, "HTTP/1.1 200") && strings.Contains(response, "Docker")
-}
-
-// getDockerPermissionDetails 获取详细的权限检查信息（用于调试）
-func (h *VersionHandler) getDockerPermissionDetails() map[string]interface{} {
-	details := make(map[string]interface{})
-
-	// 检查 socket 文件
-	socketPath := "/var/run/docker.sock"
-	if stat, err := os.Stat(socketPath); err != nil {
-		details["socket_exists"] = false
-		details["socket_error"] = err.Error()
-	} else {
-		details["socket_exists"] = true
-		details["socket_mode"] = stat.Mode().String()
-		details["socket_size"] = stat.Size()
-	}
-
-	// 检查当前用户信息
-	if user, err := user.Current(); err == nil {
-		details["current_user"] = user.Username
-		details["current_uid"] = user.Uid
-		details["current_gid"] = user.Gid
-	}
-
-	// 检查用户组
-	if groups, err := os.Getgroups(); err == nil {
-		details["user_groups"] = groups
-	}
-
-	// 测试连接
-	if conn, err := net.Dial("unix", socketPath); err != nil {
-		details["connection_test"] = false
-		details["connection_error"] = err.Error()
-	} else {
-		conn.Close()
-		details["connection_test"] = true
-	}
-
-	// 检查是否安装了 docker 命令
-	if _, err := exec.LookPath("docker"); err != nil {
-		details["docker_cli_available"] = false
-		details["docker_cli_error"] = err.Error()
-	} else {
-		details["docker_cli_available"] = true
-
-		// 测试docker命令是否能正常工作
-		cmd := exec.Command("docker", "version", "--format", "{{.Client.Version}}")
-		if err := cmd.Run(); err != nil {
-			details["docker_cli_working"] = false
-			details["docker_cli_test_error"] = err.Error()
-		} else {
-			details["docker_cli_working"] = true
-		}
-	}
-
-	return details
 }
 
 // isHostEnvironment 检查是否是宿主机环境
@@ -1039,42 +948,6 @@ func (h *VersionHandler) getReleaseHistory() ([]GitHubRelease, error) {
 	}
 
 	return releases, nil
-}
-
-// getCurrentContainerName 获取当前容器名
-func (h *VersionHandler) getCurrentContainerName() (string, error) {
-	// 1. 尝试从环境变量获取容器名
-	if containerName := os.Getenv("HOSTNAME"); containerName != "" {
-		// 在 Docker 中，容器的 hostname 通常就是容器 ID 的前12位
-		return containerName, nil
-	}
-
-	// 2. 尝试从 cgroup 信息获取容器 ID
-	cgroupFile := "/proc/self/cgroup"
-	if content, err := os.ReadFile(cgroupFile); err == nil {
-		lines := strings.Split(string(content), "\n")
-		for _, line := range lines {
-			if strings.Contains(line, "docker") {
-				// 格式通常是：12:pids:/docker/容器ID
-				parts := strings.Split(line, "/")
-				if len(parts) >= 3 && parts[len(parts)-2] == "docker" {
-					containerID := parts[len(parts)-1]
-					if len(containerID) >= 12 {
-						return containerID[:12], nil // 返回前12位作为容器名
-					}
-					return containerID, nil
-				}
-			}
-		}
-	}
-
-	// 3. 尝试从 Docker 环境变量获取
-	if containerID := os.Getenv("CONTAINER_ID"); containerID != "" {
-		return containerID, nil
-	}
-
-	// 4. 如果都没有找到，返回错误
-	return "", fmt.Errorf("无法获取容器名称，请确保运行在 Docker 容器中")
 }
 
 // extractBinary 从压缩包文件中提取二进制文件（支持zip和tar.gz）

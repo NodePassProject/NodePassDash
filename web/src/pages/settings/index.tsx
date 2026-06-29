@@ -116,7 +116,7 @@ export default function SettingsPage() {
             key="version"
             title={
               <div className="flex items-center gap-2 justify-center sm:justify-start">
-                <Icon className="text-lg" icon="solar:refresh-circle-bold" />
+                <Icon className="text-lg" icon="solar:server-2-bold" />
                 <span className="hidden sm:inline">{t("page.tabs.version")}</span>
               </div>
             }

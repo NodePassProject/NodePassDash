@@ -58,12 +58,25 @@ interface DeploymentInfo {
   debugInfo: any;
 }
 
+interface DBInfo {
+  driver: string;
+  version: string;
+  database: string;
+  size: number;
+  sizeText: string;
+  host?: string;
+  walMode?: boolean;
+  tables: number;
+}
+
 export default function VersionSettings() {
   const { t } = useTranslation("settings");
   const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
   const [deploymentInfo, setDeploymentInfo] = useState<DeploymentInfo | null>(
     null,
   );
+  const [dbInfo, setDbInfo] = useState<DBInfo | null>(null);
+  const [dbLoading, setDbLoading] = useState(false);
   const [loading, setLoading] = useState(true);
   const [checking, setChecking] = useState(false);
   const [updating, setUpdating] = useState(false);
@@ -101,6 +114,24 @@ export default function VersionSettings() {
       console.error("获取版本信息失败:", error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  // 获取数据库信息
+  const fetchDBInfo = async () => {
+    try {
+      setDbLoading(true);
+      const res = await fetch(buildApiUrl("/api/version/db-info"));
+
+      if (res.ok) {
+        const json = await res.json();
+
+        if (json.success) setDbInfo(json.data);
+      }
+    } catch (error) {
+      console.error("获取数据库信息失败:", error);
+    } finally {
+      setDbLoading(false);
     }
   };
 
@@ -156,6 +187,7 @@ export default function VersionSettings() {
 
   useEffect(() => {
     fetchVersionData();
+    fetchDBInfo();
   }, []);
 
   if (loading) {
@@ -277,6 +309,14 @@ export default function VersionSettings() {
                         ? t("version.deployment.binaryDetails")
                         : t("version.deployment.unknownDetails")}
                   </p>
+                  {deploymentInfo.canUpdate && (
+                    <p className="text-xs text-warning flex items-center gap-1">
+                      <Icon icon="solar:info-circle-bold" width={14} />
+                      {deploymentInfo.method === "docker"
+                        ? t("version.deployment.dockerRestartHint")
+                        : t("version.deployment.binaryRestartHint")}
+                    </p>
+                  )}
                 </div>
 
                 <div className="flex gap-2">
@@ -356,6 +396,82 @@ export default function VersionSettings() {
                   </>
                 )}
               </div>
+            </div>
+          )}
+        </CardBody>
+      </Card>
+
+      {/* 数据库信息卡片 */}
+      <Card className="mt-5 p-2">
+        <CardHeader className="flex gap-3">
+          <div className="flex flex-col flex-1">
+            <p className="text-lg font-semibold">{t("version.db.title")}</p>
+            <p className="text-sm text-default-500">{t("version.db.description")}</p>
+          </div>
+          <Button
+            isLoading={dbLoading}
+            size="sm"
+            startContent={<Icon icon="solar:refresh-bold" width={18} />}
+            variant="bordered"
+            onPress={fetchDBInfo}
+          >
+            {t("version.db.refresh")}
+          </Button>
+        </CardHeader>
+        <Divider />
+        <CardBody>
+          {dbInfo ? (
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+              <div className="flex items-center gap-3 p-4 bg-primary/10 rounded-lg">
+                <Icon className="text-primary text-xl" icon="solar:server-2-bold" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-default-600">{t("version.db.driver")}</p>
+                  <p className="text-base font-bold text-primary truncate">
+                    {dbInfo.driver === "sqlite"
+                      ? "SQLite"
+                      : dbInfo.driver === "postgres"
+                        ? "PostgreSQL"
+                        : dbInfo.driver || "-"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-4 bg-success/10 rounded-lg">
+                <Icon className="text-success text-xl" icon="solar:database-bold" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-default-600">{t("version.db.size")}</p>
+                  <p className="text-base font-bold text-success">
+                    {dbInfo.sizeText || "-"}
+                  </p>
+                </div>
+              </div>
+
+              <div className="flex items-center gap-3 p-4 bg-secondary/10 rounded-lg md:col-span-2 lg:col-span-1">
+                <Icon className="text-secondary text-xl" icon="solar:server-path-bold" />
+                <div className="min-w-0 flex-1">
+                  <p className="text-xs text-default-600">
+                    {dbInfo.driver === "postgres"
+                      ? t("version.db.host")
+                      : t("version.db.location")}
+                  </p>
+                  <p
+                    className="text-sm font-semibold text-secondary truncate"
+                    title={dbInfo.driver === "postgres" ? dbInfo.host : dbInfo.database}
+                  >
+                    {dbInfo.driver === "postgres"
+                      ? dbInfo.host || "-"
+                      : dbInfo.database || "-"}
+                  </p>
+                </div>
+              </div>
+            </div>
+          ) : dbLoading ? (
+            <div className="flex justify-center items-center h-24">
+              <Spinner size="sm" />
+            </div>
+          ) : (
+            <div className="text-center py-8">
+              <p className="text-default-500">{t("version.db.noData")}</p>
             </div>
           )}
         </CardBody>

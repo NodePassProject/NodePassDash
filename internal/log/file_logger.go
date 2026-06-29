@@ -424,6 +424,47 @@ func (fl *FileLogger) ClearAllLogs(endpointID int64) error {
 	return nil
 }
 
+// ClearAllEndpointsLogs 清空所有端点的全部日志文件（包括当天的）。
+// 用于手动触发清理时立即释放磁盘空间，而非仅按保留天数清理过期日志。
+func (fl *FileLogger) ClearAllEndpointsLogs() (int, error) {
+	fl.mu.Lock()
+	defer fl.mu.Unlock()
+
+	if _, err := os.Stat(fl.baseDir); os.IsNotExist(err) {
+		return 0, nil
+	} else if err != nil {
+		return 0, fmt.Errorf("检查日志根目录失败: %v", err)
+	}
+
+	for path, file := range fl.fileCache {
+		if file != nil {
+			file.Close()
+		}
+		delete(fl.fileCache, path)
+	}
+
+	entries, err := os.ReadDir(fl.baseDir)
+	if err != nil {
+		return 0, fmt.Errorf("读取日志根目录失败: %v", err)
+	}
+
+	deletedDirs := 0
+	for _, entry := range entries {
+		if !entry.IsDir() || !strings.HasPrefix(entry.Name(), "endpoint_") {
+			continue
+		}
+		dir := filepath.Join(fl.baseDir, entry.Name())
+		if err := os.RemoveAll(dir); err != nil {
+			Warnf("删除端点日志目录失败: %s, error: %v", dir, err)
+			continue
+		}
+		deletedDirs++
+	}
+
+	Infof("已清空全部端点日志，共删除 %d 个端点目录", deletedDirs)
+	return deletedDirs, nil
+}
+
 // Close 关闭文件日志管理器
 func (fl *FileLogger) Close() {
 	// 停止上下文
@@ -563,10 +604,13 @@ func (fl *FileLogger) SetLogCleanupConfig(retentionDays int, cleanupInterval tim
 		retentionDays, cleanupInterval, maxRecordsPerDay, enabled)
 }
 
-// TriggerManualCleanup 手动触发日志清理
+// TriggerManualCleanup 手动触发日志清理，直接清空全部端点的日志文件。
+// 与基于保留天数的自动清理不同，手动触发用于立即释放磁盘空间。
 func (fl *FileLogger) TriggerManualCleanup() {
-	Infof("手动触发日志清理")
-	fl.cleanupOldLogsAdvanced()
+	Infof("手动触发日志清理（清空全部端点日志）")
+	if _, err := fl.ClearAllEndpointsLogs(); err != nil {
+		Errorf("手动清理日志失败: %v", err)
+	}
 }
 
 // GetAvailableLogDates 获取指定端点和实例的可用日志日期列表

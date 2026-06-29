@@ -814,8 +814,10 @@ export default function EndpointDetailPage() {
     const hasUrlChange =
       baseUrl !== endpointDetail?.url || apiPath !== endpointDetail?.apiPath;
     const hasApiKeyChange = configForm.apiKey.trim() !== "";
+    const hasHostnameChange =
+      configForm.hostname.trim() !== (endpointDetail?.hostname || "");
 
-    if (!hasNameChange && !hasUrlChange && !hasApiKeyChange) {
+    if (!hasNameChange && !hasUrlChange && !hasApiKeyChange && !hasHostnameChange) {
       addToast({
         title: t("details.toasts.editConfigNoChange"),
         description: t("details.toasts.editConfigNoChangeDesc"),

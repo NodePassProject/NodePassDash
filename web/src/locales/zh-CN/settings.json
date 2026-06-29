@@ -149,7 +149,7 @@
       "ariaLabel": "设置选项",
       "security": "账户安全",
       "logs": "日志管理",
-      "version": "版本检查"
+      "version": "关于系统"
     },
     "toast": {
       "saveSuccess": "保存成功",
@@ -551,9 +551,11 @@
       "autoUpdateStable": "自动更新稳定版",
       "autoUpdateBeta": "自动更新测试版",
       "manualUpdate": "手动更新",
-      "dockerDetails": "Docker 环境通过容器编排进行更新",
+      "dockerDetails": "Docker 环境支持自动更新：下载新版本二进制并替换后退出进程，依赖容器 restart 策略自动重启",
       "dockerManualDetails": "Docker 环境推荐通过宿主机执行更新命令，以确保更新过程稳定可靠",
-      "binaryDetails": "将下载最新二进制文件并自动替换",
+      "dockerRestartHint": "需要容器配置 restart: unless-stopped/always，或使用 systemd / supervisor 等系统级 restart 策略，否则进程退出后不会自动重启",
+      "binaryDetails": "将下载最新二进制文件并自动替换，退出后依赖系统级 restart 策略 (systemd Restart=always / supervisor 等) 拉起新版本",
+      "binaryRestartHint": "若未配置 systemd / supervisor 等进程守护，进程退出后需手动重新启动",
       "unknownDetails": "建议查看更新说明进行手动更新"
     },
     "updateInstructions": {
@@ -579,6 +581,19 @@
     "alert": {
       "updateStarted": "更新已开始: {{message}}\n\n程序将在几秒钟后自动重启，请稍等...",
       "updateFailed": "更新失败: {{error}}"
+    },
+    "db": {
+      "title": "数据库信息",
+      "description": "当前数据库的运行状态与基本信息",
+      "refresh": "刷新",
+      "driver": "数据库类型",
+      "size": "数据库大小",
+      "tables": "{{count}} 张数据表",
+      "location": "存储位置",
+      "host": "数据库主机",
+      "walOn": "启用",
+      "walOff": "关闭",
+      "noData": "暂无数据库信息"
     }
   }
 }
