@@ -59,7 +59,6 @@ import {
   faSort,
   faArrowDown,
   faUndo,
-  faFlask,
 } from "@fortawesome/free-solid-svg-icons";
 import { addToast } from "@heroui/toast";
 
@@ -70,7 +69,6 @@ import ManualCopyModal from "@/components/ui/manual-copy-modal";
 import SimpleCreateTunnelModal from "@/components/tunnels/simple-create-tunnel-modal";
 import BatchCreateModal from "@/components/tunnels/batch-create-modal";
 import BatchUrlCreateTunnelModal from "@/components/tunnels/batch-url-create-tunnel-modal";
-import DebugCreateModal from "@/components/tunnels/debug-create-modal";
 import GroupManagementModal from "@/components/tunnels/group-management-modal";
 import RenameTunnelModal from "@/components/tunnels/rename-tunnel-modal";
 import { useSettings } from "@/components/providers/settings-provider";
@@ -178,9 +176,6 @@ export default function TunnelsPage() {
 
   // 批量创建模态控制
   const [batchCreateOpen, setBatchCreateOpen] = useState(false);
-
-  // 调试创建模态控制
-  const [debugCreateOpen, setDebugCreateOpen] = useState(false);
 
   // 快建实例模态控制
   const [quickCreateOpen, setQuickCreateOpen] = useState(false);
@@ -1404,9 +1399,6 @@ export default function TunnelsPage() {
                         case "batch":
                           setBatchCreateOpen(true);
                           break;
-                        case "debug":
-                          setDebugCreateOpen(true);
-                          break;
                         case "template":
                           navigate("/templates/");
                           break;
@@ -1431,14 +1423,6 @@ export default function TunnelsPage() {
                       }
                     >
                       {t("actions.batchCreate")}
-                    </DropdownItem>
-                    <DropdownItem
-                      key="debug"
-                      startContent={
-                        <FontAwesomeIcon fixedWidth icon={faFlask} />
-                      }
-                    >
-                      {t("actions.debugCreate")}
                     </DropdownItem>
                     {/* <DropdownItem
                       key="template"
@@ -1514,9 +1498,6 @@ export default function TunnelsPage() {
                         case "batch":
                           setBatchCreateOpen(true);
                           break;
-                        case "debug":
-                          setDebugCreateOpen(true);
-                          break;
                       }
                     }}
                   >
@@ -1535,14 +1516,6 @@ export default function TunnelsPage() {
                       }
                     >
                       {t("actions.batchCreate")}
-                    </DropdownItem>
-                    <DropdownItem
-                      key="debug"
-                      startContent={
-                        <FontAwesomeIcon fixedWidth icon={faFlask} />
-                      }
-                    >
-                      {t("actions.debugCreate")}
                     </DropdownItem>
                   </DropdownMenu>
                 </Dropdown>
@@ -2498,16 +2471,6 @@ export default function TunnelsPage() {
         onOpenChange={setBatchCreateOpen}
         onSaved={() => {
           setBatchCreateOpen(false);
-          fetchTunnels();
-        }}
-      />
-
-      {/* 调试创建模态框 */}
-      <DebugCreateModal
-        isOpen={debugCreateOpen}
-        onOpenChange={setDebugCreateOpen}
-        onSaved={() => {
-          setDebugCreateOpen(false);
           fetchTunnels();
         }}
       />
