@@ -48,64 +48,16 @@ type UpdateState =
 const COUNTDOWN_SECONDS = 15;
 const LAST_CHECK_KEY = "nodepass-last-update-check";
 
-// ─── Mock mode (visual QA) ──────────────────────────────────────────
-// 在 URL 上加 ?mock-update=has-update | update-complete | restarting
-// 可在不触发后端的情况下预览 chip + popover 各状态。
-// 例如:http://localhost:3000/dashboard?mock-update=has-update
-function readMockState(): UpdateState | null {
-  if (typeof window === "undefined") return null;
-  const sp = new URLSearchParams(window.location.search);
-  const v = sp.get("mock-update");
-  if (!v) return null;
-  if (
-    v === "has-update" ||
-    v === "updating" ||
-    v === "update-complete" ||
-    v === "restarting" ||
-    v === "error"
-  ) {
-    return v as UpdateState;
-  }
-  return null;
-}
-
-const MOCK_CURRENT = "v0.1.119";
-const MOCK_LATEST = "v0.1.121";
-
 export function UpdateChip() {
   const { t } = useTranslation("settings");
   const { settings } = useSettings();
 
-  const mockState = useMemo(() => readMockState(), []);
-  const isMock = mockState !== null;
-
-  const [currentVersion, setCurrentVersion] = useState<string>(
-    isMock ? MOCK_CURRENT : "",
-  );
-  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(
-    isMock
-      ? {
-          current: { current: MOCK_CURRENT, os: "linux", arch: "amd64" },
-          stable: {
-            tag_name: MOCK_LATEST,
-            name: MOCK_LATEST,
-            body: "",
-            published_at: new Date().toISOString(),
-            html_url: "https://github.com/NodePassProject/NodePassDash/releases/latest",
-            prerelease: false,
-            draft: false,
-          },
-          hasStableUpdate: true,
-          hasBetaUpdate: false,
-        }
-      : null,
-  );
-  const [state, setState] = useState<UpdateState>(mockState ?? "idle");
-  const [errorMsg, setErrorMsg] = useState<string>(
-    isMock && mockState === "error" ? "模拟错误信息" : "",
-  );
+  const [currentVersion, setCurrentVersion] = useState<string>("");
+  const [updateInfo, setUpdateInfo] = useState<UpdateInfo | null>(null);
+  const [state, setState] = useState<UpdateState>("idle");
+  const [errorMsg, setErrorMsg] = useState<string>("");
   const [countdown, setCountdown] = useState<number>(COUNTDOWN_SECONDS);
-  const [popoverOpen, setPopoverOpen] = useState(isMock);
+  const [popoverOpen, setPopoverOpen] = useState(false);
   const [checking, setChecking] = useState(false);
 
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
@@ -135,11 +87,6 @@ export function UpdateChip() {
   // 检查更新逻辑(供按钮和初次加载共用)
   const runCheck = useCallback(
     async (opts?: { force?: boolean }) => {
-      if (isMock) {
-        setChecking(true);
-        setTimeout(() => setChecking(false), 700); // 仅做 loading 动画演示
-        return;
-      }
       setChecking(true);
       try {
         const cur = await fetchCurrent();
@@ -177,7 +124,6 @@ export function UpdateChip() {
   // 初次加载:总是请求当前版本(发现 restartPending 时立刻进入完成状态);
   // 如开启自动检查 + 当天未检查,顺便拉一次远端
   useEffect(() => {
-    if (isMock) return; // mock 模式跳过真实请求
     let cancelled = false;
     (async () => {
       const cur = await fetchCurrent();
@@ -227,11 +173,6 @@ export function UpdateChip() {
   const handleUpdate = async () => {
     setState("updating");
     setErrorMsg("");
-    if (isMock) {
-      // 模拟 2s 下载/替换,然后进入"待重启"状态
-      setTimeout(() => setState("update-complete"), 2000);
-      return;
-    }
     try {
       const type = updateInfo?.hasStableUpdate ? "stable" : "beta";
       const res = await fetch(buildApiUrl("/api/version/auto-update"), {
@@ -283,11 +224,6 @@ export function UpdateChip() {
   };
 
   const triggerRestart = async () => {
-    if (isMock) {
-      // 倒计时归零后,mock 模式回到 has-update 让你重新试
-      setTimeout(() => setState("has-update"), 1500);
-      return;
-    }
     try {
       await fetch(buildApiUrl("/api/version/restart"), { method: "POST" });
     } catch {
@@ -319,14 +255,6 @@ export function UpdateChip() {
     },
     [],
   );
-
-  // mock=restarting 时自动启动倒计时,方便预览
-  useEffect(() => {
-    if (isMock && mockState === "restarting") {
-      startCountdown();
-    }
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, []);
 
   const showChip = state !== "idle";
   if (!showChip) return null;
