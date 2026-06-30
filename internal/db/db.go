@@ -15,9 +15,8 @@ import (
 	"sync"
 	"time"
 
-	_ "github.com/mattn/go-sqlite3"
+	gormsqlite "github.com/glebarez/sqlite"
 	gormpg "gorm.io/driver/postgres"
-	gormsqlite "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 	"gorm.io/gorm/logger"
 )
@@ -124,7 +123,7 @@ func openGORM(config DBConfig, gormConfig *gorm.Config) (*gorm.DB, error) {
 	switch config.Driver {
 	case dialect.NameSQLite, "sqlite3":
 		dsn := config.BuildSQLiteDSN()
-		sqlDB, err := sql.Open("sqlite3", dsn)
+		sqlDB, err := sql.Open("sqlite", dsn)
 		if err != nil {
 			return nil, fmt.Errorf("打开 SQLite 失败: %v", err)
 		}

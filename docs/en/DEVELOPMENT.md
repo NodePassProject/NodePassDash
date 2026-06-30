@@ -5,7 +5,8 @@
 - Node.js 20+
 - pnpm 8+ (via Corepack)
 - Go 1.23+ (see `go.mod`)
-- Build deps for SQLite (Linux): `gcc`, `sqlite-dev` (or distro equivalents)
+
+SQLite ships via the pure-Go `modernc.org/sqlite` driver, so no C toolchain or `sqlite-dev` is required.
 
 ```bash
 corepack enable && corepack prepare pnpm@latest --activate
@@ -32,6 +33,6 @@ Open:
 pnpm build
 
 # if you only want the backend binary
-CGO_ENABLED=1 go build -o nodepassdash ./cmd/server
+go build -o nodepassdash ./cmd/server
 ```
 

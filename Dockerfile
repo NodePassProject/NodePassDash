@@ -29,8 +29,8 @@ FROM golang:1.23-alpine AS backend-builder
 ARG VERSION=dev
 WORKDIR /app
 
-# 安装编译依赖
-RUN apk add --no-cache git gcc g++ make musl-dev sqlite-dev
+# 仅需 git 拉取私有依赖；改用 modernc.org/sqlite (纯 Go) 后不再需要 gcc/musl-dev/sqlite-dev
+RUN apk add --no-cache git
 
 # 将 go.mod 和 go.sum 拷贝并拉取依赖
 COPY go.mod go.sum ./
@@ -53,9 +53,8 @@ COPY internal/ ./internal/
 # 复制前端构建产物到 cmd/server/dist 目录
 COPY --from=frontend-builder /app/cmd/server/dist ./cmd/server/dist
 
-# 启用 CGO 和设置编译标记以支持 musl
-ENV CGO_ENABLED=1
-ENV CGO_CFLAGS="-D_LARGEFILE64_SOURCE"
+# 关闭 CGO，glebarez/sqlite + modernc.org/sqlite 是纯 Go 实现
+ENV CGO_ENABLED=0
 
 # 编译 Backend 可执行文件，注入版本号
 RUN go build -ldflags "-s -w -X main.Version=${VERSION}" -o nodepassdash ./cmd/server

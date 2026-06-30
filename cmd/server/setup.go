@@ -19,9 +19,8 @@ import (
 	"time"
 
 	"github.com/gin-gonic/gin"
-	_ "github.com/mattn/go-sqlite3"
+	gormsqlite "github.com/glebarez/sqlite"
 	gormpg "gorm.io/driver/postgres"
-	gormsqlite "gorm.io/driver/sqlite"
 	"gorm.io/gorm"
 )
 
@@ -314,7 +313,7 @@ func openGORMFromConfig(cfg dbPkg.DBConfig) (*gorm.DB, error) {
 		if dir := filepath.Dir(cfg.Database); dir != "" && dir != "." {
 			_ = os.MkdirAll(dir, 0o755)
 		}
-		sqlDB, err := sql.Open("sqlite3", dsn)
+		sqlDB, err := sql.Open("sqlite", dsn)
 		if err != nil {
 			return nil, fmt.Errorf("打开 SQLite 失败: %v", err)
 		}

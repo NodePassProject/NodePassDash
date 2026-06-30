@@ -642,7 +642,7 @@ func (h *DataHandler) HandleValidateImport(c *gin.Context) {
 		nodepass.GetCache().Delete(fmt.Sprintf("%d", tempEndpointID))
 
 		if err != nil {
-			result.Message = fmt.Sprintf("Unable to connect or get version information", err)
+			result.Message = fmt.Sprintf("Unable to connect or get version information: %v", err)
 			result.Status = "error"
 			result.CanImport = false
 		} else {

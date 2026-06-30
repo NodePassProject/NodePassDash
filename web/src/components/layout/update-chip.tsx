@@ -46,7 +46,7 @@ type UpdateState =
   | "restarting"
   | "error";
 
-const COUNTDOWN_SECONDS = 3;
+const COUNTDOWN_SECONDS = 15;
 const LAST_CHECK_KEY = "nodepass-last-update-check";
 const LAST_CHECK_CACHE_KEY = "nodepass-update-cache";
 
@@ -347,9 +347,9 @@ export function UpdateChip() {
   const showChip = state !== "idle";
   if (!showChip) return null;
 
-  // 各状态下 logo 旁的图标保持一致;只用 tooltip + color 区分语义
-  const triggerColor: "warning" | "success" =
-    state === "has-update" || state === "updating" ? "warning" : "success";
+  // logo 旁的 chip 任何状态都保持橙色,只用 tooltip 区分语义。
+  // 避免"完成/重启中"切到绿色,让"有事要做"的视觉一致。
+  const triggerColor = "warning" as const;
   const triggerIcon = "fa6-solid:circle-up";
   const triggerTooltip =
     state === "has-update"
@@ -378,13 +378,7 @@ export function UpdateChip() {
         >
           <Tooltip content={triggerTooltip} placement="bottom">
             <span className="inline-flex items-center justify-center">
-              <Icon
-                icon={triggerIcon}
-                width={16}
-                className={
-                  triggerColor === "warning" ? "text-warning" : "text-success"
-                }
-              />
+              <Icon icon={triggerIcon} width={16} className="text-warning" />
             </span>
           </Tooltip>
         </Button>

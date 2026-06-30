@@ -1,12 +1,13 @@
 version: 2
 
+# 改用 modernc.org/sqlite (纯 Go) 后,所有构建均无需 CGO,也不再需要 C 交叉编译工具链
+# 与 sqlite_* build tags。goreleaser 默认 CGO_ENABLED=0,直接 cross-compile 即可。
+
 builds:
   # ==================== Linux 构建 ====================
-  
+
   # Linux AMD64 (x86_64) - 最常用的服务器架构
   - id: linux-amd64
-    env:
-      - CGO_ENABLED=1
     main: ./cmd/server
     binary: nodepassdash
     goos:
@@ -19,16 +20,9 @@ builds:
       - -s
       - -w
       - -X main.Version={{ .Version }}
-    tags:
-      - sqlite_omit_load_extension
-      - sqlite_fts
-      - sqlite_stat4
-      
+
   # Linux ARM64 (aarch64) - 新款ARM服务器、树莓派4 64位
   - id: linux-arm64
-    env:
-      - CGO_ENABLED=1
-      - CC=aarch64-linux-gnu-gcc
     main: ./cmd/server
     binary: nodepassdash
     goos:
@@ -41,16 +35,9 @@ builds:
       - -s
       - -w
       - -X main.Version={{ .Version }}
-    tags:
-      - sqlite_omit_load_extension
-      - sqlite_fts
-      - sqlite_stat4
-      
+
   # Linux ARMv7 (hard-float) - 树莓派2/3/4 32位、大多数ARM设备
   - id: linux-armv7
-    env:
-      - CGO_ENABLED=1
-      - CC=arm-linux-gnueabihf-gcc
     main: ./cmd/server
     binary: nodepassdash
     goos:
@@ -65,16 +52,9 @@ builds:
       - -s
       - -w
       - -X main.Version={{ .Version }}
-    tags:
-      - sqlite_omit_load_extension
-      - sqlite_fts
-      - sqlite_stat4
-      
+
   # Linux ARMv6 (soft-float) - 树莓派1、老款ARM设备
   - id: linux-armv6
-    env:
-      - CGO_ENABLED=1
-      - CC=arm-linux-gnueabi-gcc
     main: ./cmd/server
     binary: nodepassdash
     goos:
@@ -89,18 +69,11 @@ builds:
       - -s
       - -w
       - -X main.Version={{ .Version }}
-    tags:
-      - sqlite_omit_load_extension
-      - sqlite_fts
-      - sqlite_stat4
 
   # ==================== Windows 构建 ====================
-      
+
   # Windows AMD64 - 主流Windows系统
   - id: windows-amd64
-    env:
-      - CGO_ENABLED=1
-      - CC=x86_64-w64-mingw32-gcc
     main: ./cmd/server
     binary: nodepassdash
     goos:
@@ -113,16 +86,9 @@ builds:
       - -s
       - -w
       - -X main.Version={{ .Version }}
-    tags:
-      - sqlite_omit_load_extension
-      - sqlite_fts
-      - sqlite_stat4
-      
+
   # Windows 386 - 32位Windows系统
   - id: windows-386
-    env:
-      - CGO_ENABLED=1
-      - CC=i686-w64-mingw32-gcc
     main: ./cmd/server
     binary: nodepassdash
     goos:
@@ -135,10 +101,6 @@ builds:
       - -s
       - -w
       - -X main.Version={{ .Version }}
-    tags:
-      - sqlite_omit_load_extension
-      - sqlite_fts
-      - sqlite_stat4
 
 archives:
   - format: tar.gz
@@ -170,33 +132,33 @@ release:
   # 发布说明
   header: |
     ## NodePassDash Release Notes (v4.0.1)
-    
+
     ### Fix
     - Fix the error in passing the proxy parameter
-    
+
     ### Feature
     - Add instance backup and restore function and clean up service association
 
   footer: |
-    
+
     ### 📥 Download Desc
-    - **Linux x86_64**: `nodepassdash_Linux_x86_64.tar.gz` 
-    - **Linux ARM64**: `nodepassdash_Linux_arm64.tar.gz` 
-    - **Linux ARMv7**: `nodepassdash_Linux_armv7hf.tar.gz`  
-    - **Linux ARMv6**: `nodepassdash_Linux_armv6.tar.gz` 
+    - **Linux x86_64**: `nodepassdash_Linux_x86_64.tar.gz`
+    - **Linux ARM64**: `nodepassdash_Linux_arm64.tar.gz`
+    - **Linux ARMv7**: `nodepassdash_Linux_armv7hf.tar.gz`
+    - **Linux ARMv6**: `nodepassdash_Linux_armv6.tar.gz`
     - **Windows 64位**: `nodepassdash_Windows_x86_64.zip`
     - **Windows 32位**: `nodepassdash_Windows_i386.zip`
-    
+
     ### 🐳 Docker Image
     ```bash
     docker pull ghcr.io/nodepassproject/nodepassdash:{{ .Version }}
     ```
-    
+
     ### 🔧 Usage
     1. Download the binary package for your target architecture.
     2. Extract the archive and run `./nodepassdash` directly. No external runtime is required.
     3. The service listens on `http://localhost:3000` by default.
-    
+
     ### 📝 Deployment Notes
     - **Single-binary deployment**: Run the application with a single executable file.
     - **Automatic initialization**: The application creates required files and directories automatically.

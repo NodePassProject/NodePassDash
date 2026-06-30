@@ -211,10 +211,8 @@ func (s *Service) AssignGroupToTunnel(req *AssignGroupRequest) error {
 
 // GetTunnelGroup 获取隧道的分组
 func (s *Service) GetTunnelGroup(tunnelID int64) (*Group, error) {
-	var result struct {
-		models.Group
-		models.TunnelGroup
-	}
+	// 只读 Groups 表上的字段，不需要嵌入 TunnelGroup(会导致 json tag 冲突,且本就没用到)。
+	var result models.Group
 
 	err := s.db.Table("Groups g").
 		Select("g.id, g.name, g.created_at, g.updated_at").
@@ -230,10 +228,10 @@ func (s *Service) GetTunnelGroup(tunnelID int64) (*Group, error) {
 	}
 
 	return &Group{
-		ID:        result.Group.ID,
-		Name:      result.Group.Name,
-		CreatedAt: result.Group.CreatedAt,
-		UpdatedAt: result.Group.UpdatedAt,
+		ID:        result.ID,
+		Name:      result.Name,
+		CreatedAt: result.CreatedAt,
+		UpdatedAt: result.UpdatedAt,
 	}, nil
 }
 

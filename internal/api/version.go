@@ -798,27 +798,12 @@ func (h *VersionHandler) copyFile(src, dst string) error {
 func (h *VersionHandler) detectDeploymentMethod() DeploymentInfo {
 	// 检查是否在 Docker 容器中运行
 	if h.isRunningInDocker() {
-		manualUpdateInfo := "请在宿主机执行以下命令拉取新镜像：\n\n" +
-			"docker pull ghcr.io/nodepassproject/nodepassdash:latest\n" +
-			"docker restart <容器名称>\n\n" +
+		manualUpdateInfo := "若自动更新失败，可在宿主机执行：\n\n" +
+			"1. docker pull ghcr.io/nodepassproject/nodepassdash:latest\n" +
+			"2. docker restart <容器名称>\n\n" +
 			"或使用 docker-compose：\n" +
-			"docker-compose pull && docker-compose up -d"
+			"   docker-compose pull && docker-compose up -d"
 
-		// Alpine/musl 环境：GitHub Release 二进制使用 glibc 编译，
-		// musl 缺少 fcntl64 等符号，无法直接替换运行，禁止二进制自动更新
-		if isMuslLibc() {
-			return DeploymentInfo{
-				Method:       "docker",
-				CanUpdate:    false,
-				UpdateInfo:   "当前容器基于 Alpine(musl libc)，GitHub Release 二进制使用 glibc 编译，存在符号不兼容(fcntl64 等)，无法在容器内直接替换。",
-				ManualUpdate: manualUpdateInfo,
-				Environment:  "container",
-				Details:      "请通过 docker pull 拉取新镜像更新",
-				DebugInfo:    map[string]interface{}{"is_docker_container": true, "is_musl": true},
-			}
-		}
-
-		// 非 musl 环境（如基于 Debian/Ubuntu 的镜像）：glibc 兼容，支持二进制替换
 		return DeploymentInfo{
 			Method:        "docker",
 			CanUpdate:     true,
@@ -827,7 +812,7 @@ func (h *VersionHandler) detectDeploymentMethod() DeploymentInfo {
 			HasDockerPerm: false,
 			Environment:   "container",
 			Details:       "请确保容器已配置 restart: unless-stopped 或 restart: always",
-			DebugInfo:     map[string]interface{}{"is_docker_container": true, "is_musl": false},
+			DebugInfo:     map[string]interface{}{"is_docker_container": true},
 		}
 	}
 
@@ -886,23 +871,6 @@ func (h *VersionHandler) detectDeploymentMethod() DeploymentInfo {
 		Details:       "建议查看更新说明进行手动更新",
 		DebugInfo:     debugDetails,
 	}
-}
-
-// isMuslLibc 检测当前系统是否使用 musl libc（如 Alpine Linux）
-// GitHub Releases 二进制使用 glibc 编译，musl 环境下缺少 fcntl64 等符号无法运行
-func isMuslLibc() bool {
-	patterns := []string{
-		"/lib/ld-musl-x86_64.so.1",
-		"/lib/ld-musl-aarch64.so.1",
-		"/lib/ld-musl-armhf.so.1",
-		"/lib/ld-musl-arm.so.1",
-	}
-	for _, p := range patterns {
-		if _, err := os.Stat(p); err == nil {
-			return true
-		}
-	}
-	return false
 }
 
 // isRunningInDocker 检查是否在 Docker 容器中运行

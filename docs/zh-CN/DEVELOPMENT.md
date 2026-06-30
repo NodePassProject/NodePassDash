@@ -5,7 +5,8 @@
 - Node.js 20+
 - pnpm 8+（建议使用 Corepack）
 - Go 1.23+（以 `go.mod` 为准）
-- SQLite 编译依赖（Linux）：`gcc`、`sqlite-dev`（或发行版同类包）
+
+SQLite 走纯 Go 实现的 `modernc.org/sqlite` 驱动,无需安装 C 工具链或 `sqlite-dev`。
 
 ```bash
 corepack enable && corepack prepare pnpm@latest --activate
@@ -32,6 +33,6 @@ pnpm dev:front
 pnpm build
 
 # 仅构建后端二进制
-CGO_ENABLED=1 go build -o nodepassdash ./cmd/server
+go build -o nodepassdash ./cmd/server
 ```
 

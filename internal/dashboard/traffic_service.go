@@ -192,7 +192,7 @@ func (s *TrafficService) calculateIncrements(tx *gorm.DB, hourStart time.Time) e
 	// 解析为子查询自身那张同名表,变成 `instance_id = instance_id` 永真,
 	// 子查询返回多行 → SQLSTATE 21000 "more than one row returned by a subquery"。
 	// SQLite 对这种作用域更宽松所以原写法在 SQLite 下能跑。
-	// SQLite 3.39+ 起也支持 UPDATE ... AS alias,本仓库 go-sqlite3 v1.14.17 满足要求。
+	// SQLite 3.39+ 起也支持 UPDATE ... AS alias,modernc.org/sqlite (内嵌 3.45+) 满足要求。
 	if err := tx.Exec(`
 		UPDATE traffic_hourly_summary AS cur
 		SET

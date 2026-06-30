@@ -207,7 +207,7 @@ func (s *Service) CreateTunnel(req CreateTunnelRequest) (*Tunnel, error) {
 
 	// 添加新的字段到命令行
 	if req.Mode != nil {
-		queryParams = append(queryParams, fmt.Sprintf("mode=%s", *req.Mode))
+		queryParams = append(queryParams, fmt.Sprintf("mode=%d", *req.Mode))
 	}
 	if req.Read != nil {
 		queryParams = append(queryParams, fmt.Sprintf("read=%s", *req.Read))
@@ -1274,7 +1274,7 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 			tunnel.Max = &maxVal
 		}
 
-		log.Infof("[API] 隧道创建成功（等待模式）: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, tunnel.InstanceID)
+		log.Infof("[API] 隧道创建成功（等待模式）: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, derefStr(tunnel.InstanceID))
 		return tunnel, nil
 	}
 
@@ -1411,7 +1411,7 @@ func (s *Service) CreateTunnelAndWait(req CreateTunnelRequest, timeout time.Dura
 		tunnel.Max = &maxVal
 	}
 
-	log.Infof("[API] 隧道创建成功（超时回退模式）: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, tunnel.InstanceID)
+	log.Infof("[API] 隧道创建成功（超时回退模式）: %s (ID: %d, InstanceID: %s)", tunnel.Name, tunnel.ID, derefStr(tunnel.InstanceID))
 	return tunnel, nil
 }
 
@@ -1503,7 +1503,7 @@ func (s *Service) NewCreateTunnelAndWait(req Tunnel, timeout time.Duration) (*Tu
 			log.Warnf("[API] 设置隧道别名失败，但不影响创建: %v", err)
 		}
 
-		log.Infof("[API] 隧道创建成功（等待模式）: %s (ID: %d, InstanceID: %s)", req.Name, req.ID, req.InstanceID)
+		log.Infof("[API] 隧道创建成功（等待模式）: %s (ID: %d, InstanceID: %s)", req.Name, req.ID, derefStr(req.InstanceID))
 		return &req, nil
 	}
 
@@ -1564,7 +1564,7 @@ func (s *Service) NewCreateTunnelAndWait(req Tunnel, timeout time.Duration) (*Tu
 		log.Warnf("[API] 设置隧道别名失败，但不影响创建: %v", err)
 	}
 
-	log.Infof("[API] 隧道创建成功（超时回退模式）: %s (ID: %d, InstanceID: %s)", req.Name, req.ID, req.InstanceID)
+	log.Infof("[API] 隧道创建成功（超时回退模式）: %s (ID: %d, InstanceID: %s)", req.Name, req.ID, derefStr(req.InstanceID))
 	return &req, nil
 }
 
@@ -2300,8 +2300,8 @@ func (s *Service) NewBatchCreateTunnels(req NewBatchCreateRequest) (*NewBatchCre
 		}
 
 		// 调用等待模式创建方法
-		log.Infof("[API] 新批量创建第 %d 项详细信息: Name=%s, EndpointID=%d, Mode=%s, TunnelPort=%d, TargetAddress=%s, TargetPort=%d",
-			i+1, createReq.Name, createReq.EndpointID, createReq.Mode, createReq.TunnelPort, createReq.TargetAddress, createReq.TargetPort)
+		log.Infof("[API] 新批量创建第 %d 项详细信息: Name=%s, EndpointID=%d, Mode=%v, TunnelPort=%d, TargetAddress=%s, TargetPort=%d",
+			i+1, createReq.Name, createReq.EndpointID, derefMode(createReq.Mode), createReq.TunnelPort, createReq.TargetAddress, createReq.TargetPort)
 
 		tunnel, err := s.CreateTunnelAndWait(createReq, 3*time.Second)
 		if err != nil {
@@ -3186,4 +3186,20 @@ func (s *Service) QuickCreateTunnelDirectURL(endpointID int64, rawURL string, na
 	s.db.Create(&operationLog)
 
 	return fmt.Errorf("等待数据库同步超时，但NodePass实例已创建(instanceID: %s)", resp.ID)
+}
+
+// derefStr 安全地解引用 *string,nil 时返回空串。仅用于日志打印,避免 fmt 把 *string 输出成 `%!s(*string=0xc…)`。
+func derefStr(s *string) string {
+	if s == nil {
+		return ""
+	}
+	return *s
+}
+
+// derefMode 与 derefStr 同理,针对 *models.TunnelMode (本质 *int)。
+func derefMode(m *models.TunnelMode) string {
+	if m == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("%d", *m)
 }
