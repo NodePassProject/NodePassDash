@@ -4,6 +4,7 @@ import {
   Popover,
   PopoverContent,
   PopoverTrigger,
+  Progress,
   Spinner,
   Tooltip,
 } from "@heroui/react";
@@ -11,7 +12,7 @@ import { Icon } from "@iconify/react/dist/offline";
 import { useTranslation } from "react-i18next";
 
 import { useSettings } from "@/components/providers/settings-provider";
-import { buildApiUrl } from "@/lib/utils";
+import { buildApiUrl, getAuthToken } from "@/lib/utils";
 
 interface GitHubRelease {
   tag_name: string;
@@ -45,8 +46,9 @@ type UpdateState =
   | "restarting"
   | "error";
 
-const COUNTDOWN_SECONDS = 15;
+const COUNTDOWN_SECONDS = 3;
 const LAST_CHECK_KEY = "nodepass-last-update-check";
+const LAST_CHECK_CACHE_KEY = "nodepass-update-cache";
 
 export function UpdateChip() {
   const { t } = useTranslation("settings");
@@ -59,8 +61,10 @@ export function UpdateChip() {
   const [countdown, setCountdown] = useState<number>(COUNTDOWN_SECONDS);
   const [popoverOpen, setPopoverOpen] = useState(false);
   const [checking, setChecking] = useState(false);
+  const [downloadPercent, setDownloadPercent] = useState<number>(-1);
 
   const countdownRef = useRef<ReturnType<typeof setInterval> | null>(null);
+  const sseRef = useRef<EventSource | null>(null);
 
   const fetchCurrent = useCallback(async (): Promise<CurrentVersion | null> => {
     try {
@@ -111,7 +115,16 @@ export function UpdateChip() {
           setUpdateInfo(info);
           setState(info.hasStableUpdate || info.hasBetaUpdate ? "has-update" : "idle");
           if (opts?.force) {
-            localStorage.setItem(LAST_CHECK_KEY, new Date().toDateString());
+            const today = new Date().toDateString();
+            localStorage.setItem(LAST_CHECK_KEY, today);
+            // 同步更新缓存
+            const curVer = await fetchCurrent();
+            if (curVer) {
+              localStorage.setItem(
+                LAST_CHECK_CACHE_KEY,
+                JSON.stringify({ ...info, _checkedFor: curVer.current }),
+              );
+            }
           }
         }
       } finally {
@@ -122,12 +135,14 @@ export function UpdateChip() {
   );
 
   // 初次加载:总是请求当前版本(发现 restartPending 时立刻进入完成状态);
-  // 如开启自动检查 + 当天未检查,顺便拉一次远端
+  // 先从 localStorage 加载缓存结果立即显示,再按需在后台刷新(每天一次)
   useEffect(() => {
     let cancelled = false;
     (async () => {
-      const cur = await fetchCurrent();
+      // 并行拉取当前版本 + 读取本地缓存
+      const [cur] = await Promise.all([fetchCurrent()]);
       if (cancelled) return;
+
       if (cur) {
         setCurrentVersion(cur.current);
         if (cur.restartPending) {
@@ -139,15 +154,42 @@ export function UpdateChip() {
           setState("update-complete");
           return;
         }
+
+        // 从缓存加载上次检查结果,版本一致时立即恢复 chip 状态
+        try {
+          const raw = localStorage.getItem(LAST_CHECK_CACHE_KEY);
+          if (raw) {
+            const cached = JSON.parse(raw) as UpdateInfo & { _checkedFor?: string };
+            if (cached._checkedFor === cur.current) {
+              setUpdateInfo(cached);
+              setState(cached.hasStableUpdate || cached.hasBetaUpdate ? "has-update" : "idle");
+            } else {
+              // 版本已变化(更新后重启),清除旧缓存
+              localStorage.removeItem(LAST_CHECK_CACHE_KEY);
+            }
+          }
+        } catch {
+          localStorage.removeItem(LAST_CHECK_CACHE_KEY);
+        }
       }
+
       if (!settings.autoCheckUpdates) return;
       const today = new Date().toDateString();
       if (localStorage.getItem(LAST_CHECK_KEY) === today) return;
+
+      // 后台静默刷新
       const info = await fetchUpdateInfo();
       if (cancelled || !info) return;
       setUpdateInfo(info);
       setState(info.hasStableUpdate || info.hasBetaUpdate ? "has-update" : "idle");
       localStorage.setItem(LAST_CHECK_KEY, today);
+      // 缓存结果供后续页面加载即时读取
+      if (cur) {
+        localStorage.setItem(
+          LAST_CHECK_CACHE_KEY,
+          JSON.stringify({ ...info, _checkedFor: cur.current }),
+        );
+      }
     })();
     return () => {
       cancelled = true;
@@ -170,9 +212,50 @@ export function UpdateChip() {
     return "";
   }, [updateInfo]);
 
+  // 启动 SSE 进度订阅
+  const startProgressSSE = useCallback(() => {
+    if (sseRef.current) {
+      sseRef.current.close();
+      sseRef.current = null;
+    }
+    setDownloadPercent(-1);
+
+    const token = getAuthToken();
+    const url = new URL(buildApiUrl("/api/sse/version-progress"), window.location.origin);
+    if (token) url.searchParams.set("token", token);
+
+    const es = new EventSource(url.toString());
+    sseRef.current = es;
+
+    es.onmessage = (event) => {
+      try {
+        const evt = JSON.parse(event.data) as { level: string; message: string; percent: number };
+        if (evt.percent >= 0) {
+          setDownloadPercent(evt.percent);
+        }
+      } catch {
+        /* ignore parse errors */
+      }
+    };
+    es.onerror = () => {
+      // SSE 断开（服务重启或连接超时）时静默关闭
+      es.close();
+    };
+  }, []);
+
+  // 停止 SSE 进度订阅
+  const stopProgressSSE = useCallback(() => {
+    if (sseRef.current) {
+      sseRef.current.close();
+      sseRef.current = null;
+    }
+  }, []);
+
   const handleUpdate = async () => {
     setState("updating");
     setErrorMsg("");
+    // 先建立 SSE 订阅，再发出更新请求，避免错过早期日志
+    startProgressSSE();
     try {
       const type = updateInfo?.hasStableUpdate ? "stable" : "beta";
       const res = await fetch(buildApiUrl("/api/version/auto-update"), {
@@ -184,21 +267,25 @@ export function UpdateChip() {
         const data = await res.json().catch(() => ({}));
         setErrorMsg(data?.error || `HTTP ${res.status}`);
         setState("error");
+        stopProgressSSE();
         return;
       }
-      // 后端是异步执行;轮询 /current 等到 restartPending=true
-      const deadline = Date.now() + 5 * 60 * 1000;
+      // 后端异步执行；轮询 /current 等待 restartPending=true（SSE 同时提供实时日志）
+      const deadline = Date.now() + 10 * 60 * 1000;
       while (Date.now() < deadline) {
         await new Promise((r) => setTimeout(r, 2000));
         const cur = await fetchCurrent();
         if (cur?.restartPending) {
+          stopProgressSSE();
           setState("update-complete");
           return;
         }
       }
+      stopProgressSSE();
       setErrorMsg(t("update.timeout"));
       setState("error");
     } catch (e: any) {
+      stopProgressSSE();
       setErrorMsg(e?.message || String(e));
       setState("error");
     }
@@ -252,8 +339,9 @@ export function UpdateChip() {
   useEffect(
     () => () => {
       if (countdownRef.current) clearInterval(countdownRef.current);
+      stopProgressSSE();
     },
-    [],
+    [stopProgressSSE],
   );
 
   const showChip = state !== "idle";
@@ -301,7 +389,7 @@ export function UpdateChip() {
           </Tooltip>
         </Button>
       </PopoverTrigger>
-      <PopoverContent className="p-0 w-[280px]">
+      <PopoverContent className="p-0 w-[300px]">
         <UpdatePanel
           state={state}
           currentVersion={currentVersion}
@@ -310,6 +398,7 @@ export function UpdateChip() {
           errorMsg={errorMsg}
           countdown={countdown}
           checking={checking}
+          downloadPercent={downloadPercent}
           onRefresh={() => void runCheck({ force: true })}
           onUpdate={handleUpdate}
           onRestart={startCountdown}
@@ -328,6 +417,7 @@ interface UpdatePanelProps {
   errorMsg: string;
   countdown: number;
   checking: boolean;
+  downloadPercent: number;
   onRefresh: () => void;
   onUpdate: () => void;
   onRestart: () => void;
@@ -342,6 +432,7 @@ function UpdatePanel({
   errorMsg,
   countdown,
   checking,
+  downloadPercent,
   onRefresh,
   onUpdate,
   onRestart,
@@ -349,9 +440,10 @@ function UpdatePanel({
 }: UpdatePanelProps) {
   const isHasUpdate = state === "has-update" || state === "updating" || state === "error";
   const isComplete = state === "update-complete" || state === "restarting";
+  const isUpdating = state === "updating";
 
   return (
-    <div className="flex flex-col gap-4 p-4 w-full">
+    <div className="flex flex-col gap-3 p-4 w-full">
       {/* Header */}
       <div className="flex items-center justify-between">
         <span className="text-sm font-medium text-default-700">
@@ -388,14 +480,26 @@ function UpdatePanel({
         </span>
       </div>
 
-      {/* 状态 Alert */}
-      {isHasUpdate && (
-        <div className="flex items-center gap-3 rounded-lg border border-warning-200 bg-warning-50 p-3 dark:border-warning-700 dark:bg-warning-900/30">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-warning-100 dark:bg-warning-800/50">
-            <Icon icon="material-symbols-light:deployed-code-update" className="text-warning" width={20} />
+      {/* 下载进度条（仅更新中且有进度数据时显示）*/}
+      {isUpdating && downloadPercent >= 0 && (
+        <Progress
+          size="sm"
+          value={downloadPercent}
+          color="warning"
+          label={`${downloadPercent}%`}
+          classNames={{ label: "text-xs text-default-500" }}
+          showValueLabel
+        />
+      )}
+
+      {/* 状态 Alert — 有更新/待更新 */}
+      {isHasUpdate && !isUpdating && (
+        <div className="flex items-center gap-3 rounded-lg border border-warning/30 bg-warning/8 p-3 dark:border-warning/25 dark:bg-warning/10">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-warning/15 dark:bg-warning/20">
+            <Icon icon="material-symbols-light:deployed-code-update" className="text-warning-600 dark:text-warning" width={20} />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold text-warning-700 dark:text-warning-300">
+            <span className="text-sm font-semibold text-warning-700 dark:text-warning-400">
               {t("update.popover.updateAvailable")}
             </span>
             <span className="text-xs text-default-500">{latestVersion}</span>
@@ -404,12 +508,12 @@ function UpdatePanel({
       )}
 
       {isComplete && (
-        <div className="flex items-center gap-3 rounded-lg border border-success-200 bg-success-50 p-3 dark:border-success-700 dark:bg-success-900/30">
-          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-success-100 dark:bg-success-800/50">
-            <Icon icon="solar:check-circle-bold" className="text-success" width={18} />
+        <div className="flex items-center gap-3 rounded-lg border border-success/30 bg-success/8 p-3 dark:border-success/25 dark:bg-success/10">
+          <div className="flex size-9 shrink-0 items-center justify-center rounded-full bg-success/15 dark:bg-success/20">
+            <Icon icon="solar:check-circle-bold" className="text-success-600 dark:text-success" width={18} />
           </div>
           <div className="flex flex-col">
-            <span className="text-sm font-semibold text-success-700 dark:text-success-300">
+            <span className="text-sm font-semibold text-success-700 dark:text-success-400">
               {t("update.popover.updateComplete")}
             </span>
             <span className="text-xs text-default-500">
@@ -420,7 +524,7 @@ function UpdatePanel({
       )}
 
       {state === "error" && (
-        <div className="flex flex-col gap-1 rounded-lg border border-danger-200 bg-danger-50 p-3 text-xs text-danger-700 dark:border-danger-700 dark:bg-danger-900/30 dark:text-danger-300">
+        <div className="flex flex-col gap-1 rounded-lg border border-danger/30 bg-danger/8 p-3 text-xs text-danger-700 dark:border-danger/25 dark:bg-danger/10 dark:text-danger-400">
           <span className="font-semibold">{t("update.popover.error")}</span>
           <span className="break-all">{errorMsg}</span>
         </div>

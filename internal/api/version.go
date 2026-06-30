@@ -13,6 +13,7 @@ import (
 	"os"
 	"path/filepath"
 	"runtime"
+	"runtime/debug"
 	"strings"
 	"sync"
 	"time"
@@ -24,16 +25,60 @@ import (
 	"github.com/mattn/go-ieproxy"
 )
 
+// ProgressEvent 更新进度事件，推送给 SSE 订阅者
+type ProgressEvent struct {
+	Level   string `json:"level"`   // info / success / warning / error / complete
+	Message string `json:"message"` // 人类可读消息
+	Percent int    `json:"percent"` // -1 表示无进度，0-100 表示下载百分比
+}
+
 // VersionHandler 版本相关处理器
 type VersionHandler struct {
 	mu             sync.Mutex
 	restartPending bool   // 二进制已替换完成,等待用户触发重启
 	pendingVersion string // 已替换待生效的版本号
+
+	subsMu sync.RWMutex
+	subs   map[string]chan ProgressEvent // SSE 订阅者
 }
 
 // NewVersionHandler 创建版本处理器
 func NewVersionHandler() *VersionHandler {
-	return &VersionHandler{}
+	return &VersionHandler{
+		subs: make(map[string]chan ProgressEvent),
+	}
+}
+
+// subscribe 注册一个 SSE 订阅者，返回 id 与只读 channel
+func (h *VersionHandler) subscribe() (string, <-chan ProgressEvent) {
+	id := fmt.Sprintf("%d", time.Now().UnixNano())
+	ch := make(chan ProgressEvent, 128)
+	h.subsMu.Lock()
+	h.subs[id] = ch
+	h.subsMu.Unlock()
+	return id, ch
+}
+
+// unsubscribe 注销订阅者
+func (h *VersionHandler) unsubscribe(id string) {
+	h.subsMu.Lock()
+	if ch, ok := h.subs[id]; ok {
+		close(ch)
+		delete(h.subs, id)
+	}
+	h.subsMu.Unlock()
+}
+
+// broadcast 向所有 SSE 订阅者推送事件（不阻塞）
+func (h *VersionHandler) broadcast(evt ProgressEvent) {
+	h.subsMu.RLock()
+	defer h.subsMu.RUnlock()
+	for _, ch := range h.subs {
+		select {
+		case ch <- evt:
+		default: // 缓冲满则丢弃，不阻塞更新流程
+		}
+	}
 }
 
 // markRestartPending 在更新成功后调用
@@ -113,7 +158,7 @@ func SetVersion(version string) {
 func SetupVersionRoutes(rg *gin.RouterGroup, version string) {
 	// 设置版本号
 	SetVersion(version)
-	
+
 	// 创建VersionHandler实例
 	versionHandler := NewVersionHandler()
 
@@ -126,6 +171,39 @@ func SetupVersionRoutes(rg *gin.RouterGroup, version string) {
 	rg.GET("/version/db-info", versionHandler.HandleGetDBInfo)
 	rg.POST("/version/auto-update", versionHandler.HandleAutoUpdate)
 	rg.POST("/version/restart", versionHandler.HandleRestart)
+
+	// SSE 实时进度推送（路径匹配 /api/sse/* 以支持 query param token 认证）
+	rg.GET("/sse/version-progress", versionHandler.HandleUpdateProgress)
+}
+
+// HandleUpdateProgress 以 SSE 方式实时推送更新进度
+func (h *VersionHandler) HandleUpdateProgress(c *gin.Context) {
+	c.Header("Content-Type", "text/event-stream")
+	c.Header("Cache-Control", "no-cache")
+	c.Header("Connection", "keep-alive")
+	c.Header("X-Accel-Buffering", "no") // 禁止 nginx 缓冲
+
+	id, ch := h.subscribe()
+	defer h.unsubscribe(id)
+
+	c.Status(http.StatusOK)
+
+	for {
+		select {
+		case evt, ok := <-ch:
+			if !ok {
+				return
+			}
+			data, err := json.Marshal(evt)
+			if err != nil {
+				continue
+			}
+			fmt.Fprintf(c.Writer, "data: %s\n\n", data)
+			c.Writer.Flush()
+		case <-c.Request.Context().Done():
+			return
+		}
+	}
 }
 
 // DBInfo 数据库信息结构
@@ -240,8 +318,8 @@ func (h *VersionHandler) HandleCheckUpdate(c *gin.Context) {
 		Arch:      runtime.GOARCH,
 	}
 
-	// 获取所有发布信息
-	releases, err := h.getReleaseHistory()
+	// 获取所有发布信息（check-update 端点不走更新流程，直接用空 proxy 让请求走系统代理或直连）
+	releases, err := h.getReleaseHistory("")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -351,8 +429,11 @@ func (h *VersionHandler) HandleAutoUpdate(c *gin.Context) {
 func (h *VersionHandler) performUpdateWithLogs(deploymentInfo DeploymentInfo, releaseType string) {
 	h.logUpdateProgress("info", fmt.Sprintf("开始执行自动更新 (channel: %s)...", releaseType))
 
+	// 探测可用下载代理（先于 API 请求，以便 API 也可走代理）
+	proxy := h.selectProxy()
+
 	// 选择目标版本
-	latest, err := h.selectReleaseByType(releaseType)
+	latest, err := h.selectReleaseByType(releaseType, proxy)
 	if err != nil {
 		h.logUpdateProgress("error", fmt.Sprintf("获取目标版本失败: %v", err))
 		h.logUpdateProgress("complete", "更新流程结束")
@@ -363,14 +444,9 @@ func (h *VersionHandler) performUpdateWithLogs(deploymentInfo DeploymentInfo, re
 	var result UpdateResult
 	switch deploymentInfo.Method {
 	case "docker", "binary":
-		// 两种部署方式都走"下载新二进制 → 替换 → 退出"流程
-		// Docker 依赖容器 restart 策略由 daemon 自动拉起容器
-		result = h.performBinaryReplace(latest, deploymentInfo.Method == "docker")
+		result = h.performBinaryReplace(latest, deploymentInfo.Method == "docker", proxy)
 	default:
-		result = UpdateResult{
-			Success: false,
-			Message: "不支持的部署方式",
-		}
+		result = UpdateResult{Success: false, Message: "不支持的部署方式"}
 	}
 
 	if result.Success {
@@ -395,21 +471,21 @@ func (h *VersionHandler) HandleRestart(c *gin.Context) {
 
 	c.JSON(http.StatusOK, gin.H{
 		"success": true,
-		"message": "重启指令已接受,进程将在 1 秒后退出",
+		"message": "重启指令已接受,进程即将退出",
 	})
 
-	// 让 HTTP 响应先返回再退出
+	// 300ms 足够让 HTTP 响应写入 TCP 缓冲区后再退出
 	go func() {
-		time.Sleep(1 * time.Second)
+		time.Sleep(300 * time.Millisecond)
 		h.logUpdateProgress("info", "用户触发重启,进程即将退出以加载新版本...")
 		os.Exit(0)
 	}()
 }
 
 // selectReleaseByType 根据通道(stable/beta)选择对应的 release
-func (h *VersionHandler) selectReleaseByType(releaseType string) (*GitHubRelease, error) {
+func (h *VersionHandler) selectReleaseByType(releaseType, proxy string) (*GitHubRelease, error) {
 	if releaseType == "beta" {
-		releases, err := h.getReleaseHistory()
+		releases, err := h.getReleaseHistory(proxy)
 		if err != nil {
 			return nil, err
 		}
@@ -424,19 +500,85 @@ func (h *VersionHandler) selectReleaseByType(releaseType string) (*GitHubRelease
 		}
 		return nil, fmt.Errorf("未找到可用的测试版")
 	}
-	// stable
-	return h.getLatestRelease()
+	return h.getLatestRelease(proxy)
 }
 
-// logUpdateProgress 输出更新进度日志
-func (h *VersionHandler) logUpdateProgress(level, message string) {
+// logUpdateProgress 输出更新进度日志并推送给 SSE 订阅者
+// percent 可选，-1 表示无进度值，0-100 表示下载百分比
+func (h *VersionHandler) logUpdateProgress(level, message string, percent ...int) {
 	timestamp := time.Now().Format("2006-01-02 15:04:05")
 	log.Printf("[%s] [%s] %s", timestamp, strings.ToUpper(level), message)
+
+	pct := -1
+	if len(percent) > 0 {
+		pct = percent[0]
+	}
+	h.broadcast(ProgressEvent{Level: level, Message: message, Percent: pct})
+}
+
+// applyGitHubProxy 将 GitHub 代理前缀应用到原始 URL
+// proxy 形如 "https://ghproxy.com"，空字符串表示不使用代理
+func applyGitHubProxy(proxy, rawURL string) string {
+	if proxy == "" {
+		return rawURL
+	}
+	return strings.TrimRight(proxy, "/") + "/" + rawURL
+}
+
+// selectProxy 选择可用的下载代理
+// 优先读取 GITHUB_PROXY 环境变量；若未设置则依次探测官方及常见代理并返回首个可用的
+func (h *VersionHandler) selectProxy() string {
+	if proxy := strings.TrimSpace(os.Getenv("GITHUB_PROXY")); proxy != "" {
+		h.logUpdateProgress("info", fmt.Sprintf("使用环境变量代理: %s", proxy))
+		return proxy
+	}
+
+	probeTarget := "https://github.com/NodePassProject/NodePassDash/releases/latest"
+
+	type candidate struct {
+		name  string
+		proxy string
+	}
+	candidates := []candidate{
+		{"GitHub 直连", ""},
+		{"ghproxy.com", "https://ghproxy.com"},
+		{"mirror.ghproxy.com", "https://mirror.ghproxy.com"},
+		{"gh-proxy.com", "https://gh-proxy.com"},
+		{"ghproxy.net", "https://ghproxy.net"},
+	}
+
+	h.logUpdateProgress("info", "正在探测可用下载源...")
+
+	client := &http.Client{
+		Timeout: 5 * time.Second,
+		CheckRedirect: func(_ *http.Request, _ []*http.Request) error {
+			return http.ErrUseLastResponse // 不跟随重定向，只看能不能通
+		},
+	}
+
+	for _, c := range candidates {
+		testURL := applyGitHubProxy(c.proxy, probeTarget)
+		resp, err := client.Head(testURL)
+		if err == nil {
+			resp.Body.Close()
+			if resp.StatusCode < 500 {
+				if c.proxy == "" {
+					h.logUpdateProgress("info", "✓ GitHub 直连可用，将直接下载")
+				} else {
+					h.logUpdateProgress("info", fmt.Sprintf("✓ %s 可用，将通过此代理下载", c.name))
+				}
+				return c.proxy
+			}
+		}
+		h.logUpdateProgress("info", fmt.Sprintf("✗ %s 不可用，尝试下一个...", c.name))
+	}
+
+	h.logUpdateProgress("warning", "所有下载源均不可用，回退到直连（可能失败）")
+	return ""
 }
 
 // performBinaryReplace 下载新版本二进制并替换当前进程文件，最终退出由调用方/Docker restart 策略负责拉起
-// isDocker 仅影响日志措辞（Docker 由 daemon 自动拉起，二进制由进程退出后被 supervisor / systemd 拉起；无 supervisor 时需用户手动拉起）
-func (h *VersionHandler) performBinaryReplace(latest *GitHubRelease, isDocker bool) UpdateResult {
+func (h *VersionHandler) performBinaryReplace(latest *GitHubRelease, isDocker bool, proxy string) UpdateResult {
 	envLabel := "二进制部署"
 	if isDocker {
 		envLabel = "Docker 部署"
@@ -444,8 +586,8 @@ func (h *VersionHandler) performBinaryReplace(latest *GitHubRelease, isDocker bo
 	h.logUpdateProgress("info", fmt.Sprintf("环境: %s，开始下载新版本二进制...", envLabel))
 	h.logUpdateProgress("info", fmt.Sprintf("系统架构: %s/%s", runtime.GOOS, runtime.GOARCH))
 
-	// 生成下载 URL
-	downloadURL := h.getBinaryDownloadURL(latest.TagName)
+	// 生成下载 URL（含代理前缀）
+	downloadURL := h.getBinaryDownloadURL(latest.TagName, proxy)
 	if downloadURL == "" {
 		h.logUpdateProgress("error", "无法生成下载链接，当前系统架构可能不受支持")
 		return UpdateResult{
@@ -466,11 +608,14 @@ func (h *VersionHandler) performBinaryReplace(latest *GitHubRelease, isDocker bo
 	}
 	h.logUpdateProgress("info", fmt.Sprintf("当前程序路径: %s", currentExe))
 
-	// 备份当前文件
+	// 备份当前文件：使用 os.Rename 而非复制
+	// Rename 仅修改目录项，不打开文件内容，因此在 Linux 上不会触发 ETXTBSY，
+	// 同时内核在进程关闭前会继续持有旧 inode，不影响当前运行。
 	backupPath := currentExe + ".backup"
 	h.logUpdateProgress("info", fmt.Sprintf("备份路径: %s", backupPath))
-	h.logUpdateProgress("info", "正在备份当前版本...")
-	if err := h.copyFile(currentExe, backupPath); err != nil {
+	h.logUpdateProgress("info", "正在备份当前版本（rename）...")
+	_ = os.Remove(backupPath) // 清除可能存在的旧备份
+	if err := os.Rename(currentExe, backupPath); err != nil {
 		h.logUpdateProgress("error", fmt.Sprintf("备份当前版本失败: %v", err))
 		return UpdateResult{
 			Success: false,
@@ -478,11 +623,10 @@ func (h *VersionHandler) performBinaryReplace(latest *GitHubRelease, isDocker bo
 		}
 	}
 
-	// 获取备份文件信息
 	if backupInfo, err := os.Stat(backupPath); err == nil {
-		h.logUpdateProgress("success", fmt.Sprintf("当前版本备份完成 (%.2f MB)", float64(backupInfo.Size())/1024/1024))
+		h.logUpdateProgress("success", fmt.Sprintf("备份完成 (%.2f MB)", float64(backupInfo.Size())/1024/1024))
 	} else {
-		h.logUpdateProgress("success", "当前版本备份完成")
+		h.logUpdateProgress("success", "备份完成")
 	}
 
 	// 下载新版本：保留下载文件的实际扩展名（.tar.gz / .zip），以便后续判断是否需要解压
@@ -563,19 +707,31 @@ func (h *VersionHandler) performBinaryReplace(latest *GitHubRelease, isDocker bo
 		}
 	}
 
-	// 替换当前程序
+	// 替换当前程序：优先 rename（同一文件系统时 atomic 且无 ETXTBSY），
+	// 跨文件系统时降级为 copyFile。
 	h.logUpdateProgress("info", fmt.Sprintf("正在替换程序文件: %s -> %s", extractedBinaryPath, currentExe))
-	if err := h.copyFile(extractedBinaryPath, currentExe); err != nil {
+	replaceErr := os.Rename(extractedBinaryPath, currentExe)
+	if replaceErr != nil {
+		h.logUpdateProgress("info", "跨文件系统，改用复制方式写入新版本...")
+		replaceErr = h.copyFile(extractedBinaryPath, currentExe)
+		os.Remove(extractedBinaryPath)
+	}
+	if replaceErr != nil {
 		h.logUpdateProgress("error", "替换文件失败，正在恢复备份...")
-		if restoreErr := h.copyFile(backupPath, currentExe); restoreErr != nil {
-			h.logUpdateProgress("error", fmt.Sprintf("恢复备份也失败了: %v", restoreErr))
+		// 备份已通过 rename 移到 backupPath，直接 rename 回来即可
+		if restoreErr := os.Rename(backupPath, currentExe); restoreErr != nil {
+			// rename 失败时尝试 copy
+			if restoreErr2 := h.copyFile(backupPath, currentExe); restoreErr2 != nil {
+				h.logUpdateProgress("error", fmt.Sprintf("恢复备份失败: %v", restoreErr2))
+			} else {
+				h.logUpdateProgress("success", "已恢复到原始版本")
+			}
 		} else {
 			h.logUpdateProgress("success", "已恢复到原始版本")
 		}
-		os.Remove(extractedBinaryPath)
 		return UpdateResult{
 			Success: false,
-			Message: fmt.Sprintf("替换文件失败: %v", err),
+			Message: fmt.Sprintf("替换文件失败: %v", replaceErr),
 		}
 	}
 
@@ -642,12 +798,27 @@ func (h *VersionHandler) copyFile(src, dst string) error {
 func (h *VersionHandler) detectDeploymentMethod() DeploymentInfo {
 	// 检查是否在 Docker 容器中运行
 	if h.isRunningInDocker() {
-		manualUpdateInfo := "若自动更新失败，可在宿主机执行：\n\n" +
-			"1. docker pull ghcr.io/nodepassproject/nodepassdash:latest\n" +
-			"2. docker restart <容器名称>\n\n" +
+		manualUpdateInfo := "请在宿主机执行以下命令拉取新镜像：\n\n" +
+			"docker pull ghcr.io/nodepassproject/nodepassdash:latest\n" +
+			"docker restart <容器名称>\n\n" +
 			"或使用 docker-compose：\n" +
-			"   docker-compose pull && docker-compose up -d"
+			"docker-compose pull && docker-compose up -d"
 
+		// Alpine/musl 环境：GitHub Release 二进制使用 glibc 编译，
+		// musl 缺少 fcntl64 等符号，无法直接替换运行，禁止二进制自动更新
+		if isMuslLibc() {
+			return DeploymentInfo{
+				Method:       "docker",
+				CanUpdate:    false,
+				UpdateInfo:   "当前容器基于 Alpine(musl libc)，GitHub Release 二进制使用 glibc 编译，存在符号不兼容(fcntl64 等)，无法在容器内直接替换。",
+				ManualUpdate: manualUpdateInfo,
+				Environment:  "container",
+				Details:      "请通过 docker pull 拉取新镜像更新",
+				DebugInfo:    map[string]interface{}{"is_docker_container": true, "is_musl": true},
+			}
+		}
+
+		// 非 musl 环境（如基于 Debian/Ubuntu 的镜像）：glibc 兼容，支持二进制替换
 		return DeploymentInfo{
 			Method:        "docker",
 			CanUpdate:     true,
@@ -656,7 +827,7 @@ func (h *VersionHandler) detectDeploymentMethod() DeploymentInfo {
 			HasDockerPerm: false,
 			Environment:   "container",
 			Details:       "请确保容器已配置 restart: unless-stopped 或 restart: always",
-			DebugInfo:     map[string]interface{}{"is_docker_container": true},
+			DebugInfo:     map[string]interface{}{"is_docker_container": true, "is_musl": false},
 		}
 	}
 
@@ -717,6 +888,23 @@ func (h *VersionHandler) detectDeploymentMethod() DeploymentInfo {
 	}
 }
 
+// isMuslLibc 检测当前系统是否使用 musl libc（如 Alpine Linux）
+// GitHub Releases 二进制使用 glibc 编译，musl 环境下缺少 fcntl64 等符号无法运行
+func isMuslLibc() bool {
+	patterns := []string{
+		"/lib/ld-musl-x86_64.so.1",
+		"/lib/ld-musl-aarch64.so.1",
+		"/lib/ld-musl-armhf.so.1",
+		"/lib/ld-musl-arm.so.1",
+	}
+	for _, p := range patterns {
+		if _, err := os.Stat(p); err == nil {
+			return true
+		}
+	}
+	return false
+}
+
 // isRunningInDocker 检查是否在 Docker 容器中运行
 func (h *VersionHandler) isRunningInDocker() bool {
 	// 检查 /.dockerenv 文件
@@ -763,12 +951,12 @@ func (h *VersionHandler) isBinaryDeployment() bool {
 	return info.Mode().Perm()&0200 != 0
 }
 
-// getBinaryDownloadURL 获取二进制文件下载 URL
-func (h *VersionHandler) getBinaryDownloadURL(version string) string {
+// getBinaryDownloadURL 获取二进制文件下载 URL（含代理前缀）
+func (h *VersionHandler) getBinaryDownloadURL(version, proxy string) string {
 	// 根据操作系统和架构构建下载 URL（基于goreleaser配置）
 	var filename string
 
-	// 架构映射（根据goreleaser.yml规则）
+	// 架构映射（与 .goreleaser.yml 的 name_template 保持一致）
 	var archName string
 	switch runtime.GOARCH {
 	case "amd64":
@@ -778,8 +966,17 @@ func (h *VersionHandler) getBinaryDownloadURL(version string) string {
 	case "arm64":
 		archName = "arm64"
 	case "arm":
-		// 简化处理，实际应该根据GOARM判断
-		archName = "armv7hf"
+		// 从 build info 读取 GOARM（编译时注入），对应 goreleaser 模板 armv{{ .Arm }}hf
+		goarm := "7" // 默认 armv7
+		if info, ok := debug.ReadBuildInfo(); ok {
+			for _, s := range info.Settings {
+				if s.Key == "GOARM" {
+					goarm = s.Value
+					break
+				}
+			}
+		}
+		archName = fmt.Sprintf("armv%shf", goarm)
 	default:
 		archName = runtime.GOARCH
 	}
@@ -803,7 +1000,8 @@ func (h *VersionHandler) getBinaryDownloadURL(version string) string {
 		return ""
 	}
 
-	return fmt.Sprintf("https://github.com/NodePassProject/NodePassDash/releases/download/%s/%s", version, filename)
+	rawURL := fmt.Sprintf("https://github.com/NodePassProject/NodePassDash/releases/download/%s/%s", version, filename)
+	return applyGitHubProxy(proxy, rawURL)
 }
 
 // downloadFile 下载文件（带进度）
@@ -861,7 +1059,7 @@ func (h *VersionHandler) downloadFile(url, filepath string) error {
 	}
 }
 
-// downloadWithProgress 带进度的下载
+// downloadWithProgress 带进度的下载，每 5% 推送一次带 percent 字段的进度事件
 func (h *VersionHandler) downloadWithProgress(src io.Reader, dst io.Writer, totalSize int64) error {
 	const bufferSize = 32 * 1024 // 32KB buffer
 	buffer := make([]byte, bufferSize)
@@ -877,14 +1075,15 @@ func (h *VersionHandler) downloadWithProgress(src io.Reader, dst io.Writer, tota
 			}
 			downloaded += int64(n)
 
-			// 计算并报告进度（每10%报告一次，使用success级别来增加进度条）
 			percent := int(float64(downloaded) / float64(totalSize) * 100)
-			if percent >= lastReportedPercent+10 && percent <= 100 {
-				// 使用success级别，这样前端会增加进度条
-				h.logUpdateProgress("success", fmt.Sprintf("下载进度: %d%% (%.2f MB / %.2f MB)",
+			if percent >= lastReportedPercent+5 && percent <= 100 {
+				h.logUpdateProgress("info",
+					fmt.Sprintf("下载中 %d%% (%.1f / %.1f MB)",
+						percent,
+						float64(downloaded)/1024/1024,
+						float64(totalSize)/1024/1024),
 					percent,
-					float64(downloaded)/1024/1024,
-					float64(totalSize)/1024/1024))
+				)
 				lastReportedPercent = percent
 			}
 		}
@@ -897,19 +1096,16 @@ func (h *VersionHandler) downloadWithProgress(src io.Reader, dst io.Writer, tota
 		}
 	}
 
-	h.logUpdateProgress("success", fmt.Sprintf("下载完成: %.2f MB", float64(downloaded)/1024/1024))
+	h.logUpdateProgress("success", fmt.Sprintf("下载完成 (%.1f MB)", float64(downloaded)/1024/1024), 100)
 	return nil
 }
 
 // getLatestRelease 从 GitHub API 获取最新发布信息
-func (h *VersionHandler) getLatestRelease() (*GitHubRelease, error) {
-	url := "https://api.github.com/repos/NodePassProject/NodePassDash/releases/latest"
+func (h *VersionHandler) getLatestRelease(proxy string) (*GitHubRelease, error) {
+	apiURL := applyGitHubProxy(proxy, "https://api.github.com/repos/NodePassProject/NodePassDash/releases/latest")
 
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	resp, err := client.Get(url)
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(apiURL)
 	if err != nil {
 		return nil, fmt.Errorf("请求 GitHub API 失败: %v", err)
 	}
@@ -951,7 +1147,7 @@ func (h *VersionHandler) HandleGetUpdateInfo(c *gin.Context) {
 
 // HandleGetReleaseHistory 获取版本发布历史
 func (h *VersionHandler) HandleGetReleaseHistory(c *gin.Context) {
-	releases, err := h.getReleaseHistory()
+	releases, err := h.getReleaseHistory("")
 	if err != nil {
 		c.JSON(http.StatusInternalServerError, gin.H{
 			"success": false,
@@ -967,14 +1163,11 @@ func (h *VersionHandler) HandleGetReleaseHistory(c *gin.Context) {
 }
 
 // getReleaseHistory 从 GitHub API 获取版本发布历史
-func (h *VersionHandler) getReleaseHistory() ([]GitHubRelease, error) {
-	url := "https://api.github.com/repos/NodePassProject/NodePassDash/releases?per_page=10"
+func (h *VersionHandler) getReleaseHistory(proxy string) ([]GitHubRelease, error) {
+	apiURL := applyGitHubProxy(proxy, "https://api.github.com/repos/NodePassProject/NodePassDash/releases?per_page=10")
 
-	client := &http.Client{
-		Timeout: 10 * time.Second,
-	}
-
-	resp, err := client.Get(url)
+	client := &http.Client{Timeout: 15 * time.Second}
+	resp, err := client.Get(apiURL)
 	if err != nil {
 		return nil, fmt.Errorf("请求 GitHub API 失败: %v", err)
 	}

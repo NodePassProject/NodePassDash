@@ -170,7 +170,7 @@ export default function SetupPage() {
     setSubmitError("");
     try {
       await initializeDatabase(buildPayload(form, true));
-      setCountdown(15);
+      setCountdown(5);
     } catch (e) {
       setSubmitError(e instanceof Error ? e.message : String(e));
     } finally {
@@ -925,7 +925,7 @@ function StepAdmin({
   );
 }
 
-const COUNTDOWN_TOTAL = 15;
+const COUNTDOWN_TOTAL = 5;
 
 function CountdownOverlay({ seconds }: { seconds: number }) {
   const { t } = useTranslation("db-setup");
