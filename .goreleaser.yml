@@ -131,13 +131,7 @@ release:
   replace_existing_draft: true
   # 发布说明
   header: |
-    ## NodePassDash Release Notes (v4.0.1)
-
-    ### Fix
-    - Fix the error in passing the proxy parameter
-
-    ### Feature
-    - Add instance backup and restore function and clean up service association
+    ## NodePassDash Release Notes (v4.0.2-beta1)
 
   footer: |
 
