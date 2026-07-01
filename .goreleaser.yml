@@ -144,19 +144,14 @@ release:
   replace_existing_draft: true
   # 发布说明
   header: |
-    ## NodePassDash Release Notes (v4.0.2)
+    ## NodePassDash Release Notes (v4.0.3)
     
     ### Feature
+    - Supplemental personalized settings on the setup page, including privacy settings and switches for experimental feature settings
+    - The setup page interface provides a network status check button
+    - Implement version comparison algorithm supporting pre-release tag sorting
     
-    - Display current database status on the settings page
-    - Improve and add automatic update features
-    - Improve the privacy protection logic for domain names
-    - Change the build logic of the sqlite library in the go backend, removing the dependencies requiring CGO
-    
-    ### Fix
-    
-    - Fix the issue of abnormal memory overflow in the panel, converting the iconify import logic to offline
-    - Fix the bug of cleaning logs on the settings page
+
   footer: |
 
     ### 📥 Download Desc

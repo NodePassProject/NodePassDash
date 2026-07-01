@@ -4,7 +4,7 @@
 
 **Language:** English | [简体中文](docs/zh-CN/README.md)
 
-![Version](https://img.shields.io/badge/version-4.0.2-blue.svg)
+![Version](https://img.shields.io/badge/version-4.0.3-blue.svg)
 ![GitHub license](https://img.shields.io/github/license/NodePassProject/NodePassDash)
 ![GitHub downloads](https://img.shields.io/github/downloads/NodePassProject/nodepassdash/total.svg)
 ![Docker Pulls](https://img.shields.io/badge/docker_pulls-18k+-blue?logo=docker&logoColor=white)
