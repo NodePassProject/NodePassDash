@@ -43,28 +43,8 @@ jobs:
           
           echo "✅ 前端构建完成，文件已输出到 cmd/server/dist/"
 
-      - name: 🔧 安装CGO交叉编译工具
-        run: |
-          # 更新包管理器
-          sudo apt-get update
-          
-          # 安装 Windows 交叉编译工具
-          sudo apt-get install -y gcc-mingw-w64-x86-64 gcc-mingw-w64-i686
-          
-          # 安装 ARM 交叉编译工具
-          sudo apt-get install -y gcc-aarch64-linux-gnu      # ARM64
-          sudo apt-get install -y gcc-arm-linux-gnueabihf    # ARMv7 (hard-float)
-          sudo apt-get install -y gcc-arm-linux-gnueabi      # ARMv6 (soft-float)
-          
-          # 验证编译器安装
-          echo "🔍 验证编译器安装:"
-          x86_64-w64-mingw32-gcc --version | head -1
-          i686-w64-mingw32-gcc --version | head -1
-          aarch64-linux-gnu-gcc --version | head -1
-          arm-linux-gnueabihf-gcc --version | head -1
-          arm-linux-gnueabi-gcc --version | head -1
-          
-          echo "✅ 交叉编译工具安装完成"
+      # 改用 modernc.org/sqlite (纯 Go) 后,所有目标平台都走 CGO_ENABLED=0 交叉编译,
+      # 不再需要 mingw / gcc-aarch64-linux-gnu / gcc-arm-linux-gnueabihf 等 C 工具链。
 
       - name: Set up Go
         uses: actions/setup-go@v5

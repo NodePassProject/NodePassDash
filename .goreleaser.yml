@@ -1,13 +1,16 @@
 version: 2
 
 # 改用 modernc.org/sqlite (纯 Go) 后,所有构建均无需 CGO,也不再需要 C 交叉编译工具链
-# 与 sqlite_* build tags。goreleaser 默认 CGO_ENABLED=0,直接 cross-compile 即可。
+# 与 sqlite_* build tags。每个 build 显式钉 CGO_ENABLED=0,防止 native build (linux/amd64)
+# 在 runner 自带 gcc 时默认走 CGO=1 导致动态链接 glibc。
 
 builds:
   # ==================== Linux 构建 ====================
 
   # Linux AMD64 (x86_64) - 最常用的服务器架构
   - id: linux-amd64
+    env:
+      - CGO_ENABLED=0
     main: ./cmd/server
     binary: nodepassdash
     goos:
@@ -23,6 +26,8 @@ builds:
 
   # Linux ARM64 (aarch64) - 新款ARM服务器、树莓派4 64位
   - id: linux-arm64
+    env:
+      - CGO_ENABLED=0
     main: ./cmd/server
     binary: nodepassdash
     goos:
@@ -38,6 +43,8 @@ builds:
 
   # Linux ARMv7 (hard-float) - 树莓派2/3/4 32位、大多数ARM设备
   - id: linux-armv7
+    env:
+      - CGO_ENABLED=0
     main: ./cmd/server
     binary: nodepassdash
     goos:
@@ -55,6 +62,8 @@ builds:
 
   # Linux ARMv6 (soft-float) - 树莓派1、老款ARM设备
   - id: linux-armv6
+    env:
+      - CGO_ENABLED=0
     main: ./cmd/server
     binary: nodepassdash
     goos:
@@ -74,6 +83,8 @@ builds:
 
   # Windows AMD64 - 主流Windows系统
   - id: windows-amd64
+    env:
+      - CGO_ENABLED=0
     main: ./cmd/server
     binary: nodepassdash
     goos:
@@ -89,6 +100,8 @@ builds:
 
   # Windows 386 - 32位Windows系统
   - id: windows-386
+    env:
+      - CGO_ENABLED=0
     main: ./cmd/server
     binary: nodepassdash
     goos:
