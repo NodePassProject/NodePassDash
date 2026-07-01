@@ -307,6 +307,11 @@ type TrafficTrendItem struct {
 	RecordCount int    `json:"recordCount"`
 }
 
+// GetTodayTraffic 获取当日(本地零点起)所有实例合计的流量增量。
+func (s *Service) GetTodayTraffic() (TodayTrafficIncrement, error) {
+	return NewTrafficService(s.db).GetTodayTrafficIncrement()
+}
+
 // GetTrafficTrend 获取流量趋势数据
 func (s *Service) GetTrafficTrend(hours int) ([]TrafficTrendItem, error) {
 	// 使用新的dashboard_traffic_summary表获取流量趋势数据

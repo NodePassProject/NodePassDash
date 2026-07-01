@@ -631,6 +631,41 @@ func (s *TrafficService) GetLatestTrafficData(instanceID string) (*models.Traffi
 	return &data, nil
 }
 
+// TodayTrafficIncrement 今日流量增量(所有实例合计)
+type TodayTrafficIncrement struct {
+	TCPRx int64 `json:"tcpIn" gorm:"column:tcp_rx"`
+	TCPTx int64 `json:"tcpOut" gorm:"column:tcp_tx"`
+	UDPRx int64 `json:"udpIn" gorm:"column:udp_rx"`
+	UDPTx int64 `json:"udpOut" gorm:"column:udp_tx"`
+}
+
+// Total 今日 TCP+UDP 双向合计
+func (t TodayTrafficIncrement) Total() int64 {
+	return t.TCPRx + t.TCPTx + t.UDPRx + t.UDPTx
+}
+
+// GetTodayTrafficIncrement 汇总当日(本地零点起)所有实例的每小时增量。
+// hour_time 在 AggregateTrafficDataForHour 中使用 now.Location() 存入,
+// 因此这里同样用 now.Location() 构造零点边界,SQLite 与 PostgreSQL 走
+// 同一段 gorm 参数化查询,无方言差异。
+func (s *TrafficService) GetTodayTrafficIncrement() (TodayTrafficIncrement, error) {
+	now := time.Now()
+	todayStart := time.Date(now.Year(), now.Month(), now.Day(), 0, 0, 0, 0, now.Location())
+
+	var result TodayTrafficIncrement
+	err := s.db.Model(&models.TrafficHourlySummary{}).
+		Select(`COALESCE(SUM(tcp_rx_increment), 0) AS tcp_rx,
+			COALESCE(SUM(tcp_tx_increment), 0) AS tcp_tx,
+			COALESCE(SUM(udp_rx_increment), 0) AS udp_rx,
+			COALESCE(SUM(udp_tx_increment), 0) AS udp_tx`).
+		Where("hour_time >= ?", todayStart).
+		Scan(&result).Error
+	if err != nil {
+		return TodayTrafficIncrement{}, fmt.Errorf("获取今日流量增量失败: %v", err)
+	}
+	return result, nil
+}
+
 // GetLatestDashboardTrafficData 获取最新的dashboard流量数据
 func (s *TrafficService) GetLatestDashboardTrafficData() (*models.DashboardTrafficSummary, error) {
 	var data models.DashboardTrafficSummary

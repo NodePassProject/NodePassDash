@@ -294,69 +294,30 @@ export default function DashboardPage() {
     return parseFloat((bytes / Math.pow(k, i)).toFixed(2)) + " " + sizes[i];
   };
 
-  // 处理今日流量数据 - 通过最早和最晚时间的差值计算今日消耗流量
-  const processTodayTrafficData = useCallback(
-    (trafficData: TrafficTrendData[]) => {
-      if (!isMountedRef.current || !trafficData?.length) return;
+  // 拉取今日流量增量 —— 后端从 traffic_hourly_summary 汇总 *_increment,
+  // 精准对应"本地零点起累计"，不再依赖前端做最早/最晚快照差值。
+  const fetchTodayTraffic = useCallback(async () => {
+    try {
+      const response = await fetch(buildApiUrl("/api/dashboard/today-traffic"));
 
-      const today = new Date();
-      const todayStartTimestamp = Math.floor(
-        new Date(
-          today.getFullYear(),
-          today.getMonth(),
-          today.getDate(),
-        ).getTime() / 1000,
-      );
+      if (!response.ok) throw new Error(t("errors.fetchTrafficError"));
+      const result = await response.json();
 
-      // 筛选出今天的数据
-      const todayData = trafficData.filter(
-        (item) => item.hourTime >= todayStartTimestamp,
-      );
-
-      if (todayData.length === 0) {
-        // 如果没有今天的数据，设置为0
-        if (isMountedRef.current) {
-          setTodayTrafficData({
-            tcpIn: 0,
-            tcpOut: 0,
-            udpIn: 0,
-            udpOut: 0,
-            total: 0,
-          });
-        }
-
-        return;
+      if (result.success && result.data && isMountedRef.current) {
+        setTodayTrafficData({
+          tcpIn: Math.max(0, Number(result.data.tcpIn) || 0),
+          tcpOut: Math.max(0, Number(result.data.tcpOut) || 0),
+          udpIn: Math.max(0, Number(result.data.udpIn) || 0),
+          udpOut: Math.max(0, Number(result.data.udpOut) || 0),
+          total: Math.max(0, Number(result.data.total) || 0),
+        });
       }
-
-      // 按时间排序，确保数据是按时间顺序的
-      const sortedTodayData = todayData.sort((a, b) => a.hourTime - b.hourTime);
-
-      // 获取最早和最晚的时间点数据
-      const earliestData = sortedTodayData[0];
-      const latestData = sortedTodayData[sortedTodayData.length - 1];
-
-      // 计算差值（最晚 - 最早 = 今日消耗流量）
-      const todayTraffic = {
-        tcpIn: Math.max(0, latestData.tcpRx - earliestData.tcpRx),
-        tcpOut: Math.max(0, latestData.tcpTx - earliestData.tcpTx),
-        udpIn: Math.max(0, latestData.udpRx - earliestData.udpRx),
-        udpOut: Math.max(0, latestData.udpTx - earliestData.udpTx),
-        total: 0,
-      };
-
-      // 计算总流量
-      todayTraffic.total =
-        todayTraffic.tcpIn +
-        todayTraffic.tcpOut +
-        todayTraffic.udpIn +
-        todayTraffic.udpOut;
-
+    } catch (error) {
       if (isMountedRef.current) {
-        setTodayTrafficData(todayTraffic);
+        console.error(t("errors.fetchTrafficError"), error);
       }
-    },
-    [],
-  );
+    }
+  }, [t]);
 
   // 获取主控数据
   const fetchEndpoints = useCallback(async () => {
@@ -393,8 +354,6 @@ export default function DashboardPage() {
             : result.data;
 
         setTrafficTrend(limitedData);
-        // 处理今日流量数据
-        processTodayTrafficData(limitedData);
         console.log("[仪表盘前端] 流量趋势数据获取成功:", {
           原始数据条数: result.data.length,
           限制后数据条数: limitedData.length,
@@ -498,6 +457,7 @@ export default function DashboardPage() {
         // 第二批：加载流量相关数据
         console.log("[仪表盘] 加载第二批数据：流量统计");
         await fetchTrafficTrend();
+        await fetchTodayTraffic();
         await fetchWeeklyStats();
 
         if (!isMountedRef.current) return;
@@ -524,6 +484,7 @@ export default function DashboardPage() {
     fetchTunnelStats,
     fetchOperationLogs,
     fetchTrafficTrend,
+    fetchTodayTraffic,
     fetchEndpoints,
     fetchWeeklyStats,
   ]);

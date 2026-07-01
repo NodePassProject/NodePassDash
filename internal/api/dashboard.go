@@ -28,6 +28,9 @@ func SetupDashboardRoutes(rg *gin.RouterGroup, dashboardService *dashboard.Servi
 	// 仪表盘流量趋势
 	rg.GET("/dashboard/traffic-trend", dashboardHandler.HandleTrafficTrend)
 
+	// 仪表盘今日流量(基于 traffic_hourly_summary.*_increment 汇总)
+	rg.GET("/dashboard/today-traffic", dashboardHandler.HandleTodayTraffic)
+
 	// 仪表盘统计数据
 	rg.GET("/dashboard/stats", dashboardHandler.HandleGetStats)
 	rg.GET("/dashboard/tunnel-stats", dashboardHandler.HandleGetTunnelStats)
@@ -154,6 +157,26 @@ func (h *DashboardHandler) HandleTrafficTrend(c *gin.Context) {
 	}
 
 	c.JSON(http.StatusOK, gin.H{"success": true, "data": trend, "count": len(trend)})
+}
+
+// HandleTodayTraffic GET /api/dashboard/today-traffic
+// 返回本地零点起、所有实例合计的当日流量增量。
+func (h *DashboardHandler) HandleTodayTraffic(c *gin.Context) {
+	today, err := h.dashboardService.GetTodayTraffic()
+	if err != nil {
+		c.JSON(http.StatusInternalServerError, gin.H{"success": false, "error": err.Error()})
+		return
+	}
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data": gin.H{
+			"tcpIn":  today.TCPRx,
+			"tcpOut": today.TCPTx,
+			"udpIn":  today.UDPRx,
+			"udpOut": today.UDPTx,
+			"total":  today.Total(),
+		},
+	})
 }
 
 // HandleGetTunnelStats GET /api/dashboard/tunnel-stats
