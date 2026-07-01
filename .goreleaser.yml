@@ -144,13 +144,13 @@ release:
   replace_existing_draft: true
   # 发布说明
   header: |
-    ## NodePassDash Release Notes (v4.0.3)
+    ## NodePassDash Release Notes (v4.0.4)
     
-    ### Feature
-    - Supplemental personalized settings on the setup page, including privacy settings and switches for experimental feature settings
-    - The setup page interface provides a network status check button
-    - Implement version comparison algorithm supporting pre-release tag sorting
+    ### Optimize
+    - Optimize today's traffic statistics function
     
+    ### Fix
+    - Fix PG init progress
 
   footer: |
 
