@@ -127,5 +127,38 @@
   "errors": {
     "submitFailedPrefix": "初始化失败:",
     "statusFetchFailed": "无法获取后端状态,请检查后端是否运行"
+  },
+  "networkCheck": {
+    "button": "网络检查",
+    "title": "网络检查",
+    "refresh": "刷新",
+    "close": "关闭",
+    "loading": "正在检查网络...",
+    "error": "检查失败",
+    "sections": {
+      "ipv4": "IPv4",
+      "ipv6": "IPv6",
+      "github": "GitHub 连通性"
+    },
+    "fields": {
+      "reachable": "可达",
+      "unreachable": "不可达"
+    },
+    "dockerHint": {
+      "dockerBody": "当前 Docker 容器未启用 IPv6，若宿主机确认可用可参照官方 Compose 示例开启。",
+      "hostBody": "宿主机 IPv6 未启用或不可路由，请先在系统内核 / 网卡 / 路由层排查。",
+      "referenceLabel": "查看官方 docker-compose-v6 示例"
+    }
+  },
+  "preferences": {
+    "privacyMode": {
+      "label": "隐私模式",
+      "description": "自动脱敏 IP 地址等敏感信息，保护隐私数据",
+      "demoLabel": "IP 地址示例"
+    },
+    "experimentalMode": {
+      "label": "实验性功能",
+      "description": "启用测试中的新特性，可能不稳定"
+    }
   }
 }

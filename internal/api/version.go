@@ -4,6 +4,7 @@ import (
 	"archive/tar"
 	"archive/zip"
 	"compress/gzip"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,12 +15,14 @@ import (
 	"path/filepath"
 	"runtime"
 	"runtime/debug"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
 	"NodePassDash/internal/db"
 	"NodePassDash/internal/db/dialect"
+	"NodePassDash/internal/netcheck"
 
 	"github.com/gin-gonic/gin"
 	"github.com/mattn/go-ieproxy"
@@ -169,6 +172,7 @@ func SetupVersionRoutes(rg *gin.RouterGroup, version string) {
 	rg.GET("/version/history", versionHandler.HandleGetReleaseHistory)
 	rg.GET("/version/deployment-info", versionHandler.HandleGetDeploymentInfo)
 	rg.GET("/version/db-info", versionHandler.HandleGetDBInfo)
+	rg.GET("/version/network-check", versionHandler.HandleNetworkCheck)
 	rg.POST("/version/auto-update", versionHandler.HandleAutoUpdate)
 	rg.POST("/version/restart", versionHandler.HandleRestart)
 
@@ -289,6 +293,16 @@ func humanSize(b int64) string {
 		exp = len(units) - 1
 	}
 	return fmt.Sprintf("%.2f %s", float64(b)/float64(div), units[exp])
+}
+
+// HandleNetworkCheck 触发一次网络自检（IPv4/IPv6/GitHub/系统信息）。8s 总超时。
+func (h *VersionHandler) HandleNetworkCheck(c *gin.Context) {
+	ctx, cancel := context.WithTimeout(c.Request.Context(), 8*time.Second)
+	defer cancel()
+	c.JSON(http.StatusOK, gin.H{
+		"success": true,
+		"data":    netcheck.Run(ctx),
+	})
 }
 
 // HandleGetCurrentVersion 获取当前版本信息
@@ -1092,20 +1106,76 @@ func (h *VersionHandler) getLatestRelease(proxy string) (*GitHubRelease, error) 
 	return &release, nil
 }
 
-// compareVersions 比较版本号，如果远程版本更新则返回 true
-func (h *VersionHandler) compareVersions(current, latest string) bool {
-	// 简单版本比较逻辑
-	// 移除 v 前缀
-	current = strings.TrimPrefix(current, "v")
-	latest = strings.TrimPrefix(latest, "v")
+// stableRank 用于把预发布标签（beta/alpha/rc）与正式版折算成可比较的整数
+// 正式版排在最高，rc > beta > alpha，同类按编号从小到大
+const stableRank = 1 << 30
 
-	// 如果当前版本是 dev，则始终有更新
-	if current == "dev" {
+// parseVersion 解析形如 "4.0.2" / "v4.0.2-beta1" 的版本号
+// 返回 [major, minor, patch] 与预发布权重值（正式版为 stableRank）
+func parseVersion(v string) ([]int, int) {
+	v = strings.TrimPrefix(strings.TrimSpace(v), "v")
+
+	baseStr := v
+	preRank := stableRank
+	if idx := strings.IndexAny(v, "-+"); idx != -1 {
+		baseStr = v[:idx]
+		suffix := strings.ToLower(v[idx+1:])
+		// 只取第一段（beta1 / rc.1 / alpha2 等，忽略之后的 build metadata）
+		if dot := strings.IndexAny(suffix, ".+-"); dot != -1 {
+			suffix = suffix[:dot]
+		}
+
+		switch {
+		case strings.HasPrefix(suffix, "alpha"):
+			n, _ := strconv.Atoi(strings.TrimPrefix(suffix, "alpha"))
+			preRank = n // alpha 保留最小
+		case strings.HasPrefix(suffix, "beta"):
+			n, _ := strconv.Atoi(strings.TrimPrefix(suffix, "beta"))
+			preRank = 100000 + n // beta 高于 alpha
+		case strings.HasPrefix(suffix, "rc"):
+			n, _ := strconv.Atoi(strings.TrimPrefix(suffix, "rc"))
+			preRank = 200000 + n // rc 高于 beta，但仍低于正式版
+		default:
+			preRank = 50000 // 未知预发布标签，介于 alpha 与 beta 之间
+		}
+	}
+
+	parts := []int{0, 0, 0}
+	for i, p := range strings.Split(baseStr, ".") {
+		if i >= 3 {
+			break
+		}
+		if n, err := strconv.Atoi(p); err == nil {
+			parts[i] = n
+		}
+	}
+	return parts, preRank
+}
+
+// compareVersions 判断远程版本是否比当前版本更高。
+// 规则：先比对 major/minor/patch；base 相同时，正式版 > rc > beta > alpha，
+// 同类型再按编号比大小。
+// 例：current=v4.0.2, latest=v4.0.2-beta1 → 无更新（正式版 > beta）。
+//    current=v4.0.2-beta1, latest=v4.0.2-beta2 → 有更新。
+//    current=v4.0.2-beta1, latest=v4.0.2 → 有更新（正式版更高）。
+func (h *VersionHandler) compareVersions(current, latest string) bool {
+	current = strings.TrimPrefix(strings.TrimSpace(current), "v")
+	if current == "dev" || current == "" {
 		return true
 	}
 
-	// 简单字符串比较（更复杂的版本比较需要专门的库）
-	return current != latest
+	curBase, curPre := parseVersion(current)
+	latBase, latPre := parseVersion(latest)
+
+	for i := 0; i < 3; i++ {
+		if latBase[i] > curBase[i] {
+			return true
+		}
+		if latBase[i] < curBase[i] {
+			return false
+		}
+	}
+	return latPre > curPre
 }
 
 // HandleGetUpdateInfo 获取更新信息（合并接口）

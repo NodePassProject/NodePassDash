@@ -16,7 +16,7 @@ import {
   Switch,
 } from "@heroui/react";
 import { Icon } from "@iconify/react/dist/offline";
-import { motion } from "framer-motion";
+import { AnimatePresence, motion } from "framer-motion";
 import { useTheme } from "next-themes";
 import ReactMarkdown from "react-markdown";
 
@@ -24,7 +24,9 @@ import {
   ComplianceDoc,
   DriverKind,
   fetchCompliance,
+  fetchNetworkCheck,
   initializeDatabase,
+  NetworkCheckResult,
   SetupPayload,
   testConnection,
 } from "@/lib/api/setup";
@@ -119,6 +121,9 @@ export default function SetupPage() {
   // Countdown overlay after submit
   const [countdown, setCountdown] = useState<number | null>(null);
 
+  // 网络自检子卡显示状态
+  const [showNetworkCheck, setShowNetworkCheck] = useState(false);
+
   // 跟 /login 一致:按主题切换 logo
   const { resolvedTheme } = useTheme();
   const isDark = resolvedTheme === "dark";
@@ -204,13 +209,35 @@ export default function SetupPage() {
       {countdown !== null && <CountdownOverlay seconds={countdown} />}
       <div className="flex-1 flex items-center justify-center p-4">
         <motion.div
-          animate={{ opacity: 1, y: 0 }}
-          className="w-full max-w-5xl"
+          animate={{
+            opacity: 1,
+            y: 0,
+            maxWidth: showNetworkCheck ? "80rem" : "64rem",
+          }}
+          className="w-full"
           initial={{ opacity: 0, y: 20 }}
           transition={{ duration: 0.5 }}
         >
-          <Card className="shadow-2xl">
-            <CardHeader className="flex flex-col gap-1 items-center pb-6 pt-8">
+          <div className="flex gap-4 items-start">
+            <Card className="flex-1 min-w-0 shadow-2xl">
+            <CardHeader className="relative flex flex-col gap-1 items-center pb-6 pt-8">
+              <Button
+                isIconOnly
+                aria-label={t("networkCheck.button")}
+                className="absolute top-4 right-4"
+                color={showNetworkCheck ? "primary" : "default"}
+                size="sm"
+                variant={showNetworkCheck ? "flat" : "light"}
+                onPress={() => setShowNetworkCheck((v) => !v)}
+              >
+                {/* 三元里的 icon 字符串扫描器抓不到，拆成两个独立 <Icon />
+                    才能被 scripts/generate-icons.mjs 收集进 offline 集 */}
+                {showNetworkCheck ? (
+                  <Icon icon="lucide:panel-right-close" width={20} />
+                ) : (
+                  <Icon icon="lucide:wifi" width={20} />
+                )}
+              </Button>
               <motion.div
                 animate={{ scale: 1 }}
                 className="w-16 h-16 flex items-center justify-center mb-2"
@@ -288,6 +315,21 @@ export default function SetupPage() {
 
             </CardBody>
           </Card>
+
+            <AnimatePresence>
+              {showNetworkCheck && (
+                <motion.div
+                  animate={{ opacity: 1, x: 0, width: 380 }}
+                  className="overflow-hidden shrink-0"
+                  exit={{ opacity: 0, x: -20, width: 0 }}
+                  initial={{ opacity: 0, x: -20, width: 0 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  <NetworkCheckCard onClose={() => setShowNetworkCheck(false)} />
+                </motion.div>
+              )}
+            </AnimatePresence>
+          </div>
         </motion.div>
       </div>
     </div>
@@ -296,9 +338,70 @@ export default function SetupPage() {
 
 // ============= Sub-components =============
 
+// IPMaskingDemo 复刻 /setup-guide 里的隐私模式脱敏演示，用来直观展示
+// isPrivacyMode 开关的效果。isPrivacyMode → 真实 IP 折叠成 192.168.*.*
+function IPMaskingDemo({ isPrivacyMode }: { isPrivacyMode: boolean }) {
+  const { t } = useTranslation("db-setup");
+  return (
+    <div className="relative h-20 bg-default-100 rounded-md overflow-hidden">
+      <div className="flex items-center justify-center h-full">
+        <div className="text-center">
+          <p className="text-[10.5px] text-default-500 mb-1">
+            {t("preferences.privacyMode.demoLabel")}
+          </p>
+          <motion.div className="font-mono text-base font-semibold">
+            <AnimatePresence mode="wait">
+              {!isPrivacyMode ? (
+                <motion.span
+                  key="full"
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-foreground"
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  192.168.1.100
+                </motion.span>
+              ) : (
+                <motion.span
+                  key="masked"
+                  animate={{ opacity: 1, scale: 1 }}
+                  className="text-success"
+                  exit={{ opacity: 0, scale: 0.95 }}
+                  initial={{ opacity: 0, scale: 0.95 }}
+                  transition={{ duration: 0.3 }}
+                >
+                  192.168.*.*
+                </motion.span>
+              )}
+            </AnimatePresence>
+          </motion.div>
+        </div>
+      </div>
+      <AnimatePresence>
+        {isPrivacyMode && (
+          <motion.div
+            animate={{ opacity: [0, 0.5, 0], scale: [0.8, 1.5] }}
+            className="absolute inset-0 bg-success/10 rounded-md"
+            exit={{ opacity: 0 }}
+            initial={{ opacity: 0, scale: 0.8 }}
+            transition={{ duration: 0.6, repeat: 0 }}
+          />
+        )}
+      </AnimatePresence>
+    </div>
+  );
+}
+
 function StepPreferences({ onNext }: { onNext: () => void }) {
   const { t } = useTranslation("db-setup");
-  const { settings, updateTheme, updateLanguage } = useSettings();
+  const {
+    settings,
+    updateTheme,
+    updateLanguage,
+    togglePrivacyMode,
+    toggleExperimentalMode,
+  } = useSettings();
   const theme = settings.theme || "system";
   const language = settings.language || "zh-CN";
 
@@ -379,6 +482,39 @@ function StepPreferences({ onNext }: { onNext: () => void }) {
               </button>
             );
           })}
+        </div>
+      </div>
+
+      {/* 隐私模式 —— label + Switch 同行 justify-between；下方接 IPMaskingDemo */}
+      <div className="space-y-3">
+        <div className="text-sm font-medium flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Icon icon="lucide:shield" />
+            {t("preferences.privacyMode.label")}
+          </div>
+          <Switch
+            color="warning"
+            isSelected={!!settings.isPrivacyMode}
+            size="sm"
+            onValueChange={() => togglePrivacyMode()}
+          />
+        </div>
+        <IPMaskingDemo isPrivacyMode={!!settings.isPrivacyMode} />
+      </div>
+
+      {/* 实验性功能 —— 同上 */}
+      <div className="space-y-3">
+        <div className="text-sm font-medium flex items-center justify-between gap-2">
+          <div className="flex items-center gap-2">
+            <Icon icon="lucide:flask-conical" />
+            {t("preferences.experimentalMode.label")}
+          </div>
+          <Switch
+            color="secondary"
+            isSelected={!!settings.isExperimentalMode}
+            size="sm"
+            onValueChange={() => toggleExperimentalMode()}
+          />
         </div>
       </div>
 
@@ -468,7 +604,7 @@ function StepCompliance({
 
       {/* 主体两栏:左 markdown,右 版本/链接/提示 */}
       <div className="grid grid-cols-1 md:grid-cols-[1fr_240px] gap-4">
-        <div className="rounded-lg border border-default-200 bg-content2/30 p-4 h-[360px] overflow-y-auto">
+        <div className="rounded-lg border border-default-200 bg-content2/30 p-4 h-[240px] overflow-y-auto">
           {loading && (
             <div className="flex items-center gap-2 text-sm text-default-500">
               <Spinner size="sm" />
@@ -977,5 +1113,218 @@ function CountdownOverlay({ seconds }: { seconds: number }) {
         <Spinner size="lg" color="primary" />
       </motion.div>
     </motion.div>
+  );
+}
+
+// ============= Network Check Card =============
+
+function NetworkCheckCard({ onClose }: { onClose: () => void }) {
+  const { t } = useTranslation("db-setup");
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState("");
+  const [result, setResult] = useState<NetworkCheckResult | null>(null);
+
+  const run = async () => {
+    setLoading(true);
+    setError("");
+    try {
+      const data = await fetchNetworkCheck();
+      setResult(data);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : String(e));
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
+    run();
+    // 首次挂载即触发一次；组件卸载后 setState 由 React 忽略警告即可
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  return (
+    <Card className="shadow-xl w-full">
+      <CardHeader className="flex items-center justify-between gap-2 pb-2 pt-4 px-4">
+        <div className="flex items-center gap-2">
+          <Icon className="text-primary" icon="lucide:wifi" width={18} />
+          <span className="text-sm font-semibold text-foreground">
+            {t("networkCheck.title")}
+          </span>
+        </div>
+        <div className="flex items-center gap-1">
+          <Button
+            isIconOnly
+            aria-label={t("networkCheck.refresh")}
+            isDisabled={loading}
+            size="sm"
+            variant="light"
+            onPress={run}
+          >
+            <Icon icon="lucide:refresh-cw" width={16} />
+          </Button>
+          <Button
+            isIconOnly
+            aria-label={t("networkCheck.close")}
+            size="sm"
+            variant="light"
+            onPress={onClose}
+          >
+            <Icon icon="lucide:x" width={16} />
+          </Button>
+        </div>
+      </CardHeader>
+      <Divider />
+      <CardBody className="px-4 py-3 space-y-4 max-h-[70vh] overflow-y-auto">
+        {loading && (
+          <div className="flex items-center gap-2 text-sm text-default-500 py-4">
+            <Spinner size="sm" />
+            {t("networkCheck.loading")}
+          </div>
+        )}
+        {!loading && error && (
+          <div className="rounded-md border border-danger-200 bg-danger-50 p-3 text-xs text-danger break-all">
+            {t("networkCheck.error")}: {error}
+          </div>
+        )}
+        {!loading && !error && result && (
+          <NetworkCheckSections result={result} />
+        )}
+      </CardBody>
+    </Card>
+  );
+}
+
+function NetworkCheckSections({ result }: { result: NetworkCheckResult }) {
+  const { t } = useTranslation("db-setup");
+
+  return (
+    <div className="space-y-4">
+      {/* IPv4 —— label + 状态同行 justify-between */}
+      <StackRow icon="lucide:globe" label={t("networkCheck.sections.ipv4")} stack={result.ipv4} />
+
+      <Divider />
+
+      {/* IPv6 —— 同上；不通时下方接 Docker 提示 */}
+      <StackRow icon="lucide:globe-2" label={t("networkCheck.sections.ipv6")} stack={result.ipv6} />
+      {!result.ipv6.reachable && (
+        <IPv6DockerHint deployment={result.system.deployment} />
+      )}
+
+      <Divider />
+
+      {/* GitHub —— 每域名一行；右侧仅在 unreachable 时显示归一化 error */}
+      <SectionTitle
+        icon="lucide:github"
+        text={t("networkCheck.sections.github")}
+      />
+      <div className="space-y-2">
+        {result.github.map((probe) => (
+          <div
+            key={probe.domain}
+            className="flex items-center justify-between gap-2 text-xs"
+          >
+            <div className="flex items-center gap-2 min-w-0">
+              <StatusDot ok={probe.reachable} />
+              <span className="font-mono truncate text-default-700">
+                {probe.domain}
+              </span>
+            </div>
+            {!probe.reachable && probe.error && (
+              <span className="flex-shrink-0 text-danger text-[11px] truncate max-w-[45%]">
+                {probe.error}
+              </span>
+            )}
+          </div>
+        ))}
+      </div>
+    </div>
+  );
+}
+
+function SectionTitle({ icon, text }: { icon: string; text: string }) {
+  return (
+    <div className="flex items-center gap-2 text-sm font-medium text-foreground">
+      <Icon className="text-default-500" icon={icon} width={16} />
+      {text}
+    </div>
+  );
+}
+
+// StackRow 把 section label 与 IPv4/IPv6 状态压到同一行 justify-between。
+// v4/v6 都不展示毫秒，只关心可达/不可达。
+function StackRow({
+  icon,
+  label,
+  stack,
+}: {
+  icon: string;
+  label: string;
+  stack: NonNullable<NetworkCheckResult["ipv4"]>;
+}) {
+  const { t } = useTranslation("db-setup");
+  const reachable = stack.reachable;
+  return (
+    <div className="flex items-center justify-between gap-2 text-sm font-medium text-foreground">
+      <div className="flex items-center gap-2">
+        <Icon className="text-default-500" icon={icon} width={16} />
+        {label}
+      </div>
+      <div className="flex items-center gap-2 text-xs font-normal">
+        <StatusDot ok={reachable} />
+        <span className="text-default-700">
+          {reachable
+            ? t("networkCheck.fields.reachable")
+            : t("networkCheck.fields.unreachable")}
+        </span>
+      </div>
+    </div>
+  );
+}
+
+// IPv6 不通时的精简提示：只一句根据部署方式变化的诊断 + docker 场景的
+// 官方 compose 外链，避免在窄侧边卡里塞大段代码。
+const IPV6_COMPOSE_URL =
+  "https://github.com/NodePassProject/NodePassDash/blob/main/docker-compose-v6-create.yml";
+
+function IPv6DockerHint({ deployment }: { deployment?: string }) {
+  const { t } = useTranslation("db-setup");
+  const isDocker = deployment === "docker";
+  return (
+    <div className="mt-1 rounded-md border border-warning-200 bg-warning-50/60 dark:bg-warning-900/10 p-3 space-y-2">
+      <div className="flex items-start gap-2 text-warning-700 dark:text-warning-400">
+        <Icon
+          className="shrink-0 mt-0.5"
+          icon="solar:danger-triangle-bold"
+          width={14}
+        />
+        <span className="text-[11px] leading-relaxed">
+          {isDocker
+            ? t("networkCheck.dockerHint.dockerBody")
+            : t("networkCheck.dockerHint.hostBody")}
+        </span>
+      </div>
+      {isDocker && (
+        <a
+          className="inline-flex items-center gap-1 text-[11px] text-primary hover:underline pl-6"
+          href={IPV6_COMPOSE_URL}
+          rel="noreferrer noopener"
+          target="_blank"
+        >
+          <Icon icon="solar:square-arrow-right-up-linear" width={12} />
+          {t("networkCheck.dockerHint.referenceLabel")}
+        </a>
+      )}
+    </div>
+  );
+}
+
+function StatusDot({ ok }: { ok: boolean }) {
+  return (
+    <Icon
+      className={ok ? "text-success" : "text-danger"}
+      icon={ok ? "solar:check-circle-bold" : "solar:close-circle-bold"}
+      width={16}
+    />
   );
 }

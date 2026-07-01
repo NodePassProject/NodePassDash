@@ -6,6 +6,7 @@ import (
 	dbPkg "NodePassDash/internal/db"
 	"NodePassDash/internal/db/dialect"
 	log "NodePassDash/internal/log"
+	"NodePassDash/internal/netcheck"
 	"context"
 	"database/sql"
 	"fmt"
@@ -14,6 +15,7 @@ import (
 	"os/signal"
 	"path/filepath"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"syscall"
 	"time"
@@ -65,6 +67,35 @@ func runSetupMode(port, certFile, keyFile string) {
 	})
 
 	r.GET("/api/setup/compliance", compliance.Handler)
+
+	// 网络自检:setup 阶段还没有 DB / 认证,但用户往往需要先判断本机的 IPv4 /
+	// IPv6 / GitHub 连通性再决定是否继续。8s 上限覆盖 5s 单项超时 + 少量余量。
+	//
+	// 无鉴权 + 会触发 5 个出站探测,天然可当放大器,所以按 IP 加 5s 限流。
+	// setup 模式生命周期短(初始化完就 exit),map 不会长期膨胀,无需清理。
+	var (
+		ncMu   sync.Mutex
+		ncLast = map[string]time.Time{}
+	)
+	const ncInterval = 5 * time.Second
+	r.GET("/api/setup/network-check", func(c *gin.Context) {
+		ip := c.ClientIP()
+		now := time.Now()
+		ncMu.Lock()
+		if last, ok := ncLast[ip]; ok && now.Sub(last) < ncInterval {
+			ncMu.Unlock()
+			c.JSON(http.StatusTooManyRequests, gin.H{
+				"error": "rate_limited",
+			})
+			return
+		}
+		ncLast[ip] = now
+		ncMu.Unlock()
+
+		ctx, cancel := context.WithTimeout(c.Request.Context(), 8*time.Second)
+		defer cancel()
+		c.JSON(http.StatusOK, netcheck.Run(ctx))
+	})
 
 	r.POST("/api/setup/test-connection", func(c *gin.Context) {
 		var req setupRequest

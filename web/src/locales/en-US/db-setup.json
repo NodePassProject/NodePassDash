@@ -127,5 +127,38 @@
   "errors": {
     "submitFailedPrefix": "Setup failed: ",
     "statusFetchFailed": "Cannot reach backend status. Is the server running?"
+  },
+  "networkCheck": {
+    "button": "Network check",
+    "title": "Network check",
+    "refresh": "Refresh",
+    "close": "Close",
+    "loading": "Checking network...",
+    "error": "Check failed",
+    "sections": {
+      "ipv4": "IPv4",
+      "ipv6": "IPv6",
+      "github": "GitHub connectivity"
+    },
+    "fields": {
+      "reachable": "Reachable",
+      "unreachable": "Unreachable"
+    },
+    "dockerHint": {
+      "dockerBody": "The Docker container has IPv6 disabled. If the host supports IPv6, follow the official Compose example to enable it.",
+      "hostBody": "IPv6 is disabled or unreachable on the host. Check the kernel / interface / router first.",
+      "referenceLabel": "See the official docker-compose-v6 example"
+    }
+  },
+  "preferences": {
+    "privacyMode": {
+      "label": "Privacy mode",
+      "description": "Automatically mask IP addresses and other sensitive data",
+      "demoLabel": "IP address example"
+    },
+    "experimentalMode": {
+      "label": "Experimental features",
+      "description": "Enable features under test — may be unstable"
+    }
   }
 }

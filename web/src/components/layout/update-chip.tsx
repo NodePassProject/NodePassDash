@@ -344,7 +344,9 @@ export function UpdateChip() {
     [stopProgressSSE],
   );
 
-  const showChip = state !== "idle";
+  // 关闭"自动检查更新"时隐藏升级 chip；已下载待重启是用户主动触发的操作，保留显示
+  const isPendingRestart = state === "update-complete" || state === "restarting";
+  const showChip = state !== "idle" && (settings.autoCheckUpdates || isPendingRestart);
   if (!showChip) return null;
 
   // logo 旁的 chip 任何状态都保持橙色,只用 tooltip 区分语义。

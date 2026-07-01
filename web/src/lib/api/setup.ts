@@ -81,3 +81,38 @@ export async function testConnection(payload: SetupPayload): Promise<void> {
 export async function initializeDatabase(payload: SetupPayload): Promise<void> {
   await postJSON("/api/setup/initialize", payload);
 }
+
+// ============ 网络自检 ============
+
+export interface NetworkSystemInfo {
+  deployment: string;
+  environment: string;
+}
+
+export interface NetworkStackInfo {
+  reachable: boolean;
+  error?: string;
+}
+
+export interface NetworkDomainProbe {
+  domain: string;
+  reachable: boolean;
+  error?: string;
+}
+
+export interface NetworkCheckResult {
+  timestamp: string;
+  system: NetworkSystemInfo;
+  ipv4: NetworkStackInfo;
+  ipv6: NetworkStackInfo;
+  github: NetworkDomainProbe[];
+}
+
+/** Setup 模式下的网络自检。无鉴权，直接返回裸 JSON。 */
+export async function fetchNetworkCheck(): Promise<NetworkCheckResult> {
+  const res = await fetch(buildApiUrl("/api/setup/network-check"));
+  if (!res.ok) {
+    throw new Error(`HTTP ${res.status}`);
+  }
+  return (await res.json()) as NetworkCheckResult;
+}
