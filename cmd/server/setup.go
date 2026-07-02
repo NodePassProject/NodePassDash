@@ -22,7 +22,6 @@ import (
 
 	"github.com/gin-gonic/gin"
 	gormsqlite "github.com/glebarez/sqlite"
-	gormpg "gorm.io/driver/postgres"
 	"gorm.io/gorm"
 )
 
@@ -352,47 +351,25 @@ func openGORMFromConfig(cfg dbPkg.DBConfig) (*gorm.DB, error) {
 
 	case dialect.NamePostgres, "postgresql", "pg":
 		dsn := cfg.BuildPostgresDSN()
-		gormDB, err := gorm.Open(gormpg.Open(dsn), &gorm.Config{})
-		if err != nil {
-			if !isPostgresDatabaseMissing(err) {
-				return nil, err
-			}
-			if err := createPostgresDatabase(cfg); err != nil {
-				return nil, err
-			}
-			return gorm.Open(gormpg.Open(dsn), &gorm.Config{})
-		}
-		if err := pingGORM(gormDB); err == nil {
-			return gormDB, nil
-		} else if !isPostgresDatabaseMissing(err) {
+		gormDB, err := openAndPingPostgres(dsn)
+		if err == nil {
 			return gormDB, nil
 		}
-		_ = closeGORM(gormDB)
-
+		if !isPostgresDatabaseMissing(err) {
+			return nil, err
+		}
 		if err := createPostgresDatabase(cfg); err != nil {
 			return nil, err
 		}
-		return gorm.Open(gormpg.Open(dsn), &gorm.Config{})
+		return openAndPingPostgres(dsn)
 	}
 	return nil, fmt.Errorf("不支持的 driver: %q", cfg.Driver)
 }
 
-func pingGORM(gormDB *gorm.DB) error {
-	sqlDB, err := gormDB.DB()
-	if err != nil {
-		return err
-	}
-	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
-	defer cancel()
-	return sqlDB.PingContext(ctx)
-}
-
-func closeGORM(gormDB *gorm.DB) error {
-	sqlDB, err := gormDB.DB()
-	if err != nil {
-		return err
-	}
-	return sqlDB.Close()
+// openAndPingPostgres 委托给 db 包的共享实现,setup 与 Ready 两条路径复用同一份
+// TimeZone 回退逻辑,避免在最小化镜像里被浏览器填充的 IANA 时区(如 Asia/Shanghai) 卡死。
+func openAndPingPostgres(dsn string) (*gorm.DB, error) {
+	return dbPkg.OpenAndPingPostgres(dsn, &gorm.Config{})
 }
 
 func isPostgresDatabaseMissing(err error) bool {
@@ -416,7 +393,7 @@ func createPostgresDatabase(cfg dbPkg.DBConfig) error {
 	adminCfg := cfg
 	adminCfg.PostgresDatabase = maintenanceDB
 
-	adminDB, err := gorm.Open(gormpg.Open(buildSetupPostgresDSN(adminCfg)), &gorm.Config{})
+	adminDB, err := openAndPingPostgres(buildSetupPostgresDSN(adminCfg))
 	if err != nil {
 		return fmt.Errorf("打开 PostgreSQL 维护库失败: %v", err)
 	}
@@ -428,9 +405,6 @@ func createPostgresDatabase(cfg dbPkg.DBConfig) error {
 
 	ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 	defer cancel()
-	if err := sqlDB.PingContext(ctx); err != nil {
-		return fmt.Errorf("目标数据库 %q 不存在,且连接维护库 %q 失败: %v", cfg.PostgresDatabase, maintenanceDB, err)
-	}
 
 	stmt := fmt.Sprintf("CREATE DATABASE %s", quotePostgresIdentifier(cfg.PostgresDatabase))
 	if _, err := sqlDB.ExecContext(ctx, stmt); err != nil {

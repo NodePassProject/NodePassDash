@@ -131,9 +131,72 @@ func openGORM(config DBConfig, gormConfig *gorm.Config) (*gorm.DB, error) {
 
 	case dialect.NamePostgres, "postgresql", "pg":
 		dsn := config.BuildPostgresDSN()
-		return gorm.Open(gormpg.Open(dsn), gormConfig)
+		return OpenAndPingPostgres(dsn, gormConfig)
 	}
 	return nil, fmt.Errorf("不支持的 driver: %q", config.Driver)
+}
+
+// OpenAndPingPostgres 打开一个 PostgreSQL GORM 连接并立刻 ping 一次。
+// 若 PG 服务器缺少对应 tzdata(常见于 alpine / distroless 精简镜像)
+// 而拒绝 DSN 中的 TimeZone,自动把 TimeZone 剥掉重试一次,避免用户被浏览器
+// 默认填充的 IANA 时区(比如 Asia/Shanghai) 在最小化镜像里卡死。
+// setup 阶段与 Ready 阶段共用同一入口,保证 .env 落盘的 PG_TIMEZONE 不会导致下次启动崩溃。
+func OpenAndPingPostgres(dsn string, gormConfig *gorm.Config) (*gorm.DB, error) {
+	attemptDSN := dsn
+	for attempt := 0; attempt < 2; attempt++ {
+		gormDB, err := gorm.Open(gormpg.Open(attemptDSN), gormConfig)
+		if err != nil {
+			if attempt == 0 && isUnknownTimeZoneErr(err) {
+				attemptDSN = stripTimeZoneFromDSN(dsn)
+				applog.Warnf("[DB]PostgreSQL 拒绝 DSN 中的 TimeZone,回退到服务器默认时区: %v", err)
+				continue
+			}
+			return nil, err
+		}
+		sqlDB, err := gormDB.DB()
+		if err != nil {
+			return nil, err
+		}
+		ctx, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+		pingErr := sqlDB.PingContext(ctx)
+		cancel()
+		if pingErr == nil {
+			return gormDB, nil
+		}
+		_ = sqlDB.Close()
+		if attempt == 0 && isUnknownTimeZoneErr(pingErr) {
+			attemptDSN = stripTimeZoneFromDSN(dsn)
+			applog.Warnf("[DB]PostgreSQL 拒绝 DSN 中的 TimeZone,回退到服务器默认时区: %v", pingErr)
+			continue
+		}
+		return nil, pingErr
+	}
+	return nil, fmt.Errorf("PostgreSQL 连接失败")
+}
+
+func isUnknownTimeZoneErr(err error) bool {
+	if err == nil {
+		return false
+	}
+	msg := strings.ToLower(err.Error())
+	return strings.Contains(msg, "unknown time zone") ||
+		strings.Contains(msg, "invalid value for parameter \"timezone\"")
+}
+
+// stripTimeZoneFromDSN 去掉 keyword=value 形式 DSN 里的 TimeZone / time_zone 段。
+func stripTimeZoneFromDSN(dsn string) string {
+	parts := strings.Fields(dsn)
+	kept := parts[:0]
+	for _, p := range parts {
+		if idx := strings.IndexByte(p, '='); idx > 0 {
+			key := strings.ToLower(p[:idx])
+			if key == "timezone" || key == "time_zone" {
+				continue
+			}
+		}
+		kept = append(kept, p)
+	}
+	return strings.Join(kept, " ")
 }
 
 // resolveLogLevel 把字符串日志级别映射到 GORM logger 级别。
