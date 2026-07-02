@@ -144,13 +144,10 @@ release:
   replace_existing_draft: true
   # 发布说明
   header: |
-    ## NodePassDash Release Notes (v4.0.4)
+    ## NodePassDash Release Notes (v4.0.5)
     
     ### Optimize
-    - Optimize today's traffic statistics function
-    
-    ### Fix
-    - Fix PG init progress
+    - Refactor PostgreSQL database connection logic
 
   footer: |
 
